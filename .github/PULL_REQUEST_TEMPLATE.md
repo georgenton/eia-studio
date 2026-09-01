@@ -13,6 +13,7 @@
 ## Tenancy and security impact
 
 <!-- Required. State "none" explicitly if that is the case. -->
+
 - New tables carry `tenant_id` (+ `project_id`), RLS policies, composite FK, registry entry: <!-- yes / n/a -->
 - Cross-tenant attack harness extended for new entry points: <!-- yes / n/a -->
 - PII, audit, portal or identity-provider effects: <!-- describe / none -->
