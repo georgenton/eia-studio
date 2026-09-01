@@ -1,0 +1,79 @@
+# EIA Studio — CI quality gate (Stage A: repository hygiene only).
+# The job name "quality" is the required status check for branch protection and must stay stable.
+# Later stages (install, format, lint, typecheck, unit tests, build, db, e2e) are added when the
+# corresponding scripts exist — see docs/CI.md. No placeholder steps.
+name: ci
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    name: quality
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Repository hygiene
+        shell: bash
+        run: |
+          set -euo pipefail
+          fail=0
+
+          echo "::group::Committed secrets or build artefacts"
+          if git ls-files | grep -E '(^|/)\.env(\..*)?$' | grep -v -E '\.example$' ; then
+            echo "::error::.env files with values must not be committed"; fail=1; fi
+          if git ls-files | grep -E '(^|/)node_modules/' ; then
+            echo "::error::node_modules must not be committed"; fail=1; fi
+          if git ls-files | grep -E '\.(pem|p12|key)$' ; then
+            echo "::error::private key material must not be committed"; fail=1; fi
+          echo "::endgroup::"
+
+          echo "::group::Pilot constants outside fixtures (CLAUDE.md rule 3)"
+          # Directories may not exist yet; the check passes when they are absent.
+          for dir in apps packages; do
+            if [ -d "$dir" ]; then
+              if grep -rIn -E 'Zamora|Puente del Amor|Los Hachos|Consultora Andina|Zamora Chinchipe' "$dir" \
+                   --exclude-dir=node_modules --exclude-dir=.next --exclude-dir=dist ; then
+                echo "::error::pilot-project constants found under $dir/ (they belong in fixtures/)"; fail=1; fi
+            fi
+          done
+          echo "::endgroup::"
+
+          echo "::group::Documentation set present"
+          for f in CLAUDE.md docs/README.md docs/ARCHITECTURE.md docs/TENANCY.md docs/FEATURES.md \
+                   docs/SECURITY.md docs/PROVENANCE.md docs/ENGINEERING_STANDARDS.md docs/CI.md \
+                   docs/DEPLOYMENT.md docs/RELEASE_POLICY.md docs/DECISIONS/GATE-1.md; do
+            [ -f "$f" ] || { echo "::error::missing $f"; fail=1; }
+          done
+          echo "::endgroup::"
+
+          exit $fail
+
+      - name: Conventional Commit PR title
+        if: github.event_name == 'pull_request'
+        shell: bash
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          set -euo pipefail
+          types='feat|fix|docs|chore|refactor|test|perf|build|ci|revert'
+          scopes='core|projects|gis|field|social|quality|documents|reports|portal|ai|provenance|audit|db|ui|web|worker|fixtures|docs|contracts|config|testing|deps|release'
+          if [[ "$PR_TITLE" =~ ^($types)(\(($scopes)\))?!?:\ [^[:space:]].{0,71}$ ]]; then
+            echo "PR title OK: $PR_TITLE"
+          else
+            echo "::error::PR title must follow Conventional Commits with a known scope: type(scope): subject"
+            echo "  types:  $types"
+            echo "  scopes: $scopes"
+            exit 1
+          fi

@@ -1,0 +1,33 @@
+# dependencies and build output (added when the monorepo exists)
+node_modules/
+.pnpm-store/
+.turbo/
+dist/
+build/
+.next/
+out/
+coverage/
+*.tsbuildinfo
+
+# environment and secrets — only *.example files are committed
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# provider local state
+.vercel/
+.railway/
+
+# test artefacts
+playwright-report/
+test-results/
+**/__screenshots__/**/*-actual.png
+**/__screenshots__/**/*-diff.png
+
+# editors and OS
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.log

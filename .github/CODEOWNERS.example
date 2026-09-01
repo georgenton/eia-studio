@@ -1,0 +1,12 @@
+# CODEOWNERS — future optional configuration.
+# This file is intentionally NOT active (GitHub reads `.github/CODEOWNERS`, not this name).
+# The project has a single developer today; rename to CODEOWNERS when a second maintainer joins.
+#
+# Security-sensitive paths that should always get a review from the security owner:
+# /packages/db/                 @owner-handle
+# /packages/domain/core/        @owner-handle
+# /packages/domain/provenance/  @owner-handle
+# /packages/domain/client-portal/ @owner-handle
+# /packages/domain/ai/          @owner-handle
+# /.github/                     @owner-handle
+# /docs/DECISIONS/              @owner-handle

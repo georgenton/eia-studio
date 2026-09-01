@@ -1,0 +1,910 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  html,body{margin:0;padding:0;background:#EDEFF1;}
+  *{box-sizing:border-box;}
+  body{font-family:'Archivo',system-ui,sans-serif;-webkit-font-smoothing:antialiased;}
+  a{color:#17506B;text-decoration:none;}
+  a:hover{color:#0E3A50;text-decoration:underline;}
+  ::selection{background:#17506B;color:#fff;}
+</style>
+</helmet>
+<div style="background:#EDEFF1;padding:34px 20px 70px;color:#101827;font-size:13px;">
+<div style="max-width:1020px;margin:0 auto;background:#fff;border:1px solid #DCE1E5;">
+
+  <!-- COVER -->
+  <div style="padding:52px 56px 42px;border-bottom:3px solid #17506B;">
+    <div style="display:flex;align-items:center;gap:10px;">
+      <div style="width:26px;height:26px;background:#17506B;display:flex;align-items:center;justify-content:center;">
+        <div style="width:11px;height:11px;border:1.5px solid #fff;border-radius:50% 50% 50% 0;transform:rotate(-45deg);"></div>
+      </div>
+      <div style="font-family:'Source Serif 4',serif;font-size:16px;font-weight:600;">EIA Studio</div>
+    </div>
+    <h1 style="margin:24px 0 0;font-family:'Source Serif 4',serif;font-size:38px;font-weight:600;letter-spacing:-.025em;line-height:1.12;max-width:680px;">Arquitectura de información y lenguaje de diseño</h1>
+    <div style="font-size:14px;color:#5A646C;margin-top:14px;max-width:640px;line-height:1.6;">Fuente de verdad de diseño del producto. Documenta el modelo de dominio multi-tenant, la navegación por capabilities, las superficies del núcleo operacional, los patrones transversales y el sistema visual de la Dirección B — Institucional. Sincronizado con <strong>EIA Studio.dc.html</strong>.</div>
+    <div style="display:flex;gap:32px;margin-top:30px;padding-top:22px;border-top:1px solid #E8EBEE;flex-wrap:wrap;">
+      <div>
+        <div style="font-size:9.5px;font-weight:600;letter-spacing:.12em;color:#7A858E;">VERSIÓN</div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:13px;margin-top:4px;">0.2 · núcleo operacional</div>
+      </div>
+      <div>
+        <div style="font-size:9.5px;font-weight:600;letter-spacing:.12em;color:#7A858E;">PERFIL DE PROYECTO</div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:13px;margin-top:4px;">road_eia_social</div>
+      </div>
+      <div>
+        <div style="font-size:9.5px;font-weight:600;letter-spacing:.12em;color:#7A858E;">PROYECTO PILOTO</div>
+        <div style="font-size:13px;margin-top:4px;">Puente del Amor – Los Hachos</div>
+      </div>
+      <div>
+        <div style="font-size:9.5px;font-weight:600;letter-spacing:.12em;color:#7A858E;">DIRECCIÓN VISUAL</div>
+        <div style="font-size:13px;margin-top:4px;">B — Institucional (confirmada)</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 00 CHANGELOG -->
+  <div style="padding:34px 56px;border-bottom:1px solid #E8EBEE;background:#FAFBFC;">
+    <div style="font-size:9.5px;font-weight:600;letter-spacing:.12em;color:#7A858E;">CHANGELOG · 0.1 → 0.2</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 26px;margin-top:14px;">
+      <sc-for list="{{ changelog }}" as="c" hint-placeholder-count="10">
+      <div style="display:flex;gap:10px;align-items:baseline;">
+        <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:{{ c.fg }};flex:0 0 auto;">{{ c.tag }}</span>
+        <span style="font-size:12px;color:#3D4852;line-height:1.5;">{{ c.text }}</span>
+      </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <!-- 01 DOMINIO -->
+  <div style="padding:40px 56px;border-bottom:1px solid #E8EBEE;">
+    <div style="display:flex;align-items:baseline;gap:12px;">
+      <span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#17506B;">01</span>
+      <h2 style="margin:0;font-family:'Source Serif 4',serif;font-size:23px;font-weight:600;letter-spacing:-.015em;">Modelo de dominio</h2>
+    </div>
+    <div style="font-size:13px;color:#5A646C;margin-top:10px;max-width:680px;line-height:1.65;">La pertenencia de todo objeto al tenant es explícita y no derivable. Un usuario accede a datos únicamente a través de una membresía, y a un proyecto únicamente a través de una asignación dentro de esa membresía.</div>
+
+    <div style="margin-top:24px;display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start;">
+      <div style="border:1px solid #DCE1E5;border-radius:5px;overflow:hidden;">
+        <div style="padding:10px 14px;background:#FAFBFC;border-bottom:1px solid #DCE1E5;font-size:9.5px;font-weight:600;letter-spacing:.12em;color:#7A858E;">JERARQUÍA</div>
+        <div style="padding:16px 18px;font-family:'JetBrains Mono',monospace;font-size:11.5px;line-height:2;color:#3D4852;">
+          <div style="color:#17506B;font-weight:500;">Tenant / Organization</div>
+          <div style="padding-left:14px;">└ Users · Memberships <span style="color:#8B959C;">(rol por tenant)</span></div>
+          <div style="padding-left:28px;">└ Project Assignments <span style="color:#8B959C;">(rol por proyecto)</span></div>
+          <div style="padding-left:14px;color:#17506B;font-weight:500;">└ Projects <span style="color:#8B959C;font-weight:400;">(profile + capabilities)</span></div>
+          <div style="padding-left:28px;">└ Project Units <span style="color:#8B959C;">(tramos)</span></div>
+          <div style="padding-left:42px;color:#17506B;">└ Parcels <span style="color:#8B959C;font-weight:400;">— workspace maestro</span></div>
+          <div style="padding-left:56px;">├ Geometry · Abscisa · Sector</div>
+          <div style="padding-left:56px;">├ Visits → Surveys → Answers</div>
+          <div style="padding-left:56px;">├ Affectations · Media</div>
+          <div style="padding-left:56px;">└ Quality Checks</div>
+          <div style="padding-left:42px;">├ Documents · Versions</div>
+          <div style="padding-left:42px;">├ Findings <span style="color:#8B959C;">(Quality Gate)</span></div>
+          <div style="padding-left:42px;">├ Categories · Taxonomy versions</div>
+          <div style="padding-left:42px;">└ Reports · Provenance records</div>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:14px;">
+        <div style="border:1px solid #DCE1E5;border-radius:5px;padding:16px 18px;">
+          <div style="font-size:12.5px;font-weight:600;">Reglas invariantes</div>
+          <div style="font-size:12px;color:#5A646C;margin-top:9px;line-height:1.7;">
+            · Todo registro lleva <span style="font-family:'JetBrains Mono',monospace;font-size:11px;">tenant_id</span> y <span style="font-family:'JetBrains Mono',monospace;font-size:11px;">project_id</span>.<br>
+            · Una respuesta original de encuesta nunca se sobrescribe; la codificación vive en una capa aparte y versionada.<br>
+            · Toda cifra publicada conserva su cadena de procedencia hasta el registro de campo.<br>
+            · El acceso de cliente se sirve desde una proyección agregada, no desde las tablas operativas.<br>
+            · Un dato sintético o reconstruido nunca se presenta como histórico real.
+          </div>
+        </div>
+        <div style="border:1px solid #DCE1E5;border-radius:5px;padding:16px 18px;background:#F0F6F9;">
+          <div style="font-size:12.5px;font-weight:600;color:#17506B;">Datos reales del piloto</div>
+          <div style="font-size:12px;color:#2A5670;margin-top:8px;line-height:1.7;">7,4 km · 141 predios frentistas · 119 levantamientos socioeconómicos · 185 participantes en consulta significativa. Provienen del estudio ya concluido. Cualquier otra cifra operativa del prototipo (visitados, revisitas, productividad, proyección) es <strong>DEMO / SYNTHETIC</strong> y está etiquetada como tal en pantalla.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 02 CAPABILITIES -->
+  <div style="padding:40px 56px;border-bottom:1px solid #E8EBEE;">
+    <div style="display:flex;align-items:baseline;gap:12px;">
+      <span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#17506B;">02</span>
+      <h2 style="margin:0;font-family:'Source Serif 4',serif;font-size:23px;font-weight:600;letter-spacing:-.015em;">Navegación por capabilities</h2>
+    </div>
+    <div style="font-size:13px;color:#5A646C;margin-top:10px;max-width:680px;line-height:1.65;">La navegación es una función del conjunto de capabilities habilitadas en el proyecto, no una lista fija. Un módulo deshabilitado no aparece: nunca se muestra atenuado ni con candado dentro del workspace. La capability controla a la vez la ruta, el ítem de navegación y la disponibilidad de los objetos de dominio asociados.</div>
+
+    <div style="margin-top:22px;border:1px solid #DCE1E5;border-radius:5px;overflow:hidden;">
+      <div style="display:grid;grid-template-columns:1.45fr 1.5fr 2.2fr 1fr;gap:14px;padding:10px 16px;background:#FAFBFC;border-bottom:1px solid #DCE1E5;font-size:9.5px;font-weight:600;letter-spacing:.1em;color:#7A858E;">
+        <div>SECCIÓN</div><div>CAPABILITY</div><div>CONTIENE</div><div>ESTADO EN EL PILOTO</div>
+      </div>
+      <sc-for list="{{ nav }}" as="n" hint-placeholder-count="12">
+      <div style="display:grid;grid-template-columns:1.45fr 1.5fr 2.2fr 1fr;gap:14px;padding:11px 16px;border-bottom:1px solid #F0F2F4;align-items:baseline;">
+        <div style="font-size:12.5px;font-weight:500;color:{{ n.fg }};">{{ n.name }}</div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#5A646C;">{{ n.key }}</div>
+        <div style="font-size:11.5px;color:#5A646C;line-height:1.5;">{{ n.desc }}</div>
+        <div><span style="font-size:9.5px;font-weight:600;letter-spacing:.06em;padding:3px 9px;border-radius:11px;background:{{ n.bg }};color:{{ n.chipFg }};border:1px solid {{ n.bd }};">{{ n.state }}</span></div>
+      </div>
+      </sc-for>
+    </div>
+    <div style="font-size:11.5px;color:#8B959C;margin-top:10px;line-height:1.6;"><strong style="color:#5A646C;">Diseñado</strong> = pantalla construida en el prototipo. <strong style="color:#5A646C;">Fase posterior</strong> = capability habilitada en el tenant, superficie aún no diseñada; aparece en el rail sin ruta activa. <strong style="color:#5A646C;">Fuera de navegación</strong> = extensión existente en el catálogo y en Tenant Settings, invisible en el workspace del proyecto.</div>
+  </div>
+
+  <!-- 03 SUPERFICIES -->
+  <div style="padding:40px 56px;border-bottom:1px solid #E8EBEE;">
+    <div style="display:flex;align-items:baseline;gap:12px;">
+      <span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#17506B;">03</span>
+      <h2 style="margin:0;font-family:'Source Serif 4',serif;font-size:23px;font-weight:600;letter-spacing:-.015em;">Superficies y flujo conectado</h2>
+    </div>
+    <div style="font-size:13px;color:#5A646C;margin-top:10px;max-width:680px;line-height:1.65;">Cada superficie responde una pregunta distinta y entrega el trabajo a la siguiente. El prototipo conecta el recorrido completo: una alerta del Command Center lleva al mapa, el mapa al predio, el predio al hallazgo, y la alerta social a la cola de validación.</div>
+
+    <div style="margin-top:22px;border:1px solid #DCE1E5;border-radius:5px;overflow:hidden;">
+      <div style="display:grid;grid-template-columns:1.25fr 1.7fr 1.1fr 1.5fr;gap:14px;padding:10px 16px;background:#FAFBFC;border-bottom:1px solid #DCE1E5;font-size:9.5px;font-weight:600;letter-spacing:.1em;color:#7A858E;">
+        <div>SUPERFICIE</div><div>PREGUNTA QUE RESPONDE</div><div>ROL PRINCIPAL</div><div>SALIDA HACIA</div>
+      </div>
+      <sc-for list="{{ surfaces }}" as="s" hint-placeholder-count="8">
+      <div style="display:grid;grid-template-columns:1.25fr 1.7fr 1.1fr 1.5fr;gap:14px;padding:12px 16px;border-bottom:1px solid #F0F2F4;font-size:12px;align-items:baseline;">
+        <div style="font-weight:600;">{{ s.name }}</div>
+        <div style="color:#5A646C;line-height:1.5;">{{ s.q }}</div>
+        <div style="color:#5A646C;">{{ s.role }}</div>
+        <div style="color:#17506B;">{{ s.next }}</div>
+      </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <!-- 04 COMMAND CENTER -->
+  <div style="padding:40px 56px;border-bottom:1px solid #E8EBEE;">
+    <div style="display:flex;align-items:baseline;gap:12px;">
+      <span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#17506B;">04</span>
+      <h2 style="margin:0;font-family:'Source Serif 4',serif;font-size:23px;font-weight:600;letter-spacing:-.015em;">Command Center y Operational Forecast</h2>
+    </div>
+    <div style="font-size:13px;color:#5A646C;margin-top:10px;max-width:680px;line-height:1.65;">Centro de control operacional, no galería de gráficas. Debe responder en menos de diez segundos: cuánto se ha avanzado, qué queda, si se está dentro de plazo, dónde están los problemas y qué requiere atención hoy.</div>
+
+    <div style="margin-top:22px;display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start;">
+      <div style="border:1px solid #DCE1E5;border-radius:5px;overflow:hidden;">
+        <div style="padding:10px 14px;background:#FAFBFC;border-bottom:1px solid #DCE1E5;font-size:9.5px;font-weight:600;letter-spacing:.12em;color:#7A858E;">COMPOSICIÓN DE LA PANTALLA</div>
+        <sc-for list="{{ ccBlocks }}" as="b" hint-placeholder-count="5">
+        <div style="padding:12px 16px;border-bottom:1px solid #F0F2F4;">
+          <div style="font-size:12.5px;font-weight:600;">{{ b.name }}</div>
+          <div style="font-size:11.5px;color:#5A646C;margin-top:4px;line-height:1.55;">{{ b.desc }}</div>
+        </div>
+        </sc-for>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:16px;">
+        <div style="border:1px solid #DCE1E5;border-radius:5px;overflow:hidden;">
+          <div style="padding:10px 14px;background:#FAFBFC;border-bottom:1px solid #DCE1E5;display:flex;align-items:center;gap:9px;">
+            <span style="font-size:9.5px;font-weight:600;letter-spacing:.12em;color:#7A858E;">DATO REAL vs SIMULACIÓN</span>
+            <span style="font-size:9px;font-weight:700;letter-spacing:.1em;background:#8A6512;color:#fff;padding:2px 7px;border-radius:3px;">DEMO / SYNTHETIC</span>
+          </div>
+          <div style="padding:14px 16px;">
+            <div style="font-size:11.5px;color:#5A646C;line-height:1.6;">El proyecto piloto está concluido: sus cifras agregadas son históricas y verificables. La simulación de ejecución existe solo para demostrar el control operacional del producto y se marca en tres niveles: badge en la cabecera del bloque, nota explicativa junto al badge, y <span style="font-family:'JetBrains Mono',monospace;font-size:11px;">SOURCE TYPE</span> en el drawer de provenance.</div>
+            <div style="margin-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+              <div style="border:1px solid #CBE2D6;background:#F6FBF8;border-radius:4px;padding:10px 12px;">
+                <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#2C6046;">REAL_AGGREGATE</div>
+                <div style="font-size:11.5px;color:#3D4852;margin-top:5px;line-height:1.5;">141 predios · 119 levantamientos · 185 participantes · 7,4 km</div>
+              </div>
+              <div style="border:1px solid #E2E6E9;background:#FAFBFC;border-radius:4px;padding:10px 12px;">
+                <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#5A646C;">SYNTHETIC</div>
+                <div style="font-size:11.5px;color:#3D4852;margin-top:5px;line-height:1.5;">Visitados · revisitas · pendientes · productividad · proyección · feed de actividad</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style="border:1px solid #C3D6E0;border-radius:5px;overflow:hidden;">
+          <div style="padding:10px 14px;background:#F7FAFC;border-bottom:1px solid #C3D6E0;font-size:9.5px;font-weight:600;letter-spacing:.12em;color:#17506B;">OPERATIONAL FORECAST · CONTRATO DEL COMPONENTE</div>
+          <div style="padding:14px 16px;">
+            <div style="font-family:'Source Serif 4',serif;font-size:14.5px;line-height:1.55;">«Al ritmo de los últimos 5 días, el levantamiento concluiría 4 días después de la fecha objetivo.»</div>
+            <div style="font-size:11.5px;color:#5A646C;margin-top:11px;line-height:1.65;">Es una <strong>proyección aritmética determinística</strong>, reproducible a mano: pendientes ÷ media móvil de 5 días. No es un modelo, no se presenta como IA y no usa lenguaje probabilístico. Obligatorio mostrar siempre: ritmo actual, ritmo necesario, técnicos activos, supuestos explícitos y acceso al detalle del cálculo.</div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:11px;">
+              <span style="font-family:'JetBrains Mono',monospace;font-size:10px;padding:3px 8px;background:#fff;border:1px solid #DCE1E5;border-radius:3px;color:#5A646C;">sin estacionalidad</span>
+              <span style="font-family:'JetBrains Mono',monospace;font-size:10px;padding:3px 8px;background:#fff;border:1px solid #DCE1E5;border-radius:3px;color:#5A646C;">sin variables externas</span>
+              <span style="font-family:'JetBrains Mono',monospace;font-size:10px;padding:3px 8px;background:#fff;border:1px solid #DCE1E5;border-radius:3px;color:#5A646C;">recalculado en cada sync</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 05 GIS -->
+  <div style="padding:40px 56px;border-bottom:1px solid #E8EBEE;">
+    <div style="display:flex;align-items:baseline;gap:12px;">
+      <span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#17506B;">05</span>
+      <h2 style="margin:0;font-family:'Source Serif 4',serif;font-size:23px;font-weight:600;letter-spacing:-.015em;">GIS / Parcel Explorer</h2>
+    </div>
+    <div style="font-size:13px;color:#5A646C;margin-top:10px;max-width:680px;line-height:1.65;">Herramienta de trabajo intensivo, no ilustración. Mapa y tabla son dos vistas de la misma selección: al elegir una fila se resalta el polígono y se abre el panel contextual; al elegir un polígono se enfoca la fila. El panel contextual entrega al Parcel Workspace.</div>
+
+    <div style="margin-top:22px;display:grid;grid-template-columns:1.15fr 1fr;gap:20px;align-items:start;">
+      <div style="border:1px solid #DCE1E5;border-radius:5px;overflow:hidden;">
+        <div style="padding:10px 14px;background:#FAFBFC;border-bottom:1px solid #DCE1E5;font-size:9.5px;font-weight:600;letter-spacing:.12em;color:#7A858E;">ESTADOS PREDIALES · COLOR + GLIFO</div>
+        <div style="padding:14px 16px;">
+          <div style="font-size:11.5px;color:#5A646C;line-height:1.6;">Ningún estado se codifica solo por color. Cada estado lleva un glifo monoespaciado dentro del polígono, del chip de tabla y de la leyenda, de modo que el mapa siga siendo legible en impresión monocroma y para usuarios con visión cromática atípica.</div>
+          <div style="display:flex;flex-direction:column;gap:9px;margin-top:14px;">
+            <sc-for list="{{ parcelStates }}" as="p" hint-placeholder-count="6">
+            <div style="display:flex;align-items:center;gap:11px;">
+              <span style="width:19px;height:19px;border-radius:3px;background:{{ p.fill }};border:1.4px solid {{ p.stroke }};font-family:'JetBrains Mono',monospace;font-size:10px;color:{{ p.glyphFg }};display:flex;align-items:center;justify-content:center;flex:0 0 19px;">{{ p.glyph }}</span>
+              <span style="font-size:12px;font-weight:500;width:130px;">{{ p.name }}</span>
+              <span style="font-size:11.5px;color:#5A646C;flex:1;line-height:1.45;">{{ p.def }}</span>
+            </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:16px;">
+        <div style="border:1px solid #DCE1E5;border-radius:5px;overflow:hidden;">
+          <div style="padding:10px 14px;background:#FAFBFC;border-bottom:1px solid #DCE1E5;font-size:9.5px;font-weight:600;letter-spacing:.12em;color:#7A858E;">PROVENANCE GEOESPACIAL · LEYENDA OBLIGATORIA</div>
+          <div style="padding:14px 16px;display:flex;flex-direction:column;gap:12px;">
+            <div style="display:flex;gap:11px;align-items:flex-start;">
+              <span style="width:20px;height:3px;background:#A8C6D2;margin-top:6px;flex:0 0 20px;"></span>
+              <div>
+                <div style="font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#2C6046;">REAL BASE MAP</div>
+                <div style="font-size:11.5px;color:#5A646C;margin-top:3px;line-height:1.5;">Geografía real de Zamora Chinchipe: hidrografía, poblados y localización general del proyecto.</div>
+              </div>
+            </div>
+            <div style="display:flex;gap:11px;align-items:flex-start;">
+              <span style="width:20px;border-top:2.4px dashed #17506B;margin-top:7px;flex:0 0 20px;"></span>
+              <div>
+                <div style="font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#8A6512;">RECONSTRUCTED ALIGNMENT</div>
+                <div style="font-size:11.5px;color:#5A646C;margin-top:3px;line-height:1.5;">Trazado aproximado del corredor, dibujado con línea discontinua hasta recibir el GIS oficial. Nunca se representa como eje levantado.</div>
+              </div>
+            </div>
+            <div style="display:flex;gap:11px;align-items:flex-start;">
+              <span style="width:17px;height:13px;background:#DCE6EA;border:1.4px solid #8FA9B5;margin-top:3px;flex:0 0 17px;"></span>
+              <div>
+                <div style="font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#9E3B22;">SYNTHETIC PARCELS</div>
+                <div style="font-size:11.5px;color:#5A646C;margin-top:3px;line-height:1.5;">Polígonos generados sobre el corredor. <strong>No son catastro</strong> y así se declara en la leyenda, en el panel contextual y en el drawer de provenance.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style="border:1px solid #DCE1E5;border-radius:5px;padding:15px 17px;">
+          <div style="font-size:12.5px;font-weight:600;">Columnas canónicas de la tabla</div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#5A646C;margin-top:9px;line-height:1.9;">código · sector · abscisa · estado · visitas · social · servicios ecosistémicos · afectación · quality · última actividad</div>
+          <div style="font-size:11.5px;color:#5A646C;margin-top:10px;line-height:1.55;">Los tres instrumentos se representan con marca compacta (✓ completo · ◐ en curso · — no aplica) para mantener la densidad sin recurrir a más chips.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 06 PARCEL -->
+  <div style="padding:40px 56px;border-bottom:1px solid #E8EBEE;">
+    <div style="display:flex;align-items:baseline;gap:12px;">
+      <span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#17506B;">06</span>
+      <h2 style="margin:0;font-family:'Source Serif 4',serif;font-size:23px;font-weight:600;letter-spacing:-.015em;">Parcel Workspace</h2>
+    </div>
+    <div style="font-size:13px;color:#5A646C;margin-top:10px;max-width:680px;line-height:1.65;">El predio es el workspace maestro territorial: todo lo que ocurre en campo cuelga de él. Un especialista debe entender el predio completo sin abrir Excel, Drive ni el visor GIS por separado.</div>
+
+    <div style="margin-top:22px;display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start;">
+      <div style="border:1px solid #DCE1E5;border-radius:5px;overflow:hidden;">
+        <div style="padding:10px 14px;background:#FAFBFC;border-bottom:1px solid #DCE1E5;font-size:9.5px;font-weight:600;letter-spacing:.12em;color:#7A858E;">PESTAÑAS Y OBJETOS RELACIONADOS</div>
+        <sc-for list="{{ parcelTabs }}" as="t" hint-placeholder-count="6">
+        <div style="display:grid;grid-template-columns:110px 1fr;gap:14px;padding:11px 16px;border-bottom:1px solid #F0F2F4;align-items:baseline;">
+          <div style="font-size:12.5px;font-weight:600;">{{ t.name }}</div>
+          <div style="font-size:11.5px;color:#5A646C;line-height:1.55;">{{ t.desc }}</div>
+        </div>
+        </sc-for>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:16px;">
+        <div style="border:1px solid #DCE1E5;border-radius:5px;overflow:hidden;">
+          <div style="padding:10px 14px;background:#FAFBFC;border-bottom:1px solid #DCE1E5;font-size:9.5px;font-weight:600;letter-spacing:.12em;color:#7A858E;">ESTADOS DE INSTRUMENTO</div>
+          <div style="padding:14px 16px;display:flex;flex-wrap:wrap;gap:7px;">
+            <span style="font-size:10px;font-weight:600;letter-spacing:.06em;padding:3px 9px;background:#F1F3F5;color:#5A646C;border:1px solid #E2E6E9;border-radius:12px;">NOT STARTED</span>
+            <span style="font-size:10px;font-weight:600;letter-spacing:.06em;padding:3px 9px;background:#F0F6F9;color:#17506B;border:1px solid #C3D6E0;border-radius:12px;">IN PROGRESS</span>
+            <span style="font-size:10px;font-weight:600;letter-spacing:.06em;padding:3px 9px;background:#F0F6F9;color:#17506B;border:1px solid #C3D6E0;border-radius:12px;">COMPLETE</span>
+            <span style="font-size:10px;font-weight:600;letter-spacing:.06em;padding:3px 9px;background:#FBF3E2;color:#8A6512;border:1px solid #EFE0BF;border-radius:12px;">NEEDS REVIEW</span>
+            <span style="font-size:10px;font-weight:600;letter-spacing:.06em;padding:3px 9px;background:#EAF3EE;color:#2C6046;border:1px solid #CBE2D6;border-radius:12px;">VALIDATED</span>
+          </div>
+          <div style="padding:0 16px 14px;font-size:11.5px;color:#5A646C;line-height:1.55;">Solo <strong>VALIDATED</strong> alimenta la analítica y los informes. <strong>COMPLETE</strong> significa que el instrumento está lleno, no que haya sido revisado.</div>
+        </div>
+        <div style="border:1px solid #DCE1E5;border-radius:5px;padding:15px 17px;">
+          <div style="font-size:12.5px;font-weight:600;">Protección de datos en la ficha</div>
+          <div style="font-size:11.5px;color:#5A646C;margin-top:8px;line-height:1.6;">Nombres, teléfonos, ingresos individuales e indicadores de vulnerabilidad son visibles solo para Especialista social y Coordinador, se registran en el log de auditoría al exportarse y nunca cruzan al Client Portal. En el prototipo el predio se muestra anonimizado y con datos sintéticos.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 07 SOCIAL -->
+  <div style="padding:40px 56px;border-bottom:1px solid #E8EBEE;">
+    <div style="display:flex;align-items:baseline;gap:12px;">
+      <span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#17506B;">07</span>
+      <h2 style="margin:0;font-family:'Source Serif 4',serif;font-size:23px;font-weight:600;letter-spacing:-.015em;">Social Intelligence · human-in-the-loop</h2>
+    </div>
+    <div style="font-size:13px;color:#5A646C;margin-top:10px;max-width:680px;line-height:1.65;">La codificación de respuestas abiertas es un flujo de decisión humana asistida. El sistema propone; el especialista decide; la analítica solo consume lo decidido.</div>
+
+    <div style="margin-top:22px;border:1px solid #DCE1E5;border-radius:5px;overflow:hidden;">
+      <div style="padding:10px 14px;background:#FAFBFC;border-bottom:1px solid #DCE1E5;font-size:9.5px;font-weight:600;letter-spacing:.12em;color:#7A858E;">CAPAS DEL DATO · SEPARACIÓN OBLIGATORIA</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:#EDF1F3;">
+        <div style="background:#fff;padding:16px 18px;">
+          <div style="font-size:9.5px;font-weight:700;letter-spacing:.1em;color:#3D4852;">1 · IMMUTABLE SOURCE</div>
+          <div style="font-size:11.5px;color:#5A646C;margin-top:8px;line-height:1.6;">La respuesta textual del encuestado. Se muestra en serif, sobre filete gris, con su identificador, predio y fecha. No es editable por ningún rol ni por ningún proceso automático.</div>
+        </div>
+        <div style="background:#fff;padding:16px 18px;">
+          <div style="font-size:9.5px;font-weight:700;letter-spacing:.1em;color:#17506B;">2 · AI SUGGESTED</div>
+          <div style="font-size:11.5px;color:#5A646C;margin-top:8px;line-height:1.6;">Categoría y subcategoría propuestas, con <strong>model score</strong>, etiqueta de confianza y razonamiento en lenguaje llano. Vive en un contenedor con borde azul propio, visualmente separado de la fuente.</div>
+        </div>
+        <div style="background:#fff;padding:16px 18px;">
+          <div style="font-size:9.5px;font-weight:700;letter-spacing:.1em;color:#2C6046;">3 · HUMAN VALIDATED</div>
+          <div style="font-size:11.5px;color:#5A646C;margin-top:8px;line-height:1.6;">La decisión del especialista: aceptar, modificar, crear categoría o rechazar. Es el único estado que entra en frecuencias, cruces, informes y portal.</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top:20px;display:grid;grid-template-columns:1.1fr 1fr;gap:20px;align-items:start;">
+      <div style="border:1px solid #EFE0BF;background:#FDFBF5;border-radius:5px;padding:16px 18px;">
+        <div style="font-size:12.5px;font-weight:600;color:#6B5A2A;">Corrección conceptual · cómo nombrar la confianza</div>
+        <div style="font-size:11.5px;color:#6B5A2A;margin-top:8px;line-height:1.65;">El valor que devuelve el clasificador es un <strong>model score</strong>, no una probabilidad calibrada de acierto. Está prohibido redactarlo como «91% de probabilidad de que la categoría sea correcta».</div>
+        <div style="margin-top:13px;display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div style="border:1px solid #CBE2D6;background:#F6FBF8;border-radius:4px;padding:10px 12px;">
+            <div style="font-size:9.5px;font-weight:600;letter-spacing:.08em;color:#2C6046;">SÍ</div>
+            <div style="font-size:11.5px;color:#3D4852;margin-top:5px;line-height:1.5;">«model score 0,86 · confianza <strong>Alta</strong>»<br>«confianza <strong>Baja</strong> — revisar»</div>
+          </div>
+          <div style="border:1px solid #F0D3CB;background:#FDF7F5;border-radius:4px;padding:10px 12px;">
+            <div style="font-size:9.5px;font-weight:600;letter-spacing:.08em;color:#9E3B22;">NO</div>
+            <div style="font-size:11.5px;color:#3D4852;margin-top:5px;line-height:1.5;">«91% de acierto»<br>«precisión del 91%»<br>«probabilidad calibrada»</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:13px;">
+          <span style="font-size:10px;font-weight:600;letter-spacing:.06em;padding:3px 9px;background:#EAF3EE;color:#2C6046;border:1px solid #CBE2D6;border-radius:12px;">CONFIANZA ALTA · ≥ 0,75</span>
+          <span style="font-size:10px;font-weight:600;letter-spacing:.06em;padding:3px 9px;background:#F0F6F9;color:#17506B;border:1px solid #C3D6E0;border-radius:12px;">MEDIA · 0,60 – 0,74</span>
+          <span style="font-size:10px;font-weight:600;letter-spacing:.06em;padding:3px 9px;background:#FBF3E2;color:#8A6512;border:1px solid #EFE0BF;border-radius:12px;">BAJA · &lt; 0,60</span>
+        </div>
+        <div style="font-size:11px;color:#8B959C;margin-top:10px;line-height:1.55;">Los umbrales son operativos y ajustables por proyecto. La calibración probabilística queda para evaluación experimental posterior; hasta entonces el score se muestra siempre acompañado de su etiqueta.</div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:16px;">
+        <div style="border:1px solid #DCE1E5;border-radius:5px;overflow:hidden;">
+          <div style="padding:10px 14px;background:#FAFBFC;border-bottom:1px solid #DCE1E5;font-size:9.5px;font-weight:600;letter-spacing:.12em;color:#7A858E;">TAXONOMÍA VERSIONABLE</div>
+          <div style="padding:14px 16px;">
+            <div style="font-size:11.5px;color:#5A646C;line-height:1.6;">Cada categoría tiene definición, ejemplo representativo, conteo y versión. La clasificación queda anclada a la versión de taxonomía vigente al momento de validar, para que un recuento histórico siga siendo reproducible.</div>
+            <div style="margin-top:12px;padding:11px 13px;background:#F7FAFC;border:1px solid #C3D6E0;border-radius:4px;">
+              <div style="display:flex;align-items:center;gap:8px;">
+                <span style="font-size:9px;font-weight:700;letter-spacing:.1em;background:#17506B;color:#fff;padding:2px 7px;border-radius:3px;">PROPUESTA</span>
+                <span style="font-size:12px;font-weight:600;color:#17506B;">requiere aprobación humana</span>
+              </div>
+              <div style="font-size:11.5px;color:#2A5670;margin-top:6px;line-height:1.55;">El sistema puede proponer una categoría nueva cuando detecta respuestas sin encaje claro, pero <strong>nunca la crea en silencio</strong>: la taxonomía no cambia de versión hasta que un especialista la aprueba.</div>
+            </div>
+          </div>
+        </div>
+        <div style="border:1px solid #DCE1E5;border-radius:5px;overflow:hidden;">
+          <div style="padding:10px 14px;background:#FAFBFC;border-bottom:1px solid #DCE1E5;font-size:9.5px;font-weight:600;letter-spacing:.12em;color:#7A858E;">MODO LOTE · DE 10 A 1.000 RESPUESTAS</div>
+          <div style="padding:13px 16px;display:flex;flex-direction:column;gap:7px;">
+            <sc-for list="{{ shortcuts }}" as="k" hint-placeholder-count="6">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
+              <span style="font-size:11.5px;color:#3D4852;">{{ k.what }}</span>
+              <span style="font-family:'JetBrains Mono',monospace;font-size:10.5px;background:#F1F3F5;border:1px solid #E2E6E9;border-radius:3px;padding:1px 6px;color:#5A646C;">{{ k.key }}</span>
+            </div>
+            </sc-for>
+            <div style="font-size:11px;color:#8B959C;margin-top:4px;line-height:1.55;">Filtros de cola: sin revisar · confianza baja · desacuerdo entre revisores · por categoría · validadas.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 08 QUALITY GATE -->
+  <div style="padding:40px 56px;border-bottom:1px solid #E8EBEE;">
+    <div style="display:flex;align-items:baseline;gap:12px;">
+      <span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#17506B;">08</span>
+      <h2 style="margin:0;font-family:'Source Serif 4',serif;font-size:23px;font-weight:600;letter-spacing:-.015em;">Quality Gate</h2>
+    </div>
+    <div style="font-size:13px;color:#5A646C;margin-top:10px;max-width:680px;line-height:1.65;">Revisión del expediente previa a la entrega. El sistema contrasta fuentes y señala posibles inconsistencias; la calificación técnica pertenece al especialista.</div>
+
+    <div style="margin-top:20px;display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start;">
+      <div style="border:1px solid #F0D3CB;background:#FDF8F6;border-radius:5px;padding:16px 18px;">
+        <div style="font-size:12.5px;font-weight:600;color:#9E3B22;">Hallazgo potencial ≠ incumplimiento oficial</div>
+        <div style="font-size:11.5px;color:#7A4030;margin-top:8px;line-height:1.65;">Un <strong>finding</strong> es una señal de contraste entre dos fuentes del expediente. Un <strong>incumplimiento</strong> es una calificación normativa que solo puede emitir un especialista habilitado, con justificación registrada. El producto nunca convierte lo primero en lo segundo de forma automática.</div>
+        <div style="margin-top:13px;display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div style="border:1px solid #CBE2D6;background:#F6FBF8;border-radius:4px;padding:10px 12px;">
+            <div style="font-size:9.5px;font-weight:600;letter-spacing:.08em;color:#2C6046;">LENGUAJE PERMITIDO</div>
+            <div style="font-size:11.5px;color:#3D4852;margin-top:5px;line-height:1.55;">Possible inconsistency · Missing information · Potential mismatch · Insufficient evidence · Specialist review required</div>
+          </div>
+          <div style="border:1px solid #F0D3CB;background:#FDF7F5;border-radius:4px;padding:10px 12px;">
+            <div style="font-size:9.5px;font-weight:600;letter-spacing:.08em;color:#9E3B22;">LENGUAJE PROHIBIDO</div>
+            <div style="font-size:11.5px;color:#3D4852;margin-top:5px;line-height:1.55;">Incumplimiento · infracción · error detectado · no conforme · el sistema determina</div>
+          </div>
+        </div>
+        <div style="font-size:11.5px;color:#7A4030;margin-top:12px;line-height:1.6;"><strong>Resolve</strong> significa que un especialista verificó y corrigió el expediente, con justificación obligatoria. Nunca significa que el sistema declare conformidad.</div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:16px;">
+        <div style="border:1px solid #DCE1E5;border-radius:5px;overflow:hidden;">
+          <div style="padding:10px 14px;background:#FAFBFC;border-bottom:1px solid #DCE1E5;font-size:9.5px;font-weight:600;letter-spacing:.12em;color:#7A858E;">ANATOMÍA DEL DETALLE DE HALLAZGO</div>
+          <sc-for list="{{ findingAnatomy }}" as="f" hint-placeholder-count="6">
+          <div style="display:grid;grid-template-columns:130px 1fr;gap:12px;padding:10px 16px;border-bottom:1px solid #F0F2F4;align-items:baseline;">
+            <div style="font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#17506B;">{{ f.k }}</div>
+            <div style="font-size:11.5px;color:#5A646C;line-height:1.5;">{{ f.v }}</div>
+          </div>
+          </sc-for>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+          <div style="border:1px solid #DCE1E5;border-radius:5px;padding:14px 16px;">
+            <div style="font-size:9.5px;font-weight:600;letter-spacing:.1em;color:#7A858E;">TIPOS</div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#5A646C;margin-top:8px;line-height:1.9;">Numerical mismatch<br>Geographical mismatch<br>Temporal mismatch<br>Document completeness<br>Cross-document inconsistency<br>Missing evidence</div>
+          </div>
+          <div style="border:1px solid #DCE1E5;border-radius:5px;padding:14px 16px;">
+            <div style="font-size:9.5px;font-weight:600;letter-spacing:.1em;color:#7A858E;">ESTADOS</div>
+            <div style="display:flex;flex-direction:column;gap:6px;margin-top:9px;align-items:flex-start;">
+              <span style="font-size:9.5px;font-weight:600;letter-spacing:.06em;padding:3px 9px;background:#FBEAE6;color:#9E3B22;border:1px solid #F0D3CB;border-radius:11px;">OPEN</span>
+              <span style="font-size:9.5px;font-weight:600;letter-spacing:.06em;padding:3px 9px;background:#F0F6F9;color:#17506B;border:1px solid #C3D6E0;border-radius:11px;">REVIEWING</span>
+              <span style="font-size:9.5px;font-weight:600;letter-spacing:.06em;padding:3px 9px;background:#EAF3EE;color:#2C6046;border:1px solid #CBE2D6;border-radius:11px;">ACCEPTED</span>
+              <span style="font-size:9.5px;font-weight:600;letter-spacing:.06em;padding:3px 9px;background:#F1F3F5;color:#5A646C;border:1px solid #E2E6E9;border-radius:11px;">DISMISSED</span>
+              <span style="font-size:9.5px;font-weight:600;letter-spacing:.06em;padding:3px 9px;background:#EAF3EE;color:#2C6046;border:1px solid #CBE2D6;border-radius:11px;">RESOLVED</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 09 PROVENANCE -->
+  <div style="padding:40px 56px;border-bottom:1px solid #E8EBEE;">
+    <div style="display:flex;align-items:baseline;gap:12px;">
+      <span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#17506B;">09</span>
+      <h2 style="margin:0;font-family:'Source Serif 4',serif;font-size:23px;font-weight:600;letter-spacing:-.015em;">Data Provenance · patrón transversal</h2>
+    </div>
+    <div style="font-size:13px;color:#5A646C;margin-top:10px;max-width:680px;line-height:1.65;">Un único componente drawer, invocado desde un enlace discreto «Ver origen», disponible bajo demanda en indicadores, tablas, predios, gráficos, clasificaciones, hallazgos e informes. Nunca ruido visual permanente: un enlace de una línea, nunca un bloque fijo.</div>
+
+    <div style="margin-top:22px;display:grid;grid-template-columns:1.05fr 1fr;gap:20px;align-items:start;">
+      <div style="border:1px solid #DCE1E5;border-radius:5px;overflow:hidden;">
+        <div style="padding:10px 14px;background:#FAFBFC;border-bottom:1px solid #DCE1E5;font-size:9.5px;font-weight:600;letter-spacing:.12em;color:#7A858E;">SOURCE TYPE</div>
+        <sc-for list="{{ sourceTypes }}" as="s" hint-placeholder-count="4">
+        <div style="padding:13px 16px;border-bottom:1px solid #F0F2F4;">
+          <div style="display:inline-flex;font-family:'JetBrains Mono',monospace;font-size:10.5px;font-weight:500;padding:3px 9px;border-radius:3px;background:{{ s.bg }};color:{{ s.fg }};border:1px solid {{ s.bd }};">{{ s.name }}</div>
+          <div style="font-size:11.5px;color:#5A646C;margin-top:7px;line-height:1.55;">{{ s.desc }}</div>
+          <div style="font-size:11px;color:#8B959C;margin-top:5px;">Ejemplo: {{ s.ex }}</div>
+        </div>
+        </sc-for>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:16px;">
+        <div style="border:1px solid #DCE1E5;border-radius:5px;overflow:hidden;">
+          <div style="padding:10px 14px;background:#FAFBFC;border-bottom:1px solid #DCE1E5;font-size:9.5px;font-weight:600;letter-spacing:.12em;color:#7A858E;">CAMPOS DEL DRAWER</div>
+          <sc-for list="{{ provFields }}" as="f" hint-placeholder-count="6">
+          <div style="display:grid;grid-template-columns:150px 1fr;gap:12px;padding:10px 16px;border-bottom:1px solid #F0F2F4;align-items:baseline;">
+            <div style="font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#17506B;">{{ f.k }}</div>
+            <div style="font-size:11.5px;color:#5A646C;line-height:1.5;">{{ f.v }}</div>
+          </div>
+          </sc-for>
+        </div>
+        <div style="border:1px solid #DCE1E5;border-radius:5px;padding:15px 17px;">
+          <div style="font-size:12.5px;font-weight:600;">Puntos de invocación en el prototipo</div>
+          <div style="font-size:11.5px;color:#5A646C;margin-top:8px;line-height:1.7;">Franja de KPI del Command Center · Operational forecast · consulta significativa · capa cartográfica · panel contextual del predio · instrumentos de la ficha · variable cerrada de Social Intelligence · respuesta abierta · detalle de hallazgo.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 10 ESTADOS -->
+  <div style="padding:40px 56px;border-bottom:1px solid #E8EBEE;">
+    <div style="display:flex;align-items:baseline;gap:12px;">
+      <span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#17506B;">10</span>
+      <h2 style="margin:0;font-family:'Source Serif 4',serif;font-size:23px;font-weight:600;letter-spacing:-.015em;">Estados del sistema</h2>
+    </div>
+    <div style="font-size:13px;color:#5A646C;margin-top:10px;max-width:680px;line-height:1.65;">Se aplican al contenedor donde ocurre el problema, no a la pantalla completa. Cada estado tiene copy definitivo y, cuando corresponde, una acción de salida.</div>
+    <div style="margin-top:22px;border:1px solid #DCE1E5;border-radius:5px;overflow:hidden;">
+      <div style="display:grid;grid-template-columns:1.15fr 1.3fr 2fr;gap:14px;padding:10px 16px;background:#FAFBFC;border-bottom:1px solid #DCE1E5;font-size:9.5px;font-weight:600;letter-spacing:.1em;color:#7A858E;">
+        <div>ESTADO</div><div>DÓNDE APARECE</div><div>REGLA DE COPY</div>
+      </div>
+      <sc-for list="{{ states }}" as="s" hint-placeholder-count="15">
+      <div style="display:grid;grid-template-columns:1.15fr 1.3fr 2fr;gap:14px;padding:10px 16px;border-bottom:1px solid #F0F2F4;font-size:11.5px;align-items:baseline;">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:10.5px;color:{{ s.fg }};">{{ s.name }}</div>
+        <div style="color:#5A646C;">{{ s.where }}</div>
+        <div style="color:#5A646C;line-height:1.5;">{{ s.rule }}</div>
+      </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <!-- 11 TIPOGRAFIA -->
+  <div style="padding:40px 56px;border-bottom:1px solid #E8EBEE;">
+    <div style="display:flex;align-items:baseline;gap:12px;">
+      <span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#17506B;">11</span>
+      <h2 style="margin:0;font-family:'Source Serif 4',serif;font-size:23px;font-weight:600;letter-spacing:-.015em;">Tipografía</h2>
+    </div>
+    <div style="margin-top:22px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;">
+      <div style="border:1px solid #DCE1E5;border-radius:5px;padding:18px;">
+        <div style="font-family:'Source Serif 4',serif;font-size:32px;font-weight:600;letter-spacing:-.02em;">Aa</div>
+        <div style="font-size:12.5px;font-weight:600;margin-top:8px;">Source Serif 4</div>
+        <div style="font-size:11.5px;color:#5A646C;margin-top:4px;line-height:1.5;">Titulares, nombres de proyecto, cifras destacadas y toda cita textual del expediente o del encuestado.</div>
+      </div>
+      <div style="border:1px solid #DCE1E5;border-radius:5px;padding:18px;">
+        <div style="font-size:32px;font-weight:600;letter-spacing:-.02em;">Aa</div>
+        <div style="font-size:12.5px;font-weight:600;margin-top:8px;">Archivo</div>
+        <div style="font-size:11.5px;color:#5A646C;margin-top:4px;line-height:1.5;">Interfaz completa: etiquetas, tablas, botones, formularios. Alta legibilidad en 11–13 px.</div>
+      </div>
+      <div style="border:1px solid #DCE1E5;border-radius:5px;padding:18px;">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:32px;font-weight:500;">Aa</div>
+        <div style="font-size:12.5px;font-weight:600;margin-top:8px;">JetBrains Mono</div>
+        <div style="font-size:11.5px;color:#5A646C;margin-top:4px;line-height:1.5;">Códigos de predio, abscisas, coordenadas, capability keys, model scores, reglas, identificadores y timestamps.</div>
+      </div>
+    </div>
+    <div style="margin-top:20px;border:1px solid #DCE1E5;border-radius:5px;overflow:hidden;">
+      <div style="display:grid;grid-template-columns:1.2fr .8fr .8fr 1.4fr;gap:14px;padding:10px 16px;background:#FAFBFC;border-bottom:1px solid #DCE1E5;font-size:9.5px;font-weight:600;letter-spacing:.1em;color:#7A858E;">
+        <div>ESTILO</div><div>TAMAÑO</div><div>PESO</div><div>USO</div>
+      </div>
+      <sc-for list="{{ type }}" as="ty" hint-placeholder-count="8">
+      <div style="display:grid;grid-template-columns:1.2fr .8fr .8fr 1.4fr;gap:14px;padding:10px 16px;border-bottom:1px solid #F0F2F4;align-items:center;font-size:12px;">
+        <div style="font-weight:500;">{{ ty.name }}</div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#5A646C;">{{ ty.size }}</div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#5A646C;">{{ ty.weight }}</div>
+        <div style="color:#5A646C;">{{ ty.use }}</div>
+      </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <!-- 12 COLOR -->
+  <div style="padding:40px 56px;border-bottom:1px solid #E8EBEE;">
+    <div style="display:flex;align-items:baseline;gap:12px;">
+      <span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#17506B;">12</span>
+      <h2 style="margin:0;font-family:'Source Serif 4',serif;font-size:23px;font-weight:600;letter-spacing:-.015em;">Color</h2>
+    </div>
+    <div style="font-size:13px;color:#5A646C;margin-top:10px;max-width:680px;line-height:1.65;">El color codifica estado, nunca decora. La superficie es neutra fría; el azul técnico marca lo accionable y lo seleccionado; verde, ámbar y terracota son exclusivamente semánticos. Ningún estado depende solo del color: siempre lo acompaña un glifo, una etiqueta o ambos.</div>
+    <div style="margin-top:22px;display:grid;grid-template-columns:repeat(4,1fr);gap:14px;">
+      <sc-for list="{{ colors }}" as="c" hint-placeholder-count="12">
+      <div style="border:1px solid #DCE1E5;border-radius:4px;overflow:hidden;">
+        <div style="height:52px;background:{{ c.hex }};border-bottom:1px solid #DCE1E5;"></div>
+        <div style="padding:9px 11px;">
+          <div style="font-size:11.5px;font-weight:600;">{{ c.name }}</div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#8B959C;margin-top:2px;">{{ c.hex }}</div>
+          <div style="font-size:10.5px;color:#5A646C;margin-top:4px;line-height:1.45;">{{ c.use }}</div>
+        </div>
+      </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <!-- 13 COMPONENTES -->
+  <div style="padding:40px 56px;border-bottom:1px solid #E8EBEE;">
+    <div style="display:flex;align-items:baseline;gap:12px;">
+      <span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#17506B;">13</span>
+      <h2 style="margin:0;font-family:'Source Serif 4',serif;font-size:23px;font-weight:600;letter-spacing:-.015em;">Componentes base</h2>
+    </div>
+
+    <div style="margin-top:22px;display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start;">
+
+      <div style="border:1px solid #DCE1E5;border-radius:5px;overflow:hidden;">
+        <div style="padding:10px 14px;background:#FAFBFC;border-bottom:1px solid #DCE1E5;font-size:9.5px;font-weight:600;letter-spacing:.12em;color:#7A858E;">BOTONES</div>
+        <div style="padding:18px;display:flex;flex-wrap:wrap;gap:9px;align-items:center;">
+          <button style="font-family:inherit;font-size:12px;font-weight:600;padding:8px 14px;background:#17506B;border:1px solid #17506B;border-radius:4px;color:#fff;cursor:pointer;" style-hover="background:#0E3A50;">Primario</button>
+          <button style="font-family:inherit;font-size:12px;font-weight:500;padding:8px 14px;background:#fff;border:1px solid #C8D0D6;border-radius:4px;cursor:pointer;" style-hover="background:#F4F6F7;">Secundario</button>
+          <button style="font-family:inherit;font-size:12px;font-weight:500;padding:8px 14px;background:transparent;border:1px solid transparent;border-radius:4px;color:#17506B;cursor:pointer;" style-hover="background:#F0F6F9;">Terciario</button>
+          <button style="font-family:inherit;font-size:12px;font-weight:600;padding:8px 14px;background:#fff;border:1px solid #E0B3A6;border-radius:4px;color:#9E3B22;cursor:pointer;" style-hover="background:#FBEAE6;">Destructivo</button>
+          <button style="font-family:inherit;font-size:12px;font-weight:500;padding:8px 14px;background:#F1F3F5;border:1px solid #E2E6E9;border-radius:4px;color:#A6AEB4;cursor:not-allowed;">Deshabilitado</button>
+        </div>
+      </div>
+
+      <div style="border:1px solid #DCE1E5;border-radius:5px;overflow:hidden;">
+        <div style="padding:10px 14px;background:#FAFBFC;border-bottom:1px solid #DCE1E5;font-size:9.5px;font-weight:600;letter-spacing:.12em;color:#7A858E;">STATUS CHIPS · SEVERIDAD</div>
+        <div style="padding:18px;display:flex;flex-direction:column;gap:11px;">
+          <div style="display:flex;flex-wrap:wrap;gap:6px;">
+            <span style="font-size:10px;font-weight:600;letter-spacing:.06em;padding:3px 9px;background:#EAF3EE;color:#2C6046;border:1px solid #CBE2D6;border-radius:12px;">COMPLETO</span>
+            <span style="font-size:10px;font-weight:600;letter-spacing:.06em;padding:3px 9px;background:#F0F6F9;color:#17506B;border:1px solid #C3D6E0;border-radius:12px;">EN CURSO</span>
+            <span style="font-size:10px;font-weight:600;letter-spacing:.06em;padding:3px 9px;background:#FBF3E2;color:#8A6512;border:1px solid #EFE0BF;border-radius:12px;">REVISITA</span>
+            <span style="font-size:10px;font-weight:600;letter-spacing:.06em;padding:3px 9px;background:#F1F3F5;color:#5A646C;border:1px solid #E2E6E9;border-radius:12px;">PENDIENTE</span>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;">
+            <span style="display:inline-flex;align-items:center;gap:6px;font-size:10.5px;font-weight:600;padding:3px 9px;background:#FBEAE6;color:#9E3B22;border:1px solid #F0D3CB;border-radius:3px;"><span style="width:6px;height:6px;background:#C0492A;border-radius:50%;"></span>ALTA</span>
+            <span style="display:inline-flex;align-items:center;gap:6px;font-size:10.5px;font-weight:600;padding:3px 9px;background:#FBF3E2;color:#8A6512;border:1px solid #EFE0BF;border-radius:3px;"><span style="width:6px;height:6px;background:#B08519;border-radius:50%;"></span>MEDIA</span>
+            <span style="display:inline-flex;align-items:center;gap:6px;font-size:10.5px;font-weight:600;padding:3px 9px;background:#F4F6F7;color:#5A646C;border:1px solid #E2E6E9;border-radius:3px;"><span style="width:6px;height:6px;background:#8B959C;border-radius:50%;"></span>BAJA</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="border:1px solid #DCE1E5;border-radius:5px;overflow:hidden;grid-column:span 2;">
+        <div style="padding:10px 14px;background:#FAFBFC;border-bottom:1px solid #DCE1E5;font-size:9.5px;font-weight:600;letter-spacing:.12em;color:#7A858E;">AI SUGGESTION · CODIFICACIÓN DE RESPUESTA ABIERTA</div>
+        <div style="padding:18px;">
+          <div style="font-size:9.5px;font-weight:700;letter-spacing:.1em;color:#3D4852;">IMMUTABLE SOURCE — LA RESPUESTA ORIGINAL NO SE MODIFICA</div>
+          <div style="font-family:'Source Serif 4',serif;font-size:15px;line-height:1.6;margin-top:7px;padding:12px 14px;background:#FAFBFC;border-left:3px solid #C8D0D6;">«Que arreglen la vía porque en invierno no podemos sacar el café y los niños llegan tarde a la escuela.»</div>
+          <div style="display:flex;align-items:flex-start;gap:14px;margin-top:14px;padding:14px;border:1px solid #C3D6E0;background:#F7FAFC;border-radius:4px;">
+            <div style="flex:1;">
+              <div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap;">
+                <span style="font-size:9px;font-weight:700;letter-spacing:.1em;background:#17506B;color:#fff;padding:2px 7px;border-radius:3px;">AI SUGGESTED</span>
+                <span style="font-size:12.5px;font-weight:600;">Accesibilidad y transporte</span>
+                <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#5A646C;">model score 0,86</span>
+                <span style="font-size:9.5px;font-weight:600;letter-spacing:.06em;padding:2px 8px;background:#EAF3EE;color:#2C6046;border:1px solid #CBE2D6;border-radius:11px;">CONFIANZA ALTA</span>
+              </div>
+              <div style="font-size:11.5px;color:#5A646C;margin-top:7px;line-height:1.55;">Menciona dificultad de tránsito en época lluviosa y afectación a la movilidad escolar. Categoría secundaria posible: <strong>producción y comercialización</strong>.</div>
+            </div>
+            <div style="display:flex;gap:7px;flex:0 0 auto;">
+              <button style="font-family:inherit;font-size:11.5px;font-weight:600;padding:6px 12px;background:#17506B;border:1px solid #17506B;border-radius:4px;color:#fff;cursor:pointer;">Aceptar</button>
+              <button style="font-family:inherit;font-size:11.5px;font-weight:500;padding:6px 12px;background:#fff;border:1px solid #C8D0D6;border-radius:4px;cursor:pointer;">Modificar</button>
+              <button style="font-family:inherit;font-size:11.5px;font-weight:500;padding:6px 12px;background:#fff;border:1px solid #C8D0D6;border-radius:4px;cursor:pointer;">Nueva categoría</button>
+            </div>
+          </div>
+          <div style="font-size:11px;color:#8B959C;margin-top:9px;">La sugerencia es una propuesta de codificación. La decisión, la autoría y la responsabilidad técnica son del especialista. El score es una salida del modelo, no una probabilidad calibrada de acierto.</div>
+        </div>
+      </div>
+
+      <div style="border:1px solid #DCE1E5;border-radius:5px;overflow:hidden;">
+        <div style="padding:10px 14px;background:#FAFBFC;border-bottom:1px solid #DCE1E5;font-size:9.5px;font-weight:600;letter-spacing:.12em;color:#7A858E;">PROVENANCE · ENLACE Y DRAWER</div>
+        <div style="padding:18px;">
+          <div style="font-family:'Source Serif 4',serif;font-size:14.5px;line-height:1.7;">El <span style="border-bottom:1px dotted #17506B;">63,9% de los predios frentistas</span> declara actividad agrícola como fuente principal de ingresos. <span style="font-size:11px;color:#17506B;font-weight:500;">Ver origen</span></div>
+          <div style="margin-top:12px;border:1px solid #DCE1E5;border-radius:4px;overflow:hidden;">
+            <div style="padding:9px 12px;background:#F4F6F7;border-bottom:1px solid #DCE1E5;display:flex;align-items:center;justify-content:space-between;">
+              <span style="font-size:10px;font-weight:600;letter-spacing:.08em;color:#3D4852;">DATA PROVENANCE</span>
+              <span style="font-family:'JetBrains Mono',monospace;font-size:10px;padding:2px 7px;border-radius:3px;background:#F0F6F9;color:#17506B;border:1px solid #C3D6E0;">ANONYMIZED</span>
+            </div>
+            <div style="padding:11px 12px;font-size:11.5px;color:#5A646C;line-height:1.75;">
+              Variable <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#101827;">P17_ingreso_principal</span><br>
+              Base: 119 levantamientos validados de 141 predios<br>
+              Corte: 28 ago 2026 · frecuencia simple, sin ponderación<br>
+              Validación humana: <strong style="color:#2C6046;">VALIDADO</strong> · L. Paredes, 27 ago<br>
+              <span style="color:#17506B;">Ver los 76 registros que componen la cifra →</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="border:1px solid #DCE1E5;border-radius:5px;overflow:hidden;">
+        <div style="padding:10px 14px;background:#FAFBFC;border-bottom:1px solid #DCE1E5;font-size:9.5px;font-weight:600;letter-spacing:.12em;color:#7A858E;">TABLA DE DATOS · DENSIDAD BASE</div>
+        <div>
+          <div style="display:grid;grid-template-columns:1fr .8fr 1.1fr .9fr;gap:10px;padding:9px 14px;background:#FAFBFC;border-bottom:1px solid #DCE1E5;font-size:9.5px;font-weight:600;letter-spacing:.1em;color:#7A858E;">
+            <div>PREDIO</div><div>ABSCISA</div><div>ESTADO</div><div>VISITAS</div>
+          </div>
+          <sc-for list="{{ rows }}" as="r" hint-placeholder-count="4">
+          <div style="display:grid;grid-template-columns:1fr .8fr 1.1fr .9fr;gap:10px;padding:9px 14px;border-bottom:1px solid #F0F2F4;font-size:12px;align-items:center;">
+            <div style="font-family:'JetBrains Mono',monospace;font-size:11.5px;">{{ r.code }}</div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#5A646C;">{{ r.abs }}</div>
+            <div style="display:flex;align-items:center;gap:6px;">
+              <span style="width:14px;height:14px;border-radius:3px;background:{{ r.fill }};border:1.3px solid {{ r.stroke }};font-family:'JetBrains Mono',monospace;font-size:8.5px;color:{{ r.glyphFg }};display:flex;align-items:center;justify-content:center;flex:0 0 14px;">{{ r.glyph }}</span>
+              <span style="font-size:11px;color:#3D4852;">{{ r.state }}</span>
+            </div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#5A646C;">{{ r.visits }}</div>
+          </div>
+          </sc-for>
+          <div style="padding:9px 14px;font-size:11px;color:#8B959C;">Fila 36 px · hairline #F0F2F4 · hover #FBFCFD · fila seleccionada con filete azul a la izquierda · sin cebreado</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 14 DECISIONES -->
+  <div style="padding:40px 56px;border-bottom:1px solid #E8EBEE;">
+    <div style="display:flex;align-items:baseline;gap:12px;">
+      <span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#17506B;">14</span>
+      <h2 style="margin:0;font-family:'Source Serif 4',serif;font-size:23px;font-weight:600;letter-spacing:-.015em;">Decisiones de arquitectura visual</h2>
+    </div>
+    <div style="font-size:13px;color:#5A646C;margin-top:10px;max-width:680px;line-height:1.65;">Diez decisiones vinculantes. Cualquier pantalla futura del producto debe poder justificarse contra esta lista.</div>
+    <div style="margin-top:22px;display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+      <sc-for list="{{ decisions }}" as="d" hint-placeholder-count="10">
+      <div style="border:1px solid #DCE1E5;border-radius:5px;padding:15px 17px;">
+        <div style="display:flex;align-items:baseline;gap:10px;">
+          <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#17506B;">{{ d.n }}</span>
+          <div style="font-size:12.5px;font-weight:600;line-height:1.4;">{{ d.title }}</div>
+        </div>
+        <div style="font-size:11.5px;color:#5A646C;margin-top:7px;line-height:1.6;">{{ d.desc }}</div>
+        <div style="font-size:11px;color:#8B959C;margin-top:7px;line-height:1.5;"><strong style="color:#7A858E;">Implicación:</strong> {{ d.impl }}</div>
+      </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <!-- 15 FUERA DE ALCANCE -->
+  <div style="padding:40px 56px 52px;">
+    <div style="display:flex;align-items:baseline;gap:12px;">
+      <span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#17506B;">15</span>
+      <h2 style="margin:0;font-family:'Source Serif 4',serif;font-size:23px;font-weight:600;letter-spacing:-.015em;">Fuera de alcance en esta versión</h2>
+    </div>
+    <div style="margin-top:20px;display:grid;grid-template-columns:repeat(2,1fr);gap:14px;">
+      <sc-for list="{{ outOfScope }}" as="o" hint-placeholder-count="6">
+      <div style="border:1px solid #DCE1E5;border-radius:5px;padding:15px 17px;display:flex;align-items:flex-start;gap:12px;">
+        <span style="font-size:9.5px;font-weight:600;letter-spacing:.06em;padding:3px 9px;border-radius:11px;background:{{ o.bg }};color:{{ o.fg }};border:1px solid {{ o.bd }};white-space:nowrap;">{{ o.tag }}</span>
+        <div>
+          <div style="font-size:12.5px;font-weight:600;">{{ o.name }}</div>
+          <div style="font-size:11.5px;color:#5A646C;margin-top:5px;line-height:1.55;">{{ o.desc }}</div>
+        </div>
+      </div>
+      </sc-for>
+    </div>
+  </div>
+
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1100,&quot;height&quot;:900}}">
+class Component extends DCLogic {
+  renderVals() {
+    const changelog = [
+      {tag:'NUEVO', fg:'#2C6046', text:'Sección 04 · Command Center, distinción dato real / simulación y contrato del Operational Forecast.'},
+      {tag:'NUEVO', fg:'#2C6046', text:'Sección 05 · GIS / Parcel Explorer, estados prediales color + glifo y provenance geoespacial.'},
+      {tag:'NUEVO', fg:'#2C6046', text:'Sección 06 · Parcel Workspace y sus objetos relacionados; estados de instrumento.'},
+      {tag:'NUEVO', fg:'#2C6046', text:'Sección 07 · Social Intelligence: tres capas del dato, taxonomía versionable y modo lote.'},
+      {tag:'NUEVO', fg:'#2C6046', text:'Sección 08 · Quality Gate: anatomía del hallazgo y frontera hallazgo / incumplimiento.'},
+      {tag:'NUEVO', fg:'#2C6046', text:'Sección 09 · Data Provenance como patrón transversal con los cuatro SOURCE TYPE.'},
+      {tag:'NUEVO', fg:'#2C6046', text:'Sección 14 · Diez decisiones de arquitectura visual vinculantes.'},
+      {tag:'NUEVO', fg:'#2C6046', text:'Sección 15 · Fuera de alcance: FieldFlow, Reports, Climate, PMA, Audit.'},
+      {tag:'CAMBIO', fg:'#8A6512', text:'Confianza de IA renombrada a model score con etiqueta Alta / Media / Baja; prohibido presentarla como probabilidad calibrada.'},
+      {tag:'CAMBIO', fg:'#8A6512', text:'Navegación por capabilities ampliada con estado en el piloto: diseñado, fase posterior o fuera de navegación.'},
+      {tag:'CAMBIO', fg:'#8A6512', text:'Sección de estados ampliada con Partial GIS, Offline pending sync, No findings, AI unavailable y AI low confidence.'},
+      {tag:'CAMBIO', fg:'#8A6512', text:'Modelo de dominio extendido: visitas, instrumentos, afectaciones, media, quality checks y taxonomía bajo Parcel.'}
+    ];
+
+    const chipOk = {bg:'#EAF3EE', chipFg:'#2C6046', bd:'#CBE2D6'};
+    const chipWait = {bg:'#FBF3E2', chipFg:'#8A6512', bd:'#EFE0BF'};
+    const chipOff = {bg:'#F1F3F5', chipFg:'#5A646C', bd:'#E2E6E9'};
+    const nav = [
+      {name:'Portfolio', key:'core.projects', desc:'Proyectos del tenant, creación desde plantilla, importación', state:'DISEÑADO', fg:'#101827', ...chipOk},
+      {name:'Command Center', key:'core.projects', desc:'Avance, universo, productividad, forecast operacional, alertas', state:'DISEÑADO', fg:'#101827', ...chipOk},
+      {name:'Documents', key:'core.documents', desc:'Repositorio, versiones, estados de revisión', state:'FASE POSTERIOR', fg:'#101827', ...chipWait},
+      {name:'GIS & Predios', key:'gis.maps + gis.parcels', desc:'Mapa y tabla sincronizados, eje vial, filtros, panel contextual', state:'DISEÑADO', fg:'#101827', ...chipOk},
+      {name:'Parcel Workspace', key:'gis.parcels', desc:'Ficha maestra del predio: visitas, instrumentos, afectaciones, media, quality', state:'DISEÑADO', fg:'#101827', ...chipOk},
+      {name:'Field Surveys', key:'field.surveys', desc:'Bandeja de validación de lo sincronizado; FieldFlow móvil pendiente', state:'PARCIAL', fg:'#101827', ...chipWait},
+      {name:'Social Intelligence', key:'social.analytics + social.ai_coding', desc:'Frecuencias, cruces, cola human-in-the-loop, taxonomía', state:'DISEÑADO', fg:'#101827', ...chipOk},
+      {name:'Quality Gate', key:'quality.document_gate', desc:'Bandeja de hallazgos y detalle con doble fuente', state:'DISEÑADO', fg:'#101827', ...chipOk},
+      {name:'RAG Assistant', key:'quality.rag_assistant', desc:'Consulta sobre el corpus del proyecto, dentro de la tarea', state:'FASE POSTERIOR', fg:'#101827', ...chipWait},
+      {name:'Reports', key:'reports.social_generator', desc:'Estructura, borrador, revisión, aprobación, exportación con procedencia', state:'FASE POSTERIOR', fg:'#101827', ...chipWait},
+      {name:'Client Portal', key:'client.portal', desc:'Superficie externa agregada, de solo lectura', state:'DISEÑADO', fg:'#101827', ...chipOk},
+      {name:'Climate Analytics', key:'climate.analytics', desc:'Extensión del catálogo, visible solo en Tenant Settings', state:'FUERA DE NAV.', fg:'#A6AEB4', ...chipOff},
+      {name:'PMA Compliance', key:'compliance.pma', desc:'Extensión del catálogo, visible solo en Tenant Settings', state:'FUERA DE NAV.', fg:'#A6AEB4', ...chipOff},
+      {name:'Environmental Audit', key:'audit.environmental', desc:'Extensión del catálogo, visible solo en Tenant Settings', state:'FUERA DE NAV.', fg:'#A6AEB4', ...chipOff}
+    ];
+
+    const surfaces = [
+      {name:'Portfolio', q:'¿Qué proyectos tiene esta consultora y en qué estado están?', role:'Owner / Admin', next:'Command Center'},
+      {name:'Command Center', q:'¿Vamos a tiempo y qué requiere atención hoy?', role:'Coordinador', next:'GIS · Social · Quality Gate'},
+      {name:'GIS / Parcel Explorer', q:'¿Dónde están los predios y en qué estado está cada uno?', role:'Cartógrafo · Coordinador', next:'Parcel Workspace'},
+      {name:'Parcel Workspace', q:'¿Qué sabemos de este predio, completo y en un solo lugar?', role:'Especialista · Coordinador', next:'Quality Gate · revisita'},
+      {name:'Field Surveys', q:'¿Qué llegó de campo y qué está listo para validarse?', role:'Coordinador', next:'Parcel Workspace'},
+      {name:'Social Intelligence', q:'¿Qué dicen los datos y qué respuestas faltan por codificar?', role:'Especialista social', next:'Reports'},
+      {name:'Quality Gate', q:'¿Qué debe revisarse antes de entregar el estudio?', role:'Revisor · Especialista', next:'Documento fuente · Reports'},
+      {name:'Client Portal', q:'¿Cómo va el estudio, para quien lo encargó?', role:'Cliente / GAD (read-only)', next:'—'}
+    ];
+
+    const ccBlocks = [
+      {name:'Header operativo', desc:'Proyecto, estado, fecha objetivo, proyección, responsable, última actualización y capabilities activas. Siempre visible al abrir.'},
+      {name:'Franja de KPI', desc:'Ocho celdas en retícula de hairlines, no ocho tarjetas: universo estimado y confirmado, visitados, completas, revisitas, pendientes, productividad y cierre proyectado.'},
+      {name:'Operational forecast', desc:'Enunciado en lenguaje natural, ritmo actual vs necesario, técnicos activos, serie de los últimos 10 días, supuestos y acceso al cálculo.'},
+      {name:'Requiere atención hoy', desc:'Bandeja corta y accionable: cada fila declara dónde vive el problema y navega a esa superficie. Máximo seis elementos.'},
+      {name:'Actividad reciente', desc:'Tabla de hora, actor, acción y objeto. Etiquetada DEMO. Registro operativo, no timeline decorativo.'},
+      {name:'Resumen territorial', desc:'Miniatura del corredor con su leyenda de procedencia y avance por tramo con abscisas. Entrada directa al GIS.'}
+    ];
+
+    const parcelStates = [
+      {name:'Completo', glyph:'✓', fill:'#DCEDE3', stroke:'#2C6046', glyphFg:'#2C6046', def:'Instrumento principal levantado y aceptado en validación.'},
+      {name:'Visitado', glyph:'◐', fill:'#DCE6EA', stroke:'#4A7F9B', glyphFg:'#17506B', def:'Hubo visita registrada pero el instrumento no está completo.'},
+      {name:'Pendiente', glyph:'○', fill:'#F1F3F5', stroke:'#A6AEB4', glyphFg:'#5A646C', def:'Predio del universo confirmado sin visita registrada.'},
+      {name:'Requiere revisita', glyph:'↻', fill:'#FBF3E2', stroke:'#B08519', glyphFg:'#8A6512', def:'Falta evidencia, informante ausente o dato observado inconsistente.'},
+      {name:'Inconsistencia', glyph:'!', fill:'#FBEAE6', stroke:'#C0492A', glyphFg:'#9E3B22', def:'Hallazgo de calidad abierto sobre el predio.'},
+      {name:'No localizado', glyph:'?', fill:'#FFFFFF', stroke:'#8B959C', glyphFg:'#8B959C', def:'Predio del universo estimado que no pudo ubicarse en territorio.'}
+    ];
+
+    const parcelTabs = [
+      {name:'Resumen', desc:'Estado general en cuatro cifras, alertas accionables del predio y actividad reciente.'},
+      {name:'Visitas', desc:'Timeline: fecha, técnico, duración, GPS con precisión, media asociada, instrumentos y observación de campo.'},
+      {name:'Instrumentos', desc:'Estado, completitud, validador y enlace de provenance por instrumento aplicado al predio.'},
+      {name:'Afectaciones', desc:'Área total, área afectada y porcentaje; desglose por cercas, cultivos, accesos e infraestructura.'},
+      {name:'Media', desc:'Fotografías y archivos con timestamp, estado de GPS, origen y visita asociada.'},
+      {name:'Quality', desc:'Checks del predio con estado; los abiertos enlazan al hallazgo correspondiente en Quality Gate.'}
+    ];
+
+    const shortcuts = [
+      {what:'Aceptar sugerencia', key:'A'}, {what:'Modificar categoría', key:'M'},
+      {what:'Nueva categoría', key:'N'}, {what:'Rechazar sugerencia', key:'R'},
+      {what:'Siguiente / anterior', key:'J / K'}, {what:'Marcar para segunda opinión', key:'S'}
+    ];
+
+    const findingAnatomy = [
+      {k:'FINDING', v:'Título en lenguaje de posibilidad, explicación de qué se contrastó y por qué importa.'},
+      {k:'SOURCE A', v:'Documento, versión, página o sección, y fragmento literal citado en serif.'},
+      {k:'SOURCE B', v:'Segunda fuente cuando el hallazgo es un contraste. Puede ser un dataset en lugar de un documento.'},
+      {k:'WHY FLAGGED', v:'Regla aplicada, su identificador y el razonamiento en lenguaje llano. Sin jerga de modelo.'},
+      {k:'SUGGESTED ACTION', v:'Acción de revisión concreta, siempre redactada como tarea para una persona.'},
+      {k:'SPECIALIST DECISION', v:'Aceptar, descartar o resolver, con justificación técnica obligatoria y registro de autoría.'}
+    ];
+
+    const sourceTypes = [
+      {name:'REAL_AGGREGATE', bg:'#EAF3EE', fg:'#2C6046', bd:'#CBE2D6', desc:'Cifra agregada verificable del expediente real, sin datos identificables.', ex:'185 participantes en consulta significativa'},
+      {name:'RECONSTRUCTED', bg:'#FBF3E2', fg:'#8A6512', bd:'#EFE0BF', desc:'Valor derivado o aproximado a partir de fuentes reales mediante un método declarado.', ex:'Eje vial aproximado · cierre proyectado'},
+      {name:'ANONYMIZED', bg:'#F0F6F9', fg:'#17506B', bd:'#C3D6E0', desc:'Agregado calculado sobre registros individuales reales, despojado de identificadores.', ex:'Frecuencias de P17 · respuestas abiertas'},
+      {name:'SYNTHETIC', bg:'#F1F3F5', fg:'#5A646C', bd:'#E2E6E9', desc:'Dato generado para demostración. Nunca se presenta como histórico ni entra en un entregable.', ex:'Predios del mapa · métricas de ejecución'}
+    ];
+
+    const provFields = [
+      {k:'SOURCE TYPE', v:'Uno de los cuatro, con nota que explica qué significa en ese contexto concreto.'},
+      {k:'SOURCE / DATASET', v:'Documento, capa o dataset de origen, con su identificador.'},
+      {k:'VERSIÓN', v:'Versión del documento, de la capa o de la taxonomía vigente al calcular.'},
+      {k:'CAPTURADO / IMPORTADO', v:'Fecha y medio de captura: FieldFlow, importación, carga manual.'},
+      {k:'MÉTODO', v:'Solo si el dato es derivado: fórmula o criterio de cálculo en una línea.'},
+      {k:'HUMAN VALIDATION', v:'Validado, parcial, pendiente o requiere especialista, con autor y fecha cuando exista.'}
+    ];
+
+    const stCrit = '#9E3B22', stWarn = '#8A6512', stInfo = '#17506B', stMuted = '#5A646C';
+    const states = [
+      {name:'loading', fg:stMuted, where:'Cualquier contenedor de datos', rule:'Esqueleto con la forma del contenido real; nunca spinner a pantalla completa.'},
+      {name:'empty', fg:stMuted, where:'Tablas, listas, portafolio', rule:'Explica qué aparecerá aquí y ofrece la acción que lo produce.'},
+      {name:'error', fg:stCrit, where:'Carga de capas, sincronización, cálculo', rule:'Qué falló, que no se perdieron datos, referencia técnica y reintento.'},
+      {name:'offline', fg:stWarn, where:'FieldFlow, workspace en campo', rule:'Barra oscura persistente; indica cuántos registros esperan y que no se cierre sesión.'},
+      {name:'syncing', fg:stInfo, where:'Bandeja de campo', rule:'Progreso con conteo real y objeto en curso, no porcentaje abstracto.'},
+      {name:'permission denied', fg:stMuted, where:'Datos personales, económicos, quality', rule:'Nombra el rol y el dato restringido; ofrece solicitar acceso. Sin culpabilizar.'},
+      {name:'feature disabled', fg:stMuted, where:'Ruta directa a módulo no habilitado', rule:'Declara que es extensión y quién puede habilitarla. No aparece en navegación.'},
+      {name:'no project selected', fg:stMuted, where:'Secciones dependientes de proyecto', rule:'Incluye el project switcher dentro del propio estado.'},
+      {name:'no GIS yet', fg:stMuted, where:'GIS / Parcel Explorer', rule:'Enumera los formatos aceptados y ofrece la carga de capa.'},
+      {name:'partial GIS', fg:stWarn, where:'GIS / Parcel Explorer', rule:'Cuantifica cuántos predios tienen geometría; la tabla sigue operativa.'},
+      {name:'no survey data yet', fg:stMuted, where:'Social Intelligence', rule:'Explica qué activa la analítica y cuántos levantamientos están en revisión.'},
+      {name:'offline pending sync', fg:stWarn, where:'Field Surveys, Command Center', rule:'Los registros no sincronizados no cuentan en el avance ni en los cálculos; decirlo.'},
+      {name:'no findings', fg:'#2C6046', where:'Quality Gate', rule:'Aclara que la ausencia de hallazgos no sustituye la revisión técnica.'},
+      {name:'AI unavailable', fg:stWarn, where:'Cola de codificación', rule:'El trabajo manual sigue disponible; la asistencia se reanuda sola. Sin dramatismo.'},
+      {name:'AI low confidence', fg:stWarn, where:'Cola de codificación', rule:'No preselecciona categoría: muestra las candidatas con su model score y pide decisión.'}
+    ];
+
+    const type = [
+      {name:'Display', size:'38 / 44', weight:'600', use:'Portada de documento, título del portal de cliente'},
+      {name:'Título de pantalla', size:'23–26 / 32', weight:'600', use:'Serif — encabezado de superficie'},
+      {name:'Título de tarjeta', size:'17 / 24', weight:'600', use:'Serif — nombre de proyecto, bloques del portal'},
+      {name:'Cifra destacada', size:'20–44', weight:'600', use:'Serif — KPI e indicadores agregados'},
+      {name:'Cita textual', size:'14–17 / 1,65', weight:'400', use:'Serif — respuesta original y fragmentos del expediente'},
+      {name:'Cuerpo', size:'12,5 / 19', weight:'400', use:'Texto de interfaz, tablas, descripciones'},
+      {name:'Etiqueta', size:'9,5 / 14', weight:'600', use:'Mayúsculas, tracking .12em — cabeceras de bloque'},
+      {name:'Mono', size:'10,5–11 / 16', weight:'400', use:'Códigos, abscisas, keys, scores, reglas, timestamps'}
+    ];
+
+    const colors = [
+      {name:'Ink', hex:'#101827', use:'Texto principal, barra del portal'},
+      {name:'Azul técnico', hex:'#17506B', use:'Acción, selección, marca'},
+      {name:'Azul suave', hex:'#F0F6F9', use:'Fondo activo, avisos informativos, AI suggestion'},
+      {name:'Azul mapa', hex:'#4A7F9B', use:'Series de datos y cobertura'},
+      {name:'Verde validado', hex:'#2C6046', use:'Completo, validado, aprobado'},
+      {name:'Ámbar atención', hex:'#B08519', use:'Revisita, confianza baja, faltante subsanable'},
+      {name:'Terracota crítica', hex:'#C0492A', use:'Hallazgo crítico, error, inconsistencia'},
+      {name:'Superficie', hex:'#FFFFFF', use:'Tarjetas, tablas, paneles'},
+      {name:'Lienzo', hex:'#F2F4F5', use:'Fondo del workspace'},
+      {name:'Borde', hex:'#DCE1E5', use:'Contorno de contenedor'},
+      {name:'Hairline', hex:'#F0F2F4', use:'Separador entre filas'},
+      {name:'Texto tenue', hex:'#7A858E', use:'Etiquetas y metadatos'}
+    ];
+
+    const ok = {fill:'#DCEDE3', stroke:'#2C6046', glyph:'✓', glyphFg:'#2C6046'};
+    const wait = {fill:'#FBF3E2', stroke:'#B08519', glyph:'↻', glyphFg:'#8A6512'};
+    const idle = {fill:'#F1F3F5', stroke:'#A6AEB4', glyph:'○', glyphFg:'#5A646C'};
+    const rows = [
+      {code:'PRED-ZAM-040', abs:'3+380', state:'Completo', visits:'1', ...ok},
+      {code:'PRED-ZAM-042', abs:'2+840', state:'Requiere revisita', visits:'2', ...wait},
+      {code:'PRED-ZAM-043', abs:'3+060', state:'Completo', visits:'1', ...ok},
+      {code:'PRED-ZAM-046', abs:'3+720', state:'Pendiente', visits:'0', ...idle}
+    ];
+
+    const decisions = [
+      {n:'01', title:'Tenant y proyecto siempre visibles', desc:'El rail mantiene organización y proyecto activo en todo el workspace interno, y el breadcrumb repite el contexto en cada superficie.', impl:'Ninguna pantalla interna puede ocupar el ancho completo eliminando el rail, ni siquiera el explorador GIS.'},
+      {n:'02', title:'El Client Portal es otra superficie', desc:'No es el workspace con campos ocultos: tiene su propio chrome, su propia jerarquía tipográfica, su propio ancho de lectura y su propio modelo de datos agregado.', impl:'Un cambio en el workspace no se propaga al portal por defecto; cada publicación al portal es una decisión explícita.'},
+      {n:'03', title:'El GIS es una herramienta operacional', desc:'El mapa existe para seleccionar, filtrar y decidir, sincronizado con la tabla. No hay mapas ilustrativos ni miniaturas sin función.', impl:'Toda representación cartográfica lleva leyenda de estados y leyenda de procedencia, incluida la miniatura del Command Center.'},
+      {n:'04', title:'El predio es el workspace maestro', desc:'Visitas, instrumentos, afectaciones, media y quality checks cuelgan del predio y se consultan sin salir de él.', impl:'Cualquier objeto de campo nuevo debe declarar su relación con Parcel antes de tener pantalla propia.'},
+      {n:'05', title:'La IA nunca modifica la respuesta original', desc:'El texto del encuestado es inmutable para todos los roles y procesos; la codificación es una capa derivada y reversible.', impl:'No existe ningún flujo de edición sobre el campo de respuesta abierta, ni siquiera para corregir ortografía.'},
+      {n:'06', title:'Sugerencia y validación son estados distintos', desc:'AI SUGGESTED y HUMAN VALIDATED se muestran con tratamientos visuales separados y nunca se colapsan en un solo indicador.', impl:'La analítica, los informes y el portal consumen exclusivamente lo validado; lo sugerido no computa.'},
+      {n:'07', title:'Quality Gate no declara cumplimiento', desc:'El sistema señala posibles inconsistencias; solo un especialista califica, con justificación registrada.', impl:'El lenguaje de la interfaz usa «possible», «potential» y «requires review»; «Resolve» exige justificación obligatoria.'},
+      {n:'08', title:'Provenance es transversal', desc:'Un mismo drawer sirve a indicadores, tablas, predios, gráficos, clasificaciones, hallazgos e informes.', impl:'Todo dato mostrado debe poder responder de dónde viene; si no puede, no se muestra como cifra publicable.'},
+      {n:'09', title:'Lo sintético jamás se disfraza de real', desc:'Los datos sintéticos o reconstruidos llevan badge en pantalla, tipo en el provenance y lenguaje explícito en el copy.', impl:'Ninguna exportación ni vista de cliente puede incluir datos SYNTHETIC sin su marca.'},
+      {n:'10', title:'Las capabilities gobiernan la navegación', desc:'La capability determina a la vez el ítem del rail, la ruta y la disponibilidad del módulo y sus objetos.', impl:'No se diseñan rutas activas hacia módulos deshabilitados; el estado feature disabled solo aparece por enlace directo.'}
+    ];
+
+    const later = {bg:'#FBF3E2', fg:'#8A6512', bd:'#EFE0BF', tag:'FASE POSTERIOR'};
+    const off = {bg:'#F1F3F5', fg:'#5A646C', bd:'#E2E6E9', tag:'FUERA DE NAV.'};
+    const outOfScope = [
+      {name:'FieldFlow móvil', desc:'Flujo completo del técnico: asignación, visita, GPS, fotografías, validaciones y sincronización. En el prototipo solo existe la bandeja de lo que llega.', ...later},
+      {name:'Report Generator', desc:'Estructura, borrador, revisión, aprobación y exportación con procedencia por párrafo y por cifra.', ...later},
+      {name:'RAG Assistant', desc:'Consulta sobre el corpus del proyecto, siempre embebida en la tarea y nunca como chatbot de dashboard.', ...later},
+      {name:'Climate Analytics', desc:'Extensión del catálogo. Visible en Tenant Settings como módulo disponible; sin superficie en el proyecto.', ...off},
+      {name:'PMA Compliance', desc:'Extensión del catálogo. Visible en Tenant Settings como módulo disponible; sin superficie en el proyecto.', ...off},
+      {name:'Environmental Audit', desc:'Extensión del catálogo. Visible en Tenant Settings como módulo disponible; sin superficie en el proyecto.', ...off}
+    ];
+
+    return { changelog, nav, surfaces, ccBlocks, parcelStates, parcelTabs, shortcuts,
+             findingAnatomy, sourceTypes, provFields, states, type, colors, rows, decisions, outOfScope };
+  }
+}
+</script>
+</body>
+</html>
