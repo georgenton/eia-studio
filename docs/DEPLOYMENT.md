@@ -185,5 +185,6 @@ gh api -X PUT repos/{owner}/eia-studio/branches/main/protection \
 gh repo edit --enable-squash-merge --enable-merge-commit=false --enable-rebase-merge=false --delete-branch-on-merge
 ```
 
-`{owner}` is the GitHub account or organisation chosen at creation. These commands are
-documented, not executed, in this task.
+`{owner}` is the GitHub account or organisation chosen at creation. Status-check contexts are the
+job names `quality` and `db` (workflow `ci`). Slice 0 note: on a GitHub Free personal plan a
+private repository cannot have branch protection or rulesets (HTTP 403); see TECH_DEBT.md TD-014.
