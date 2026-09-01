@@ -1,0 +1,22 @@
+{
+  "name": "@eia/ui",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Design tokens and presentation mappings from the approved design bundle (no components yet)",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./tokens.css": "./src/tokens.css"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@eia/domain": "workspace:*"
+  },
+  "devDependencies": {
+    "@eia/config": "workspace:*",
+    "typescript": "5.9.3",
+    "vitest": "4.1.11"
+  }
+}
