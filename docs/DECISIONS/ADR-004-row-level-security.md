@@ -41,6 +41,29 @@ tables.
 7. **Performance**: policies compare indexed columns; every tenant-owned table has a leading
    `(tenant_id, project_id)` index; `has_project_access` is `STABLE` and cached per statement.
 
+## Amendment — Slice 0 implementation (2026-09-01)
+
+- Membership predicates inside policies (`app.is_tenant_member`, `app.is_tenant_admin`,
+  `app.is_tenant_owner`, `app.has_project_membership`, `app.has_project_access`,
+  `app.can_administer_project`, `app.shares_tenant_with`, `app.tenant_has_no_members`) are
+  `SECURITY DEFINER` functions owned by a dedicated `eia_policy` role (`NOLOGIN`, `BYPASSRLS`,
+  never granted to any login role). Without this, a policy on `project_membership` that consults
+  `project_membership` recurses (PostgreSQL raises "infinite recursion detected in policy").
+  The functions take ids as parameters and always read the current user from the
+  transaction-local setting; they cannot be invoked to widen access beyond what they encode.
+- Two access levels are encoded for D-015: `has_project_access` (explicit membership or OWNER
+  implicit access) for project **data** tables, and `can_administer_project` (data access or
+  tenant OWNER/ADMIN) for administrative rows (project, memberships, capability settings).
+  Future sensitive tables must use `has_project_access`.
+- `app.project_id` is a narrowing filter, never a grant: project policies evaluate the membership
+  predicate regardless of the setting, so a forged project id yields nothing.
+- Context values are set with `set_config(name, value, true)`; empty strings read as NULL via
+  `app.setting_uuid`, so missing context denies by construction.
+- The runtime login role (name/password from the environment) inherits from the `eia_app` group
+  role created in migration 0000; migrations never contain credentials.
+- Requirement for hosted databases: the migrator must be allowed to create a `BYPASSRLS` role
+  (DEPLOYMENT.md §4).
+
 ## Consequences
 
 - Pooling in transaction mode works (settings are `LOCAL`); prepared statements across pooled

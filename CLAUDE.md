@@ -3,13 +3,13 @@
 EIA Studio is a multi-tenant B2B SaaS for environmental consulting firms: field capture, parcels,
 surveys, social analysis with human-in-the-loop AI, quality review and client reporting.
 
-**Current phase: ARCHITECTURE AND DELIVERY STANDARDS APPROVED, SLICE 0 NOT YET STARTED.**
-No application code exists. Gate 1 conditions D-013…D-020 and the delivery-alignment decisions
-are recorded in `docs/DECISIONS/GATE-1.md` and applied to the docs and ADRs. The repository may
-be created on GitHub (private) and the planning files committed; Slice 0 (monorepo scaffold,
-tooling, tenancy foundation) starts only after an explicit go from the architect. Until then:
-do not implement features, create databases or migrations, install dependencies, scaffold
-Next.js, deploy anything, or convert the design prototype into React.
+**Current phase: SLICE 0 (SaaS foundation) IMPLEMENTED ON `feat/slice-0-foundation`, PENDING
+IMPLEMENTATION GATE 0.** Gate 1 conditions D-013…D-020, the delivery-alignment decisions and
+the Slice 0 GO are recorded in `docs/DECISIONS/GATE-1.md`. The foundation exists (monorepo,
+tooling, database with roles and RLS, identity boundary, tenancy core, capability resolver,
+RequestContext, audit, worker, CI). No product surfaces exist yet; Slice 1 starts only after
+Implementation Gate 0 and an explicit go. Do not deploy staging or production, and do not port
+the design prototype, until instructed.
 
 ## Read before acting
 
@@ -32,7 +32,8 @@ Also relevant by task: `docs/DATA_MODEL.md`, `docs/PROVENANCE.md`, `docs/AI_GOVE
 `docs/DEMO_ZAMORA.md`, `docs/DESIGN_SYSTEM.md`, `docs/TESTING_STRATEGY.md`,
 `docs/IMPLEMENTATION_PLAN.md`, `docs/DESIGN_BUNDLE_KNOWN_ISSUES.md`, the delivery docs
 `docs/ENGINEERING_STANDARDS.md`, `docs/RELEASE_POLICY.md`, `docs/CI.md`, `docs/DEPLOYMENT.md`,
-the Gate record `docs/DECISIONS/GATE-1.md`, and the ADRs in `docs/DECISIONS/ADR-001` … `ADR-014`.
+`docs/DEPENDENCIES.md`, `docs/TECH_DEBT.md`, the Gate record `docs/DECISIONS/GATE-1.md`, and
+the ADRs in `docs/DECISIONS/ADR-001` … `ADR-014`. Root `README.md` has the local quick start.
 
 ## Working rules for every session
 

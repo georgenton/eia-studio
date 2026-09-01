@@ -23,6 +23,8 @@ See [DECISIONS/GATE-1.md](DECISIONS/GATE-1.md) for the conditions (D-013…D-020
 | [RELEASE_POLICY.md](RELEASE_POLICY.md) | Changesets, SemVer, changelogs, when a changeset is required, traceability |
 | [CI.md](CI.md) | GitHub Actions quality gates by stage; only real scripts are ever called |
 | [DEPLOYMENT.md](DEPLOYMENT.md) | Vercel + Railway topology, environments, secrets (names only), database evaluation, repository commands |
+| [DEPENDENCIES.md](DEPENDENCIES.md) | Exact dependency versions chosen in Slice 0 and why; what is deliberately not installed |
+| [TECH_DEBT.md](TECH_DEBT.md) | Intentional technical debt with owner and removal trigger |
 | [DECISIONS/](DECISIONS/) | GATE-1 record · ADR-001 multi-tenancy · ADR-002 capability resolution · ADR-003 project profiles · ADR-004 RLS · ADR-005 provenance · ADR-006 survey versioning · ADR-007 AI human-in-the-loop · ADR-008 quality gate · ADR-009 client portal isolation · ADR-010 identity provider boundary · ADR-011 release/versioning · ADR-012 deployment topology · ADR-013 Drizzle/PostgreSQL · ADR-014 frontend stack scope |
 
 Slice 0 starts only after an explicit go is appended to `DECISIONS/GATE-1.md`.

@@ -125,13 +125,22 @@ Repository **variables** (non-secret): `NODE_VERSION`, `PNPM_VERSION` if not rea
 
 ## 4. Database evaluation before staging (Railway Postgres)
 
-Confirm on the target Postgres image: PostgreSQL major version (15+), `CREATE EXTENSION postgis`,
-`vector`, `pg_trgm`, `uuid-ossp` or `gen_random_uuid()`; ability to create roles
-(`eia_migrator`, `eia_app`, `eia_portal`) and to `FORCE ROW LEVEL SECURITY`; connection limits
-and pooling mode (transaction pooling compatible with `SET LOCAL`); automated backups and
-point-in-time recovery; region/data-residency acceptable for the compliance review; storage and
-CPU sizing for PostGIS indexes. If any item fails, choose a managed alternative with the same
-extensions; the application does not change.
+Confirm on the target Postgres image: PostgreSQL major version (17 is what local/CI use),
+`CREATE EXTENSION postgis`, `vector`, `pg_trgm`, `gen_random_uuid()`; ability of the migrator
+connection to create roles, including **`CREATE ROLE eia_policy ... BYPASSRLS`** (migration
+0000; the SECURITY DEFINER membership helpers used inside RLS policies are owned by it — this
+needs a superuser or a role with `CREATEROLE` + `BYPASSRLS`) and to `FORCE ROW LEVEL SECURITY`;
+ability to create the runtime login role and `GRANT eia_app` to it; connection limits and
+pooling mode (transaction pooling compatible with `set_config(..., true)`); automated backups
+and point-in-time recovery; region/data-residency acceptable for the compliance review; storage
+and CPU sizing for PostGIS indexes. If any item fails, choose a managed alternative with the
+same extensions; the application does not change.
+
+Local and CI image: `docker/postgres/Dockerfile` = `imresamu/postgis:17-3.5` (multi-arch
+amd64/arm64 build of the official PostGIS image recipe, Debian bookworm + PGDG) plus
+`postgresql-17-pgvector` from the same PGDG repository. Verified in Slice 0: PostgreSQL 17.6,
+PostGIS 3.5.3, pgvector 0.8.6, pg_trgm 1.6. No maintained upstream image ships both extensions
+(`postgis/postgis` lacks pgvector, `pgvector/pgvector` lacks PostGIS); see TECH_DEBT.md TD-001.
 
 ## 5. Deployment sequence (staging, after Slice 0)
 
