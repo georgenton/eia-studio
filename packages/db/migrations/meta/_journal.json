@@ -1,0 +1,34 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1788296971645,
+      "tag": "0000_extensions_and_roles",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1788296972256,
+      "tag": "0001_foundation_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1788296972836,
+      "tag": "0002_rls_policies_and_grants",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1788297956968,
+      "tag": "0003_auth_account_issuer",
+      "breakpoints": true
+    }
+  ]
+}
