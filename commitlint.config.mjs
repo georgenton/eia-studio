@@ -1,0 +1,43 @@
+// Conventional Commits with the project scopes (ENGINEERING_STANDARDS.md §3).
+export default {
+  extends: ["@commitlint/config-conventional"],
+  rules: {
+    "type-enum": [
+      2,
+      "always",
+      ["feat", "fix", "docs", "chore", "refactor", "test", "perf", "build", "ci", "revert"],
+    ],
+    "scope-enum": [
+      2,
+      "always",
+      [
+        "core",
+        "projects",
+        "gis",
+        "field",
+        "social",
+        "quality",
+        "documents",
+        "reports",
+        "portal",
+        "ai",
+        "provenance",
+        "audit",
+        "tenancy",
+        "db",
+        "ui",
+        "web",
+        "worker",
+        "fixtures",
+        "docs",
+        "contracts",
+        "config",
+        "testing",
+        "deps",
+        "release",
+      ],
+    ],
+    "header-max-length": [2, "always", 100],
+    "body-max-line-length": [1, "always", 120],
+  },
+};

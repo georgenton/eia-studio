@@ -31,3 +31,6 @@ test-results/
 .vscode/*
 !.vscode/extensions.json
 *.log
+
+# local tool state
+.claude/launch.json
