@@ -34,10 +34,10 @@
   },
   "lint-staged": {
     "*.{ts,tsx,mts,mjs,js,cjs}": [
-      "eslint --max-warnings 0 --fix",
+      "eslint --max-warnings 0 --no-warn-ignored --fix",
       "prettier --write"
     ],
-    "*.{json,md,yml,yaml,css,sql}": [
+    "*.{json,md,yml,yaml,css}": [
       "prettier --write"
     ],
     "{apps,packages}/**/*": [
