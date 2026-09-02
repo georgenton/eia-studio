@@ -2,7 +2,7 @@
   "name": "@eia/ui",
   "version": "0.0.0",
   "private": true,
-  "description": "Design tokens and presentation mappings from the approved design bundle (no components yet)",
+  "description": "Framework-agnostic design tokens, presentation mappings and visual components from the approved design bundle",
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
@@ -17,6 +17,14 @@
   "devDependencies": {
     "@eia/config": "workspace:*",
     "typescript": "5.9.3",
-    "vitest": "4.1.11"
+    "vitest": "4.1.11",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.5",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
   }
 }

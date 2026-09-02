@@ -1,0 +1,376 @@
+import type { CommandCenterView } from "@eia/application";
+import {
+  ATTENTION_SEVERITY_LABEL,
+  demoScenarioDate,
+  SURFACE_DEFINITIONS,
+  type MetricKey,
+  type MetricSnapshot,
+  type ProvenanceFacets,
+  type RequestContext,
+} from "@eia/domain";
+import {
+  ActivityTable,
+  AttentionList,
+  AttentionRow,
+  Chip,
+  Columns,
+  DemoBadge,
+  ForecastChart,
+  MetricCell,
+  MetricStrip,
+  Mono,
+  Panel,
+  PanelBody,
+  PanelHeader,
+  ProvenanceBadge,
+  Stack,
+  StatusChip,
+  SystemState,
+  formatCount,
+  formatDayCount,
+  formatDecimal,
+  formatIsoDate,
+  formatMetricValue,
+  formatTime,
+} from "@eia/ui";
+import { ProvenanceLink } from "@/components/navigation";
+
+import { projectPath } from "@/lib/navigation";
+
+import styles from "./command-center.module.css";
+
+/** KPI strip order of the approved design; a metric absent from the project is simply skipped. */
+const STRIP_ORDER: ReadonlyArray<MetricKey> = [
+  "universe_estimated",
+  "universe_confirmed",
+  "parcels_visited",
+  "surveys_complete",
+  "revisits_scheduled",
+  "parcels_pending",
+  "productivity_per_day",
+  "projected_close_date",
+];
+
+function provHref(base: string, provenanceId: string): string {
+  return `${base}?prov=${provenanceId}`;
+}
+
+function metricTone(metric: MetricSnapshot): "default" | "warn" | "crit" {
+  if (metric.key === "projected_close_date") return "crit";
+  if (metric.key === "parcels_pending") return "crit";
+  if (metric.key === "revisits_scheduled") return "warn";
+  return "default";
+}
+
+export function CommandCenter({
+  ctx,
+  view,
+  basePath,
+  lifecycleLabel,
+}: {
+  ctx: RequestContext;
+  view: CommandCenterView;
+  basePath: string;
+  lifecycleLabel: string;
+}) {
+  const byKey = new Map(view.metrics.map((m) => [m.key, m]));
+  const strip = STRIP_ORDER.map((key) => byKey.get(key)).filter(
+    (m): m is MetricSnapshot => m !== undefined,
+  );
+  const stripFacets: ProvenanceFacets[] = strip.map((m) => m.provenance);
+  const length = byKey.get("corridor_length_km");
+  const consultation = byKey.get("consultation_participants");
+  const forecast = view.forecast;
+  // The scenario clock (IG1-003, IG1-009): demo values belong to a fixed as-of date, never to
+  // "today". It comes from the simulated forecast that is anchored to it — the project entity
+  // carries no demo state.
+  const scenarioDate = forecast ? demoScenarioDate(forecast, forecast.provenance) : null;
+  const scenarioLabel = scenarioDate
+    ? `Escenario demo · fecha de corte: ${formatIsoDate(scenarioDate)}`
+    : null;
+
+  return (
+    <Stack gap={16}>
+      <Panel>
+        <PanelBody className={styles.header}>
+          <div className={styles.headerMain}>
+            <div className={styles.titleRow}>
+              <h1 className={styles.title}>{view.project.name}</h1>
+              <StatusChip label={lifecycleLabel} tone="ok" />
+              {forecast && forecast.delayDays > 0 ? (
+                <StatusChip
+                  label={`Retraso proyectado ${formatDayCount(forecast.delayDays)}`}
+                  tone="warn"
+                />
+              ) : null}
+            </div>
+            <p className={styles.subtitle}>
+              {view.project.locationLabel ? <span>{view.project.locationLabel}</span> : null}
+              {length && length.numericValue !== null ? (
+                <span>{formatDecimal(length.numericValue)} km</span>
+              ) : null}
+              <span>
+                perfil <Mono>{view.project.profileKey}</Mono>
+              </span>
+            </p>
+          </div>
+          {forecast ? (
+            <dl className={styles.meta}>
+              <div>
+                <dt>Fecha objetivo</dt>
+                <dd>{formatIsoDate(forecast.targetDate)}</dd>
+              </div>
+              <div>
+                <dt>Proyección</dt>
+                <dd className={forecast.delayDays > 0 ? styles.late : undefined}>
+                  {formatIsoDate(forecast.projectedCloseDate)}
+                </dd>
+              </div>
+              <div>
+                <dt>Rol en el proyecto</dt>
+                <dd>{view.projectRole ?? `${view.tenantRole} (acceso implícito)`}</dd>
+              </div>
+              <div>
+                <dt>{scenarioLabel ? "Fecha de corte del escenario" : "Última actualización"}</dt>
+                <dd>{formatIsoDate(forecast.calculatedAt.toISOString().slice(0, 10))}</dd>
+              </div>
+            </dl>
+          ) : null}
+        </PanelBody>
+      </Panel>
+
+      {strip.length === 0 ? (
+        <SystemState state="empty" title="Sin métricas todavía">
+          <p>Cuando el equipo registre avance, el control de ejecución aparecerá aquí.</p>
+        </SystemState>
+      ) : (
+        <Panel>
+          <PanelHeader
+            label="Control de ejecución"
+            badge={
+              <>
+                <DemoBadge facets={stripFacets} />
+                {scenarioLabel ? <Chip tone="demo">{scenarioLabel}</Chip> : null}
+              </>
+            }
+            note="Universo, levantamientos y consulta son cifras reales del estudio; el resto son métricas operativas de demostración, fijadas a la fecha de corte del escenario."
+          />
+          <MetricStrip>
+            {strip.map((metric) => (
+              <MetricCell
+                key={metric.id}
+                label={metric.definition.label}
+                value={formatMetricValue(metric)}
+                tone={metricTone(metric)}
+                note={
+                  <>
+                    {metric.note ? <span>{metric.note}</span> : null}
+                    <span className={styles.badgeRow}>
+                      <ProvenanceBadge facets={metric.provenance} />
+                    </span>
+                  </>
+                }
+                provenanceLink={<ProvenanceLink href={provHref(basePath, metric.provenanceId)} />}
+              />
+            ))}
+          </MetricStrip>
+        </Panel>
+      )}
+
+      <Columns>
+        <Stack gap={16}>
+          {forecast ? (
+            <Panel>
+              <PanelHeader
+                label="Operational forecast"
+                note="cálculo aritmético sobre el ritmo observado · sin modelo predictivo"
+                action={<ProvenanceLink href={provHref(basePath, forecast.provenanceId)} />}
+              />
+              <PanelBody>
+                <p className={styles.statement}>
+                  Al ritmo de los últimos {forecast.windowDays} días, el levantamiento concluiría{" "}
+                  {forecast.delayDays > 0 ? (
+                    <strong className={styles.late}>
+                      {formatDayCount(forecast.delayDays)} después
+                    </strong>
+                  ) : forecast.delayDays < 0 ? (
+                    <strong>{formatDayCount(forecast.delayDays)} antes</strong>
+                  ) : (
+                    <strong>el mismo día</strong>
+                  )}{" "}
+                  de la fecha objetivo.
+                </p>
+                <div className={styles.forecastGrid}>
+                  <div className={styles.forecastCells}>
+                    <ForecastCell
+                      label="Ritmo actual"
+                      value={formatDecimal(forecast.movingAveragePerDay)}
+                      unit="pred/día"
+                    />
+                    <ForecastCell
+                      label="Ritmo necesario"
+                      value={
+                        forecast.requiredRatePerDay === null
+                          ? "—"
+                          : formatDecimal(forecast.requiredRatePerDay)
+                      }
+                      unit="pred/día"
+                      highlight
+                    />
+                    <ForecastCell
+                      label="Técnicos activos"
+                      value={formatCount(forecast.activeTechnicians)}
+                      unit={`de ${formatCount(forecast.assignedTechnicians)} asignados`}
+                    />
+                    <ForecastCell
+                      label="Pendientes"
+                      value={formatCount(forecast.pending)}
+                      unit="predios"
+                    />
+                  </div>
+                  <div className={styles.forecastChart}>
+                    <span className={styles.chartLabel}>
+                      Levantamientos por día · últimos {forecast.dailyCompletions.length} días
+                    </span>
+                    <ForecastChart
+                      values={forecast.dailyCompletions}
+                      highlightLast={forecast.windowDays}
+                      startDate={shiftDate(
+                        forecast.calculatedAt,
+                        -(forecast.dailyCompletions.length - 1),
+                      )}
+                      endDate={forecast.calculatedAt.toISOString().slice(0, 10)}
+                      label={`Levantamientos por día, últimos ${forecast.dailyCompletions.length} días`}
+                    />
+                    <p className={styles.assumptions}>
+                      <span className={styles.assumptionsLabel}>Supuestos:</span>{" "}
+                      {forecast.assumptions.join(" · ")}
+                    </p>
+                    <p className={styles.algorithm}>
+                      <Mono>{forecast.algorithmVersion}</Mono>
+                    </p>
+                  </div>
+                </div>
+              </PanelBody>
+            </Panel>
+          ) : null}
+
+          <Panel>
+            <PanelHeader
+              label="Requiere atención hoy"
+              action={<span className={styles.count}>{view.attention.length} elementos</span>}
+            />
+            {view.attention.length === 0 ? (
+              <PanelBody>
+                <p className={styles.muted}>
+                  Nada requiere atención hoy. Esto no sustituye la revisión técnica del expediente.
+                </p>
+              </PanelBody>
+            ) : (
+              <AttentionList>
+                {view.attention.map((item) => {
+                  const surface = item.surface ? SURFACE_DEFINITIONS[item.surface] : null;
+                  const href =
+                    surface && surface.implemented && ctx.projectSlug
+                      ? projectPath(ctx.tenantSlug, ctx.projectSlug, surface.segment)
+                      : null;
+                  return (
+                    <AttentionRow
+                      key={item.id}
+                      severity={item.severity}
+                      severityLabel={ATTENTION_SEVERITY_LABEL[item.severity]}
+                      title={item.title}
+                      note={item.note}
+                      surfaceLabel={item.surfaceLabel}
+                      action={
+                        href ? (
+                          <ProvenanceLink href={href}>{item.actionLabel ?? "Abrir"}</ProvenanceLink>
+                        ) : (
+                          <ProvenanceLink href={provHref(basePath, item.provenanceId)} />
+                        )
+                      }
+                    />
+                  );
+                })}
+              </AttentionList>
+            )}
+          </Panel>
+
+          {view.activity.length > 0 ? (
+            <Panel>
+              <PanelHeader
+                label="Actividad reciente"
+                badge={<DemoBadge facets={view.activity.map((a) => a.provenance)} label="DEMO" />}
+                note={scenarioLabel ?? undefined}
+              />
+              <ActivityTable
+                caption="Actividad reciente del proyecto"
+                rows={view.activity.map((event) => ({
+                  id: event.id,
+                  time: formatTime(event.occurredAt),
+                  actor: event.actorLabel,
+                  action: event.action,
+                  object: event.objectLabel,
+                }))}
+              />
+            </Panel>
+          ) : null}
+        </Stack>
+
+        <Stack gap={16}>
+          {consultation ? (
+            <Panel>
+              <PanelHeader label="Consulta significativa" badge={<Chip tone="ok">COMPLETA</Chip>} />
+              <PanelBody>
+                <div className={styles.bigFigure}>
+                  <span className={styles.bigValue}>{formatMetricValue(consultation)}</span>
+                  <span className={styles.bigNote}>{consultation.note}</span>
+                </div>
+                <div className={styles.badgeRow}>
+                  <ProvenanceBadge facets={consultation.provenance} />
+                  <ProvenanceLink href={provHref(basePath, consultation.provenanceId)} />
+                </div>
+              </PanelBody>
+            </Panel>
+          ) : null}
+
+          <Panel>
+            <PanelHeader label="Alcance de esta fase" />
+            <PanelBody>
+              <p className={styles.muted}>
+                El resumen territorial, los instrumentos del proyecto y los hallazgos de calidad
+                llegan con los módulos de GIS, campo y Quality Gate. No se muestran cifras
+                inventadas en su lugar.
+              </p>
+            </PanelBody>
+          </Panel>
+        </Stack>
+      </Columns>
+    </Stack>
+  );
+}
+
+function ForecastCell({
+  label,
+  value,
+  unit,
+  highlight = false,
+}: {
+  label: string;
+  value: string;
+  unit: string;
+  highlight?: boolean;
+}) {
+  return (
+    <div className={`${styles.forecastCell} ${highlight ? styles.forecastCellActive : ""}`}>
+      <span className={styles.forecastLabel}>{label}</span>
+      <span className={styles.forecastValue}>
+        {value} <span className={styles.forecastUnit}>{unit}</span>
+      </span>
+    </div>
+  );
+}
+
+function shiftDate(from: Date, days: number): string {
+  return new Date(from.getTime() + days * 86_400_000).toISOString().slice(0, 10);
+}

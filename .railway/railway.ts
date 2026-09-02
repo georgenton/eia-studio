@@ -28,17 +28,6 @@ export default defineRailway(() => {
     sizeMB: 5000,
   });
 
-  // Left over from the stock Railway PostgreSQL template that served as the comparison baseline
-  // in the provider evaluation (docs/STAGING_GATE_0_5.md §2.1). That service no longer exists.
-  // The volume is declared so a plan never proposes destroying storage on its own; removing it is
-  // a deliberate, separate decision (docs/TECH_DEBT.md TD-020).
-  const retiredTemplateVolume = volume("postgres-volume", {
-    alerts: { usage: { "80": {}, "95": {}, "100": {} } },
-    allowOnlineResize: true,
-    region: "us-west2",
-    sizeMB: 5000,
-  });
-
   // PostgreSQL 17 + PostGIS + pgvector + TLS, built from `docker/postgres/Dockerfile` in this
   // repository. Railway's stock template has no PostGIS, so migration 0000 cannot run on it.
   //
@@ -95,6 +84,6 @@ export default defineRailway(() => {
   });
 
   return project("eia-studio-staging", {
-    resources: [postgresGis, worker, postgresGisData, retiredTemplateVolume],
+    resources: [postgresGis, worker, postgresGisData],
   });
 });

@@ -18,9 +18,11 @@ import { loadDotenv } from "./env";
  */
 loadDotenv();
 const app = loadEnv("app", appEnvSchema);
-if (!app.DEMO_FIXTURES_ENABLED || !["local", "test", "preview"].includes(app.APP_ENV)) {
+// Staging is allowed: it is a synthetic environment by construction (docs/DEPLOYMENT.md §4a).
+// Production never is, and `DEMO_FIXTURES_ENABLED` must be set deliberately either way.
+if (!app.DEMO_FIXTURES_ENABLED || app.APP_ENV === "production") {
   console.error(
-    "seed:dev refused: DEMO_FIXTURES_ENABLED must be true and APP_ENV local/test/preview",
+    "seed:dev refused: DEMO_FIXTURES_ENABLED must be true and APP_ENV must not be production",
   );
   process.exit(1);
 }
@@ -28,6 +30,7 @@ const env = loadEnv("migrator", migratorDatabaseEnvSchema);
 
 const manifestSchema = z
   .object({
+    $comment: z.string().optional(),
     slug: z.string().regex(/^[a-z0-9-]{3,40}$/),
     name: z.string().min(1),
     regime: z.literal("DEMO_SIMULATION"),

@@ -192,3 +192,18 @@ match pixels.
 A slice is complete only when: lint, typecheck, unit, domain, integration (incl. RLS and the
 cross-tenant suite) pass in CI; new entry points are registered in the enforcement registry; new
 tables are in the RLS/provenance registries; ADRs updated when a decision changed.
+
+## 9. Slice 1 — what is actually covered
+
+| Layer | Files | Count |
+|---|---|---|
+| Domain unit | `packages/domain/test/{forecast,workspace,metrics}.test.ts` | forecast arithmetic and determinism, the surface registry, the closed metric vocabulary |
+| Application integration | `packages/application/test/command-center.integration.test.ts` | the read models under real contexts: assigned member, OWNER implicit access, ADMIN denial (D-015), foreign project, foreign provenance id |
+| Database isolation | `packages/testing/test/rls/slice1-project-data.integration.test.ts` | cross-tenant read and mutation on the five new tables, forged project context, no-context denial, and the integrity constraints (single value, non-empty transformations, closed enum, no self-edge, cross-tenant FK) |
+| End to end | `e2e/{journey,authorization,admin,anonymous}.spec.ts` | the reviewer journey, the provenance drawer with focus and Escape, the disabled-capability URL, the unassigned project, the unauthenticated redirect, D-015 in the browser |
+| Screenshots | `e2e/screenshots.spec.ts` → `docs/screenshots/slice-1/` | our regression baseline, not a pixel comparison with the design bundle |
+
+The e2e suite authenticates once per role in a setup project and reuses the stored session: the
+identity layer rate-limits sign-in, and re-authenticating per test made the suite both slower and
+flaky. It never creates accounts, because public self-signup is disabled; `pnpm e2e:prepare`
+provisions synthetic identities from `DEMO_USER_PASSWORD`.

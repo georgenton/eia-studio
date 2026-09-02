@@ -1,4 +1,7 @@
-import { runMigrations } from "@eia/db";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
+import { MIGRATIONS_FOLDER, runMigrations } from "@eia/db";
 import { sql } from "drizzle-orm";
 import { afterAll, describe, expect, it } from "vitest";
 
@@ -6,6 +9,17 @@ import { attempt, getTestDatabase } from "../src/index";
 
 const db = getTestDatabase();
 afterAll(() => db.close());
+
+/**
+ * The number of applied migrations is read from the repository's journal rather than hardcoded:
+ * the property under test is "the database matches the migrations folder", and a literal count
+ * only re-states today's total and breaks on every future migration.
+ */
+const journalEntries = (
+  JSON.parse(readFileSync(resolve(MIGRATIONS_FOLDER, "meta/_journal.json"), "utf8")) as {
+    entries: ReadonlyArray<unknown>;
+  }
+).entries.length;
 
 describe("migrations and database foundation", () => {
   it("required extensions are available and installed", async () => {
@@ -25,7 +39,7 @@ describe("migrations and database foundation", () => {
       sql`select count(*)::int as n from drizzle.__drizzle_migrations`,
     );
     expect((after.rows[0] as { n: number }).n).toBe((before.rows[0] as { n: number }).n);
-    expect((after.rows[0] as { n: number }).n).toBe(5);
+    expect((after.rows[0] as { n: number }).n).toBe(journalEntries);
   });
 
   it("every table in app and audit has RLS enabled, forced, and at least one policy", async () => {
@@ -49,6 +63,30 @@ describe("migrations and database foundation", () => {
       expect(row.forced, `${row.schema}.${row.table} rls forced`).toBe(true);
       expect(row.policies, `${row.schema}.${row.table} policies`).toBeGreaterThan(0);
     }
+  });
+
+  /**
+   * IG1-009: `Project` is a canonical EIA Studio entity and must not carry demonstration state.
+   * The simulation's as-of date lives with the calculation it anchors, on `forecast_snapshot`.
+   */
+  it("app.project carries no demo-specific column", async () => {
+    const result = await db.migrator.execute(sql`
+      select column_name from information_schema.columns
+      where table_schema = 'app' and table_name = 'project'
+      order by column_name
+    `);
+    const columns = (result.rows as Array<{ column_name: string }>).map((r) => r.column_name);
+    expect(columns).not.toContain("demo_scenario_date");
+    for (const column of columns) {
+      expect(column, `app.project.${column}`).not.toMatch(/demo|scenario|simulation/i);
+    }
+    // …and the anchor is on the forecast, where a simulated calculation can own it.
+    const forecast = await db.migrator.execute(sql`
+      select column_name, is_nullable from information_schema.columns
+      where table_schema = 'app' and table_name = 'forecast_snapshot' and column_name = 'as_of_date'
+    `);
+    expect(forecast.rows).toHaveLength(1);
+    expect((forecast.rows[0] as { is_nullable: string }).is_nullable).toBe("NO");
   });
 
   it("roles follow least privilege (ADR-004)", async () => {
@@ -110,10 +148,11 @@ describe("migrations and database foundation", () => {
     expect(priv.rows[0]).toMatchObject({ upd: false, del: false, ins: true });
   });
 
-  it("schema drift: migrations folder matches the Drizzle schema (journal has 5 entries)", async () => {
+  it("every migration in the repository journal is applied to the database", async () => {
     const journal = await db.migrator.execute(
       sql`select count(*)::int as n from drizzle.__drizzle_migrations`,
     );
-    expect((journal.rows[0] as { n: number }).n).toBe(5);
+    expect((journal.rows[0] as { n: number }).n).toBe(journalEntries);
+    expect(journalEntries).toBeGreaterThanOrEqual(8);
   });
 });

@@ -61,6 +61,35 @@ fixtures/
     demo-consultancy/                # synthetic tenant + memberships (badge DEMO)
 ```
 
+### 2.1 What Slice 1 actually loads
+
+The layout above is the target shape. As of Slice 1 the directory contains exactly one file:
+
+```
+fixtures/projects/zamora-puente-del-amor/manifest.json
+```
+
+It holds the four approved historical aggregates (corridor length, roadside parcels,
+socioeconomic surveys, consultation participants), the demo operational metrics the Command
+Center composition needs, the forecast inputs, the attention queue and the activity feed — and a
+`safetyClassification` block that states, in the fixture itself, that it contains no personal
+data and lists what it excludes. The GIS, survey, taxonomy, quality and portal directories arrive
+with their own slices.
+
+It is loaded by `pnpm db:seed:demo-project`, which is a **generic** project-fixture loader:
+the pilot directory is named on the command line (`--fixture <dir>`), so no pilot constant lives
+in `packages/` or `apps/` (rule 1, enforced by `tooling/scripts/check-forbidden-strings.mjs`).
+
+Two things the loader does deliberately:
+
+- **The forecast is computed, not copied.** The manifest carries the *inputs* (pending count,
+  daily completions, window, target date, technicians, assumptions); the loader runs the domain
+  algorithm and stores the result. A figure on the screen therefore always follows from the
+  stored inputs (invariant 5).
+- **Every row names its provenance record**, and the loader refuses to start if any value points
+  at a record the manifest does not define. There is no default provenance and no way to insert
+  a metric without one: `provenance_id` is `NOT NULL` in the schema.
+
 Loading is done by an **import** (an `ImportRun` per fixture file) that stamps every created
 record with a provenance record whose facets (regime, origin, transformations, granularity) come
 from the fixture manifest.
@@ -71,7 +100,10 @@ project, province and customer appear only inside fixture data.
 
 1. **No Zamora constants in core.** Forbidden in reusable code: the project name, the province,
    the customer, any consultant name, the figures 7.4, 141, 119, 185, and "road" as the universal
-   project type. Enforced by a lint rule (string denylist) and code review.
+   project type. Enforced by `tooling/scripts/check-forbidden-strings.mjs` (part of `pnpm lint`
+   and of the pre-commit hook) and by code review. The check scans `apps/` and `packages/`; it is
+   the reason the fixture directory is passed to the loader as an argument rather than written
+   into the script.
 2. **Regime travels with the data.** Every record created from a fixture inherits the regime of
    its `ImportRun`. Synthetic values can never be re-labelled as historical by a UI or an export.
 3. **The demo badge is derived, not hand-placed.** The `DEMO / SYNTHETIC` badge appears when any

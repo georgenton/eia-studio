@@ -173,3 +173,58 @@ export async function seedTwoTenantWorld(db: Database): Promise<TwoTenantWorld> 
     memberAProjectXMembershipId: pm.id,
   };
 }
+
+/* ---------------------------------------------------------------------------------------------
+ * Slice 1 factories: provenance-bearing project data.
+ * ------------------------------------------------------------------------------------------- */
+
+export async function createProvenanceRecord(
+  db: Database,
+  input: {
+    tenantId: string;
+    projectId: string;
+    regime?: "HISTORICAL_OBSERVED" | "LIVE_OPERATIONAL" | "DEMO_SIMULATION";
+    title?: string;
+    capturedAt?: Date;
+  },
+): Promise<{ id: string }> {
+  const id = randomUUID();
+  await db.insert(appSchema.provenanceRecord).values({
+    id,
+    tenantId: input.tenantId,
+    projectId: input.projectId,
+    regime: input.regime ?? "DEMO_SIMULATION",
+    origin: "SYSTEM_GENERATED",
+    transformations: ["ORIGINAL"],
+    granularity: "AGGREGATE",
+    title: input.title ?? `Provenance ${next()}`,
+    note: "Factory record for isolation tests.",
+    capturedAt: input.capturedAt ?? null,
+    validationState: "PENDING",
+  });
+  return { id };
+}
+
+export async function createMetricSnapshot(
+  db: Database,
+  input: {
+    tenantId: string;
+    projectId: string;
+    provenanceId: string;
+    key?: "universe_estimated" | "surveys_complete" | "parcels_pending";
+    value?: number;
+  },
+): Promise<{ id: string }> {
+  const id = randomUUID();
+  await db.insert(appSchema.metricSnapshot).values({
+    id,
+    tenantId: input.tenantId,
+    projectId: input.projectId,
+    key: input.key ?? "universe_estimated",
+    numericValue: String(input.value ?? 141),
+    note: "factory",
+    displayOrder: 0,
+    provenanceId: input.provenanceId,
+  });
+  return { id };
+}

@@ -1,67 +1,43 @@
-"use client";
+import type { Metadata } from "next";
+import { Suspense } from "react";
 
-import { useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
+import { SignInForm } from "./sign-in-form";
+import styles from "./sign-in.module.css";
 
-import { authClient } from "@/lib/auth-client";
-
-import styles from "../foundation.module.css";
+export const metadata: Metadata = { title: "Entrar · EIA Studio" };
 
 /**
- * Sign-in for provisioned identities. Public self-signup is disabled (IG0-H01); accounts are
- * created deliberately until the onboarding workflow exists, so this surface has no sign-up form.
+ * Sign-in for provisioned identities. Public self-signup is disabled (IG0-H01), so this surface
+ * deliberately has no registration, no password reset and no email delivery: accounts are created
+ * by an operator until the onboarding workflow exists.
  */
 export default function SignInPage() {
-  const router = useRouter();
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  async function onSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setBusy(true);
-    setError(null);
-    const form = new FormData(event.currentTarget);
-    const result = await authClient.signIn.email({
-      email: String(form.get("email") ?? ""),
-      password: String(form.get("password") ?? ""),
-    });
-    setBusy(false);
-    if (result.error) {
-      setError(result.error.message ?? "No se pudo iniciar sesión");
-      return;
-    }
-    router.push("/");
-    router.refresh();
-  }
-
   return (
     <main className={styles.page}>
-      <div className={styles.eyebrow}>EIA Studio · acceso</div>
-      <h1 className={styles.title}>Entrar</h1>
-      <section className={styles.card}>
-        <form onSubmit={onSubmit} className={styles.form}>
-          <input name="email" type="email" placeholder="Correo" required autoComplete="email" />
-          <input
-            name="password"
-            type="password"
-            placeholder="Contraseña"
-            required
-            minLength={12}
-            autoComplete="current-password"
-          />
-          {error ? <div className={styles.error}>{error}</div> : null}
-          <button className={styles.button} type="submit" disabled={busy}>
-            Entrar
-          </button>
-        </form>
-      </section>
-      <section className={styles.card}>
-        <div className={styles.eyebrow}>Cuentas</div>
-        <p className={styles.muted}>
-          El registro público está deshabilitado. Las cuentas se aprovisionan de forma explícita
-          hasta que exista el flujo de onboarding.
+      <section className={styles.panel}>
+        <div className={styles.brand}>
+          <span aria-hidden="true" className={styles.mark} />
+          <span className={styles.brandText}>EIA Studio</span>
+        </div>
+        <h1 className={styles.title}>Entrar al workspace</h1>
+        <p className={styles.subtitle}>
+          Estudios de impacto ambiental y social, con trazabilidad de extremo a extremo.
+        </p>
+        {/* `useSearchParams` reads the post-sign-in destination, so the form is a client
+            boundary that must not be prerendered with the rest of the page. */}
+        <Suspense fallback={<div className={styles.form} aria-hidden="true" />}>
+          <SignInForm />
+        </Suspense>
+        <p className={styles.note}>
+          El registro público está deshabilitado. Las cuentas se aprovisionan de forma explícita por
+          la organización.
         </p>
       </section>
+      <aside className={styles.aside}>
+        <blockquote className={styles.quote}>
+          Toda cifra publicada conserva su cadena de procedencia hasta el registro de campo.
+        </blockquote>
+      </aside>
     </main>
   );
 }

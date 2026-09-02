@@ -127,3 +127,67 @@ jobs:
         run: pnpm test:integration
         env:
           TESTCONTAINERS_RYUK_DISABLED: "false"
+
+  e2e:
+    name: e2e
+    runs-on: ubuntu-latest
+    needs: quality
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node (from .nvmrc)
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Frozen install
+        run: pnpm install --frozen-lockfile
+
+      - name: Start PostgreSQL (PostGIS + pgvector, same image as local and CI integration)
+        run: |
+          docker build -t eia-studio/postgres:ci docker/postgres
+          docker run -d --name eia-e2e-db -p 5432:5432 \
+            -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=eia_studio \
+            eia-studio/postgres:ci
+          for i in $(seq 1 60); do
+            docker exec eia-e2e-db pg_isready -U postgres && break
+            sleep 2
+          done
+
+      - name: Install Playwright browser
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Prepare database, fixtures and synthetic identities
+        run: pnpm e2e:prepare
+        env: &e2e_env
+          APP_ENV: test
+          PUBLIC_APP_URL: http://127.0.0.1:3100
+          BETTER_AUTH_URL: http://127.0.0.1:3100
+          BETTER_AUTH_SECRET: ${{ secrets.E2E_AUTH_SECRET || 'ci-only-secret-not-used-outside-ci-runs' }}
+          DATABASE_URL: postgres://eia_app_login:${{ secrets.E2E_APP_PASSWORD || 'ci-only-app-password' }}@127.0.0.1:5432/eia_studio?sslmode=disable
+          DATABASE_MIGRATOR_URL: postgres://postgres:postgres@127.0.0.1:5432/eia_studio?sslmode=disable
+          DATABASE_APP_ROLE_NAME: eia_app_login
+          DATABASE_APP_ROLE_PASSWORD: ${{ secrets.E2E_APP_PASSWORD || 'ci-only-app-password' }}
+          DEMO_FIXTURES_ENABLED: "true"
+          DEMO_USER_PASSWORD: ${{ secrets.E2E_USER_PASSWORD || 'ci-only-demo-password' }}
+
+      - name: Build the web application
+        run: pnpm --filter @eia/web build
+        env: *e2e_env
+
+      - name: End-to-end journey and authorization suite
+        run: pnpm e2e
+        env: *e2e_env
+
+      - name: Upload the report when the suite fails
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7

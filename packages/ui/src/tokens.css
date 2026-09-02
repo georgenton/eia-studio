@@ -27,13 +27,22 @@
   --eia-chip-neutral: #f1f3f5;
   --eia-chip-neutral-border: #e2e6e9;
   --eia-text-secondary: #5a646c;
-  --eia-text-muted: #7a858e;
+  /* Design v0.2 gives "texto tenue" as #7A858E, which is 3,77:1 on white and fails WCAG AA for
+     the 9,5 px uppercase labels that use it. Darkened to the nearest shade of the same neutral
+     that passes on both surfaces it sits on — 4,76:1 on white and 4,59:1 on the subtle surface
+     used by table headers — so the three-level hierarchy ink → secondary → muted survives while
+     the smallest type stays readable (IG1-005). */
+  --eia-text-muted: #6b747c;
+  /* Decorative only: separators, glyphs and empty-slot outlines. It is 2,25:1 on white, so it
+     must never carry text a reader has to read — use --eia-text-muted for that. */
   --eia-text-disabled: #a6aeb4;
   --eia-demo: #8a6512;
 
-  --eia-font-serif: "Source Serif 4", Georgia, "Times New Roman", serif;
-  --eia-font-sans: "Archivo", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --eia-font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  /* The `*-loaded` variables are set by the host app when it self-hosts the approved families;
+     the stacks below are the fallback so tokens work without a font loader. */
+  --eia-font-serif: var(--eia-font-serif-loaded), "Source Serif 4", Georgia, serif;
+  --eia-font-sans: var(--eia-font-sans-loaded), "Archivo", system-ui, -apple-system, sans-serif;
+  --eia-font-mono: var(--eia-font-mono-loaded), "JetBrains Mono", ui-monospace, Menlo, monospace;
 
   --eia-size-display: 38px;
   --eia-size-title-screen: 26px;

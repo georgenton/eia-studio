@@ -1,100 +1,106 @@
-import { CAPABILITY_KEYS } from "@eia/domain";
-import Link from "next/link";
-import { redirect } from "next/navigation";
+import { loadCommandCenter, loadPortfolio } from "@eia/application";
+import { SURFACE_DEFINITIONS } from "@eia/domain";
+import { notFound, redirect } from "next/navigation";
 
-import { getRequestContext } from "@/lib/context";
-
-import styles from "../../../../foundation.module.css";
+import { CommandCenter } from "@/components/command-center";
+import { ProvenancePanel } from "@/components/provenance-panel";
+import { projectBreadcrumb, WorkspaceShell } from "@/components/workspace-shell";
+import { getSessionUser } from "@/lib/context";
+import { getDb } from "@/lib/db";
+import { lifecycleLabel } from "@/lib/lifecycle";
+import { projectPath } from "@/lib/navigation";
+import { getTenantCapabilitySettings } from "@/lib/queries";
+import { accessForDomainError, resolveSurfaceAccess } from "@/lib/surface-access";
+import { PermissionDeniedState } from "@/lib/system-state";
 
 export const dynamic = "force-dynamic";
 
-export default async function ProjectFoundationPage({
+/**
+ * Command Center (design v0.2 §2). Access is decided by the one capability policy (ADR-016)
+ * before any data is read; the read model then re-checks the capability and the permission, so a
+ * hidden rail item is never the control.
+ */
+export default async function CommandCenterPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ tenant: string; project: string }>;
+  searchParams: Promise<{ prov?: string }>;
 }) {
   const { tenant, project } = await params;
-  const result = await getRequestContext(tenant, project);
-  if (result.kind === "unauthenticated") redirect("/sign-in");
-  if (result.kind === "denied") {
+  const { prov } = await searchParams;
+  const access = await resolveSurfaceAccess(tenant, project, "command-center");
+
+  if (access.kind === "unauthenticated") redirect("/sign-in");
+  if (access.kind === "not-found") notFound();
+  if (access.kind === "denied") {
     return (
-      <main className={styles.page}>
-        <div className={styles.eyebrow}>permission denied</div>
-        <h1 className={styles.title}>No tienes acceso a este proyecto</h1>
-        <p className={styles.muted}>
-          Tu rol {result.role ?? "actual"} no incluye {result.restrictedData}.
-        </p>
-        <Link href={`/t/${tenant}`}>Volver</Link>
+      <main style={{ padding: "40px 26px" }}>
+        <PermissionDeniedState
+          role={access.role}
+          restrictedData={access.restrictedData}
+          backHref={`/t/${tenant}`}
+        />
       </main>
     );
   }
-  const { ctx } = result;
+
+  const { ctx } = access;
+  const sessionUser = await getSessionUser();
+  const tenantSettings = await getTenantCapabilitySettings(ctx);
+  const portfolio = await loadPortfolio(getDb(), ctx);
+  const basePath = projectPath(ctx.tenantSlug, project, "");
+
+  const shellProps = {
+    ctx,
+    tenantSettings,
+    projects: portfolio.projects,
+    currentSurface: "command-center" as const,
+    userName: sessionUser?.name ?? sessionUser?.email ?? "Usuario",
+  };
+
+  let view;
+  try {
+    view = await loadCommandCenter(getDb(), ctx);
+  } catch (error) {
+    const outcome = accessForDomainError(error);
+    if (outcome?.kind === "not-found") notFound();
+    if (outcome?.kind === "denied") {
+      return (
+        <WorkspaceShell
+          {...shellProps}
+          breadcrumb={projectBreadcrumb(ctx, portfolio.tenantName, project, "Command Center")}
+        >
+          <PermissionDeniedState
+            role={outcome.role}
+            restrictedData={outcome.restrictedData}
+            backHref={`/t/${tenant}`}
+          />
+        </WorkspaceShell>
+      );
+    }
+    throw error;
+  }
+
   return (
-    <main className={styles.page}>
-      <div className={styles.eyebrow}>
-        <Link href="/">EIA Studio</Link> ›{" "}
-        <Link href={`/t/${ctx.tenantSlug}`}>{ctx.tenantSlug}</Link> › {ctx.projectSlug}
-      </div>
-      <h1 className={styles.title}>Contexto de proyecto</h1>
-      <section className={styles.card}>
-        <table className={styles.table}>
-          <tbody>
-            <tr>
-              <th>project</th>
-              <td className={styles.mono}>{ctx.projectId}</td>
-            </tr>
-            <tr>
-              <th>rol tenant</th>
-              <td>
-                <span className={styles.chip}>{ctx.tenantRole}</span>
-              </td>
-            </tr>
-            <tr>
-              <th>rol proyecto</th>
-              <td>
-                {ctx.projectRole ? (
-                  <span className={styles.chip}>{ctx.projectRole}</span>
-                ) : (
-                  <span className={styles.muted}>sin asignación</span>
-                )}
-              </td>
-            </tr>
-            <tr>
-              <th>acceso implícito OWNER</th>
-              <td className={styles.mono}>{String(ctx.implicitOwnerProjectAccess)} (auditado)</td>
-            </tr>
-            <tr>
-              <th>permisos</th>
-              <td className={styles.mono}>{[...ctx.permissions].sort().join(" · ")}</td>
-            </tr>
-          </tbody>
-        </table>
-      </section>
-      <section className={styles.card}>
-        <div className={styles.eyebrow}>Capabilities efectivas · prueba de invocación servidor</div>
-        <p className={styles.muted}>
-          Cada enlace llama a un route handler que ejecuta{" "}
-          <span className={styles.mono}>requireCapability</span>; los deshabilitados responden 403
-          con el estado <em>feature disabled</em>.
-        </p>
-        <ul>
-          {CAPABILITY_KEYS.map((key) => (
-            <li key={key}>
-              <Link
-                className={styles.mono}
-                href={`/t/${ctx.tenantSlug}/p/${ctx.projectSlug}/capabilities/${key}`}
-              >
-                {key}
-              </Link>{" "}
-              {ctx.capabilities[key] ? (
-                <span className={`${styles.chip} ${styles.chipOk}`}>enabled</span>
-              ) : (
-                <span className={styles.chip}>disabled</span>
-              )}
-            </li>
-          ))}
-        </ul>
-      </section>
-    </main>
+    <WorkspaceShell
+      {...shellProps}
+      breadcrumb={projectBreadcrumb(
+        ctx,
+        portfolio.tenantName,
+        view.project.name,
+        SURFACE_DEFINITIONS["command-center"].label,
+      )}
+      drawer={
+        prov ? <ProvenancePanel closeHref={basePath} ctx={ctx} provenanceId={prov} /> : undefined
+      }
+    >
+      <CommandCenter
+        basePath={basePath}
+        ctx={ctx}
+        lifecycleLabel={lifecycleLabel(view.project.lifecycle)}
+        view={view}
+      />
+    </WorkspaceShell>
   );
 }
