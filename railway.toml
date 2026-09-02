@@ -1,0 +1,22 @@
+# Railway configuration for the persistent worker (ADR-012, docs/DEPLOYMENT.md).
+# The web application is deployed on Vercel and is not built here.
+#
+# Node version comes from `engines.node` / `.nvmrc` (Node 24). The build installs the workspace
+# with a frozen lockfile and bundles only `apps/worker`; the start command runs the bundle as a
+# long-lived process. Railway sends SIGTERM on redeploy and shutdown, which WorkerProcess handles
+# by draining the queue port and running its stop hooks within WORKER_SHUTDOWN_TIMEOUT_MS.
+#
+# Database migrations are NOT run from this service: they use the migrator role from an operator
+# session (docs/DEPLOYMENT.md §5). The worker connects with the RLS-enforced runtime role only.
+
+[build]
+builder = "RAILPACK"
+buildCommand = "pnpm install --frozen-lockfile && pnpm --filter @eia/worker build"
+watchPatterns = ["apps/worker/**", "packages/**", "package.json", "pnpm-lock.yaml"]
+
+[deploy]
+startCommand = "pnpm --filter @eia/worker start"
+healthcheckPath = "/health"
+healthcheckTimeout = 60
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 5
