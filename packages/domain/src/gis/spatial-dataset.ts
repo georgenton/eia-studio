@@ -121,3 +121,42 @@ export function assertActivationIsValid(input: {
     );
   }
 }
+
+/**
+ * Pick the layer a surface is actually talking about, by kind (IG2-007).
+ *
+ * The regression this exists to prevent: the Command Center's territorial summary took
+ * `layers[0]` and so captioned a count of **parcels** with the **alignment** layer's legend and
+ * provenance link. It read correctly on one machine and wrongly in CI, because the query had no
+ * `ORDER BY` and PostgreSQL's row order is incidental.
+ *
+ * Two rules, both enforced by the signature: a surface names the kind it means, and it gets
+ * `null` rather than a plausible wrong layer when that kind is absent. Never index into the array.
+ */
+export function selectLayerByKind<T extends { readonly datasetKind: SpatialDatasetKind }>(
+  layers: ReadonlyArray<T>,
+  kind: SpatialDatasetKind,
+): T | null {
+  return layers.find((layer) => layer.datasetKind === kind) ?? null;
+}
+
+/**
+ * Stable display order for the layer-provenance legend: the corridor, then the parcels on it,
+ * then what the right of way takes. Reading order, and it does not depend on the database.
+ */
+export const LAYER_LEGEND_ORDER: ReadonlyArray<SpatialDatasetKind> = [
+  "alignment",
+  "parcels",
+  "affectations",
+];
+
+/** Order layers for display without mutating the caller's array. */
+export function orderLayersForLegend<T extends { readonly datasetKind: SpatialDatasetKind }>(
+  layers: ReadonlyArray<T>,
+): ReadonlyArray<T> {
+  const rank = (kind: SpatialDatasetKind) => {
+    const index = LAYER_LEGEND_ORDER.indexOf(kind);
+    return index === -1 ? LAYER_LEGEND_ORDER.length : index;
+  };
+  return [...layers].sort((a, b) => rank(a.datasetKind) - rank(b.datasetKind));
+}

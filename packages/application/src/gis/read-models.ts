@@ -3,7 +3,6 @@ import {
   affectationRatio,
   deriveLayerLegend,
   NotFound,
-  PRESENTATION_SRID,
   requireCapability,
   requirePermission,
   type AffectationCategory,
@@ -47,7 +46,10 @@ export interface LayerProvenance {
   readonly datasetKind: SpatialDatasetKind;
   readonly versionLabel: string;
   readonly origin: SpatialDatasetOrigin;
-  readonly sourceCrs: string;
+  /** EPSG code the geometry arrived in, before the transform to canonical storage. */
+  readonly sourceSrid: number;
+  /** Projected EPSG code this dataset's lengths and areas were measured in. */
+  readonly analysisSrid: number;
   readonly generatorVersion: string | null;
   readonly featureCount: number;
   readonly provenanceId: string;
@@ -112,7 +114,8 @@ async function loadLayers(
       kind: gisSchema.spatialDataset.kind,
       versionLabel: gisSchema.spatialDatasetVersion.versionLabel,
       origin: gisSchema.spatialDatasetVersion.origin,
-      sourceCrs: gisSchema.spatialDatasetVersion.sourceCrs,
+      sourceSrid: gisSchema.spatialDatasetVersion.sourceSrid,
+      analysisSrid: gisSchema.spatialDatasetVersion.analysisSrid,
       generatorVersion: gisSchema.spatialDatasetVersion.generatorVersion,
       featureCount: gisSchema.spatialDatasetVersion.featureCount,
       provenanceId: gisSchema.spatialDatasetVersion.provenanceId,
@@ -151,7 +154,8 @@ async function loadLayers(
       datasetKind: row.kind,
       versionLabel: row.versionLabel,
       origin: row.origin,
-      sourceCrs: row.sourceCrs,
+      sourceSrid: row.sourceSrid,
+      analysisSrid: row.analysisSrid,
       generatorVersion: row.generatorVersion,
       featureCount: row.featureCount,
       provenanceId: row.provenanceId,
@@ -181,7 +185,7 @@ export async function loadParcelExplorer(
       select a.label,
              a.length_m,
              a.provenance_id,
-             ST_AsGeoJSON(ST_Transform(a.geom, ${sql.raw(String(PRESENTATION_SRID))}), 6) as geojson
+             ST_AsGeoJSON(a.geom, 6) as geojson
       from app.alignment a
       join app.spatial_dataset_version v
         on v.tenant_id = a.tenant_id and v.id = a.dataset_version_id and v.is_active
@@ -203,7 +207,7 @@ export async function loadParcelExplorer(
              p.provenance_id,
              g.area_m2,
              agg.affected_area_m2,
-             ST_AsGeoJSON(ST_Transform(g.geom, ${sql.raw(String(PRESENTATION_SRID))}), 6) as geojson
+             ST_AsGeoJSON(g.geom, 6) as geojson
       from app.parcel p
       left join app.parcel_geometry g
         on g.tenant_id = p.tenant_id and g.parcel_id = p.id and g.is_active
@@ -322,7 +326,7 @@ export interface ParcelAffectation {
   readonly id: string;
   readonly category: AffectationCategory;
   readonly affectedAreaM2: number;
-  readonly ratioOfParcel: number;
+  readonly ratioOfParcel: number | null;
   readonly provenanceId: string;
   readonly provenance: ProvenanceFacets;
 }
@@ -361,11 +365,11 @@ export async function loadParcelWorkspace(
              g.area_m2,
              g.dataset_version_id,
              agg.affected_area_m2,
-             ST_AsGeoJSON(ST_Transform(g.geom, ${sql.raw(String(PRESENTATION_SRID))}), 6) as geojson,
-             ST_XMin(ST_Envelope(ST_Transform(g.geom, ${sql.raw(String(PRESENTATION_SRID))}))) as west,
-             ST_YMin(ST_Envelope(ST_Transform(g.geom, ${sql.raw(String(PRESENTATION_SRID))}))) as south,
-             ST_XMax(ST_Envelope(ST_Transform(g.geom, ${sql.raw(String(PRESENTATION_SRID))}))) as east,
-             ST_YMax(ST_Envelope(ST_Transform(g.geom, ${sql.raw(String(PRESENTATION_SRID))}))) as north
+             ST_AsGeoJSON(g.geom, 6) as geojson,
+             ST_XMin(ST_Envelope(g.geom)) as west,
+             ST_YMin(ST_Envelope(g.geom)) as south,
+             ST_XMax(ST_Envelope(g.geom)) as east,
+             ST_YMax(ST_Envelope(g.geom)) as north
       from app.parcel p
       left join app.parcel_geometry g
         on g.tenant_id = p.tenant_id and g.parcel_id = p.id and g.is_active
@@ -474,7 +478,8 @@ export async function loadParcelWorkspace(
         id: a.id,
         category: a.category,
         affectedAreaM2: Number(a.affectedAreaM2),
-        ratioOfParcel: areaM2 ? affectationRatio(Number(a.affectedAreaM2), areaM2) : 0,
+        // No active geometry means no parcel area to divide by, so there is no share to state.
+        ratioOfParcel: areaM2 === null ? null : affectationRatio(Number(a.affectedAreaM2), areaM2),
         provenanceId: a.provenanceId,
         provenance: facets(a.provenanceId),
       })),

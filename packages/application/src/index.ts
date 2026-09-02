@@ -36,6 +36,8 @@ export {
   loadProvenanceView,
   toProvenanceRecord,
 } from "./projects/provenance";
+export { activateDatasetVersion } from "./gis/activate-dataset-version";
+export type { DatasetActivation } from "./gis/activate-dataset-version";
 export {
   loadParcelExplorer,
   loadParcelWorkspace,
