@@ -27,7 +27,28 @@ declare module "vitest" {
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const IMAGE = "eia-studio/postgres-test:17-3.5-pgvector";
 
+/**
+ * Staging/external mode (Slice 0.5): when EIA_TEST_MIGRATOR_URL and EIA_TEST_RUNTIME_URL are set,
+ * the suite runs against an already-provisioned database instead of Testcontainers. Used to prove
+ * the isolation guarantees on a real provider (docs/STAGING_GATE_0_5.md). The suite truncates
+ * tables, so it may only be pointed at a database holding synthetic data.
+ */
+function externalDatabase(): EiaTestDatabase | null {
+  const migratorUrl = process.env.EIA_TEST_MIGRATOR_URL;
+  const runtimeUrl = process.env.EIA_TEST_RUNTIME_URL;
+  if (!migratorUrl || !runtimeUrl) return null;
+  const runtimeRole = decodeURIComponent(new URL(runtimeUrl).username);
+  return { migratorUrl, runtimeUrl, runtimeRole };
+}
+
 export default async function setup(project: TestProject): Promise<() => Promise<void>> {
+  const external = externalDatabase();
+  if (external) {
+    await runMigrations(external.migratorUrl);
+    project.provide("eiaTestDatabase", external);
+    return async () => {};
+  }
+
   const built = await GenericContainer.fromDockerfile(resolve(ROOT, "docker/postgres")).build(
     IMAGE,
     {
