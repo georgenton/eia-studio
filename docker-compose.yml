@@ -1,0 +1,23 @@
+# Local development PostgreSQL with PostGIS + pgvector (same image as CI/Testcontainers).
+# `pnpm db:up` then `pnpm db:migrate && pnpm db:provision-runtime-role`.
+services:
+  postgres:
+    build: ./docker/postgres
+    image: eia-studio/postgres:17-3.5-pgvector
+    container_name: eia-studio-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: eia_studio
+    ports:
+      - "${EIA_PG_PORT:-5433}:5432"
+    volumes:
+      - eia_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d eia_studio"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  eia_pgdata:

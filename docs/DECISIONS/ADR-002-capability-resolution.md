@@ -1,6 +1,6 @@
 # ADR-002 — Centralised capability catalogue and resolution
 
-- Status: Accepted with conditions at Gate 1 (decisions D-014 and D-020 applied)
+- Status: Accepted with conditions at Gate 1 (D-014, D-020); semantics clarified at Implementation Gate 0 (IG0-H02)
 - Date: 2026-09-01 (amended 2026-09-01 after Gate 1)
 - Related: FEATURES.md, ADR-003, GATE-1.md
 
@@ -20,18 +20,43 @@ Hiding UI is not authorization; server actions, APIs and jobs must be protected.
    surfaces (routes, nav item), enforcement points (actions, handlers, jobs), Spanish label/copy,
    who can enable it, and a shell-only navigation presentation hint. The catalogue holds exactly
    the 14 approved keys.
-2. **One resolver, boolean result** (Gate 1 D-014): `effective = PRODUCT_AVAILABLE ∧
-   TENANT_ENTITLED ∧ TENANT_ENABLED ∧ PROJECT_ENABLED ∧ dependencies effective`, computed once
-   per request/job and stored in the context as a `CapabilitySet` of `enabled | disabled`. This
-   boolean is the only value authorization consults.
+2. **One resolver, boolean result** (Gate 1 D-014; semantics fixed at Gate 0, IG0-H02):
+
+   ```
+   CAPABILITY_ENABLED =
+        PRODUCT_AVAILABLE                     -- catalogue status = AVAILABLE
+     ∧  TENANT_ALLOWED                        -- plan entitlement ∧ Tenant Settings toggle
+     ∧  PROJECT_EFFECTIVE_ENABLED             -- explicit override ?? profile default ?? enabled
+     ∧  DEPENDENCIES_SATISFIED
+   ```
+
+   computed once per request/job and stored in the context as a `CapabilitySet` of
+   `enabled | disabled`. This boolean is the only value authorization consults.
+
+   A project explicit override may be **true or false**: a project can enable a capability its
+   profile disables, and disable one its profile enables. It can never widen beyond the product
+   and tenant layers, because those are independent conjuncts. "A project override can only
+   restrict" was imprecise wording and is replaced by this table:
+
+   | PRODUCT | TENANT | PROFILE | OVERRIDE | RESULT |
+   |---|---|---|---|---|
+   | T | T | T | null | T |
+   | T | T | F | null | F |
+   | T | T | F | true | **T** |
+   | T | T | T | false | F |
+   | T | F | T | true | F |
+   | F | T | T | true | F |
+
 3. **Navigation presentation is separate and non-authorizing**: `ACTIVE`, `ANNOUNCED`, `HIDDEN`,
    computed by the shell from catalogue status and tenant entitlement/toggle. An ANNOUNCED module
    is **disabled** for authorization: it is not invocable through URL, API, server action, job or
    command; the rail shows a non-navigable placeholder only. Pilot: Reports is ANNOUNCED;
    Climate, PMA and Environmental Audit are HIDDEN.
-4. **Project overrides restrict only.** Enforced at write time (settings use-case rejects
-   enabling a capability the tenant lacks) and at resolution time (AND), so a bad row cannot
-   widen access.
+4. **A project can never widen past product or tenant.** Enforced at write time
+   (`assertProjectOverrideAllowed` rejects setting an override to `true` when the catalogue status
+   is not AVAILABLE or the tenant is not entitled/enabled) **and** at resolution time (the
+   conjunction), so a forged or corrupted row cannot widen access. Setting an override to `false`
+   is always permitted.
 5. **Enforcement everywhere**: `requireCapability(ctx, key)` in every server action, route
    handler and job handler; nav, palette and route table generated from the same set. A CI check
    compares the catalogue's enforcement points against the code registry.

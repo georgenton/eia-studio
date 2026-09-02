@@ -1,0 +1,21 @@
+{
+  "name": "@eia/domain",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Pure EIA Studio domain rules: roles, permissions, capabilities, provenance facets, audit vocabulary",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "zod": "4.5.4"
+  },
+  "devDependencies": {
+    "@eia/config": "workspace:*",
+    "typescript": "5.9.3",
+    "vitest": "4.1.11"
+  }
+}

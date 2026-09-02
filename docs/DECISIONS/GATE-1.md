@@ -65,4 +65,13 @@ Engineering standards and delivery architecture approved and recorded:
 
 ## Authorization to implement
 
-_Not yet granted. Append the go decision here (date, author, scope) before Slice 0 begins._
+Granted for Slice 0 only — see "Implementation GO (2026-09-01)" below. Later slices need their
+own gate record.
+
+## Implementation GO (2026-09-01)
+
+**Slice 0 authorized after Architecture Gate 1 + Delivery Alignment.** Scope: SaaS foundation
+(monorepo, tooling, configuration, database foundation with roles and RLS, Better Auth boundary,
+tenancy core, permission catalogue, capability catalogue and resolver, RequestContext, audit and
+provenance primitives, worker lifecycle, CI stages B/C). No product surfaces, no staging deploy.
+Delivered on branch `feat/slice-0-foundation` as a draft PR for Implementation Gate 0.

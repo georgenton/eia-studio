@@ -1,0 +1,34 @@
+{
+  "$comment": "Synthetic demo tenant for local development (docs/DEMO_ZAMORA.md §2). No personal data. Loaded by `pnpm db:seed:dev`; never imported by application code.",
+  "slug": "demo-consultancy",
+  "name": "Demo Consultancy",
+  "regime": "DEMO_SIMULATION",
+  "capabilities": {
+    "entitled": [
+      "core.projects",
+      "core.documents",
+      "gis.maps",
+      "gis.parcels",
+      "field.surveys",
+      "social.analytics",
+      "social.ai_coding",
+      "quality.document_gate",
+      "quality.rag_assistant",
+      "reports.social_generator",
+      "client.portal"
+    ],
+    "enabled": [
+      "core.projects",
+      "core.documents",
+      "gis.maps",
+      "gis.parcels",
+      "field.surveys",
+      "social.analytics",
+      "social.ai_coding",
+      "quality.document_gate",
+      "quality.rag_assistant",
+      "reports.social_generator",
+      "client.portal"
+    ]
+  }
+}

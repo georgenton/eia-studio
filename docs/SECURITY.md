@@ -31,6 +31,12 @@
 - The identity layer yields only `userId`. `TenantMembership`, `ProjectMembership`, `Role`,
   `Permission`, `ClientPortalGrant` and the capability resolver are EIA Studio domain concepts;
   Better Auth organisation roles, if any plugin is used, are never read for authorization.
+- **Public self-signup is disabled** (IG0-H01): `emailAndPassword.disableSignUp = true`, so
+  `/api/auth/sign-up/email` refuses anonymous identity creation. Identities are provisioned
+  deliberately until the onboarding workflow makes creation of the identity, the application
+  user, the `TenantMembership` and any `ProjectMembership` atomic or compensating. Sign-in for
+  provisioned identities is unaffected, and disabling signup moves no authorization
+  responsibility into the identity layer.
 - Client portal users authenticate on the portal surface (invitation + magic link or password +
   optional 2FA); a portal session cannot be used on internal routes and vice versa (different
   cookie names, different context builders).
@@ -62,6 +68,16 @@ Defined in TENANCY.md §4. Additional rules:
   campo no incluye datos económicos individuales…") and are audited with request id.
 
 ## 5. PostgreSQL Row Level Security (ADR-004)
+
+**What RLS is and is not (Implementation Gate 0, IG0-B01).** Row Level Security and the
+privileged membership helpers defend against *application authorization bugs, forged tenant or
+project identifiers in a request, and accidental cross-tenant access*: a missing predicate or an
+untrusted `project_id` still cannot cross a tenant boundary. They are **not** a defence against
+arbitrary SQL executed on the runtime connection after a full SQL-injection compromise, because
+such an attacker already acts as the runtime role. The hardening in migration 0004 limits what
+that would buy an attacker (boolean-only helpers, user read from the transaction-local setting,
+no dynamic SQL, no object shadowing, no path to the privileged owner), but injection prevention
+remains the application's job: parameterised queries, `strict()` schemas, repository predicates.
 
 Principles:
 

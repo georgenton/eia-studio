@@ -1,0 +1,69 @@
+{
+  "name": "eia-studio",
+  "version": "0.0.0",
+  "private": true,
+  "description": "EIA Studio — multi-tenant workspace for environmental and social impact studies",
+  "packageManager": "pnpm@10.33.2",
+  "engines": {
+    "node": ">=24.0.0 <25",
+    "pnpm": ">=10.33.2 <11"
+  },
+  "scripts": {
+    "prepare": "husky",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "eslint . --max-warnings 0 && node tooling/scripts/check-forbidden-strings.mjs",
+    "typecheck": "turbo run typecheck",
+    "test": "vitest run",
+    "test:unit": "vitest run --project unit",
+    "test:integration": "vitest run --project integration",
+    "test:rls": "vitest run --project integration packages/testing/test/rls",
+    "build": "turbo run build",
+    "db:generate": "pnpm --filter @eia/db generate",
+    "db:check": "pnpm --filter @eia/db check",
+    "db:migrate": "pnpm --filter @eia/db migrate",
+    "db:provision-runtime-role": "pnpm --filter @eia/db provision-runtime-role",
+    "db:seed:dev": "pnpm --filter @eia/db seed:dev",
+    "db:up": "docker compose up -d postgres",
+    "db:down": "docker compose down",
+    "dev:web": "pnpm --filter @eia/web dev",
+    "dev:worker": "pnpm --filter @eia/worker dev",
+    "changeset": "changeset",
+    "version-packages": "changeset version",
+    "ci:local": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test:unit && pnpm build && pnpm test:integration"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,mts,mjs,js,cjs}": [
+      "eslint --max-warnings 0 --no-warn-ignored --fix",
+      "prettier --write"
+    ],
+    "*.{json,md,yml,yaml,css}": [
+      "prettier --write"
+    ],
+    "{apps,packages}/**/*": [
+      "node tooling/scripts/check-forbidden-strings.mjs --staged"
+    ]
+  },
+  "devDependencies": {
+    "@changesets/changelog-github": "1.0.0",
+    "@changesets/cli": "3.0.1",
+    "@commitlint/cli": "21.2.2",
+    "@commitlint/config-conventional": "21.2.2",
+    "@eia/config": "workspace:*",
+    "@eslint/js": "9.39.5",
+    "@next/eslint-plugin-next": "16.3.4",
+    "@types/node": "24.13.3",
+    "eslint": "9.39.5",
+    "eslint-config-prettier": "10.1.8",
+    "eslint-plugin-boundaries": "7.2.0",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "husky": "9.1.7",
+    "lint-staged": "17.4.1",
+    "prettier": "3.9.6",
+    "tsx": "4.23.13",
+    "turbo": "2.10.12",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.69.0",
+    "vitest": "4.1.11"
+  }
+}

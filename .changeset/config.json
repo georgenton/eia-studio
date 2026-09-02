@@ -1,0 +1,12 @@
+{
+  "$schema": "https://unpkg.com/@changesets/config@3.0.0/schema.json",
+  "changelog": ["@changesets/changelog-github", { "repo": "georgenton/eia-studio" }],
+  "commit": false,
+  "fixed": [],
+  "linked": [["@eia/web", "@eia/worker"]],
+  "access": "restricted",
+  "baseBranch": "main",
+  "updateInternalDependencies": "patch",
+  "privatePackages": { "version": true, "tag": true },
+  "ignore": ["@eia/config", "@eia/testing"]
+}

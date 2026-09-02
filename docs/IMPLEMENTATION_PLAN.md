@@ -1,9 +1,14 @@
 # Implementation plan — vertical slices (proposal for Gate 1)
 
-> Nothing below is started. Gate 1 approved the architecture with conditions (GATE-1.md) but
-> **Slice 0 is not yet authorized**; an explicit go is required. Each slice is a thin vertical
-> cut (schema → use-cases → routes → UI → tests) that leaves the product demonstrable. The order
+> Status: **Slice 0 implemented** on `feat/slice-0-foundation` (draft PR, pending
+> Implementation Gate 0). Slices 1+ are not started. Each slice is a thin vertical cut
+> (schema → use-cases → routes → UI → tests) that leaves the product demonstrable. The order
 > differs from the brief's expected shape; the reasons are in §2.
+>
+> Slice 0 scope note: the shell, Portfolio surface, Tenant Settings tabs and the 15 state
+> components listed in the original slice 0 row were deliberately deferred by the Slice 0 GO
+> ("no product screens; a foundation page only"); they move to the first UI slice. Profile
+> `road_eia_social` ships with its capability part only.
 
 ## 1. Proposed sequence
 

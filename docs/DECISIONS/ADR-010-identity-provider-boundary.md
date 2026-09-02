@@ -46,6 +46,18 @@ boundary.
 - Slight duplication of "user exists" facts (identity subject vs `User` row), reconciled at sign-
   in.
 
+## Slice 0 verification (2026-09-01)
+
+Better Auth 1.7.2 with the Drizzle adapter (`provider: "pg"`) against tables declared with
+`pgSchema("auth")` works as required: sign-up, session resolution through `auth.api.getSession`
+and the `IdentityPort` bridge were exercised end to end; identity persistence is logically
+isolated in the `auth` schema; `auth.user.id` (UUID via `advanced.database.generateId`) is used
+as `app.user.id`, so the domain never joins identity tables. No organisation/role plugin is
+enabled. Findings recorded as debt: Better Auth 1.7 requires an `issuer` column and a unique
+`(issuer, account_id)` index on `account` (migration 0003); its sign-up is not transactional
+(a failed account insert left an orphan `auth.user` row — TECH_DEBT.md TD-010). The provisional
+approval stands; the port makes replacement a contained change.
+
 ## Alternatives rejected
 
 - Using Better Auth organisation roles as the authorization source: couples isolation to a

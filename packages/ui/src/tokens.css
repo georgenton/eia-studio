@@ -1,0 +1,86 @@
+/* EIA Studio design tokens — Dirección B Institucional (docs/DESIGN_SYSTEM.md §1).
+   The only place where hex values, type sizes and spacing live. */
+:root {
+  --eia-ink: #101827;
+  --eia-accent: #17506b;
+  --eia-accent-hover: #0e3a50;
+  --eia-accent-soft: #f0f6f9;
+  --eia-accent-border: #c3d6e0;
+  --eia-map-blue: #4a7f9b;
+  --eia-ok: #2c6046;
+  --eia-ok-bg: #eaf3ee;
+  --eia-ok-border: #cbe2d6;
+  --eia-warn: #b08519;
+  --eia-warn-text: #8a6512;
+  --eia-warn-bg: #fbf3e2;
+  --eia-warn-border: #efe0bf;
+  --eia-crit: #c0492a;
+  --eia-crit-text: #9e3b22;
+  --eia-crit-bg: #fbeae6;
+  --eia-crit-border: #f0d3cb;
+  --eia-surface: #ffffff;
+  --eia-canvas: #f2f4f5;
+  --eia-surface-subtle: #fafbfc;
+  --eia-border: #dce1e5;
+  --eia-border-strong: #c8d0d6;
+  --eia-hairline: #f0f2f4;
+  --eia-chip-neutral: #f1f3f5;
+  --eia-chip-neutral-border: #e2e6e9;
+  --eia-text-secondary: #5a646c;
+  --eia-text-muted: #7a858e;
+  --eia-text-disabled: #a6aeb4;
+  --eia-demo: #8a6512;
+
+  --eia-font-serif: "Source Serif 4", Georgia, "Times New Roman", serif;
+  --eia-font-sans: "Archivo", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --eia-font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --eia-size-display: 38px;
+  --eia-size-title-screen: 26px;
+  --eia-size-title-card: 17px;
+  --eia-size-body: 12.5px;
+  --eia-size-label: 9.5px;
+  --eia-size-mono: 11px;
+  --eia-line-body: 19px;
+  --eia-tracking-label: 0.12em;
+
+  --eia-space-1: 4px;
+  --eia-space-2: 8px;
+  --eia-space-3: 12px;
+  --eia-space-4: 16px;
+  --eia-space-5: 20px;
+  --eia-space-6: 26px;
+  --eia-space-7: 32px;
+  --eia-space-8: 44px;
+
+  --eia-radius-chip: 3px;
+  --eia-radius-control: 4px;
+  --eia-radius-panel: 5px;
+  --eia-radius-portal: 6px;
+
+  --eia-shadow-card: 0 1px 2px rgba(16, 24, 39, 0.04);
+  --eia-shadow-palette: 0 18px 44px rgba(16, 24, 39, 0.22);
+  --eia-shadow-drawer: -14px 0 34px rgba(16, 24, 39, 0.14);
+  --eia-overlay-drawer: rgba(16, 24, 39, 0.28);
+  --eia-overlay-palette: rgba(16, 24, 39, 0.35);
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--eia-canvas);
+  color: var(--eia-ink);
+  font-family: var(--eia-font-sans);
+  font-size: var(--eia-size-body);
+  line-height: var(--eia-line-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: var(--eia-accent);
+  text-decoration: none;
+}
+a:hover {
+  color: var(--eia-accent-hover);
+  text-decoration: underline;
+}

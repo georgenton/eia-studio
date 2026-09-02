@@ -1,0 +1,3 @@
+# Lightweight by design (ENGINEERING_STANDARDS.md §7): typecheck + unit tests only.
+# CI is authoritative; skip with `git push --no-verify` while iterating.
+pnpm typecheck && pnpm test:unit

@@ -15,6 +15,11 @@
 
 ## 2. Stages
 
+> Status after Slice 0: Stages A, B and C are implemented in `.github/workflows/ci.yml`
+> (`quality` and `db` jobs). Stage E is partially in place (lockfile check); Dependabot,
+> `pnpm audit`, secret scanning and CodeQL are repository settings to enable at Implementation
+> Gate 0. Stages D, F and G are not yet enabled.
+
 ### Stage A — today (repository exists, no code)
 
 Workflow `.github/workflows/ci.yml`, job `quality`:

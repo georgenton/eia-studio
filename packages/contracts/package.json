@@ -1,0 +1,21 @@
+{
+  "name": "@eia/contracts",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Zod schemas shared by web and worker: environment configuration, DTOs, payloads",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "zod": "4.5.4"
+  },
+  "devDependencies": {
+    "@eia/config": "workspace:*",
+    "typescript": "5.9.3",
+    "vitest": "4.1.11"
+  }
+}

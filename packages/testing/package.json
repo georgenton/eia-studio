@@ -1,0 +1,25 @@
+{
+  "name": "@eia/testing",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Testcontainers PostgreSQL fixture, generic factories (tenant A/B) and the cross-tenant attack harness",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@eia/db": "workspace:*",
+    "drizzle-orm": "0.45.2",
+    "pg": "8.23.0",
+    "testcontainers": "12.1.0",
+    "vitest": "4.1.11"
+  },
+  "devDependencies": {
+    "@eia/config": "workspace:*",
+    "@types/pg": "8.23.1",
+    "typescript": "5.9.3"
+  }
+}

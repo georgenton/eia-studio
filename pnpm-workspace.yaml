@@ -1,0 +1,13 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+
+# pnpm 10: dependencies with install scripts must be allowlisted explicitly.
+onlyBuiltDependencies:
+  - esbuild
+  - sharp
+  - "@tailwindcss/oxide"
+  - unrs-resolver
+  - protobufjs
+  - cpu-features
+  - ssh2
