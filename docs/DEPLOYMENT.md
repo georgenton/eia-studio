@@ -94,32 +94,35 @@ Repository **variables** (non-secret): `NODE_VERSION`, `PNPM_VERSION` if not rea
   `vercel env add`, never committed.
 - IDs to record (not secret, but not committed either): Vercel team/org id, project id
   (`.vercel/` is git-ignored).
-- Production deployment on Vercel is disabled operationally by not assigning a production
-  domain and by keeping the "Production Branch" pointed at `main` only for **staging** until
-  the production project is created separately.
+- **The Git production branch is `production`, a branch reserved for that purpose.** No pipeline
+  pushes to it, so merging to `main` creates a *preview* deployment and never a production one.
+  This is the mechanism that keeps production unreachable by accident; not assigning a production
+  domain is a second, weaker layer. Vercel requires the branch to exist in the connected
+  repository before it can be selected, which is the only reason `production` exists today.
+- Changing it back to `main` would make every merge a production deploy. Treat the setting as
+  part of the security configuration, not as a convenience.
 
 ### 3.4 Railway project (staging)
 
-- One project `eia-studio`, environment `staging`: services `worker`, `postgres` (with
-  `postgis` and `vector` extensions confirmed), optional `preview-postgres`.
-- Configuration as code in `railway.toml` at the repository root (to be added in Slice 0 when
-  the worker exists; not before, to avoid deploying an empty service):
+- One project `eia-studio-staging`, environment `staging`: services `worker` and `postgres-gis`.
+- **Infrastructure as Code in `.railway/railway.ts`.** It describes the whole project: services,
+  their build and start commands, the health check, replicas, the TCP proxy and the volumes.
+  `railway.toml` (Config as Code) was removed; Railway stops reading those files on 2026-12-01
+  and no longer lets new services opt into them.
+- The file is the single source of truth for that environment: **omitting a resource deletes it**,
+  so every live service and volume is declared even when Railway owns its lifecycle.
+- Workflow, always in this order:
 
-  ```toml
-  # planned shape — added in Slice 0
-  [build]
-  builder = "NIXPACKS"            # or a Dockerfile under apps/worker
-  buildCommand = "pnpm install --frozen-lockfile && pnpm --filter @eia/worker build"
-
-  [deploy]
-  startCommand = "pnpm --filter @eia/worker start"
-  preDeployCommand = "pnpm db:migrate"   # runs with DATABASE_MIGRATOR_URL
-  healthcheckPath = "/health"
-  restartPolicyType = "ON_FAILURE"
+  ```bash
+  railway config plan     # read-only; prints exactly what would change
+  railway config apply    # applies the reviewed change set
   ```
 
-- Secrets and variables are set per environment in Railway (dashboard or `railway variables
-  set`), never in `railway.toml`.
+- Secrets stay in Railway. Every variable in the file is `preserve()`, which keeps the value
+  already set on the service, so neither the file nor a plan's output can carry a credential.
+  Variables are set with `railway variables --set` or in the dashboard, never in the repository.
+- Two settings cannot be expressed today and are documented instead of silently dropped:
+  volume backup schedules (§4b) and `restartPolicyType` (TECH_DEBT.md TD-021).
 - IDs to record: project id, environment id, service ids (used by the CLI; not secret, not
   committed).
 
@@ -141,6 +144,57 @@ amd64/arm64 build of the official PostGIS image recipe, Debian bookworm + PGDG) 
 `postgresql-17-pgvector` from the same PGDG repository. Verified in Slice 0: PostgreSQL 17.6,
 PostGIS 3.5.3, pgvector 0.8.6, pg_trgm 1.6. No maintained upstream image ships both extensions
 (`postgis/postgis` lacks pgvector, `pgvector/pgvector` lacks PostGIS); see TECH_DEBT.md TD-001.
+
+## 4a. Staging as actually built (Slice 0.5)
+
+See `docs/STAGING_GATE_0_5.md` for the full capability report. Summary of what exists:
+
+| Piece | Identifier |
+|---|---|
+| Railway project | `eia-studio-staging`, environment **`staging`** (the platform's default `production` environment is left empty and unused) |
+| Database | service `postgres-gis`, built from `docker/postgres/Dockerfile`, volume at `/var/lib/postgresql/data`, reachable inside Railway at `postgres-gis.railway.internal:5432` and outside through a TCP proxy |
+| Worker | service `worker`, Railpack build of `apps/worker`, `node apps/worker/dist/main.js` as PID 1, healthcheck `/health` |
+| Web | Vercel project `eia-studio-web`, root directory `apps/web`, Node 24.x, GitHub integration connected, Git production branch `production` (unused), preview deployments only |
+| Railway configuration | `.railway/railway.ts`, applied with `railway config apply` |
+
+Two provider behaviours are load-bearing and were found the hard way:
+
+1. **The worker must run Node directly.** With `pnpm --filter @eia/worker start` as the container
+   command, pnpm becomes PID 1, SIGTERM does not reach the process's shutdown handler and the
+   deployment reports a non-zero exit. The start command is `node apps/worker/dist/main.js`.
+2. **Railway's stock Postgres has no PostGIS**, so migration 0000 cannot run on it. Staging uses
+   our own image, which also required adding TLS (upstream PostGIS images ship without it).
+
+### 4b. Backup and recovery on staging
+
+Railway offers two recovery mechanisms. **Neither is active on the staging database**, and the
+reasons are different:
+
+| Mechanism | State | Reason |
+|---|---|---|
+| Scheduled or manual volume backups | **Not available** | Enabling a daily schedule and creating an on-demand backup are both refused for this workspace: `railway postgres pitr schedule set --daily` returns "You do not have access to this resource" and the API mutations `volumeInstanceBackupScheduleUpdate` / `volumeInstanceBackupCreate` return "Not Authorized". No schedule and no backups exist. |
+| Point-in-time recovery (pgBackRest WAL archiving) | **Not applicable** | PITR runs only inside Railway's own database images. `railway postgres pitr status` reports: supported images are `ghcr.io/railwayapp-templates/postgres-ssl` and `.../postgres-patroni`. Our PostGIS image is neither, and switching to a Railway image would lose PostGIS. |
+
+Consequence: **the staging database is disposable.** It holds only what the test suite and
+fixtures create, it is never the source of truth, and losing it costs a re-run of migrations and
+seeds. Nothing may be stored there that cannot be recreated.
+
+Production is a different decision and cannot inherit this one. Before the production gate, the
+hosting decision (ADR-012) must state explicitly which recovery guarantee production has —
+backup frequency, retention, restore procedure, whether point-in-time recovery is required, and
+who has verified a restore. A provider that offers PostGIS, pgvector and PITR together is the
+straightforward answer; a self-built image is not.
+
+### 4c. Database TLS
+
+Staging connects with `sslmode=no-verify`: the connection is encrypted, but the self-signed
+certificate generated by `docker/postgres/ssl-entrypoint.sh` is not checked against a CA
+(TECH_DEBT.md TD-016). That is acceptable only because staging carries synthetic data.
+
+**Production must verify the server's identity.** The environment contracts enforce it: when
+`APP_ENV=production`, `DATABASE_URL` and `DATABASE_MIGRATOR_URL` must carry
+`sslmode=verify-full` (or `verify-ca`), and the application refuses to start otherwise. The check
+reads only the `sslmode` parameter and reports the variable name, never its value.
 
 ## 5. Deployment sequence (staging, after Slice 0)
 

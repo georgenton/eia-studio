@@ -5,6 +5,7 @@ import {
   appEnvSchema,
   authEnvSchema,
   loadEnv,
+  migratorDatabaseEnvSchema,
   runtimeDatabaseEnvSchema,
   storageEnvSchema,
   workerEnvSchema,
@@ -44,6 +45,57 @@ describe("loadEnv", () => {
         DEMO_FIXTURES_ENABLED: "true",
       }),
     ).toThrowError(/DEMO_FIXTURES_ENABLED/);
+  });
+
+  it("rejects an unverified database TLS mode in production", () => {
+    const url = "postgres://app:pw@db.example.test:5432/eia";
+    for (const mode of ["", "?sslmode=require", "?sslmode=no-verify", "?sslmode=disable"]) {
+      expect(() =>
+        loadEnv("database", runtimeDatabaseEnvSchema, {
+          APP_ENV: "production",
+          DATABASE_URL: `${url}${mode}`,
+        }),
+      ).toThrowError(/DATABASE_URL/);
+    }
+    expect(() =>
+      loadEnv("migrator", migratorDatabaseEnvSchema, {
+        APP_ENV: "production",
+        DATABASE_MIGRATOR_URL: `${url}?sslmode=no-verify`,
+      }),
+    ).toThrowError(/DATABASE_MIGRATOR_URL/);
+  });
+
+  it("accepts verifying TLS modes in production and any mode elsewhere", () => {
+    const url = "postgres://app:pw@db.example.test:5432/eia";
+    for (const mode of ["verify-full", "verify-ca", "VERIFY-FULL"]) {
+      expect(
+        loadEnv("database", runtimeDatabaseEnvSchema, {
+          APP_ENV: "production",
+          DATABASE_URL: `${url}?sslmode=${mode}`,
+        }).APP_ENV,
+      ).toBe("production");
+    }
+    for (const appEnv of ["local", "test", "preview", "staging"]) {
+      expect(
+        loadEnv("database", runtimeDatabaseEnvSchema, {
+          APP_ENV: appEnv,
+          DATABASE_URL: `${url}?sslmode=no-verify`,
+        }).DATABASE_URL,
+      ).toContain("sslmode=no-verify");
+    }
+  });
+
+  it("never reports the database URL when the production TLS rule fails", () => {
+    try {
+      loadEnv("database", runtimeDatabaseEnvSchema, {
+        APP_ENV: "production",
+        DATABASE_URL: "postgres://app:hunter2@db.example.test:5432/eia?sslmode=require",
+      });
+      expect.unreachable("expected the production TLS rule to reject this URL");
+    } catch (error) {
+      expect(String(error)).toContain("DATABASE_URL");
+      expect(String(error)).not.toContain("hunter2");
+    }
   });
 
   it("requires a long auth secret and parses trusted origins", () => {
