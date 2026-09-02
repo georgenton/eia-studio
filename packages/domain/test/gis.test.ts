@@ -12,9 +12,16 @@ import {
   isParcelCode,
   PARCEL_STATUS_PRESENTATION,
   PARCEL_STATUSES,
+  analysisSridSchema,
+  CANONICAL_SRID,
+  epsgLabel,
+  isGeographicSrid,
+  LAYER_LEGEND_ORDER,
+  orderLayersForLegend,
   parseChainage,
   PRESENTATION_SRID,
-  STORAGE_SRID,
+  selectLayerByKind,
+  sridSchema,
   type CorridorGeneratorInput,
   type ProvenanceFacets,
 } from "../src/index";
@@ -122,6 +129,53 @@ describe("layer provenance legend", () => {
   });
 });
 
+describe("layer selection is by kind, never by position (IG2-007)", () => {
+  const layers = [
+    { datasetKind: "alignment" as const, legend: "RECONSTRUCTED_ALIGNMENT" as const },
+    { datasetKind: "parcels" as const, legend: "SYNTHETIC_PARCELS" as const },
+    { datasetKind: "affectations" as const, legend: "SYNTHETIC_PARCELS" as const },
+  ];
+
+  it("returns the same layer whatever order the database gave them in", () => {
+    const orders = [
+      layers,
+      [...layers].reverse(),
+      [layers[2]!, layers[0]!, layers[1]!],
+      [layers[1]!, layers[2]!, layers[0]!],
+    ];
+    for (const order of orders) {
+      expect(selectLayerByKind(order, "parcels")?.datasetKind).toBe("parcels");
+      expect(selectLayerByKind(order, "alignment")?.datasetKind).toBe("alignment");
+    }
+  });
+
+  it("returns null rather than a plausible wrong layer when the kind is absent", () => {
+    // The regression: the territorial summary fell back to layers[0] and captioned a parcel count
+    // with the alignment's legend.
+    const withoutParcels = layers.filter((l) => l.datasetKind !== "parcels");
+    expect(selectLayerByKind(withoutParcels, "parcels")).toBeNull();
+    expect(selectLayerByKind([], "parcels")).toBeNull();
+  });
+
+  it("orders the legend by reading order, not by row order", () => {
+    for (const order of [layers, [...layers].reverse(), [layers[1]!, layers[0]!, layers[2]!]]) {
+      expect(orderLayersForLegend(order).map((l) => l.datasetKind)).toEqual([
+        "alignment",
+        "parcels",
+        "affectations",
+      ]);
+    }
+    expect([...LAYER_LEGEND_ORDER]).toEqual(["alignment", "parcels", "affectations"]);
+  });
+
+  it("does not mutate the array it was given", () => {
+    const original = [...layers].reverse();
+    const copy = [...original];
+    orderLayersForLegend(original);
+    expect(original).toEqual(copy);
+  });
+});
+
 describe("dataset version activation", () => {
   const version = (id: string, supersedes: string | null) => ({
     id,
@@ -161,10 +215,24 @@ describe("dataset version activation", () => {
 });
 
 describe("affectation", () => {
-  it("derives the share from the two areas and never exceeds the parcel", () => {
+  it("derives the share from the two areas, in square metres", () => {
     expect(affectationRatio(1000, 10_000)).toBeCloseTo(0.1, 10);
-    expect(affectationRatio(20_000, 10_000)).toBe(1);
-    expect(affectationRatio(100, 0)).toBe(0);
+    expect(affectationRatio(0, 10_000)).toBe(0);
+    expect(affectationRatio(10_000, 10_000)).toBe(1);
+    expect(affectationRatio(9_999, 10_000)).toBeCloseTo(0.9999, 10);
+  });
+
+  it("throws rather than clamping, because every invalid case is a bug the database forbids", () => {
+    // parcel_geometry_area_positive
+    expect(() => affectationRatio(100, 0)).toThrow(/positive/);
+    expect(() => affectationRatio(100, -1)).toThrow(/positive/);
+    // affectation_area_non_negative
+    expect(() => affectationRatio(-1, 10_000)).toThrow(/non-negative/);
+    // the affectation_within_parcel constraint trigger
+    expect(() => affectationRatio(20_000, 10_000)).toThrow(/cannot exceed/);
+    // A clamped 1,0 would look exactly like a genuine total affectation.
+    expect(() => affectationRatio(Number.NaN, 10_000)).toThrow();
+    expect(() => affectationRatio(100, Number.NaN)).toThrow();
   });
 });
 
@@ -238,10 +306,42 @@ describe("corridor generation", () => {
 });
 
 describe("coordinate reference systems", () => {
-  it("separates the metric storage CRS from the presentation CRS", () => {
-    // Areas and distances must never be computed in degrees.
-    expect(STORAGE_SRID).toBe(32717);
-    expect(PRESENTATION_SRID).toBe(4326);
-    expect(STORAGE_SRID).not.toBe(PRESENTATION_SRID);
+  it("has exactly one CRS constant, and it is not a projected zone", () => {
+    // The regression this guards: 0009 typed every geometry column as `geometry(...,32717)`,
+    // which made one pilot's UTM zone a property of the platform. Canonical storage is 4326 and
+    // is also what MapLibre consumes, so reads need no transform.
+    expect(CANONICAL_SRID).toBe(4326);
+    expect(PRESENTATION_SRID).toBe(CANONICAL_SRID);
+  });
+
+  it("keeps the pilot's UTM zone out of the domain entirely", async () => {
+    // A project outside zone 17S must be storable, so 32717 may not appear as a constant here.
+    const crs = await import("../src/gis/crs");
+    for (const value of Object.values(crs)) {
+      expect(value).not.toBe(32717);
+    }
+  });
+
+  it("refuses a geographic CRS for analysis: areas in degrees are not areas", () => {
+    expect(isGeographicSrid(4326)).toBe(true);
+    expect(isGeographicSrid(32717)).toBe(false);
+    expect(analysisSridSchema.safeParse(32717).success).toBe(true);
+    // A different project, a different zone: the schema does not care which.
+    expect(analysisSridSchema.safeParse(32718).success).toBe(true);
+    expect(analysisSridSchema.safeParse(3857).success).toBe(true);
+    expect(analysisSridSchema.safeParse(4326).success).toBe(false);
+    expect(analysisSridSchema.safeParse(4978).success).toBe(false);
+  });
+
+  it("bounds an SRID so a forged value cannot reach ST_Transform as any integer", () => {
+    expect(sridSchema.safeParse(0).success).toBe(false);
+    expect(sridSchema.safeParse(-32717).success).toBe(false);
+    expect(sridSchema.safeParse(1_000_000).success).toBe(false);
+    expect(sridSchema.safeParse(32.7).success).toBe(false);
+  });
+
+  it("derives the CRS label instead of mapping codes to names", () => {
+    expect(epsgLabel(32717)).toBe("EPSG:32717");
+    expect(epsgLabel(CANONICAL_SRID)).toBe("EPSG:4326");
   });
 });

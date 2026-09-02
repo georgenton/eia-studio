@@ -78,6 +78,13 @@
       "when": 1788369603461,
       "tag": "0010_gis_rls_and_constraints",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1788380834148,
+      "tag": "0011_gis_canonical_crs_and_invariants",
+      "breakpoints": true
     }
   ]
 }

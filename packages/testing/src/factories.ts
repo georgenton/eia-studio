@@ -234,9 +234,9 @@ export async function createMetricSnapshot(
 /* ---------------------------------------------------------------------------------------------
  * Slice 2 factories: spatial datasets, parcels and geometry.
  *
- * Geometry is written through PostGIS (`ST_GeomFromText` + `ST_Transform`) rather than as literal
- * WKB, so the tests exercise the same path the seeder and the read models use, including the
- * storage-CRS conversion.
+ * Geometry is written through PostGIS (`ST_GeomFromText`) rather than as literal WKB, so the
+ * tests exercise the same path the seeder uses: canonical `EPSG:4326` storage, with metres
+ * measured by transforming into the dataset's own analysis CRS.
  * ------------------------------------------------------------------------------------------- */
 
 /** A small square around a lon/lat, in degrees. Enough to be a valid, non-degenerate polygon. */
@@ -265,6 +265,10 @@ export async function createSpatialDatasetVersion(
     origin?: "generated" | "imported" | "field_captured";
     generatorVersion?: string | null;
     datasetId?: string;
+    /** EPSG the geometry arrived in. Canonical storage by default. */
+    sourceSrid?: number;
+    /** Projected EPSG this dataset's metres are measured in. UTM 17S by default. */
+    analysisSrid?: number;
   },
 ): Promise<{ id: string; datasetId: string }> {
   const kind = input.kind ?? "parcels";
@@ -301,7 +305,8 @@ export async function createSpatialDatasetVersion(
     datasetId,
     versionLabel: input.versionLabel ?? `${kind}_v${next()}`,
     origin,
-    sourceCrs: "EPSG:32717",
+    sourceSrid: input.sourceSrid ?? 4326,
+    analysisSrid: input.analysisSrid ?? 32717,
     generatorVersion:
       input.generatorVersion === undefined
         ? origin === "generated"
@@ -329,6 +334,8 @@ export async function createParcelWithGeometry(
     lat?: number;
     isActive?: boolean;
     parcelId?: string;
+    /** Where this parcel's area is measured. Defaults to UTM 17S, like the pilot. */
+    analysisSrid?: number;
   },
 ): Promise<{ parcelId: string; geometryId: string }> {
   const parcelId = input.parcelId ?? randomUUID();
@@ -348,15 +355,18 @@ export async function createParcelWithGeometry(
     });
   }
   const wkt = squareAround(input.lon ?? -78.93, input.lat ?? -4.07);
+  const analysisSrid = input.analysisSrid ?? 32717;
   const geometryId = randomUUID();
+  // Canonical geometry goes in as 4326; the area is measured by transforming into the analysis
+  // CRS, which is the same thing the seeder does.
   await db.execute(sql`
     insert into app.parcel_geometry
       (id, tenant_id, project_id, parcel_id, dataset_version_id, geom, area_m2, is_active,
        provenance_id)
     values (
       ${geometryId}, ${input.tenantId}, ${input.projectId}, ${parcelId}, ${input.datasetVersionId},
-      ST_Transform(ST_GeomFromText(${wkt}, 4326), 32717),
-      ST_Area(ST_Transform(ST_GeomFromText(${wkt}, 4326), 32717)),
+      ST_GeomFromText(${wkt}, 4326),
+      ST_Area(ST_Transform(ST_GeomFromText(${wkt}, 4326), ${sql.raw(String(analysisSrid))})),
       ${input.isActive ?? true},
       ${input.provenanceId}
     )

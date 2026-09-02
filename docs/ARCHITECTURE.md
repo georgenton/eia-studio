@@ -202,9 +202,10 @@ serverless request limits. Rules:
 
 - MapLibre GL in the client; layers come from server endpoints scoped by context: GeoJSON for
   small project layers, `ST_AsMVT` tiles when a project exceeds a threshold.
-- Geometry stored in EPSG:4326; metric computations (areas, abscissa projection) use the
-  **project's configured CRS** (`projects.crs`, a configuration value, e.g. a UTM zone) — never a
-  hardcoded zone.
+- Geometry stored canonically in **EPSG:4326** — the one CRS every project can share, and the one
+  MapLibre consumes, so reads need no transform. Metric computations (areas, lengths, the chainage
+  projection) transform into the dataset version's `analysis_srid`, a **projected** code recorded
+  per dataset, never a hardcoded zone (ADR-017). `source_srid` preserves what the data arrived in.
 - Every layer has a `SpatialDatasetVersion` with layer provenance (`REAL_BASE_MAP`,
   `RECONSTRUCTED_ALIGNMENT`, `SYNTHETIC_PARCELS`, later `OFFICIAL_IMPORTED_ALIGNMENT`,
   `OFFICIAL_CADASTRE`), rendered by the mandatory legend.

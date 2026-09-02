@@ -16,9 +16,12 @@ import { app, project } from "./app";
 /**
  * GIS module tables (ADR-003 linear-infrastructure extension, DATA_MODEL.md §3.3).
  *
- * Geometry is stored natively in PostGIS, in the **projected** storage CRS EPSG:32717 so areas,
- * lengths and the chainage projection are metric. Reads transform to EPSG:4326 for MapLibre.
- * Canonical geometry is never JSON: GeoJSON is a presentation format produced at read time.
+ * Geometry is stored natively in PostGIS in the **canonical** CRS `EPSG:4326`, which is the one
+ * CRS every project can share and the one MapLibre consumes, so reads need no transform. The
+ * projected CRS a dataset's metres are computed in is metadata on its version
+ * (`analysis_srid`), not a property of the column — a second project in another UTM zone stores
+ * geometry in the same tables (ADR-017). Canonical geometry is never JSON: GeoJSON is a
+ * presentation format produced at read time.
  *
  * Vocabularies are duplicated from @eia/domain on purpose (db must not depend on domain); a test
  * asserts both lists stay identical.
@@ -35,7 +38,11 @@ const geometryColumn = (geometryType: "LineString" | "Polygon" | "MultiPolygon",
     dataType: () => `geometry(${geometryType},${srid})`,
   });
 
-const STORAGE_SRID = 32717;
+/**
+ * The only SRID that appears in the schema. Everything project-specific about coordinate systems
+ * is a column value, never a column type.
+ */
+const CANONICAL_SRID = 4326;
 
 export const spatialDatasetKind = app.enum("spatial_dataset_kind", [
   "alignment",
@@ -107,8 +114,16 @@ export const spatialDatasetVersion = app.table(
     datasetId: uuid("dataset_id").notNull(),
     versionLabel: text("version_label").notNull(),
     origin: spatialDatasetOrigin("origin").notNull(),
-    /** CRS the geometry arrived in, as declared by its source or chosen by our generator. */
-    sourceCrs: text("source_crs").notNull(),
+    /**
+     * EPSG code the geometry arrived in, before the transform to canonical storage. Preserved so
+     * an official import stays explainable after reprojection.
+     */
+    sourceSrid: integer("source_srid").notNull(),
+    /**
+     * Projected EPSG code this dataset's lengths and areas are computed in. Per dataset, because
+     * the right zone is a property of where the project is, not of the product.
+     */
+    analysisSrid: integer("analysis_srid").notNull(),
     /** Algorithm identity for generated data; null for an import. */
     generatorVersion: text("generator_version"),
     featureCount: integer("feature_count").notNull(),
@@ -150,7 +165,7 @@ export const alignment = app.table(
     projectId: uuid("project_id").notNull(),
     datasetVersionId: uuid("dataset_version_id").notNull(),
     label: text("label").notNull(),
-    geom: geometryColumn("LineString", STORAGE_SRID)("geom").notNull(),
+    geom: geometryColumn("LineString", CANONICAL_SRID)("geom").notNull(),
     lengthM: numeric("length_m", { precision: 12, scale: 2 }).notNull(),
     provenanceId: uuid("provenance_id").notNull(),
     createdAt: createdAt(),
@@ -217,7 +232,7 @@ export const parcelGeometry = app.table(
     projectId: uuid("project_id").notNull(),
     parcelId: uuid("parcel_id").notNull(),
     datasetVersionId: uuid("dataset_version_id").notNull(),
-    geom: geometryColumn("Polygon", STORAGE_SRID)("geom").notNull(),
+    geom: geometryColumn("Polygon", CANONICAL_SRID)("geom").notNull(),
     areaM2: numeric("area_m2", { precision: 14, scale: 2 }).notNull(),
     isActive: boolean("is_active").notNull().default(true),
     supersededByGeometryId: uuid("superseded_by_geometry_id"),
@@ -257,7 +272,7 @@ export const affectation = app.table(
     parcelId: uuid("parcel_id").notNull(),
     datasetVersionId: uuid("dataset_version_id").notNull(),
     category: affectationCategory("category").notNull(),
-    geom: geometryColumn("Polygon", STORAGE_SRID)("geom").notNull(),
+    geom: geometryColumn("Polygon", CANONICAL_SRID)("geom").notNull(),
     affectedAreaM2: numeric("affected_area_m2", { precision: 14, scale: 2 }).notNull(),
     provenanceId: uuid("provenance_id").notNull(),
     createdAt: createdAt(),
@@ -289,4 +304,4 @@ export const affectation = app.table(
 );
 
 /** Re-exported so migrations and read models can reference the storage CRS in one place. */
-export { STORAGE_SRID };
+export { CANONICAL_SRID };

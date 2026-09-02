@@ -162,10 +162,7 @@ describe("Slice 2 · geometry is isolated by tenant and project", () => {
       tx.execute(sql`
         select count(*)::int as n
         from app.parcel_geometry
-        where ST_Intersects(
-          geom,
-          ST_Transform(ST_MakeEnvelope(-79.5, -4.5, -78.5, -3.5, 4326), 32717)
-        )
+        where ST_Intersects(geom, ST_MakeEnvelope(-79.5, -4.5, -78.5, -3.5, 4326))
       `),
     );
     expect((rows.rows[0] as { n: number }).n).toBe(1);
@@ -209,21 +206,112 @@ describe("Slice 2 · cross-tenant writes are rejected", () => {
 });
 
 describe("Slice 2 · PostGIS storage invariants", () => {
-  it("stores geometry in the metric CRS, so areas are metres and not degrees", async () => {
+  it("stores canonical geometry in EPSG:4326, not in any project's UTM zone", async () => {
+    // The IG2-001 regression: 0009 typed these columns `geometry(...,32717)`, which made one
+    // pilot's zone a property of the platform.
     const rows = await db.migrator.execute(sql`
-      select ST_SRID(geom) as srid,
-             GeometryType(geom) as type,
-             ST_Area(geom) as area,
-             area_m2::float8 as recorded
-      from app.parcel_geometry where parcel_id = ${parcelX}
+      select f_table_name as table_name, srid, type
+      from geometry_columns where f_table_schema = 'app' order by 1
     `);
-    const row = rows.rows[0] as { srid: number; type: string; area: number; recorded: number };
-    expect(row.srid).toBe(32717);
+    expect(rows.rows).toHaveLength(3);
+    for (const row of rows.rows as unknown as ReadonlyArray<{ table_name: string; srid: number }>) {
+      expect(row.srid, row.table_name).toBe(4326);
+    }
+  });
+
+  it("measures metres by transforming into the dataset's analysis CRS, never in degrees", async () => {
+    const rows = await db.migrator.execute(sql`
+      select ST_SRID(g.geom) as srid,
+             GeometryType(g.geom) as type,
+             ST_Area(g.geom) as degrees_area,
+             ST_Area(ST_Transform(g.geom, v.analysis_srid)) as metric_area,
+             g.area_m2::float8 as recorded,
+             v.analysis_srid,
+             v.source_srid
+      from app.parcel_geometry g
+      join app.spatial_dataset_version v
+        on v.tenant_id = g.tenant_id and v.id = g.dataset_version_id
+      where g.parcel_id = ${parcelX} and g.is_active
+    `);
+    const row = rows.rows[0] as {
+      srid: number;
+      type: string;
+      degrees_area: number;
+      metric_area: number;
+      recorded: number;
+      analysis_srid: number;
+      source_srid: number;
+    };
+    expect(row.srid).toBe(4326);
     expect(row.type).toBe("POLYGON");
-    // A 0,002° square near the equator is roughly 220 m on a side, so ~4,9 ha.
-    expect(row.area).toBeGreaterThan(40_000);
-    expect(row.area).toBeLessThan(60_000);
-    expect(row.recorded).toBeCloseTo(row.area, 1);
+    expect(row.analysis_srid).toBe(32717);
+    expect(row.source_srid).toBe(4326);
+    // The whole point of the analysis CRS: the same polygon is ~4,9 ha in metres and a
+    // meaningless 0,000004 in square degrees.
+    expect(row.metric_area).toBeGreaterThan(40_000);
+    expect(row.metric_area).toBeLessThan(60_000);
+    expect(row.degrees_area).toBeLessThan(0.001);
+    expect(row.recorded).toBeCloseTo(row.metric_area, 1);
+  });
+
+  it("a second project may declare a different analysis CRS without any schema change", async () => {
+    // Project Y stands in for a project outside the pilot's UTM zone. Under 0009 this row could
+    // not have existed at all.
+    const provY = (
+      await createProvenanceRecord(db.migrator, {
+        tenantId: w.tenantA.id,
+        projectId: w.projectY.id,
+      })
+    ).id;
+    const versionY = await createSpatialDatasetVersion(db.migrator, {
+      tenantId: w.tenantA.id,
+      projectId: w.projectY.id,
+      provenanceId: provY,
+      // UTM 18S — a neighbouring zone, and a different official EPSG code.
+      analysisSrid: 32718,
+      sourceSrid: 32718,
+    });
+    const { parcelId } = await createParcelWithGeometry(db.migrator, {
+      tenantId: w.tenantA.id,
+      projectId: w.projectY.id,
+      provenanceId: provY,
+      datasetVersionId: versionY.id,
+      parcelCode: "PRED-YYY-777",
+      // Inside zone 18S.
+      lon: -75.2,
+      lat: -6.1,
+      analysisSrid: 32718,
+    });
+
+    const rows = await db.migrator.execute(sql`
+      select ST_SRID(g.geom) as srid,
+             v.analysis_srid,
+             g.area_m2::float8 as recorded
+      from app.parcel_geometry g
+      join app.spatial_dataset_version v
+        on v.tenant_id = g.tenant_id and v.id = g.dataset_version_id
+      where g.parcel_id = ${parcelId}
+    `);
+    const row = rows.rows[0] as { srid: number; analysis_srid: number; recorded: number };
+    // Same canonical storage, different analysis CRS, both projects in the same tables.
+    expect(row.srid).toBe(4326);
+    expect(row.analysis_srid).toBe(32718);
+    expect(row.recorded).toBeGreaterThan(40_000);
+    expect(row.recorded).toBeLessThan(60_000);
+  });
+
+  it("refuses a geographic CRS as an analysis CRS", async () => {
+    const error = await attempt(
+      createSpatialDatasetVersion(db.migrator, {
+        tenantId: w.tenantA.id,
+        projectId: w.projectX.id,
+        provenanceId: provX,
+        versionLabel: "parcels_bad_crs",
+        isActive: false,
+        analysisSrid: 4326,
+      }),
+    );
+    expect(error).toMatch(/analysis_srid_projected/i);
   });
 
   it("refuses geometry in the wrong SRID rather than storing it silently", async () => {
@@ -234,7 +322,7 @@ describe("Slice 2 · PostGIS storage invariants", () => {
           (id, tenant_id, project_id, parcel_id, dataset_version_id, geom, area_m2, is_active,
            provenance_id)
         values (${randomUUID()}, ${w.tenantA.id}, ${w.projectX.id}, ${parcelX},
-                ${versionX}, ST_GeomFromText(${wkt}, 4326), 1, false, ${provX})
+                ${versionX}, ST_GeomFromText(${wkt}, 32717), 1, false, ${provX})
       `),
     );
     expect(error).toMatch(/srid|geometry/i);
@@ -250,7 +338,7 @@ describe("Slice 2 · PostGIS storage invariants", () => {
           (id, tenant_id, project_id, parcel_id, dataset_version_id, geom, area_m2, is_active,
            provenance_id)
         values (${randomUUID()}, ${w.tenantA.id}, ${w.projectX.id}, ${parcelX},
-                ${versionX}, ST_Transform(ST_GeomFromText(${bowTie}, 4326), 32717), 1, false,
+                ${versionX}, ST_GeomFromText(${bowTie}, 4326), 1, false,
                 ${provX})
       `),
     );
