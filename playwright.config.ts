@@ -33,7 +33,8 @@ export default defineConfig({
     { name: "setup", testMatch: /auth\.setup\.ts/, use: { ...devices["Desktop Chrome"] } },
     {
       name: "coordinator",
-      testMatch: /journey\.spec\.ts|authorization\.spec\.ts|screenshots\.spec\.ts/,
+      testMatch:
+        /journey\.spec\.ts|authorization\.spec\.ts|screenshots\.spec\.ts|accessibility\.spec\.ts/,
       dependencies: ["setup"],
       use: {
         ...devices["Desktop Chrome"],

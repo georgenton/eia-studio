@@ -93,6 +93,13 @@
   border-color: var(--eia-accent-border);
   background: var(--eia-accent-soft);
 }
+/* The highlighted cell sits on the soft blue, where the muted neutral drops below AA. Reading it
+   in the technical blue is both accessible and what the design intends by "destacada en azul". */
+.forecastCellActive .forecastLabel,
+.forecastCellActive .forecastValue,
+.forecastCellActive .forecastUnit {
+  color: var(--eia-accent);
+}
 .forecastLabel {
   font-size: var(--eia-size-label);
   font-weight: 600;
