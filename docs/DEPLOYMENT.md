@@ -142,6 +142,25 @@ amd64/arm64 build of the official PostGIS image recipe, Debian bookworm + PGDG) 
 PostGIS 3.5.3, pgvector 0.8.6, pg_trgm 1.6. No maintained upstream image ships both extensions
 (`postgis/postgis` lacks pgvector, `pgvector/pgvector` lacks PostGIS); see TECH_DEBT.md TD-001.
 
+## 4a. Staging as actually built (Slice 0.5)
+
+See `docs/STAGING_GATE_0_5.md` for the full capability report. Summary of what exists:
+
+| Piece | Identifier |
+|---|---|
+| Railway project | `eia-studio-staging`, environment **`staging`** (the platform's default `production` environment is left empty and unused) |
+| Database | service `postgres-gis`, built from `docker/postgres/Dockerfile`, volume at `/var/lib/postgresql/data`, reachable inside Railway at `postgres-gis.railway.internal:5432` and outside through a TCP proxy |
+| Worker | service `worker`, Railpack build of `apps/worker`, `node apps/worker/dist/main.js` as PID 1, healthcheck `/health` |
+| Web | Vercel project `eia-studio-web`, root directory `apps/web`, Node 24.x, GitHub integration connected, preview deployments only |
+
+Two provider behaviours are load-bearing and were found the hard way:
+
+1. **The worker must run Node directly.** With `pnpm --filter @eia/worker start` as the container
+   command, pnpm becomes PID 1, SIGTERM does not reach the process's shutdown handler and the
+   deployment reports a non-zero exit. The start command is `node apps/worker/dist/main.js`.
+2. **Railway's stock Postgres has no PostGIS**, so migration 0000 cannot run on it. Staging uses
+   our own image, which also required adding TLS (upstream PostGIS images ship without it).
+
 ## 5. Deployment sequence (staging, after Slice 0)
 
 1. Merge to `main` → CI `quality` and `db` green.

@@ -84,7 +84,15 @@ Packages PR; when merged, tags and creates a GitHub Release. Needs `contents: wr
 `pull-requests: write` permissions for `GITHUB_TOKEN` (and "Allow GitHub Actions to create and
 approve pull requests" enabled in repository settings).
 
-### Stage G — staging deploy (after Slice 0 has a runnable build)
+### Stage G — staging deploy (partially in place after Slice 0.5)
+
+Implemented: Vercel's GitHub integration builds a preview for every branch/PR of `apps/web`
+(root directory `apps/web`, Node 24.x, `pnpm install --frozen-lockfile` +
+`pnpm --filter @eia/web build`). Railway deploys stay **manual** (`railway up`) during the
+provider evaluation, as agreed for Slice 0.5; GitHub Actions remains the only quality authority
+and gains no deploy job yet.
+
+Original plan, still the target:
 
 - `apps/web`: Vercel Git integration deploys `main` to the staging Vercel project and every PR
   to a preview; no GitHub Actions step required.
