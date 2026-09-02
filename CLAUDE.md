@@ -3,18 +3,20 @@
 EIA Studio is a multi-tenant B2B SaaS for environmental consulting firms: field capture, parcels,
 surveys, social analysis with human-in-the-loop AI, quality review and client reporting.
 
-**Current phase: SLICE 1 (product shell, project workspace, historical Command Center)
-IMPLEMENTED ON `feat/slice-1-project-workspace`, PENDING IMPLEMENTATION GATE 1.** Slice 0 (SaaS
-foundation) and Slice 0.5 (staging foundation) are merged into `main`; Implementation Gate 0 and
-Staging Gate 0.5 are closed. Slice 1 adds the first product surfaces — sign-in, Portfolio, the
-workspace shell with capability-driven navigation, the Command Center over real historical
-aggregates and labelled demo simulation, and the reusable Data Provenance drawer — plus their
-persistence (`metric_snapshot`, `forecast_snapshot`, `provenance_record`, `provenance_input`,
-`attention_item`, `activity_event`). See `docs/SLICE_1_REPORT.md` for what was built, what was
-deliberately omitted and every deviation from the design bundle. GIS, FieldFlow, Social
-Intelligence, Quality Gate, RAG, Reports and the Client Portal are **not** implemented; their
-routes exist only as capability-guarded placeholders. Staging is live for preview only; do not
-deploy production.
+**Current phase: SLICE 2 (GIS / Parcel Explorer and Parcel Workspace) IMPLEMENTED ON
+`feat/slice-2-gis-parcel-workspace`, PENDING IMPLEMENTATION GATE 2.** Slice 0 (SaaS foundation),
+Slice 0.5 (staging foundation) and Slice 1 (product shell, Portfolio, Command Center, provenance
+drawer) are merged into `main`; Implementation Gates 0 and 1 and Staging Gate 0.5 are closed.
+Slice 2 makes GIS a real surface: the Parcel Explorer (map and table sharing one selection, faceted
+filters, layer-provenance legend), the Parcel Workspace, the Command Center's territorial summary,
+and their persistence (`spatial_dataset`, `spatial_dataset_version`, `alignment`, `parcel`,
+`parcel_geometry`, `affectation`) with PostGIS geometry stored in a metric CRS. The corridor and
+its 141 parcels are **deterministically generated and labelled SYNTHETIC**; the official GIS
+package has not been received and its import is specified in `docs/GIS_IMPORT_CONTRACT.md`, not
+built. See `docs/SLICE_2_REPORT.md` (and `docs/SLICE_1_REPORT.md`) for what was built, what was
+deliberately omitted and every deviation from the design bundle. FieldFlow, Social Intelligence,
+Quality Gate, RAG, Reports and the Client Portal are **not** implemented; their routes exist only
+as capability-guarded placeholders. Staging is live for preview only; do not deploy production.
 
 ## Read before acting
 
@@ -35,6 +37,7 @@ Architecture documentation:
 
 Also relevant by task: `docs/DATA_MODEL.md`, `docs/PROVENANCE.md`, `docs/AI_GOVERNANCE.md`,
 `docs/DEMO_ZAMORA.md`, `docs/DESIGN_SYSTEM.md`, `docs/TESTING_STRATEGY.md`,
+`docs/GIS_IMPORT_CONTRACT.md`,
 `docs/IMPLEMENTATION_PLAN.md`, `docs/DESIGN_BUNDLE_KNOWN_ISSUES.md`, the delivery docs
 `docs/ENGINEERING_STANDARDS.md`, `docs/RELEASE_POLICY.md`, `docs/CI.md`, `docs/DEPLOYMENT.md`,
 `docs/DEPENDENCIES.md`, `docs/TECH_DEBT.md`, the Gate record `docs/DECISIONS/GATE-1.md`, and

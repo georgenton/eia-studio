@@ -153,25 +153,66 @@ DocumentLocator (value) { document_version_id, page?, section?, chunk_id?, bbox?
 
 ### 3.3 GIS
 
+**Implemented in Slice 2** (migrations `0009`, `0010`). The shapes below are what the tables
+actually hold; where they differ from the earlier specification, the difference is noted.
+
 ```
-SpatialDataset { id, tenant_id, project_id, key ('parcels', 'alignment', 'basemap'), kind, current_version_id }
-SpatialDatasetVersion { id, dataset_id, version_label ('parcels_v2'), import_run_id, source_crs, feature_count, supersedes_version_id?, provenance_id, immutable }
-   -- legend key (REAL_BASE_MAP | RECONSTRUCTED_ALIGNMENT | SYNTHETIC_PARCELS | OFFICIAL_IMPORTED_ALIGNMENT | OFFICIAL_CADASTRE | FIELD_CAPTURED)
-   -- is derived from dataset.kind + the facets of provenance_id (PROVENANCE.md §2.7), not stored
-Layer { id, dataset_version_id, name, geometry_type, style_key, feature_source (table or storage key) }
-Parcel { id, tenant_id, project_id, parcel_code (unique per project), unit_id?, status: confirmed|estimated|not_located|excluded,
-         current_geometry_id?, attributes jsonb (profile-validated), provenance_id }
-ParcelGeometry { id, parcel_id, dataset_version_id, geom geometry(Polygon,4326), area_m2 (computed in project CRS), centroid, valid_from, superseded_by?, provenance_id }
+SpatialDataset { id, tenant_id, project_id, kind: alignment|parcels|affectations, label }
+   -- unique (tenant_id, project_id, kind): one dataset of a kind per project
+SpatialDatasetVersion { id, tenant_id, project_id, dataset_id, version_label ('parcels_v1'),
+    origin: generated|imported|field_captured, source_crs ('EPSG:32717'), generator_version?,
+    feature_count, is_active, supersedes_version_id?, produced_at, note?, provenance_id }
+   -- exactly one active version per dataset (unique partial index)
+   -- `origin` records the production route; it is NOT a provenance vocabulary (ADR-005)
+   -- legend key (REAL_BASE_MAP | RECONSTRUCTED_ALIGNMENT | SYNTHETIC_PARCELS |
+      OFFICIAL_IMPORTED_ALIGNMENT | OFFICIAL_CADASTRE | FIELD_CAPTURED)
+      is derived from dataset.kind + the facets of provenance_id (PROVENANCE.md §2.7), not stored
+Parcel { id, tenant_id, project_id, parcel_code (unique per project), sector_label?,
+    side: left|right|both, status: confirmed|estimated|not_located|excluded,
+    chainage_m?, chainage_method?, frontage_m?, provenance_id }
+   -- CHECK parcel_code_shape: uppercase alphanumeric groups separated by hyphens
+   -- CHECK: chainage_m and chainage_method are both present or both absent
+ParcelGeometry { id, tenant_id, project_id, parcel_id, dataset_version_id,
+    geom geometry(Polygon,32717), area_m2, is_active, superseded_by_geometry_id?, provenance_id }
+   -- exactly one active geometry per parcel (unique partial index)
+   -- CHECK: ST_IsValid(geom) AND NOT ST_IsEmpty(geom)
 -- linear_infrastructure extension
-Alignment { id, tenant_id, project_id, dataset_version_id, geom geometry(LineString,4326), length_m, station_origin_m, provenance_id }
-LinearReference { parcel_id (PK), alignment_id, abscissa_m (declared), side: left|right|both, abscissa_computed_m?, computed_provenance_id? }
-Affectation { id, parcel_id, instrument_instance_id?, total_area_m2, affected_area_m2, pct, state: draft|needs_review|validated, provenance_id }
-AffectationItem { id, affectation_id, kind: strip|fence|crop|access|infrastructure|other, quantity, unit, note }
+Alignment { id, tenant_id, project_id, dataset_version_id, label,
+    geom geometry(LineString,32717), length_m, station_origin_m, provenance_id }
+Affectation { id, tenant_id, project_id, parcel_id, dataset_version_id,
+    category: right_of_way|access|infrastructure|crops|other,
+    geom geometry(Polygon,32717), affected_area_m2, provenance_id }
 ```
+
+#### Coordinate reference systems
+
+Geometry is **stored** in a projected, metric CRS (`EPSG:32717`, WGS 84 / UTM 17S for the pilot)
+and **presented** in `EPSG:4326`, produced by `ST_Transform` at read time for MapLibre. Areas,
+lengths and the chainage projection are computed in the storage CRS, because metric work in
+degrees is wrong. The zone is a per-project choice, never a product constant.
+
+The pilot's storage CRS is a **demo assumption**: the official GIS package has not been received,
+so the project's real CRS is unknown. Every generated dataset version states its CRS in
+`source_crs`; an official import declares its own and supersedes ours.
+
+#### What changed from the earlier specification, and why
+
+| Earlier shape | What was built | Why |
+|---|---|---|
+| `geometry(...,4326)` | `geometry(...,32717)` + transform on read | areas and lengths must be metric; a 4326 column invites `ST_Area` in square degrees |
+| `SpatialDataset.current_version_id` | `SpatialDatasetVersion.is_active` + unique partial index | the pointer and the flag can disagree; one enforced flag cannot |
+| `Layer` table | not created | a layer is currently a dataset version rendered by the client; a table with no distinct behaviour would be dead weight until styles are configurable |
+| `Parcel.current_geometry_id` | `ParcelGeometry.is_active` | same reason as the dataset pointer |
+| `Parcel.attributes jsonb` | not created | no profile declares attributes yet; an unvalidated bag would fill with ad-hoc columns |
+| `LinearReference` as a separate row | `chainage_m` / `chainage_method` / `side` on `Parcel` | one nullable reference per parcel is a column, not a table; promoting it later is a mechanical migration, and the CHECK already prevents a chainage without its method |
+| `Affectation.pct`, `.state`, `AffectationItem` | area only; ratio derived | a stored percentage drifts from the geometries it came from; the review workflow and the itemisation carry legal and personal-data weight this slice does not own |
+| `Parcel.unit_id` | not created | `ProjectUnit` does not exist yet; `sector_label` is free text until it does |
 
 The parcel **operational state** shown on the map (Completo · Visitado · Pendiente · Requiere
 revisita · Inconsistencia · No localizado) is a **derived read model**, computed from instrument
-states, visits, open findings and `Parcel.status`, not a stored column that can drift.
+states, visits, open findings and `Parcel.status`, not a stored column that can drift. Slice 2
+renders only `Parcel.status`, because nothing in it can know whether a parcel was visited;
+`DESIGN_SURVEY_STATES_PENDING_FIELD` records the target vocabulary so the reduction stays visible.
 
 ### 3.4 Field
 
