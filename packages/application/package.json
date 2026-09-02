@@ -8,18 +8,22 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "typecheck": "tsc -p tsconfig.json"
+    "typecheck": "tsc -p tsconfig.json",
+    "seed:demo-project": "tsx scripts/seed-demo-project.ts"
   },
   "dependencies": {
     "@eia/db": "workspace:*",
     "@eia/domain": "workspace:*",
     "drizzle-orm": "0.45.2",
-    "zod": "4.5.4"
+    "zod": "4.5.4",
+    "@eia/contracts": "workspace:*"
   },
   "devDependencies": {
     "@eia/config": "workspace:*",
     "@eia/testing": "workspace:*",
     "typescript": "5.9.3",
-    "vitest": "4.1.11"
+    "vitest": "4.1.11",
+    "tsx": "4.23.13",
+    "dotenv": "17.4.2"
   }
 }

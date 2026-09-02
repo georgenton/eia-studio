@@ -36,6 +36,20 @@
       "when": 1788297957968,
       "tag": "0004_security_definer_hardening",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1788323435665,
+      "tag": "0005_slice1_command_center",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1788323436665,
+      "tag": "0006_slice1_rls_and_constraints",
+      "breakpoints": true
     }
   ]
 }

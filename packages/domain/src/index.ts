@@ -3,4 +3,5 @@
 // is enforced by ESLint and by packages/domain/test/purity.test.ts.
 export * from "./core/index";
 export * from "./provenance/index";
+export * from "./projects/index";
 export * from "./audit/index";
