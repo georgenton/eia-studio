@@ -12,7 +12,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 
-import { app, project, projectMembership } from "./app";
+import { app, project, projectMembership, provenanceRecord } from "./app";
 import { parcel } from "./gis";
 
 /**
@@ -189,6 +189,11 @@ export const surveyVersion = app.table(
       columns: [t.tenantId, t.projectId],
       foreignColumns: [project.tenantId, project.id],
     }).onDelete("cascade"),
+    foreignKey({
+      name: "survey_version_provenance_fk",
+      columns: [t.tenantId, t.provenanceId],
+      foreignColumns: [provenanceRecord.tenantId, provenanceRecord.id],
+    }),
     index("survey_version_template_status_idx").on(t.tenantId, t.templateId, t.status),
   ],
 );
@@ -294,6 +299,11 @@ export const surveyCampaign = app.table(
       foreignColumns: [project.tenantId, project.id],
     }).onDelete("cascade"),
     foreignKey({
+      name: "survey_campaign_provenance_fk",
+      columns: [t.tenantId, t.provenanceId],
+      foreignColumns: [provenanceRecord.tenantId, provenanceRecord.id],
+    }),
+    foreignKey({
       name: "survey_campaign_version_fk",
       columns: [t.tenantId, t.surveyVersionId],
       foreignColumns: [surveyVersion.tenantId, surveyVersion.id],
@@ -353,6 +363,11 @@ export const fieldAssignment = app.table(
       columns: [t.tenantId, t.projectId],
       foreignColumns: [project.tenantId, project.id],
     }).onDelete("cascade"),
+    foreignKey({
+      name: "field_assignment_provenance_fk",
+      columns: [t.tenantId, t.provenanceId],
+      foreignColumns: [provenanceRecord.tenantId, provenanceRecord.id],
+    }),
     index("field_assignment_assignee_idx").on(t.tenantId, t.projectId, t.assigneeUserId),
     index("field_assignment_campaign_status_idx").on(t.tenantId, t.campaignId, t.status),
   ],
@@ -392,6 +407,11 @@ export const fieldVisit = app.table(
       columns: [t.tenantId, t.projectId],
       foreignColumns: [project.tenantId, project.id],
     }).onDelete("cascade"),
+    foreignKey({
+      name: "field_visit_provenance_fk",
+      columns: [t.tenantId, t.provenanceId],
+      foreignColumns: [provenanceRecord.tenantId, provenanceRecord.id],
+    }),
     index("field_visit_assignment_idx").on(t.tenantId, t.assignmentId),
     index("field_visit_technician_idx").on(t.tenantId, t.projectId, t.technicianUserId),
   ],
@@ -448,6 +468,11 @@ export const surveyInstance = app.table(
       columns: [t.tenantId, t.projectId],
       foreignColumns: [project.tenantId, project.id],
     }).onDelete("cascade"),
+    foreignKey({
+      name: "survey_instance_provenance_fk",
+      columns: [t.tenantId, t.provenanceId],
+      foreignColumns: [provenanceRecord.tenantId, provenanceRecord.id],
+    }),
     index("survey_instance_respondent_idx").on(t.tenantId, t.projectId, t.respondentUserId),
     index("survey_instance_version_status_idx").on(t.tenantId, t.surveyVersionId, t.status),
   ],

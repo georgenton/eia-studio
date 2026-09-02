@@ -218,13 +218,6 @@
       "provenance": "operations-demo"
     },
     {
-      "key": "parcels_visited",
-      "numericValue": 126,
-      "note": "89,4% del universo",
-      "displayOrder": 3,
-      "provenance": "operations-demo"
-    },
-    {
       "key": "surveys_complete",
       "numericValue": 119,
       "note": "dato real del estudio",

@@ -13,3 +13,13 @@ setup("authenticate as the tenant administrator", async ({ page }) => {
   await signIn(page, USERS.admin);
   await page.context().storageState({ path: USERS.admin.state });
 });
+
+setup("authenticate as the field technician", async ({ page }) => {
+  await signIn(page, USERS.technician);
+  await page.context().storageState({ path: USERS.technician.state });
+});
+
+setup("authenticate as the second field technician", async ({ page }) => {
+  await signIn(page, USERS.technicianTwo);
+  await page.context().storageState({ path: USERS.technicianTwo.state });
+});

@@ -1,5 +1,10 @@
-import { loadCommandCenter, loadPortfolio, loadTerritorialSummary } from "@eia/application";
-import { SURFACE_DEFINITIONS } from "@eia/domain";
+import {
+  loadCommandCenter,
+  loadFieldProgress,
+  loadPortfolio,
+  loadTerritorialSummary,
+} from "@eia/application";
+import { can, SURFACE_DEFINITIONS } from "@eia/domain";
 import { notFound, redirect } from "next/navigation";
 
 import { CommandCenter } from "@/components/command-center";
@@ -92,6 +97,16 @@ export default async function CommandCenterPage({
       ? projectPath(ctx.tenantSlug, project, gisSurface.segment)
       : null;
 
+  // Field progress is a FieldFlow read model with its own capability and permission: the Command
+  // Center composes it rather than reaching into another module's tables.
+  const fieldSurface = SURFACE_DEFINITIONS.field;
+  const fieldEnabled = ctx.capabilities[fieldSurface.capability] && can(ctx, "field.read");
+  const fieldProgress = fieldEnabled ? await loadFieldProgress(getDb(), ctx) : null;
+  const fieldPath =
+    fieldEnabled && fieldSurface.implemented
+      ? projectPath(ctx.tenantSlug, project, fieldSurface.segment)
+      : null;
+
   return (
     <WorkspaceShell
       {...shellProps}
@@ -108,6 +123,8 @@ export default async function CommandCenterPage({
       <CommandCenter
         basePath={basePath}
         ctx={ctx}
+        fieldPath={fieldPath}
+        fieldProgress={fieldProgress}
         gisPath={gisPath}
         lifecycleLabel={lifecycleLabel(view.project.lifecycle)}
         territory={territory}

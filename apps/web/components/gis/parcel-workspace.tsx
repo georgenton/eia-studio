@@ -1,16 +1,20 @@
-import type { ParcelWorkspaceView } from "@eia/application";
+import type { ParcelVisitEntry, ParcelWorkspaceView } from "@eia/application";
 import {
   AFFECTATION_CATEGORY_LABEL,
   CHAINAGE_METHOD_LABEL,
   formatChainage,
+  INSTANCE_STATUS_LABEL,
   LAYER_LEGEND_COPY,
+  LOCATION_OUTCOME_LABEL,
   PARCEL_SIDE_LABEL,
   PARCEL_STATUS_PRESENTATION,
+  VISIT_STATUS_LABEL,
 } from "@eia/domain";
 import {
   Chip,
   formatDecimal,
   formatPercent,
+  formatDateTime,
   Panel,
   PanelBody,
   PanelHeader,
@@ -48,11 +52,16 @@ export function ParcelWorkspace({
   tab,
   basePath,
   explorerPath,
+  visits,
+  canReadResponses,
 }: {
   view: ParcelWorkspaceView;
   tab: ParcelTab;
   basePath: string;
   explorerPath: string;
+  /** Null when the caller cannot see field data at all; empty when the parcel has no visits. */
+  visits: ReadonlyArray<ParcelVisitEntry> | null;
+  canReadResponses: boolean;
 }) {
   const { parcel } = view;
   const status = PARCEL_STATUS_PRESENTATION[parcel.status];
@@ -96,13 +105,7 @@ export function ParcelWorkspace({
 
       {tab === "resumen" ? <SummaryTab basePath={basePath} view={view} /> : null}
       {tab === "afectaciones" ? <AffectationsTab basePath={basePath} view={view} /> : null}
-      {tab === "visitas" ? (
-        <PendingModule
-          capability="field.surveys"
-          label="Visitas"
-          note="Las visitas de campo aparecerán aquí cuando el módulo FieldFlow esté implementado. No hay visitas registradas para este predio."
-        />
-      ) : null}
+      {tab === "visitas" ? <VisitsTab canReadResponses={canReadResponses} visits={visits} /> : null}
       {tab === "instrumentos" ? (
         <PendingModule
           capability="field.surveys"
@@ -267,6 +270,98 @@ function AffectationsTab({ view, basePath }: { view: ParcelWorkspaceView; basePa
         <p className={styles.muted} style={{ marginTop: 12 }}>
           Las áreas se calculan sobre la geometría activa; son una estimación cartográfica, no una
           medición de campo ni un avalúo.
+        </p>
+      </PanelBody>
+    </Panel>
+  );
+}
+
+/**
+ * The Visits tab, now a real field read model.
+ *
+ * It reports **that** a visit happened and whether a response was submitted — never an answer.
+ * Being able to open a parcel does not make someone entitled to read what a household said, so the
+ * individual answers stay behind `field.responses.read` and this tab says so rather than quietly
+ * showing an empty list.
+ */
+function VisitsTab({
+  visits,
+  canReadResponses,
+}: {
+  visits: ReadonlyArray<ParcelVisitEntry> | null;
+  canReadResponses: boolean;
+}) {
+  if (visits === null) {
+    return (
+      <SystemState
+        state="permission denied"
+        title="Visitas: sin acceso al trabajo de campo"
+        meta="field.surveys"
+      >
+        <p>
+          Tu rol puede consultar el predio pero no el trabajo de campo asociado. Acceder al
+          expediente territorial no otorga por sí solo acceso a las visitas.
+        </p>
+      </SystemState>
+    );
+  }
+
+  if (visits.length === 0) {
+    return (
+      <p className={styles.muted}>
+        No hay visitas registradas para este predio. Cuando un técnico inicie una visita de una
+        campaña activa, aparecerá aquí.
+      </p>
+    );
+  }
+
+  return (
+    <Panel>
+      <PanelHeader label="Visitas de campo" />
+      <PanelBody>
+        <table className={styles.affectations}>
+          <caption className={styles.srOnly}>
+            Visitas de campo registradas para este predio. Muestra el estado del trabajo, no las
+            respuestas individuales.
+          </caption>
+          <thead>
+            <tr>
+              <th scope="col">Inicio</th>
+              <th scope="col">Técnico</th>
+              <th scope="col">Estado</th>
+              <th scope="col">Ficha</th>
+              <th scope="col">Origen</th>
+            </tr>
+          </thead>
+          <tbody>
+            {visits.map((visit) => (
+              <tr key={visit.visitId}>
+                <td>{formatDateTime(visit.startedAt)}</td>
+                {/* A synthetic display name, never a respondent. */}
+                <td>{visit.technicianLabel}</td>
+                <td>
+                  {VISIT_STATUS_LABEL[visit.status]}
+                  <span className={styles.visitNote}>
+                    {LOCATION_OUTCOME_LABEL[visit.locationOutcome]}
+                  </span>
+                </td>
+                <td>
+                  {visit.instanceStatus === null
+                    ? "—"
+                    : INSTANCE_STATUS_LABEL[visit.instanceStatus]}
+                  <span className={styles.visitNote}>{visit.surveyVersionLabel}</span>
+                </td>
+                <td>
+                  <ProvenanceBadge facets={visit.provenance} />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <p className={styles.muted} style={{ marginTop: 12 }}>
+          {canReadResponses
+            ? "Las respuestas individuales se consultan desde Social Intelligence, que llega en una fase posterior."
+            : "Se muestra el estado del trabajo de campo. Ver una respuesta individual requiere el permiso field.responses.read."}
         </p>
       </PanelBody>
     </Panel>

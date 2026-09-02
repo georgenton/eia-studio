@@ -191,10 +191,25 @@ export async function loadFieldOverview(db: Database, ctx: RequestContext): Prom
       order by 2
     `);
 
-    return {
-      campaigns,
-      workload: workloadRows.rows as unknown as ReadonlyArray<TechnicianWorkload>,
-    };
+    // Mapped explicitly rather than cast: the query returns snake_case and the read model is
+    // camelCase, so a blind `as` produced a table of blank names and NaN counts.
+    const workload: TechnicianWorkload[] = (
+      workloadRows.rows as unknown as ReadonlyArray<{
+        user_id: string;
+        display_name: string;
+        pending: number;
+        in_progress: number;
+        completed: number;
+      }>
+    ).map((row) => ({
+      userId: row.user_id,
+      displayName: row.display_name,
+      pending: row.pending,
+      inProgress: row.in_progress,
+      completed: row.completed,
+    }));
+
+    return { campaigns, workload };
   });
 }
 

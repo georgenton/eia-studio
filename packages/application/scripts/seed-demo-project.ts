@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -343,36 +343,87 @@ try {
     await tx
       .delete(appSchema.provenanceInput)
       .where(eq(appSchema.provenanceInput.projectId, projectId));
-    await tx
-      .delete(appSchema.provenanceRecord)
-      .where(eq(appSchema.provenanceRecord.projectId, projectId));
+    // Records written by an older run with random ids are removed; the deterministic ones are
+    // updated in place below, so nothing that still references them is ever orphaned.
+    await tx.execute(sql`
+      delete from app.provenance_record pr
+       where pr.project_id = ${projectId}
+         and not exists (select 1 from app.survey_campaign c where c.provenance_id = pr.id)
+         and not exists (select 1 from app.survey_version v where v.provenance_id = pr.id)
+         and not exists (select 1 from app.field_assignment a where a.provenance_id = pr.id)
+         and not exists (select 1 from app.field_visit fv where fv.provenance_id = pr.id)
+         and not exists (select 1 from app.survey_instance si where si.provenance_id = pr.id)
+         and not exists (select 1 from app.spatial_dataset_version dv where dv.provenance_id = pr.id)
+         and not exists (select 1 from app.parcel p where p.provenance_id = pr.id)
+         and not exists (select 1 from app.parcel_geometry g where g.provenance_id = pr.id)
+         and not exists (select 1 from app.affectation af where af.provenance_id = pr.id)
+         and not exists (select 1 from app.alignment al where al.provenance_id = pr.id)
+    `);
+    /*
+     * Provenance ids are **derived from the fixture key**, not random.
+     *
+     * They used to be deleted and re-inserted with fresh UUIDs on every run. That was invisible
+     * while every provenance-bearing row was also recreated, and became a dangling reference the
+     * moment something was legitimately *reused* — a published questionnaire, or a campaign whose
+     * assignments carry submitted responses that must not be deleted. A deterministic id means a
+     * re-seed updates the record in place and every reference stays valid, which is what
+     * idempotent actually has to mean here.
+     */
+    const provenanceIdFor = (key: string): string => {
+      const digest = createHash("sha1").update(`${projectId}:${key}`).digest();
+      const bytes = Buffer.from(digest.subarray(0, 16));
+      // RFC 4122 variant and version bits, so the value is a well-formed UUID.
+      bytes[6] = (bytes[6]! & 0x0f) | 0x50;
+      bytes[8] = (bytes[8]! & 0x3f) | 0x80;
+      const hex = bytes.toString("hex");
+      return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+    };
 
     const provenanceIds = new Map<string, string>();
     for (const record of provenanceByKey.values()) {
-      const id = randomUUID();
+      const id = provenanceIdFor(record.key);
       provenanceIds.set(record.key, id);
-      await tx.insert(appSchema.provenanceRecord).values({
-        id,
-        tenantId,
-        projectId,
-        regime: record.regime,
-        origin: record.origin,
-        transformations: record.transformations,
-        granularity: record.granularity,
-        title: record.title,
-        note: record.note,
-        sourceLabel: record.sourceLabel,
-        sourceReference: record.sourceReference,
-        sourceVersion: record.sourceVersion,
-        method: record.method,
-        capturedAt: record.$capturedAtFromScenario
-          ? scenarioInstant
-          : record.capturedAt
-            ? new Date(record.capturedAt)
-            : null,
-        validationState: record.validationState,
-        validationNote: record.validationNote,
-      });
+      await tx
+        .insert(appSchema.provenanceRecord)
+        .values({
+          id,
+          tenantId,
+          projectId,
+          regime: record.regime,
+          origin: record.origin,
+          transformations: record.transformations,
+          granularity: record.granularity,
+          title: record.title,
+          note: record.note,
+          sourceLabel: record.sourceLabel,
+          sourceReference: record.sourceReference,
+          sourceVersion: record.sourceVersion,
+          method: record.method,
+          capturedAt: record.$capturedAtFromScenario
+            ? scenarioInstant
+            : record.capturedAt
+              ? new Date(record.capturedAt)
+              : null,
+          validationState: record.validationState,
+          validationNote: record.validationNote,
+        })
+        .onConflictDoUpdate({
+          target: appSchema.provenanceRecord.id,
+          set: {
+            regime: record.regime,
+            origin: record.origin,
+            transformations: record.transformations,
+            granularity: record.granularity,
+            title: record.title,
+            note: record.note,
+            sourceLabel: record.sourceLabel,
+            sourceReference: record.sourceReference,
+            sourceVersion: record.sourceVersion,
+            method: record.method,
+            validationState: record.validationState,
+            validationNote: record.validationNote,
+          },
+        });
     }
     const provenanceId = (key: string): string => {
       const id = provenanceIds.get(key);
@@ -477,172 +528,203 @@ try {
      * ---------------------------------------------------------------------------------- */
     const corridor = generateCorridor(manifest.gis.input);
 
-    await tx.delete(gisSchema.affectation).where(eq(gisSchema.affectation.projectId, projectId));
-    await tx
-      .delete(gisSchema.parcelGeometry)
-      .where(eq(gisSchema.parcelGeometry.projectId, projectId));
-    await tx.delete(gisSchema.parcel).where(eq(gisSchema.parcel.projectId, projectId));
-    await tx.delete(gisSchema.alignment).where(eq(gisSchema.alignment.projectId, projectId));
-    await tx
-      .delete(gisSchema.spatialDatasetVersion)
-      .where(eq(gisSchema.spatialDatasetVersion.projectId, projectId));
-    await tx
-      .delete(gisSchema.spatialDataset)
-      .where(eq(gisSchema.spatialDataset.projectId, projectId));
-
-    const lineWkt = `LINESTRING(${corridor.alignment.map(([x, y]) => `${x} ${y}`).join(",")})`;
-    const ringWkt = (ring: ReadonlyArray<readonly [number, number]>) =>
-      `POLYGON((${ring.map(([x, y]) => `${x} ${y}`).join(",")}))`;
     /*
-     * The analysis CRS is checked against `spatial_ref_sys` before anything is written: it must
-     * be registered, projected, metre-based and usable by ST_Transform. The check reads the CRS
-     * definition, never the SRID number (IG2-009). Doing it here means a bad fixture fails with a
-     * sentence, at the start, rather than as a PostGIS exception on the last insert.
+     * Reuse an identical corridor rather than rebuilding it.
+     *
+     * A parcel's UUID is its identity (ADR-017, GIS_IMPORT_CONTRACT), and field assignments now
+     * reference it. Deleting and recreating parcels on every seed would reissue those ids — the
+     * exact thing an official import is forbidden to do — and the foreign key says so. So the
+     * generator's output is compared against what is already stored, and only a genuinely
+     * different corridor is rebuilt.
+     */
+    const existingCorridor = await tx.execute(sql`
+      select v.generator_version, v.feature_count,
+             (select count(*)::int from app.parcel p
+               where p.tenant_id = v.tenant_id and p.project_id = v.project_id) as parcel_count
+      from app.spatial_dataset_version v
+      join app.spatial_dataset d on d.tenant_id = v.tenant_id and d.id = v.dataset_id
+      where v.tenant_id = ${tenantId} and v.project_id = ${projectId}
+        and d.kind = 'parcels' and v.is_active
+      limit 1
+    `);
+    const storedCorridor = existingCorridor.rows[0] as unknown as
+      { generator_version: string | null; feature_count: number; parcel_count: number } | undefined;
+    const corridorMatches =
+      storedCorridor !== undefined &&
+      storedCorridor.generator_version === corridor.generatorVersion &&
+      storedCorridor.feature_count === corridor.parcels.length &&
+      storedCorridor.parcel_count === corridor.parcels.length;
+
+    if (!corridorMatches) {
+      await tx.delete(gisSchema.affectation).where(eq(gisSchema.affectation.projectId, projectId));
+      await tx
+        .delete(gisSchema.parcelGeometry)
+        .where(eq(gisSchema.parcelGeometry.projectId, projectId));
+      await tx.delete(gisSchema.parcel).where(eq(gisSchema.parcel.projectId, projectId));
+      await tx.delete(gisSchema.alignment).where(eq(gisSchema.alignment.projectId, projectId));
+      await tx
+        .delete(gisSchema.spatialDatasetVersion)
+        .where(eq(gisSchema.spatialDatasetVersion.projectId, projectId));
+      await tx
+        .delete(gisSchema.spatialDataset)
+        .where(eq(gisSchema.spatialDataset.projectId, projectId));
+    }
+
+    /*
+     * The analysis CRS is checked against `spatial_ref_sys` before anything is written: it must be
+     * registered, projected, metre-based and usable by ST_Transform. The check reads the CRS
+     * definition, never the SRID number (IG2-009). It runs whether or not the corridor is rebuilt,
+     * because the chainage derivation below measures in it either way.
      */
     const analysisSrid = await assertAnalysisSridUsable(tx, manifest.gis.analysisSrid);
 
-    /**
-     * The SRIDs are inlined with `sql.raw` because a bound parameter arrives as text and PostGIS
-     * then reads "4326" as a proj string. `CANONICAL_SRID` is a compile-time constant, and
-     * `analysisSrid` has just been validated against the catalogue and re-parsed as an integer,
-     * so neither is user input by the time it reaches SQL.
-     */
-    const canonical = sql.raw(String(CANONICAL_SRID));
-    const analysis = sql.raw(String(analysisSrid));
-    /** WKT → canonical geometry, stored as the generator emitted it. */
-    const toCanonical = (wkt: string) => sql`ST_GeomFromText(${wkt}, ${canonical})`;
-    /**
-     * Canonical geometry → an analysis CRS, where metres mean metres.
-     *
-     * Which analysis CRS is a property of the **dataset whose measurement it is** (IG2-009). In
-     * this fixture all three layers share one, so the parameter looks redundant; it is not. An
-     * official import can bring parcels in one CRS and an alignment in another, and then a
-     * parcel's area must come from the parcels dataset while the corridor's length and every
-     * chainage along it must come from the alignment dataset. Passing it explicitly is what stops
-     * a future import from measuring a road with a parcel layer's CRS.
-     */
-    const forMetrics = (wkt: string, srid = analysis) =>
-      sql`ST_Transform(${toCanonical(wkt)}, ${srid})`;
+    if (!corridorMatches) {
+      const lineWkt = `LINESTRING(${corridor.alignment.map(([x, y]) => `${x} ${y}`).join(",")})`;
+      const ringWkt = (ring: ReadonlyArray<readonly [number, number]>) =>
+        `POLYGON((${ring.map(([x, y]) => `${x} ${y}`).join(",")}))`;
+      /**
+       * The SRIDs are inlined with `sql.raw` because a bound parameter arrives as text and PostGIS
+       * then reads "4326" as a proj string. `CANONICAL_SRID` is a compile-time constant, and
+       * `analysisSrid` has just been validated against the catalogue and re-parsed as an integer,
+       * so neither is user input by the time it reaches SQL.
+       */
+      const canonical = sql.raw(String(CANONICAL_SRID));
+      const analysis = sql.raw(String(analysisSrid));
+      /** WKT → canonical geometry, stored as the generator emitted it. */
+      const toCanonical = (wkt: string) => sql`ST_GeomFromText(${wkt}, ${canonical})`;
+      /**
+       * Canonical geometry → an analysis CRS, where metres mean metres.
+       *
+       * Which analysis CRS is a property of the **dataset whose measurement it is** (IG2-009). In
+       * this fixture all three layers share one, so the parameter looks redundant; it is not. An
+       * official import can bring parcels in one CRS and an alignment in another, and then a
+       * parcel's area must come from the parcels dataset while the corridor's length and every
+       * chainage along it must come from the alignment dataset. Passing it explicitly is what stops
+       * a future import from measuring a road with a parcel layer's CRS.
+       */
+      const forMetrics = (wkt: string, srid = analysis) =>
+        sql`ST_Transform(${toCanonical(wkt)}, ${srid})`;
 
-    const datasets = {
-      alignment: { id: randomUUID(), versionId: randomUUID() },
-      parcels: { id: randomUUID(), versionId: randomUUID() },
-      affectations: { id: randomUUID(), versionId: randomUUID() },
-    } as const;
+      const datasets = {
+        alignment: { id: randomUUID(), versionId: randomUUID() },
+        parcels: { id: randomUUID(), versionId: randomUUID() },
+        affectations: { id: randomUUID(), versionId: randomUUID() },
+      } as const;
 
-    const datasetSpec = [
-      {
-        kind: "alignment" as const,
-        label: manifest.gis.alignmentLabel,
-        ids: datasets.alignment,
-        versionLabel: "alignment_v1",
-        featureCount: 1,
-        provenance: "alignment-reconstructed",
-      },
-      {
-        kind: "parcels" as const,
-        label: "Predios frentistas",
-        ids: datasets.parcels,
-        versionLabel: "parcels_v1",
-        featureCount: corridor.parcels.length,
-        provenance: "parcels-synthetic",
-      },
-      {
-        kind: "affectations" as const,
-        label: "Afectación por derecho de vía",
-        ids: datasets.affectations,
-        versionLabel: "affectations_v1",
-        featureCount: corridor.parcels.filter((p) => p.affectationRing).length,
-        provenance: "affectations-synthetic",
-      },
-    ];
+      const datasetSpec = [
+        {
+          kind: "alignment" as const,
+          label: manifest.gis.alignmentLabel,
+          ids: datasets.alignment,
+          versionLabel: "alignment_v1",
+          featureCount: 1,
+          provenance: "alignment-reconstructed",
+        },
+        {
+          kind: "parcels" as const,
+          label: "Predios frentistas",
+          ids: datasets.parcels,
+          versionLabel: "parcels_v1",
+          featureCount: corridor.parcels.length,
+          provenance: "parcels-synthetic",
+        },
+        {
+          kind: "affectations" as const,
+          label: "Afectación por derecho de vía",
+          ids: datasets.affectations,
+          versionLabel: "affectations_v1",
+          featureCount: corridor.parcels.filter((p) => p.affectationRing).length,
+          provenance: "affectations-synthetic",
+        },
+      ];
 
-    for (const spec of datasetSpec) {
-      await tx.insert(gisSchema.spatialDataset).values({
-        id: spec.ids.id,
-        tenantId,
-        projectId,
-        kind: spec.kind,
-        label: spec.label,
-      });
-      await tx.insert(gisSchema.spatialDatasetVersion).values({
-        id: spec.ids.versionId,
-        tenantId,
-        projectId,
-        datasetId: spec.ids.id,
-        versionLabel: spec.versionLabel,
-        origin: "generated",
-        // The generator works in a local metric frame and emits lon/lat, so canonical storage is
-        // also what it produced; the analysis CRS is where this project's metres are measured.
-        sourceSrid: CANONICAL_SRID,
-        analysisSrid: analysisSrid,
-        generatorVersion: corridor.generatorVersion,
-        featureCount: spec.featureCount,
-        isActive: true,
-        supersedesVersionId: null,
-        producedAt: scenarioInstant,
-        note: manifest.gis.$comment,
-        provenanceId: provenanceId(spec.provenance),
-      });
-    }
+      for (const spec of datasetSpec) {
+        await tx.insert(gisSchema.spatialDataset).values({
+          id: spec.ids.id,
+          tenantId,
+          projectId,
+          kind: spec.kind,
+          label: spec.label,
+        });
+        await tx.insert(gisSchema.spatialDatasetVersion).values({
+          id: spec.ids.versionId,
+          tenantId,
+          projectId,
+          datasetId: spec.ids.id,
+          versionLabel: spec.versionLabel,
+          origin: "generated",
+          // The generator works in a local metric frame and emits lon/lat, so canonical storage is
+          // also what it produced; the analysis CRS is where this project's metres are measured.
+          sourceSrid: CANONICAL_SRID,
+          analysisSrid: analysisSrid,
+          generatorVersion: corridor.generatorVersion,
+          featureCount: spec.featureCount,
+          isActive: true,
+          supersedesVersionId: null,
+          producedAt: scenarioInstant,
+          note: manifest.gis.$comment,
+          provenanceId: provenanceId(spec.provenance),
+        });
+      }
 
-    await tx.insert(gisSchema.alignment).values({
-      id: randomUUID(),
-      tenantId,
-      projectId,
-      datasetVersionId: datasets.alignment.versionId,
-      label: manifest.gis.alignmentLabel,
-      geom: toCanonical(lineWkt) as unknown as string,
-      // Measured by PostGIS in the analysis CRS, never taken from the generator's own arithmetic.
-      lengthM: sql`ST_Length(${forMetrics(lineWkt)})` as unknown as string,
-      provenanceId: provenanceId("alignment-reconstructed"),
-    });
-
-    for (const generated of corridor.parcels) {
-      const parcelId = randomUUID();
-      await tx.insert(gisSchema.parcel).values({
-        id: parcelId,
-        tenantId,
-        projectId,
-        parcelCode: generated.parcelCode,
-        sectorLabel: generated.sectorLabel,
-        side: generated.side,
-        status: generated.status,
-        // Chainage is derived from geometry after the parcels are in place (see below), not
-        // carried over from the generator: two numbers for one fact drift.
-        chainageM: null,
-        chainageMethod: null,
-        frontageM: String(generated.frontageM),
-        provenanceId: provenanceId("parcels-synthetic"),
-      });
-      const polygon = ringWkt(generated.ring as ReadonlyArray<readonly [number, number]>);
-      await tx.insert(gisSchema.parcelGeometry).values({
+      await tx.insert(gisSchema.alignment).values({
         id: randomUUID(),
         tenantId,
         projectId,
-        parcelId,
-        datasetVersionId: datasets.parcels.versionId,
-        geom: toCanonical(polygon) as unknown as string,
-        // Area is computed by PostGIS in the analysis CRS, never in the generator.
-        areaM2: sql`ST_Area(${forMetrics(polygon)})` as unknown as string,
-        isActive: true,
-        provenanceId: provenanceId("parcels-synthetic"),
+        datasetVersionId: datasets.alignment.versionId,
+        label: manifest.gis.alignmentLabel,
+        geom: toCanonical(lineWkt) as unknown as string,
+        // Measured by PostGIS in the analysis CRS, never taken from the generator's own arithmetic.
+        lengthM: sql`ST_Length(${forMetrics(lineWkt)})` as unknown as string,
+        provenanceId: provenanceId("alignment-reconstructed"),
       });
-      if (generated.affectationRing) {
-        const strip = ringWkt(
-          generated.affectationRing as ReadonlyArray<readonly [number, number]>,
-        );
-        await tx.insert(gisSchema.affectation).values({
+
+      for (const generated of corridor.parcels) {
+        const parcelId = randomUUID();
+        await tx.insert(gisSchema.parcel).values({
+          id: parcelId,
+          tenantId,
+          projectId,
+          parcelCode: generated.parcelCode,
+          sectorLabel: generated.sectorLabel,
+          side: generated.side,
+          status: generated.status,
+          // Chainage is derived from geometry after the parcels are in place (see below), not
+          // carried over from the generator: two numbers for one fact drift.
+          chainageM: null,
+          chainageMethod: null,
+          frontageM: String(generated.frontageM),
+          provenanceId: provenanceId("parcels-synthetic"),
+        });
+        const polygon = ringWkt(generated.ring as ReadonlyArray<readonly [number, number]>);
+        await tx.insert(gisSchema.parcelGeometry).values({
           id: randomUUID(),
           tenantId,
           projectId,
           parcelId,
-          datasetVersionId: datasets.affectations.versionId,
-          category: "right_of_way",
-          geom: toCanonical(strip) as unknown as string,
-          affectedAreaM2: sql`ST_Area(${forMetrics(strip)})` as unknown as string,
-          provenanceId: provenanceId("affectations-synthetic"),
+          datasetVersionId: datasets.parcels.versionId,
+          geom: toCanonical(polygon) as unknown as string,
+          // Area is computed by PostGIS in the analysis CRS, never in the generator.
+          areaM2: sql`ST_Area(${forMetrics(polygon)})` as unknown as string,
+          isActive: true,
+          provenanceId: provenanceId("parcels-synthetic"),
         });
+        if (generated.affectationRing) {
+          const strip = ringWkt(
+            generated.affectationRing as ReadonlyArray<readonly [number, number]>,
+          );
+          await tx.insert(gisSchema.affectation).values({
+            id: randomUUID(),
+            tenantId,
+            projectId,
+            parcelId,
+            datasetVersionId: datasets.affectations.versionId,
+            category: "right_of_way",
+            geom: toCanonical(strip) as unknown as string,
+            affectedAreaM2: sql`ST_Area(${forMetrics(strip)})` as unknown as string,
+            provenanceId: provenanceId("affectations-synthetic"),
+          });
+        }
       }
     }
 
@@ -901,12 +983,31 @@ try {
         parcel_code: string;
       }>;
 
+      // Assignments already placed on a previous run are left exactly as they are — including the
+      // visits and submitted responses hanging off them, which are immutable by design. Re-seeding
+      // fills gaps; it does not re-do work.
+      const placed = await tx.execute(sql`
+        select parcel_id from app.field_assignment
+        where tenant_id = ${tenantId} and campaign_id = ${campaignId}
+      `);
+      const alreadyAssigned = new Set(
+        (placed.rows as unknown as ReadonlyArray<{ parcel_id: string }>).map(
+          (row) => row.parcel_id,
+        ),
+      );
+
       for (const [index, target] of parcels.entries()) {
         // Every third assignment goes to the second technician, so "another technician's work
         // is invisible" is something the demo can actually demonstrate.
         const owner: { user_id: string; email: string; membership_id: string } =
           secondary && index % 3 === 2 ? secondary : primary;
         const completed = index < field.campaign.completedCount && owner.email === primary.email;
+
+        if (alreadyAssigned.has(target.id)) {
+          assignmentsSeeded += 1;
+          if (completed) submissionsSeeded += 1;
+          continue;
+        }
 
         const assignmentId = randomUUID();
         await tx.insert(fieldSchema.fieldAssignment).values({

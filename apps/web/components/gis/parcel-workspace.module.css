@@ -134,3 +134,9 @@
   clip-path: inset(50%);
   white-space: nowrap;
 }
+.visitNote {
+  display: block;
+  font-size: 10.5px;
+  color: var(--eia-text-secondary);
+  margin-top: 2px;
+}

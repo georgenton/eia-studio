@@ -11,7 +11,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 
-import { app, project } from "./app";
+import { app, project, provenanceRecord } from "./app";
 
 /**
  * GIS module tables (ADR-003 linear-infrastructure extension, DATA_MODEL.md §3.3).
@@ -148,6 +148,11 @@ export const spatialDatasetVersion = app.table(
       foreignColumns: [project.tenantId, project.id],
     }).onDelete("cascade"),
     foreignKey({
+      name: "spatial_dataset_version_provenance_fk",
+      columns: [t.tenantId, t.provenanceId],
+      foreignColumns: [provenanceRecord.tenantId, provenanceRecord.id],
+    }),
+    foreignKey({
       name: "spatial_dataset_version_supersedes_fk",
       columns: [t.tenantId, t.supersedesVersionId],
       foreignColumns: [t.tenantId, t.id],
@@ -181,6 +186,11 @@ export const alignment = app.table(
       columns: [t.tenantId, t.projectId],
       foreignColumns: [project.tenantId, project.id],
     }).onDelete("cascade"),
+    foreignKey({
+      name: "alignment_provenance_fk",
+      columns: [t.tenantId, t.provenanceId],
+      foreignColumns: [provenanceRecord.tenantId, provenanceRecord.id],
+    }),
     index("alignment_geom_idx").using("gist", t.geom),
   ],
 );
@@ -216,6 +226,11 @@ export const parcel = app.table(
       columns: [t.tenantId, t.projectId],
       foreignColumns: [project.tenantId, project.id],
     }).onDelete("cascade"),
+    foreignKey({
+      name: "parcel_provenance_fk",
+      columns: [t.tenantId, t.provenanceId],
+      foreignColumns: [provenanceRecord.tenantId, provenanceRecord.id],
+    }),
     index("parcel_project_chainage_idx").on(t.tenantId, t.projectId, t.chainageM),
   ],
 );
@@ -257,6 +272,11 @@ export const parcelGeometry = app.table(
       columns: [t.tenantId, t.projectId],
       foreignColumns: [project.tenantId, project.id],
     }).onDelete("cascade"),
+    foreignKey({
+      name: "parcel_geometry_provenance_fk",
+      columns: [t.tenantId, t.provenanceId],
+      foreignColumns: [provenanceRecord.tenantId, provenanceRecord.id],
+    }),
     index("parcel_geometry_geom_idx").using("gist", t.geom),
     index("parcel_geometry_active_idx").on(t.tenantId, t.projectId, t.isActive),
   ],
@@ -299,6 +319,11 @@ export const affectation = app.table(
       columns: [t.tenantId, t.projectId],
       foreignColumns: [project.tenantId, project.id],
     }).onDelete("cascade"),
+    foreignKey({
+      name: "affectation_provenance_fk",
+      columns: [t.tenantId, t.provenanceId],
+      foreignColumns: [provenanceRecord.tenantId, provenanceRecord.id],
+    }),
     index("affectation_geom_idx").using("gist", t.geom),
   ],
 );

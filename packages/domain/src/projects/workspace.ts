@@ -58,8 +58,8 @@ export const SURFACE_DEFINITIONS: Readonly<Record<WorkspaceSurface, SurfaceDefin
     capability: "field.surveys",
     label: "Field Surveys",
     segment: "field",
-    implemented: false,
-    plannedIn: "la fase de levantamiento de campo",
+    implemented: true,
+    plannedIn: null,
   },
   social: {
     key: "social",

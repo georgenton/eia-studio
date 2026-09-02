@@ -34,7 +34,7 @@ export default defineConfig({
     {
       name: "coordinator",
       testMatch:
-        /journey\.spec\.ts|gis\.spec\.ts|authorization\.spec\.ts|screenshots\.spec\.ts|accessibility\.spec\.ts/,
+        /journey\.spec\.ts|gis\.spec\.ts|field-coordinator\.spec\.ts|authorization\.spec\.ts|screenshots\.spec\.ts|accessibility\.spec\.ts/,
       dependencies: ["setup"],
       use: {
         ...devices["Desktop Chrome"],
@@ -50,6 +50,28 @@ export default defineConfig({
         ...devices["Desktop Chrome"],
         viewport: { width: 1440, height: 940 },
         storageState: "e2e/.auth/admin.json",
+      },
+    },
+    {
+      // The technician surface is designed for a phone, so its suite runs at a phone viewport with
+      // a synthetic geolocation. The point is on the reconstructed corridor and is nobody's home.
+      name: "technician",
+      testMatch: /field-technician\.spec\.ts|field-security\.spec\.ts|field-mobile\.spec\.ts/,
+      dependencies: ["setup"],
+      use: {
+        ...devices["Pixel 7"],
+        storageState: "e2e/.auth/technician.json",
+        permissions: ["geolocation"],
+        geolocation: { longitude: -78.9412, latitude: -4.0761 },
+      },
+    },
+    {
+      name: "technician-two",
+      testMatch: /field-foreign\.spec\.ts/,
+      dependencies: ["setup"],
+      use: {
+        ...devices["Pixel 7"],
+        storageState: "e2e/.auth/technician2.json",
       },
     },
     {

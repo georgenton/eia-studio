@@ -1,4 +1,4 @@
-import type { CommandCenterView, TerritorialSummary } from "@eia/application";
+import type { CommandCenterView, FieldProgressSummary, TerritorialSummary } from "@eia/application";
 import {
   ATTENTION_SEVERITY_LABEL,
   demoScenarioDate,
@@ -73,6 +73,8 @@ export function CommandCenter({
   lifecycleLabel,
   territory,
   gisPath,
+  fieldProgress,
+  fieldPath,
 }: {
   ctx: RequestContext;
   view: CommandCenterView;
@@ -81,6 +83,9 @@ export function CommandCenter({
   /** Null when the project has no geometry, or when `gis.parcels` is not effective. */
   territory: TerritorialSummary | null;
   gisPath: string | null;
+  /** Null when there is no campaign, or when `field.surveys` is not effective. */
+  fieldProgress: FieldProgressSummary | null;
+  fieldPath: string | null;
 }) {
   const byKey = new Map(view.metrics.map((m) => [m.key, m]));
   const strip = STRIP_ORDER.map((key) => byKey.get(key)).filter(
@@ -347,6 +352,14 @@ export function CommandCenter({
             <TerritorySummaryPanel basePath={basePath} gisPath={gisPath} territory={territory} />
           ) : null}
 
+          {fieldProgress ? (
+            <FieldProgressPanel
+              basePath={basePath}
+              fieldPath={fieldPath}
+              progress={fieldProgress}
+            />
+          ) : null}
+
           <Panel>
             <PanelHeader label="Alcance de esta fase" />
             <PanelBody>
@@ -433,6 +446,70 @@ function TerritorySummaryPanel({
             <ProvenanceLink href={provHref(basePath, layer.provenanceId)} />
           </p>
         ) : null}
+      </PanelBody>
+    </Panel>
+  );
+}
+
+/**
+ * Current field operation, counted from the FieldFlow tables.
+ *
+ * It sits deliberately apart from the KPI strip's historical survey aggregate, which is a
+ * verifiable figure from a concluded study. This panel is a *different observation about a
+ * different thing*: a demonstration campaign running now, with its own provenance and its own
+ * SYNTHETIC badge. The wording says so, because two survey counts on one screen is exactly the
+ * confusion that turns a demo into a false claim.
+ *
+ * The historical figure itself is never written here — it is a metric from the project fixture,
+ * and repeating it in a component would make one project's number a constant of the product.
+ */
+function FieldProgressPanel({
+  progress,
+  basePath,
+  fieldPath,
+}: {
+  progress: FieldProgressSummary;
+  basePath: string;
+  fieldPath: string | null;
+}) {
+  return (
+    <Panel>
+      <PanelHeader
+        label="Campaña de campo en curso"
+        badge={<ProvenanceBadge facets={progress.provenance} />}
+        action={
+          fieldPath ? <ProvenanceLink href={fieldPath}>Abrir FieldFlow</ProvenanceLink> : undefined
+        }
+      />
+      <PanelBody>
+        <div className={styles.territoryHead}>
+          <span className={styles.bigValue}>
+            {formatCount(progress.submittedCount)} / {formatCount(progress.progress.total)}
+          </span>
+          <span className={styles.bigNote}>fichas enviadas · {progress.campaignName}</span>
+        </div>
+        <ul className={styles.territoryList}>
+          <li className={styles.territoryRow}>
+            <span aria-hidden="true" className={styles.territoryGlyph} />
+            <span>Asignaciones</span>
+            <Mono>{formatCount(progress.progress.total)}</Mono>
+          </li>
+          <li className={styles.territoryRow}>
+            <span aria-hidden="true" className={styles.territoryGlyph} />
+            <span>Pendientes</span>
+            <Mono>{formatCount(progress.progress.pending)}</Mono>
+          </li>
+          <li className={styles.territoryRow}>
+            <span aria-hidden="true" className={styles.territoryGlyph} />
+            <span>Completadas</span>
+            <Mono>{formatCount(progress.progress.completed)}</Mono>
+          </li>
+        </ul>
+        <p className={styles.muted}>
+          Operación de demostración en curso. No forma parte de las encuestas socioeconómicas del
+          estudio concluido, que son una cifra histórica agregada del expediente.{" "}
+          <ProvenanceLink href={provHref(basePath, progress.provenanceId)} />
+        </p>
       </PanelBody>
     </Panel>
   );

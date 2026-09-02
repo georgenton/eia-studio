@@ -1,0 +1,139 @@
+.surface {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 900px;
+}
+.head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.name {
+  font-family: var(--eia-font-serif);
+  font-size: 19px;
+  margin: 0;
+}
+.meta {
+  margin: 4px 0 0;
+  font-size: 11.5px;
+  color: var(--eia-text-secondary);
+}
+.version {
+  font-family: var(--eia-font-mono);
+  color: var(--eia-accent);
+}
+.channel {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  margin: 14px 0 0;
+  padding: 12px 0;
+  border-top: 1px solid var(--eia-hairline);
+  border-bottom: 1px solid var(--eia-hairline);
+}
+.channel dt {
+  font-size: var(--eia-size-label);
+  font-weight: 600;
+  letter-spacing: var(--eia-tracking-label);
+  text-transform: uppercase;
+  color: var(--eia-text-muted);
+}
+.channel dd {
+  margin: 4px 0 0;
+  font-size: 12px;
+}
+.channelNote {
+  display: block;
+  font-size: 11px;
+  color: var(--eia-text-secondary);
+  margin-top: 2px;
+}
+.progress {
+  margin-top: 14px;
+}
+.counts {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 8px;
+}
+.counts li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-top: 1px solid var(--eia-hairline);
+  padding-top: 8px;
+}
+.counts span {
+  font-size: var(--eia-size-label);
+  letter-spacing: var(--eia-tracking-label);
+  text-transform: uppercase;
+  color: var(--eia-text-muted);
+}
+.counts strong {
+  font-family: var(--eia-font-mono);
+  font-size: 17px;
+  font-weight: 500;
+}
+.workload {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.workload th {
+  text-align: left;
+  font-size: var(--eia-size-label);
+  letter-spacing: var(--eia-tracking-label);
+  text-transform: uppercase;
+  color: var(--eia-text-muted);
+  font-weight: 600;
+  padding: 0 10px 7px 0;
+  border-bottom: 1px solid var(--eia-border);
+}
+.workload td {
+  padding: 9px 10px 9px 0;
+  border-bottom: 1px solid var(--eia-hairline);
+}
+.numeric {
+  font-family: var(--eia-font-mono);
+  text-align: right;
+}
+.footnote {
+  margin: 12px 0 0;
+  font-size: 11px;
+  color: var(--eia-text-secondary);
+  line-height: 1.6;
+}
+.footnote code {
+  font-family: var(--eia-font-mono);
+  font-size: 10.5px;
+}
+.empty {
+  padding: 34px 0;
+  max-width: 560px;
+}
+.emptyTitle {
+  font-family: var(--eia-font-serif);
+  font-size: 21px;
+  margin: 0 0 8px;
+}
+.emptyNote {
+  font-size: 12.5px;
+  color: var(--eia-text-secondary);
+  line-height: 1.65;
+  margin: 0;
+}
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

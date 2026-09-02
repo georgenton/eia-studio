@@ -1,0 +1,30 @@
+.page {
+  max-width: 640px;
+}
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding-bottom: 14px;
+  margin-bottom: 18px;
+  border-bottom: 1px solid var(--eia-border);
+}
+.code {
+  font-family: var(--eia-font-mono);
+  font-size: 24px;
+  font-weight: 500;
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+.context {
+  margin: 5px 0 0;
+  font-size: 12.5px;
+  color: var(--eia-text-secondary);
+}
+.badges {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
