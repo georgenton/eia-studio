@@ -131,7 +131,11 @@ async function loadLayers(
         eq(gisSchema.spatialDatasetVersion.projectId, projectId),
         eq(gisSchema.spatialDatasetVersion.isActive, true),
       ),
-    );
+    )
+    // Ordered on purpose: the legend and the territorial summary read this list, and an
+    // unordered query put whichever layer the database returned first under a panel that
+    // summarises parcels.
+    .orderBy(gisSchema.spatialDataset.kind, gisSchema.spatialDatasetVersion.versionLabel);
 
   const provenance = await loadProvenanceRecords(
     tx,

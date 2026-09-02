@@ -163,7 +163,7 @@ export function CommandCenter({
             }
             note="Universo, levantamientos y consulta son cifras reales del estudio; el resto son métricas operativas de demostración, fijadas a la fecha de corte del escenario."
           />
-          <MetricStrip>
+          <MetricStrip label="Control de ejecución">
             {strip.map((metric) => (
               <MetricCell
                 key={metric.id}
@@ -379,7 +379,12 @@ function TerritorySummaryPanel({
   const statuses = (Object.keys(territory.byStatus) as ParcelStatus[]).filter(
     (status) => territory.byStatus[status] > 0,
   );
-  const layer = territory.layers[0] ?? null;
+  // The panel summarises parcels, so it carries the parcels layer's provenance — not whichever
+  // layer happened to come first.
+  const layer =
+    territory.layers.find((candidate) => candidate.datasetKind === "parcels") ??
+    territory.layers[0] ??
+    null;
   return (
     <Panel>
       <PanelHeader

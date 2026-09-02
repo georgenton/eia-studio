@@ -48,7 +48,9 @@ test.describe("server-side authorization", () => {
   });
 
   test("an enabled but unbuilt surface states so plainly, and is not a 404", async ({ page }) => {
-    const response = await page.goto(`/t/${TENANT}/p/${PROJECT}/gis`);
+    // `field.surveys` is effective for the pilot profile but FieldFlow is not built. (GIS was
+    // this example until Slice 2 built it.)
+    const response = await page.goto(`/t/${TENANT}/p/${PROJECT}/field`);
     expect(response?.status()).toBe(200);
     const main = page.getByRole("main");
     await expect(main).toContainText("la implementación aún no está disponible");

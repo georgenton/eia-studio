@@ -32,8 +32,9 @@ test.describe("GIS reviewer journey", () => {
     const main = page.getByRole("main");
 
     // The KPI is the concluded study's verifiable universe.
-    const kpi = main.locator("section", { hasText: "Universo estimado" }).first();
-    await expect(kpi).toContainText("REAL_AGGREGATE");
+    const strip = main.getByRole("group", { name: "Control de ejecución" });
+    await expect(strip).toContainText("Universo estimado");
+    await expect(strip).toContainText("REAL_AGGREGATE");
 
     // The territorial summary counts the polygons we generated. Same number, different claim:
     // it is labelled SYNTHETIC and says the layer is not cadastre.
