@@ -250,7 +250,11 @@ function AffectationsTab({ view, basePath }: { view: ParcelWorkspaceView; basePa
                 <td className={styles.numeric}>
                   {formatDecimal(affectation.affectedAreaM2 / 10_000, 3)} ha
                 </td>
-                <td className={styles.numeric}>{formatPercent(affectation.ratioOfParcel)}</td>
+                <td className={styles.numeric}>
+                  {affectation.ratioOfParcel === null
+                    ? "—"
+                    : formatPercent(affectation.ratioOfParcel)}
+                </td>
                 <td>
                   <ProvenanceLink
                     href={`${basePath}?tab=afectaciones&prov=${affectation.provenanceId}`}

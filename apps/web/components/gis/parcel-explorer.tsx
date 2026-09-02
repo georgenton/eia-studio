@@ -4,6 +4,7 @@ import type { ParcelExplorerView } from "@eia/application";
 import {
   formatChainage,
   LAYER_LEGEND_COPY,
+  orderLayersForLegend,
   PARCEL_SIDE_LABEL,
   PARCEL_STATUS_PRESENTATION,
   type ParcelStatus,
@@ -58,8 +59,11 @@ export function ParcelExplorer({
     () => [...new Set(view.parcels.map((p) => p.sectorLabel).filter((s): s is string => !!s))],
     [view.parcels],
   );
+  // One row per distinct legend, in a fixed reading order. Two dataset versions can share a
+  // legend (parcels and affectations are both synthetic polygons), and the order must not depend
+  // on the order the database happened to return (IG2-007).
   const legendRows = useMemo(
-    () => [...new Map(view.layers.map((layer) => [layer.legend, layer])).values()],
+    () => [...new Map(orderLayersForLegend(view.layers).map((l) => [l.legend, l])).values()],
     [view.layers],
   );
   const selected = view.parcels.find((p) => p.id === selection.selectedParcelId) ?? null;

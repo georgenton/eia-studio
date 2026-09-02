@@ -122,7 +122,7 @@ test.describe("GIS reviewer journey", () => {
     // 12 · the summary states the territorial facts and their provenance
     const main = page.getByRole("main");
     await expect(main).toContainText("Ficha territorial");
-    await expect(main).toContainText("Punto medio del frente sobre la vía");
+    await expect(main).toContainText("Proyección del centroide sobre el eje");
     await expect(main.getByText("SYNTHETIC").first()).toBeVisible();
 
     // 13 · tabs whose modules do not exist say so instead of inventing content
@@ -141,6 +141,59 @@ test.describe("GIS reviewer journey", () => {
     await expect(drawer).toContainText("corridor-generator@1");
     await page.keyboard.press("Escape");
     await expect(drawer).toBeHidden();
+  });
+
+  test("the whole journey works from the keyboard, without touching the map", async ({ page }) => {
+    // IG2-005: the map is `aria-hidden` and holds no control at all — no zoom buttons, because a
+    // visible control only a mouse can use is worse than no control. Everything the surface
+    // offers must therefore be reachable through the table.
+    await page.goto(GIS);
+    const table = page.getByRole("table", { name: /Predios/ });
+    await expect(table).toBeVisible();
+
+    // Nothing inside the map is focusable.
+    const focusableInMap = await page
+      .locator('[aria-hidden="true"]')
+      .locator('button, a[href], [tabindex]:not([tabindex="-1"])')
+      .count();
+    expect(focusableInMap).toBe(0);
+
+    // Reach the selection control of a specific parcel by tabbing, never by clicking.
+    const select = table
+      .getByRole("row")
+      .filter({ hasText: "PRED-ZAM-004" })
+      .getByRole("button", { name: /Seleccionar/ });
+    await select.focus();
+    await expect(select).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(select).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByRole("status")).toContainText("PRED-ZAM-004");
+
+    // Open the Parcel Workspace from the keyboard.
+    const open = page.getByRole("link", { name: "Abrir Parcel Workspace" });
+    await open.focus();
+    await page.keyboard.press("Enter");
+    await expect(page).toHaveURL(/\/parcels\/PRED-ZAM-004$/);
+    await expect(page.getByRole("heading", { name: "PRED-ZAM-004", level: 1 })).toBeVisible();
+
+    // And inspect provenance from the keyboard.
+    const provenance = page.getByRole("link", { name: "Ver origen de los datos del predio" });
+    await provenance.focus();
+    await page.keyboard.press("Enter");
+    const drawer = page.getByRole("dialog");
+    await expect(drawer).toBeVisible();
+    await expect(drawer).toContainText("Régimen");
+    await page.keyboard.press("Escape");
+    await expect(drawer).toBeHidden();
+  });
+
+  test("the map offers no control that only a mouse can operate", async ({ page }) => {
+    await page.goto(GIS);
+    await expect(page.getByRole("table", { name: /Predios/ })).toBeVisible();
+    // MapLibre's NavigationControl is not added (IG2-005); the scale bar is inert text.
+    await expect(page.locator(".maplibregl-ctrl-zoom-in")).toHaveCount(0);
+    await expect(page.locator(".maplibregl-ctrl-zoom-out")).toHaveCount(0);
+    await expect(page.locator(".maplibregl-ctrl-scale")).toHaveCount(1);
   });
 
   test("a parcel of another project is not reachable by guessing its code", async ({ page }) => {

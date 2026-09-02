@@ -5,7 +5,6 @@ import { PARCEL_STATUS_PRESENTATION, type ParcelStatus } from "@eia/domain";
 // MapLibre v6 is pure ESM with named exports and no default export.
 import {
   Map as MapLibreMap,
-  NavigationControl,
   ScaleControl,
   type ExpressionSpecification,
   type MapLayerMouseEvent,
@@ -100,7 +99,10 @@ export function ParcelMap({
     });
     mapRef.current = map;
     const stopSizing = keepMapSized(map, node);
-    map.addControl(new NavigationControl({ showCompass: false }), "top-right");
+    // No NavigationControl (IG2-005). It renders real buttons, and inside an `aria-hidden`
+    // subtree those are controls a keyboard can reach but a screen reader cannot announce — so
+    // they were being taken out of the tab order, which left visible buttons that only a mouse
+    // could use. Scroll, drag and pinch still zoom; the scale bar is inert text, not a control.
     map.addControl(new ScaleControl({ unit: "metric" }), "bottom-left");
 
     map.on("load", () => {

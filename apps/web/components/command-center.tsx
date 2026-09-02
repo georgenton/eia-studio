@@ -4,6 +4,7 @@ import {
   demoScenarioDate,
   LAYER_LEGEND_COPY,
   PARCEL_STATUS_PRESENTATION,
+  selectLayerByKind,
   SURFACE_DEFINITIONS,
   type MetricKey,
   type MetricSnapshot,
@@ -379,12 +380,9 @@ function TerritorySummaryPanel({
   const statuses = (Object.keys(territory.byStatus) as ParcelStatus[]).filter(
     (status) => territory.byStatus[status] > 0,
   );
-  // The panel summarises parcels, so it carries the parcels layer's provenance — not whichever
-  // layer happened to come first.
-  const layer =
-    territory.layers.find((candidate) => candidate.datasetKind === "parcels") ??
-    territory.layers[0] ??
-    null;
+  // The panel summarises parcels, so it carries the parcels layer's provenance. Selected by kind,
+  // never by position: a query's row order is not a fact (IG2-007).
+  const layer = selectLayerByKind(territory.layers, "parcels");
   return (
     <Panel>
       <PanelHeader

@@ -23,11 +23,13 @@ export function ensureMapWorker(): void {
  * The map container is `aria-hidden`: everything it shows is also in the parcel table, which is
  * the accessible representation of the same rows. An `aria-hidden` subtree must not contain
  * focusable elements, or keyboard users land on controls a screen reader cannot announce
- * (WCAG 4.1.2). MapLibre gives its canvas `tabindex="0"` and renders real `<button>` zoom
- * controls, so both are demoted here after the map builds them.
+ * (WCAG 4.1.2). MapLibre gives its canvas `tabindex="0"`, so the canvas is demoted here after the
+ * map builds it.
  *
- * The cost is that the zoom buttons are mouse-only. That is acceptable *because* the map carries
- * no fact of its own: keyboard users read, sort, filter and select every parcel in the table.
+ * The zoom buttons are not demoted — they are not added at all (IG2-005). Keeping a visible
+ * control that only a mouse can operate is worse than not offering it, and the map carries no
+ * fact of its own: every parcel is in the table, sortable, filterable and keyboard-selectable.
+ * This sweep stays as the guard that catches any future control a MapLibre upgrade adds.
  */
 export function removeMapFromTabOrder(map: MapLibreMap, container: HTMLElement): void {
   map.getCanvas().setAttribute("tabindex", "-1");
