@@ -2,7 +2,7 @@
   "name": "eia-studio",
   "version": "0.0.0",
   "private": true,
-  "description": "EIA Studio — multi-tenant workspace for environmental and social impact studies",
+  "description": "EIA Studio \u2014 multi-tenant workspace for environmental and social impact studies",
   "packageManager": "pnpm@10.33.2",
   "engines": {
     "node": ">=24.0.0 <25",
@@ -23,6 +23,7 @@
     "db:check": "pnpm --filter @eia/db check",
     "db:migrate": "pnpm --filter @eia/db migrate",
     "db:provision-runtime-role": "pnpm --filter @eia/db provision-runtime-role",
+    "db:probe": "pnpm --filter @eia/db probe",
     "db:seed:dev": "pnpm --filter @eia/db seed:dev",
     "db:up": "docker compose up -d postgres",
     "db:down": "docker compose down",

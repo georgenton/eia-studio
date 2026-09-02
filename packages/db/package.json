@@ -13,7 +13,8 @@
     "check": "node scripts/check-migrations.mjs",
     "migrate": "tsx scripts/migrate.ts",
     "provision-runtime-role": "tsx scripts/provision-runtime-role.ts",
-    "seed:dev": "tsx scripts/seed-dev.ts"
+    "seed:dev": "tsx scripts/seed-dev.ts",
+    "probe": "node scripts/capability-probe.mjs"
   },
   "dependencies": {
     "@eia/contracts": "workspace:*",
