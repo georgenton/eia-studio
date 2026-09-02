@@ -15,7 +15,9 @@ buildCommand = "pnpm install --frozen-lockfile && pnpm --filter @eia/worker buil
 watchPatterns = ["apps/worker/**", "packages/**", "package.json", "pnpm-lock.yaml"]
 
 [deploy]
-startCommand = "pnpm --filter @eia/worker start"
+# Node runs as PID 1: a package-manager wrapper swallows SIGTERM and reports a non-zero
+# exit, which defeats the graceful shutdown path (observed on Railway, docs/STAGING_GATE_0_5.md).
+startCommand = "node apps/worker/dist/main.js"
 healthcheckPath = "/health"
 healthcheckTimeout = 60
 restartPolicyType = "ON_FAILURE"
