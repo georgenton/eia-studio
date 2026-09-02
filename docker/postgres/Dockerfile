@@ -18,8 +18,17 @@
 #      PostgreSQL, PostGIS and pgvector versions actually present in the image
 FROM imresamu/postgis:17-3.5@sha256:35fe7dceda62bfe7d2965b0ba78d915ff9f901b5e0466d633ecc58421b5b5210
 
-# pgvector from the same PGDG repository the base image already trusts.
+# pgvector from the same PGDG repository the base image already trusts, plus openssl for the
+# TLS certificate generated at first start.
 RUN set -eux; \
     apt-get update; \
-    apt-get install -y --no-install-recommends postgresql-17-pgvector; \
+    apt-get install -y --no-install-recommends postgresql-17-pgvector openssl; \
     rm -rf /var/lib/apt/lists/*
+
+# TLS: upstream postgres/postgis images ship without it, which is unacceptable for a database
+# reached over a public endpoint (staging). The wrapper generates a self-signed certificate once
+# per volume and enables ssl; local/CI connections are unaffected (TLS offered, not forced).
+COPY ssl-entrypoint.sh /usr/local/bin/eia-ssl-entrypoint.sh
+RUN chmod +x /usr/local/bin/eia-ssl-entrypoint.sh
+ENTRYPOINT ["/usr/local/bin/eia-ssl-entrypoint.sh"]
+CMD ["postgres"]
