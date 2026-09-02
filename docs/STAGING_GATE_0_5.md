@@ -12,9 +12,13 @@ GitHub (georgenton/eia-studio)
   ├── Vercel  · project eia-studio-web · root directory apps/web · Node 24.x · preview only
   └── Railway · project eia-studio-staging · environment "staging"
         ├── worker        (persistent Node 24 process, apps/worker)
-        ├── postgres-gis  (our docker/postgres image: PostgreSQL 17 + PostGIS + pgvector + TLS)
-        └── Postgres      (Railway's stock template, kept only as the comparison baseline)
+        └── postgres-gis  (our docker/postgres image: PostgreSQL 17 + PostGIS + pgvector + TLS)
 ```
+
+The stock Railway `Postgres` service that served as the comparison baseline in §2.1 no longer
+exists; its measurements below are kept as the record of the evaluation. Its 5 GB volume
+(`postgres-volume`, 152 MB used) is still provisioned and attached to nothing (TECH_DEBT.md
+TD-020).
 
 The Railway project's default environment is named `production` by the platform and is **unused
 and empty**; all staging work lives in the `staging` environment.
@@ -154,7 +158,7 @@ shutdown shown above. `railway.toml` carries the fix and the reason.
 | Root directory | `apps/web` |
 | Node | 24.x |
 | Install / build | `pnpm install --frozen-lockfile` / `pnpm --filter @eia/web build` |
-| Git integration | connected to `georgenton/eia-studio`, production branch `main` |
+| Git integration | connected to `georgenton/eia-studio`; production branch **`production`** since the final hardening (§8, SG-001) — it was `main` during the evaluation below |
 | Preview deployment | `https://eia-studio-58q5n2k96-georgentons-projects.vercel.app` (target `preview`, commit `dc8aef4`) |
 | `/health` | `200` → `{"status":"ok","service":"web","version":"0.0.0","gitSha":"dc8aef4e…"}` |
 | Foundation page | `200`, renders "Plataforma en construcción" with `env preview` |
@@ -173,6 +177,9 @@ applied: both production-target deployments were **deleted**, the production ali
 target `preview`. Before any future deployment of this project, expect Vercel to promote the first
 one again if the project's deployment history is ever emptied.
 
+That risk is what SG-001 removes: with the production branch pointed at a branch nothing pushes
+to, there is no branch whose push can target production (§8).
+
 ## 5. Operational findings (Railway)
 
 | Topic | Observed |
@@ -181,10 +188,10 @@ one again if the project's deployment history is ever emptied.
 | Connection limits | `max_connections = 100`, `superuser_reserved_connections = 3` on both candidates. Adequate for staging; a pooler will be needed before many serverless clients hit it. |
 | Pooling | No pooler in front of either endpoint. Sessions are direct, so `SET LOCAL` / `set_config(..., true)` semantics hold. This is what our RLS context depends on. |
 | Storage | Volume-backed (`postgres-gis-data` mounted at `/var/lib/postgresql/data`). Volume size and growth are managed by Railway. |
-| Backups / PITR | Railway provides volume backups on paid plans; **no automated backup or point-in-time recovery was configured or verified in this evaluation.** Treat the staging database as disposable. |
+| Backups / PITR | **Neither is active, for two different reasons.** Volume backups (scheduled and on-demand) are refused for this workspace: `railway postgres pitr schedule set --daily` returns "You do not have access to this resource", and `volumeInstanceBackupScheduleUpdate` / `volumeInstanceBackupCreate` return "Not Authorized". PITR is not applicable at all: `railway postgres pitr status` reports that it runs only in Railway's own database images (`postgres-ssl`, `postgres-patroni`), and ours is a PostGIS build. Treat the staging database as disposable; see §8 and DEPLOYMENT.md §4b. |
 | Public exposure | Access from outside Railway requires a TCP proxy (`*.proxy.rlwy.net`). The worker uses the private network (`postgres-gis.railway.internal`) instead. |
 | Maintenance | A self-built database image means we own patching (base digest bumps) and major-version upgrades. Railway's template would own that, but lacks PostGIS. |
-| Config as code | `railway.toml` is deprecated by Railway in favour of `.railway/railway.ts`, with existing files working until 2026-12-01 (TD-017). |
+| Config as code | Migrated to `.railway/railway.ts` (§8, SG-002). `railway.toml` was removed; Railway stops reading Config as Code on 2026-12-01. |
 
 ## 6. Decision (Part F)
 
@@ -209,3 +216,116 @@ Bridge, AWS RDS/Aurora. That evaluation needs accounts the project does not yet 
 - No `pg-boss` or job workload: the worker remains a lifecycle and health process.
 - No email or storage vendor: development adapters only.
 - No real personal data; the staging database holds only what the test suite creates.
+
+## 8. Final hardening (Staging Gate 0.5, 2026-09-02)
+
+Six conditions from the gate review. Each entry records what was changed and how it was verified;
+nothing above this section was rewritten.
+
+### SG-001 — Vercel can no longer deploy production from `main`
+
+The project's Git production branch was changed from `main` to **`production`**
+(`PATCH /v1/projects/{id}/branch`). Vercel refuses a branch that does not exist in the connected
+repository, so the reserved branch was created at the current `main` commit and pushed; that is
+the only reason it exists. Nothing pushes to it, and no workflow targets it.
+
+| Check | Result |
+|---|---|
+| Configured production branch | `production` |
+| Deployments with target `production` | **0** (the project holds two, both `preview`) |
+| Production alias `eia-studio-web.vercel.app` | `404` on `/` and `/health` — no active application |
+| Project `live` flag | `false` |
+| Deployment triggered by the `production` branch push | none; the branch push produced no deployment, and the setting was changed afterwards |
+
+Expected behaviour when PR #2 merges to `main`: Vercel builds a **preview** deployment for the
+`main` branch. It is not the production branch, so no production deployment and no production
+alias assignment can result. Verified by configuration, not by deploying: creating a production
+deployment to test this was explicitly out of scope.
+
+No production environment variables were created.
+
+### SG-002 — Config as Code removed, Infrastructure as Code adopted
+
+`railway.toml` was deleted and the staging environment is now described by `.railway/railway.ts`
+(SDK `railway@3.11.0`, CLI 5.47.2). The file was produced with `railway config pull` and then
+hand-edited, because the generated output would have changed live configuration.
+
+Sequence: `railway config pull` → edit → `railway config plan` → `railway config apply`. The
+applied change set was exactly two safe updates, with no destructive change:
+
+```
+Plan: 0 to add, 2 to change, 0 to destroy
+  ~ Update postgres-gis source.type      ("github" → "empty")
+  ~ Update worker deploy.restartPolicyType (null → "ON_FAILURE")
+```
+
+Three importer defects were found and corrected before applying; each would have damaged staging:
+
+1. **Dropped build context.** The import omitted `rootDirectory`, so the plan proposed setting
+   `postgres-gis` `source.rootDirectory` to null. The database image would then be built from the
+   repository root, where there is no Dockerfile. Fixed by declaring `rootDirectory` explicitly.
+2. **Detached volume.** Expressing the mount as `{ volume, backupSchedules }` compiled to a mount
+   with no volume, which the plan reported as a destructive detach of the data directory. The
+   supported form is the volume node itself, keyed by mount path.
+3. **Discarded TCP proxy.** `networking.tcpProxies` is silently overwritten by the SDK's computed
+   value (`normalizeNetworking` spreads the user's `networking` and then assigns an undefined
+   `tcpProxies` over it), so the public database endpoint disappeared from the desired state.
+   Declaring the proxy through the `tcp` intent field produces the correct graph.
+
+Post-apply verification: the worker redeployed and came back healthy (`worker starting`,
+`database reachable with RLS-enforced role role=eia_app_login`, `readiness check passed`,
+`worker running`, all at `pid: 1`); `postgres-gis` was not redeployed and stayed online; the live
+service settings are unchanged in substance (build command, start command, healthcheck `/health`
+with a 60 s timeout, `ON_FAILURE` with 5 retries, root directory `/docker/postgres`, TCP proxy on
+5432, volume mounted at `/var/lib/postgresql/data`); no variable was read, written or printed.
+
+Two limitations remain and are recorded rather than hidden:
+
+- `railway config plan` permanently reports one pending change, `postgres-gis source.type`
+  `github → empty`. Railway keeps returning the historical source type for a service that has no
+  repository connected, so applying it is a no-op that never converges (TD-021).
+- Volume backup schedules cannot be expressed: the graph compiler discards the only field that
+  carries them (§ SG-004).
+
+### SG-003 — Redundant stock database service
+
+The service named in the gate review (`1e1ec020-8f92-4d00-85d8-70e6784aa9f2`) **no longer exists**
+in the project. It was not deleted by this task, and the session transcript contains no deletion;
+the required end state simply already held when the work started. What was verified:
+
+| Check | Result |
+|---|---|
+| Services in `eia-studio-staging` / `staging` | exactly `worker` and `postgres-gis`, both online |
+| Lookup of the stock service id | "Service not found in this project" |
+| Database actually in use | worker `DATABASE_URL` → `postgres-gis.railway.internal:5432/eia_staging` as `eia_app_login` |
+| Any variable referencing the stock service | none |
+| Worker health afterwards | deployment SUCCESS, readiness passed |
+
+The comparison evidence in §2.1 is preserved. The stock service's volume `postgres-volume` was
+left in place (TD-020): deleting storage was not part of this condition.
+
+### SG-004 — Backup and recovery options
+
+Documented in DEPLOYMENT.md §4b and in §5 above. In short: **no backup and no point-in-time
+recovery exist for the staging database**, and the two mechanisms fail for different reasons —
+volume backups are refused for this workspace ("Not Authorized"), PITR is not applicable to a
+non-Railway database image. Enabling a daily schedule was attempted and refused, so nothing is
+claimed to be configured. Production requires its own explicit backup and recovery decision at
+the hosting gate; it cannot inherit staging's posture.
+
+### SG-005 — Database TLS
+
+`sslmode=no-verify` remains allowed only for the current non-production staging connection to a
+database presenting a self-signed certificate (TD-016). A configuration guard now prevents it from
+reaching production: when `APP_ENV=production`, `DATABASE_URL` and `DATABASE_MIGRATOR_URL` must
+carry `sslmode=verify-full` or `sslmode=verify-ca`, and environment validation fails otherwise.
+The guard is a refinement on the existing environment contracts, in the same shape as the
+`DEMO_FIXTURES_ENABLED` rule; there is no TLS abstraction layer. It reads only the `sslmode`
+parameter and reports the variable name, never the URL.
+
+### SG-006 — Preview Deployment Protection
+
+Not disabled at any point during this task. Final state read from the Vercel API:
+`ssoProtection = {"deploymentType":"all_except_custom_domains"}`, and an unauthenticated request
+to the most recent preview returns `302` to the SSO challenge. The health checks in this task were
+made against configuration and Railway, not by opening a protected preview.
