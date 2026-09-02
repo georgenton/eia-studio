@@ -1,22 +1,28 @@
 import { randomUUID } from "node:crypto";
 
 import { appSchema, withDbContext, type Database, type DbTx } from "@eia/db";
+import {
+  emptyCapabilitySet,
+  freezeContext,
+  OWNER_IMPLICIT_PROJECT_PERMISSIONS,
+  PermissionDenied,
+  PROJECT_ROLE_PERMISSIONS,
+  resolveCapabilities,
+  TENANT_ROLE_PERMISSIONS,
+  type Permission,
+  type ProjectRole,
+  type RequestContext,
+  type SessionUser,
+  type TenantRole,
+} from "@eia/domain";
 import { and, eq } from "drizzle-orm";
 
-import { recordAudit } from "../audit/index";
-import { emptyCapabilitySet, resolveCapabilities } from "../core/capabilities/index";
-import { freezeContext, type RequestContext } from "../core/context";
-import { PermissionDenied } from "../core/errors";
-import type { SessionUser } from "../core/identity-port";
-import type { Permission } from "../core/permissions";
+import { recordAudit } from "../audit/record";
 import {
-  OWNER_IMPLICIT_PROJECT_PERMISSIONS,
-  PROJECT_ROLE_PERMISSIONS,
-  TENANT_ROLE_PERMISSIONS,
-  type ProjectRole,
-  type TenantRole,
-} from "../core/roles";
-import { loadProjectCapabilitySettings, loadTenantCapabilitySettings } from "./capability-settings";
+  loadProjectCapabilityOverrides,
+  loadTenantCapabilitySettings,
+  projectProfileDefaults,
+} from "./capability-settings";
 
 export interface BuildRequestContextInput {
   readonly sessionUser: SessionUser;
@@ -132,7 +138,11 @@ export async function buildRequestContext(
     // Project rows are visible to members and to tenant OWNER/ADMIN (administration); RLS
     // hides everything else, so a foreign or unassigned project yields "not found" → denied.
     const projects = await tx
-      .select({ id: appSchema.project.id, slug: appSchema.project.slug })
+      .select({
+        id: appSchema.project.id,
+        slug: appSchema.project.slug,
+        profileKey: appSchema.project.profileKey,
+      })
       .from(appSchema.project)
       .where(
         and(
@@ -180,10 +190,11 @@ export async function buildRequestContext(
     // ADMIN without membership: administration only (tenant permissions), no project data.
 
     const tenantSettings = await loadTenantCapabilitySettings(tx, tenant.tenantId);
-    const projectSettings = await loadProjectCapabilitySettings(tx, tenant.tenantId, project.id);
+    const overrides = await loadProjectCapabilityOverrides(tx, tenant.tenantId, project.id);
+    const profileDefaults = projectProfileDefaults(project.profileKey);
     const capabilities =
       projectRole || implicitOwnerProjectAccess || tenant.role === "ADMIN"
-        ? resolveCapabilities({ tenant: tenantSettings, project: projectSettings })
+        ? resolveCapabilities({ tenant: tenantSettings, project: { overrides, profileDefaults } })
         : emptyCapabilitySet();
 
     return freezeContext<RequestContext>({

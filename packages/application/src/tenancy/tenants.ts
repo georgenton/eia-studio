@@ -1,19 +1,22 @@
 import { randomUUID } from "node:crypto";
 
 import { appSchema, withDbContext, type Database } from "@eia/db";
-import { and, eq, sql } from "drizzle-orm";
-import { z } from "zod";
-
-import { recordAudit } from "../audit/index";
-import { requirePermission } from "../core/authz";
 import {
   CAPABILITY_CATALOG,
   CAPABILITY_KEYS,
+  InvalidInput,
+  requirePermission,
+  RoleEscalation,
+  TENANT_ROLE_RANK,
+  TENANT_ROLES,
   type CapabilityKey,
-} from "../core/capabilities/index";
-import type { RequestContext } from "../core/context";
-import { InvalidInput, RoleEscalation } from "../core/errors";
-import { TENANT_ROLE_RANK, TENANT_ROLES, type TenantRole } from "../core/roles";
+  type RequestContext,
+  type TenantRole,
+} from "@eia/domain";
+import { and, eq, sql } from "drizzle-orm";
+import { z } from "zod";
+
+import { recordAudit } from "../audit/record";
 
 export const slugSchema = z
   .string()

@@ -1,4 +1,4 @@
-import { listUserTenants } from "@eia/domain";
+import { listUserTenants } from "@eia/application";
 import Link from "next/link";
 
 import { getSessionUser } from "@/lib/context";

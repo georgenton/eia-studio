@@ -1,20 +1,22 @@
 import { randomUUID } from "node:crypto";
 
 import { appSchema, withDbContext, type Database } from "@eia/db";
+import {
+  assertProjectOverrideAllowed,
+  can,
+  CAPABILITY_KEYS,
+  getSystemProfile,
+  InvalidInput,
+  PermissionDenied,
+  PROJECT_ROLES,
+  requirePermission,
+  type CapabilityKey,
+  type RequestContext,
+} from "@eia/domain";
 import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 
-import { recordAudit } from "../audit/index";
-import { can, requirePermission } from "../core/authz";
-import {
-  assertProjectOverrideAllowed,
-  CAPABILITY_KEYS,
-  type CapabilityKey,
-} from "../core/capabilities/index";
-import type { RequestContext } from "../core/context";
-import { InvalidInput, PermissionDenied } from "../core/errors";
-import { getSystemProfile } from "../core/profiles/index";
-import { PROJECT_ROLES } from "../core/roles";
+import { recordAudit } from "../audit/record";
 import { loadTenantCapabilitySettings } from "./capability-settings";
 import { slugSchema } from "./tenants";
 
@@ -51,17 +53,9 @@ export async function createProject(
       profileKey: profile.key,
       profileVersion: String(profile.version),
     });
-    if (profile.capabilities.disabled.length > 0) {
-      await tx.insert(appSchema.projectCapabilitySetting).values(
-        profile.capabilities.disabled.map((key) => ({
-          tenantId: ctx.tenantId,
-          projectId,
-          capabilityKey: key,
-          enabled: false,
-          changedBy: ctx.userId,
-        })),
-      );
-    }
+    // Profile defaults are NOT materialised as override rows: they are read from the profile
+    // snapshot at resolution time, so the profile-default and explicit-override layers stay
+    // distinguishable (IG0-H02). Only a deliberate project decision writes a row here.
     await recordAudit(
       tx,
       { tenantId: ctx.tenantId, projectId },
@@ -211,7 +205,11 @@ export const setProjectCapabilityInputSchema = z
   .object({ key: z.enum(CAPABILITY_KEYS), enabled: z.boolean() })
   .strict();
 
-/** Project override: restriction only. Enabling what the tenant lacks is rejected at write time. */
+/**
+ * Explicit project decision for one capability. A project may enable or disable a capability the
+ * product and tenant allow; enabling one they do not allow is rejected at write time and, even if
+ * a row were forged, by the resolver's conjunction (IG0-H02).
+ */
 export async function setProjectCapability(
   db: Database,
   ctx: RequestContext,

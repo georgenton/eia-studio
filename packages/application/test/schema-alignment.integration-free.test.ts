@@ -9,7 +9,7 @@ import {
   TRANSFORMATIONS,
   GRANULARITIES,
   provenanceFacetsSchema,
-} from "../src/index";
+} from "@eia/domain";
 
 describe("db ↔ domain vocabulary alignment", () => {
   it("role enums in the database equal the domain role lists (D-015)", () => {

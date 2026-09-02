@@ -1,8 +1,8 @@
 {
-  "name": "@eia/domain",
+  "name": "@eia/application",
   "version": "0.0.0",
   "private": true,
-  "description": "Pure EIA Studio domain rules: roles, permissions, capabilities, provenance facets, audit vocabulary",
+  "description": "Application layer: orchestrates persistence and transactions for the pure domain rules",
   "type": "module",
   "exports": {
     ".": "./src/index.ts"
@@ -11,10 +11,14 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
+    "@eia/db": "workspace:*",
+    "@eia/domain": "workspace:*",
+    "drizzle-orm": "0.45.2",
     "zod": "4.5.4"
   },
   "devDependencies": {
     "@eia/config": "workspace:*",
+    "@eia/testing": "workspace:*",
     "typescript": "5.9.3",
     "vitest": "4.1.11"
   }

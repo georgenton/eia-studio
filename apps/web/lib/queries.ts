@@ -1,11 +1,8 @@
 import "server-only";
 
 import { withDbContext } from "@eia/db";
-import {
-  loadTenantCapabilitySettings,
-  type RequestContext,
-  type TenantCapabilitySettings,
-} from "@eia/domain";
+import { type RequestContext, type TenantCapabilitySettings } from "@eia/domain";
+import { loadTenantCapabilitySettings } from "@eia/application";
 
 import { getDb } from "./db";
 

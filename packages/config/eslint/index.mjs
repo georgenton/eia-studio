@@ -11,7 +11,6 @@ export const DOMAIN_MODULES = [
   "core",
   "provenance",
   "audit",
-  "tenancy",
   "projects",
   "documents",
   "gis",
@@ -28,8 +27,7 @@ const DOMAIN_MODULE_DEPENDENCIES = {
   core: [],
   provenance: ["core"],
   audit: ["core"],
-  tenancy: ["core", "audit", "provenance"],
-  projects: ["core", "provenance", "audit", "tenancy"],
+  projects: ["core", "provenance", "audit"],
   documents: ["core", "projects", "provenance"],
   gis: ["core", "projects", "provenance"],
   field: ["core", "projects", "gis", "provenance"],
@@ -111,6 +109,44 @@ export const domainBoundariesConfig = {
       {
         default: "disallow",
         policies: [{ target: DOMAIN_MODULES.map((type) => element(type)), allow: "index.ts" }],
+      },
+    ],
+  },
+};
+
+/**
+ * ADR-015 / IG0-B02: the domain package is pure. It may not import persistence adapters, an ORM
+ * or a driver, and may not depend on the application layer. Mirrored by
+ * packages/domain/test/purity.test.ts so the boundary also fails the unit suite.
+ */
+export const domainPurityConfig = {
+  files: ["packages/domain/**/*.ts"],
+  rules: {
+    "no-restricted-imports": [
+      "error",
+      {
+        paths: [
+          {
+            name: "@eia/db",
+            message: "packages/domain is pure: use @eia/application for persistence.",
+          },
+          {
+            name: "@eia/application",
+            message: "The domain must not depend on the application layer.",
+          },
+          { name: "drizzle-orm", message: "packages/domain is pure: no ORM imports." },
+          { name: "pg", message: "packages/domain is pure: no driver imports." },
+          {
+            name: "better-auth",
+            message: "packages/domain is pure: identity lives behind IdentityPort.",
+          },
+        ],
+        patterns: [
+          {
+            group: ["@eia/db/*", "drizzle-orm/*", "better-auth/*"],
+            message: "packages/domain is pure.",
+          },
+        ],
       },
     ],
   },

@@ -2,7 +2,8 @@
 
 import { randomUUID } from "node:crypto";
 
-import { DomainError, createProject, createTenant } from "@eia/domain";
+import { DomainError } from "@eia/domain";
+import { createProject, createTenant } from "@eia/application";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 

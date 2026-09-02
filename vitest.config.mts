@@ -16,7 +16,7 @@ export default defineConfig({
       {
         test: {
           name: "integration",
-          include: ["packages/**/*.integration.test.ts"],
+          include: ["packages/**/*.integration.test.ts", "apps/**/*.integration.test.ts"],
           exclude: ["**/node_modules/**"],
           environment: "node",
           globalSetup: ["./packages/testing/src/global-setup.ts"],

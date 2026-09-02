@@ -1,9 +1,5 @@
-import {
-  CAPABILITY_KEYS,
-  SYSTEM_PROFILES,
-  listPortfolio,
-  navigationPresentation,
-} from "@eia/domain";
+import { CAPABILITY_KEYS, SYSTEM_PROFILES, navigationPresentation } from "@eia/domain";
+import { listPortfolio } from "@eia/application";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 

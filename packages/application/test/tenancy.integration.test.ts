@@ -12,6 +12,11 @@ import {
   FeatureDisabled,
   PermissionDenied,
   RoleEscalation,
+  navigationPresentation,
+  requireCapability,
+  type SessionUser,
+} from "@eia/domain";
+import {
   addProjectMembership,
   addTenantMembership,
   buildRequestContext,
@@ -19,11 +24,8 @@ import {
   createTenant,
   ensureUser,
   listPortfolio,
-  navigationPresentation,
-  requireCapability,
   setProjectCapability,
   loadTenantCapabilitySettings,
-  type SessionUser,
 } from "../src/index";
 import { withDbContext } from "@eia/db";
 

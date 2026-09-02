@@ -1,11 +1,17 @@
 import nextPlugin from "@next/eslint-plugin-next";
 import reactHooks from "eslint-plugin-react-hooks";
-import { baseConfig, domainBoundariesConfig, ignores } from "@eia/config/eslint";
+import {
+  baseConfig,
+  domainBoundariesConfig,
+  domainPurityConfig,
+  ignores,
+} from "@eia/config/eslint";
 
 export default [
   ignores,
   ...baseConfig,
   domainBoundariesConfig,
+  domainPurityConfig,
   {
     // Next.js app: React hooks and Next rules; route/page files may import the web lib only.
     files: ["apps/web/**/*.{ts,tsx}"],

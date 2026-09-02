@@ -2,13 +2,8 @@ import "server-only";
 
 import { randomUUID } from "node:crypto";
 
-import {
-  PermissionDenied,
-  buildRequestContext,
-  ensureUser,
-  type RequestContext,
-  type SessionUser,
-} from "@eia/domain";
+import { PermissionDenied, type RequestContext, type SessionUser } from "@eia/domain";
+import { buildRequestContext, ensureUser } from "@eia/application";
 import { headers } from "next/headers";
 
 import { getDb } from "./db";
