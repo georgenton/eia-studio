@@ -153,14 +153,16 @@ DocumentLocator (value) { document_version_id, page?, section?, chunk_id?, bbox?
 
 ### 3.3 GIS
 
-**Implemented in Slice 2** (migrations `0009`, `0010`). The shapes below are what the tables
-actually hold; where they differ from the earlier specification, the difference is noted.
+**Implemented in Slice 2** (migrations `0009`, `0010`, and the Gate 2 hardening `0011`). The
+shapes below are what the tables actually hold; where they differ from the earlier specification,
+the difference is noted.
 
 ```
 SpatialDataset { id, tenant_id, project_id, kind: alignment|parcels|affectations, label }
    -- unique (tenant_id, project_id, kind): one dataset of a kind per project
 SpatialDatasetVersion { id, tenant_id, project_id, dataset_id, version_label ('parcels_v1'),
-    origin: generated|imported|field_captured, source_crs ('EPSG:32717'), generator_version?,
+    origin: generated|imported|field_captured,
+    source_srid, analysis_srid, generator_version?,
     feature_count, is_active, supersedes_version_id?, produced_at, note?, provenance_id }
    -- exactly one active version per dataset (unique partial index)
    -- `origin` records the production route; it is NOT a provenance vocabulary (ADR-005)
@@ -172,34 +174,105 @@ Parcel { id, tenant_id, project_id, parcel_code (unique per project), sector_lab
     chainage_m?, chainage_method?, frontage_m?, provenance_id }
    -- CHECK parcel_code_shape: uppercase alphanumeric groups separated by hyphens
    -- CHECK: chainage_m and chainage_method are both present or both absent
+   -- CHECK: chainage_m >= 0; frontage_m > 0 when present
 ParcelGeometry { id, tenant_id, project_id, parcel_id, dataset_version_id,
-    geom geometry(Polygon,32717), area_m2, is_active, superseded_by_geometry_id?, provenance_id }
+    geom geometry(Polygon,4326), area_m2, is_active, superseded_by_geometry_id?, provenance_id }
    -- exactly one active geometry per parcel (unique partial index)
-   -- CHECK: ST_IsValid(geom) AND NOT ST_IsEmpty(geom)
+   -- CHECK: ST_IsValid(geom) AND NOT ST_IsEmpty(geom); area_m2 > 0
 -- linear_infrastructure extension
 Alignment { id, tenant_id, project_id, dataset_version_id, label,
-    geom geometry(LineString,32717), length_m, station_origin_m, provenance_id }
+    geom geometry(LineString,4326), length_m, station_origin_m, provenance_id }
+   -- CHECK: length_m > 0
 Affectation { id, tenant_id, project_id, parcel_id, dataset_version_id,
     category: right_of_way|access|infrastructure|crops|other,
-    geom geometry(Polygon,32717), affected_area_m2, provenance_id }
+    geom geometry(Polygon,4326), affected_area_m2, provenance_id }
+   -- CHECK: affected_area_m2 >= 0  (zero is a legitimate observation: "not affected")
+   -- CONSTRAINT TRIGGER affectation_within_parcel: affected_area_m2 <= the parcel's active area
 ```
 
-#### Coordinate reference systems
+#### Coordinate reference systems (ADR-017)
 
-Geometry is **stored** in a projected, metric CRS (`EPSG:32717`, WGS 84 / UTM 17S for the pilot)
-and **presented** in `EPSG:4326`, produced by `ST_Transform` at read time for MapLibre. Areas,
-lengths and the chainage projection are computed in the storage CRS, because metric work in
-degrees is wrong. The zone is a per-project choice, never a product constant.
+Three roles, kept apart. Only the first is a property of the platform.
 
-The pilot's storage CRS is a **demo assumption**: the official GIS package has not been received,
-so the project's real CRS is unknown. Every generated dataset version states its CRS in
-`source_crs`; an official import declares its own and supersedes ours.
+| Role | Where it lives | Value |
+|---|---|---|
+| **Canonical** — what every geometry column stores | the schema | always `EPSG:4326` |
+| **Source** — what a dataset version arrived in | `spatial_dataset_version.source_srid` | per dataset |
+| **Analysis** — where metres are computed | `spatial_dataset_version.analysis_srid` | per dataset |
+
+Canonical storage is `EPSG:4326` because it is the one CRS every project can share and the one
+MapLibre consumes, so **reads need no transform**. Typing the columns as a projected zone, as
+migration 0009 did, would make one pilot's UTM zone a property of the product and make a project
+outside it unstorable.
+
+Metres never come from degrees. Every length and area is computed by transforming canonical
+geometry into the dataset's analysis CRS:
+
+```sql
+ST_Area(ST_Transform(geom, analysis_srid))
+```
+
+`analysis_srid` must be **projected** — a CHECK rejects the geographic 4xxx block, because an area
+computed there is square degrees. Both SRIDs are bounded to the published EPSG range.
+
+The pilot's `analysis_srid` is `32717` (UTM 17S) and is a **demo assumption** recorded in the
+project fixture with `crsBasis: "DEMO_ASSUMPTION"`: the official GIS package has not been
+received, so the project's declared CRS is unknown. It appears nowhere in `packages/domain`.
+
+#### Chainage (IG2-003)
+
+Chainage is the *abscisa* of the approved design, rendered `2+840`. It is **derived from the
+geometry that is stored**, by one deterministic method, recorded on every value:
+
+```
+parcel centroid
+  → ST_LineLocatePoint onto the project's active alignment   (fraction along the line, 0–1)
+  → × the alignment's length measured in the analysis CRS
+  → chainage in metres                                        (chainage_method = centroid_projection)
+```
+
+It is `centroid_projection` and not `frontage_midpoint` because a frontage midpoint would claim we
+know where each parcel meets the road; for synthetic polygons we do not, and the centroid is a
+property of the geometry we actually have. When surveyed frontage exists, the method changes and
+the column says so.
+
+Two consequences hold by construction and are asserted by tests: chainage lies in
+`[0, alignment length]`, and it is **not identity** — recreating a parcel under a new UUID with the
+same geometry produces the same chainage, and two parcels may share one.
+
+#### Dataset activation and replacement (IG2-002)
+
+`activateDatasetVersion` (in `packages/application/src/gis/`) is the transaction an official
+import will end with. It deactivates the current version and its geometry, activates the new
+version and its geometry, and does all of it in one transaction:
+
+```
+SpatialDataset (kind = 'parcels')
+  └── parcels_v1   origin=generated  is_active=false  ← superseded, retained
+  └── parcels_v2   origin=imported   is_active=true   supersedes=parcels_v1
+```
+
+- `Parcel.id` is never reissued: the table is not touched. New `ParcelGeometry` rows are written
+  against the new version; the parcel's UUID, its code and everything pointing at it are unchanged.
+- Active-version uniqueness is scoped to the **dataset**, so `alignment` and `parcels` have active
+  versions simultaneously; activating one never disturbs the other.
+- A replacement must name the version it supersedes, or the domain rule rejects it and the
+  transaction rolls back with the previous version still active.
+- Nothing is deleted, so a figure produced from superseded geometry stays explainable.
+
+#### The affected share is derived, never stored
+
+`affected_area_m2 / area_m2`, computed wherever it is shown. A persisted percentage is a third
+fact beside two areas and is wrong the moment geometry is replaced, while still looking right.
+The domain helper throws on every case the database already forbids rather than clamping, because
+a clamped `1,0` is indistinguishable from a genuine total affectation.
 
 #### What changed from the earlier specification, and why
 
 | Earlier shape | What was built | Why |
 |---|---|---|
-| `geometry(...,4326)` | `geometry(...,32717)` + transform on read | areas and lengths must be metric; a 4326 column invites `ST_Area` in square degrees |
+| `geometry(...,4326)` with metric work in "the project's configured CRS" | canonical `geometry(...,4326)` + `analysis_srid` per dataset version | the intent was right; it needed a place to live that is not a column type (ADR-017) |
+| `SpatialDatasetVersion.source_crs` (text) | `source_srid` + `analysis_srid` (integers) | a text label cannot be passed to `ST_Transform`, and could not say where metres come from |
 | `SpatialDataset.current_version_id` | `SpatialDatasetVersion.is_active` + unique partial index | the pointer and the flag can disagree; one enforced flag cannot |
 | `Layer` table | not created | a layer is currently a dataset version rendered by the client; a table with no distinct behaviour would be dead weight until styles are configurable |
 | `Parcel.current_geometry_id` | `ParcelGeometry.is_active` | same reason as the dataset pointer |
@@ -213,6 +286,26 @@ revisita · Inconsistencia · No localizado) is a **derived read model**, comput
 states, visits, open findings and `Parcel.status`, not a stored column that can drift. Slice 2
 renders only `Parcel.status`, because nothing in it can know whether a parcel was visited;
 `DESIGN_SURVEY_STATES_PENDING_FIELD` records the target vocabulary so the reduction stays visible.
+
+#### Measured payload and query cost (IG2-008)
+
+The pilot, 141 parcels, measured locally against PostgreSQL 17 + PostGIS 3.5:
+
+| Measure | Value |
+|---|---|
+| `loadParcelExplorer` server time | median 6,4 ms · p95 7,6 ms (12 runs) |
+| `loadTerritorialSummary` server time | median 3,7 ms · p95 4,1 ms |
+| Parcel features | 141 |
+| GeoJSON `FeatureCollection` | 46,7 KiB |
+| Alignment geometry | 4,2 KiB |
+| Table rows payload | 64,9 KiB |
+| Whole read-model payload | 117,2 KiB |
+| Browser: table visible / canvas sized | ~535 ms / ~800 ms after navigation |
+
+GeoJSON is adequate here by a wide margin. The trigger for reconsidering vector tiles or
+virtualization is observational, not architectural: a project whose parcel payload approaches the
+server-side cap of 2 000 features (roughly 650 KiB of GeoJSON at this density), or a measured
+interaction delay in the table. See TECH_DEBT TD-027.
 
 ### 3.4 Field
 

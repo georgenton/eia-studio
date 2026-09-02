@@ -40,8 +40,10 @@ Six tables, all in `app`, all with `tenant_id`, `project_id`, the composite FK t
 Full shapes and every deviation from the earlier specification are in `docs/DATA_MODEL.md` §3.3.
 The four decisions worth restating here:
 
-1. **Geometry is stored in a metric CRS** (`EPSG:32717`) and transformed to `EPSG:4326` on read.
-   Areas and lengths are computed by PostGIS in metres; nothing computes area in degrees.
+1. **Geometry is stored canonically in `EPSG:4326`**; the projected CRS a dataset's metres are
+   measured in is metadata on its version (`analysis_srid`), not a column type (ADR-017). Reads
+   need no transform; every length and area transforms explicitly into the analysis CRS, so
+   nothing computes an area in degrees.
 2. **Identity survives geometry.** `Parcel.id` is the only technical identity; `parcel_code` is
    the cartographer's business identifier, unique per project. Replacing the synthetic layer
    creates new `ParcelGeometry` rows, never new parcels — asserted in the integration suite.
@@ -49,6 +51,50 @@ The four decisions worth restating here:
    a pointer column that can disagree with a flag.
 4. **Nothing is deleted on replacement.** The superseded version stays queryable, so a figure
    produced from it stays explainable.
+
+## 3a. Coordinate reference systems (ADR-017, IG2-001)
+
+Slice 2 first shipped `geometry(...,32717)`. That was corrected before merge: typing the columns
+with the pilot's UTM zone made one project's coordinate system a property of the platform, and a
+project outside zone 17S could not have been stored at all.
+
+| Role | Where it lives | Value |
+|---|---|---|
+| Canonical — what every geometry column stores | the schema | always `EPSG:4326` |
+| Source — what a dataset version arrived in | `spatial_dataset_version.source_srid` | per dataset |
+| Analysis — where metres are computed | `spatial_dataset_version.analysis_srid` | per dataset |
+
+`analysis_srid` must be projected; a CHECK rejects the geographic 4xxx block. The pilot's `32717`
+lives in the project fixture as a `DEMO_ASSUMPTION` and appears nowhere in `packages/domain` — a
+unit test fails if it comes back. Migration `0011` is forward-only: it reprojects the columns with
+`USING ST_Transform(geom, 4326)` and backfills the two SRIDs; `0009` and `0010`, already applied to
+staging, are not rewritten.
+
+## 3b. Chainage (IG2-003)
+
+Chainage is derived from the geometry that is stored, by one deterministic method recorded on
+every value:
+
+```
+parcel centroid → ST_LineLocatePoint onto the active alignment → fraction × alignment length
+                  (measured in the analysis CRS) → metres, chainage_method = centroid_projection
+```
+
+It was previously carried over from the generator's own arithmetic, which meant two numbers for
+one fact. `centroid_projection` rather than `frontage_midpoint` because we have not surveyed where
+each parcel meets the road, and the centroid is a property of the geometry we do have.
+
+Seeded pilot: 141 parcels, chainage 30,4 m – 7 377,8 m against a 7 410 m alignment, ordering
+correlating 1,0000 with the west→east code sequence.
+
+## 3c. Dataset replacement (IG2-002)
+
+`activateDatasetVersion` is the transaction an official import will end with; the importer itself
+is still unbuilt. It deactivates the current version and its geometry and activates the new pair
+in one transaction. Proven by integration test: the parcel's UUID and `parcel_code` are unchanged,
+v1 and its geometry are retained but inactive, exactly one geometry is active, the alignment
+dataset keeps its own active version throughout (uniqueness is scoped per dataset, not per
+project), and a version that fails to name what it supersedes rolls back with v1 still active.
 
 ## 4. Provenance
 
@@ -111,12 +157,19 @@ holds no fact of its own, which matters twice:
   Explorer, above both, so they cannot disagree about what is in view; the count reads
   "141 predios · N en vista".
 - **Accessibility.** A WebGL canvas cannot be made a screen-reader surface, so the table *is* the
-  accessible representation. The canvas is `aria-hidden`, every control inside it is taken out of
-  the tab order (`removeMapFromTabOrder`), selection is a real `<button>` with `aria-pressed`, and
-  a polite live region announces the selected parcel.
+  accessible representation. The canvas is `aria-hidden`, selection is a real `<button>` with
+  `aria-pressed`, and a polite live region announces the selected parcel.
 
-The cost, stated plainly: the map's zoom buttons are mouse-only. That is acceptable *because* the
-table offers every parcel with sorting, filtering and keyboard selection.
+The map carries **no controls at all** (IG2-005). MapLibre's `NavigationControl` renders real
+buttons, and inside an `aria-hidden` subtree those are controls a keyboard can reach but a screen
+reader cannot announce — so they were being taken out of the tab order, which left visible buttons
+only a mouse could use. Keeping such a control is worse than not offering it. Scroll, drag and
+pinch still zoom; the scale bar is inert text. `removeMapFromTabOrder` stays as the guard that
+catches any control a future MapLibre upgrade adds.
+
+A browser test walks the whole journey from the keyboard — reach the table, select a parcel, open
+the Parcel Workspace, inspect provenance — without touching the map, and asserts that the
+`aria-hidden` subtree contains no focusable element.
 
 ## 8. Deviations from the approved design
 
@@ -132,11 +185,13 @@ table offers every parcel with sorting, filtering and keyboard selection.
 ## 9. Accessibility
 
 `e2e/accessibility.spec.ts` scans the Parcel Explorer and the Parcel Workspace with axe
-(WCAG 2.1 A/AA, failing on `serious` and `critical`). Both are clean. Two real defects were found
+(WCAG 2.1 A/AA, failing on `serious` and `critical`). Both are clean. Three real defects were found
 and fixed rather than suppressed:
 
 - the `aria-hidden` map contained focusable MapLibre controls (`aria-hidden-focus`, serious);
-- `aria-selected` on a plain `<tr>` is invalid ARIA outside a grid — selection moved to a button.
+- `aria-selected` on a plain `<tr>` is invalid ARIA outside a grid — selection moved to a button;
+- the first fix left visible zoom buttons that only a mouse could operate, so the controls were
+  removed entirely (IG2-005) rather than left in that state.
 
 A green axe run is not conformance: axe finds a minority of accessibility problems. It is a
 regression net beside the manual keyboard and focus assertions in the browser suite.
@@ -145,14 +200,26 @@ regression net beside the manual keyboard and focus assertions in the browser su
 
 | Measure | Value |
 |---|---|
-| Parcel GeoJSON payload, 141 polygons | 20,6 KiB |
+| `loadParcelExplorer` server time | median 6,4 ms · p95 7,6 ms (12 runs) |
+| `loadTerritorialSummary` server time | median 3,7 ms · p95 4,1 ms |
+| Parcel features | 141 |
+| GeoJSON `FeatureCollection` | 46,7 KiB |
+| Table rows payload | 64,9 KiB |
+| Whole read-model payload | 117,2 KiB |
+| Browser: table visible / canvas sized | ~535 ms / ~800 ms after navigation |
 | Server-side payload cap | `PARCEL_PAYLOAD_LIMIT = 2000` parcels, with `truncated` reported |
 | Table virtualization | **not** added |
 
-TanStack Virtual is not installed. At 141 rows it would add a dependency, a scroll container and a
-class of bugs for no measurable gain. The trigger to add it is a project whose parcel count makes
-the table janky in practice — the payload cap of 2 000 is the point at which that must be
-revisited, along with switching the map from GeoJSON to `ST_AsMVT` tiles (ARCHITECTURE.md §7).
+Measured locally against PostgreSQL 17 + PostGIS 3.5 (`packages/application`, 12 runs after a
+warm-up). An earlier note in this report said 20,6 KiB; that figure counted only the polygon
+geometry, not the `FeatureCollection` with its properties, and is superseded by the table above.
+
+TanStack Virtual is not installed and no vector-tile infrastructure is introduced. At 141 rows and
+47 KiB either would add a dependency, a subsystem and a class of bugs for no measurable gain. The
+trigger is **observational**: a project whose payload approaches the 2 000-feature cap (roughly
+650 KiB of GeoJSON at this density), or a measured interaction delay in the table. Then, in order:
+`ST_AsMVT` tiles (ARCHITECTURE.md §7), server-side filtering, virtualization — each with a
+measurement first (TD-027).
 
 ## 11. Security and tenancy
 
@@ -171,6 +238,13 @@ revisited, along with switching the map from GeoJSON to `ST_AsMVT` tiles (ARCHIT
   still returns only the caller's row.
 - **No personal data.** The fixture holds no owner names, no phone numbers, no coordinates derived
   from actual residents and no cadastral keys. Parcel codes are generated, not cadastral.
+- **A sign-in defect found and closed.** The form declared no `method`, so a submit landing before
+  hydration fell back to a native **GET** and put the password in the URL, in `history` and in the
+  `Referer` of everything the next page loaded. `method="post"` closes it, and
+  `e2e/anonymous.spec.ts` now asserts that no request URL, address bar, `window.location` or
+  navigation entry ever contains the credential, that the form declares POST, that no credential
+  form is served without scripts at all, and that the identity endpoint refuses credentials sent as
+  a query string. The test compares against a synthetic disposable password and never prints it.
 
 ## 12. What this slice does not do
 
