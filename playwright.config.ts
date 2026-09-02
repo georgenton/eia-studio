@@ -1,0 +1,78 @@
+import { defineConfig, devices } from "@playwright/test";
+
+/**
+ * End-to-end suite for the Slice 1 reviewer journey (TESTING_STRATEGY.md §1).
+ *
+ * Deliberately small: one journey through sign-in → Portfolio → Command Center → provenance,
+ * plus the authorization denials that must hold in a real browser. Broad UI assertions belong in
+ * unit and integration tests; brittle selector-heavy tests are not added here.
+ *
+ * The suite expects a database that has been migrated and seeded with the demo fixture and the
+ * synthetic identities (`pnpm e2e:prepare`). It never creates accounts itself, because public
+ * self-signup is disabled.
+ */
+const PORT = Number(process.env.E2E_PORT ?? 3100);
+const baseURL = process.env.E2E_BASE_URL ?? `http://127.0.0.1:${PORT}`;
+
+export default defineConfig({
+  testDir: "./e2e",
+  fullyParallel: false,
+  workers: 1,
+  retries: process.env.CI ? 1 : 0,
+  reporter: process.env.CI ? [["github"], ["list"]] : [["list"]],
+  timeout: 60_000,
+  expect: { timeout: 10_000 },
+  use: {
+    baseURL,
+    locale: "es-EC",
+    timezoneId: "UTC",
+    trace: "retain-on-failure",
+    screenshot: "only-on-failure",
+  },
+  projects: [
+    { name: "setup", testMatch: /auth\.setup\.ts/, use: { ...devices["Desktop Chrome"] } },
+    {
+      name: "coordinator",
+      testMatch: /journey\.spec\.ts|authorization\.spec\.ts|screenshots\.spec\.ts/,
+      dependencies: ["setup"],
+      use: {
+        ...devices["Desktop Chrome"],
+        viewport: { width: 1440, height: 940 },
+        storageState: "e2e/.auth/coordinator.json",
+      },
+    },
+    {
+      name: "admin",
+      testMatch: /admin\.spec\.ts/,
+      dependencies: ["setup"],
+      use: {
+        ...devices["Desktop Chrome"],
+        viewport: { width: 1440, height: 940 },
+        storageState: "e2e/.auth/admin.json",
+      },
+    },
+    {
+      name: "anonymous",
+      testMatch: /anonymous\.spec\.ts/,
+      use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 940 } },
+    },
+  ],
+  webServer: process.env.E2E_BASE_URL
+    ? undefined
+    : {
+        command: `pnpm --filter @eia/web start --port ${PORT}`,
+        url: `${baseURL}/health`,
+        reuseExistingServer: !process.env.CI,
+        timeout: 180_000,
+        stdout: "pipe",
+        stderr: "pipe",
+        // Better Auth binds its cookies and callbacks to an origin, so the server under test must
+        // be told the origin the browser will actually use.
+        env: {
+          APP_ENV: "test",
+          PUBLIC_APP_URL: baseURL,
+          BETTER_AUTH_URL: baseURL,
+          AUTH_TRUSTED_ORIGINS: baseURL,
+        },
+      },
+});
