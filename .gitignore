@@ -17,7 +17,11 @@ coverage/
 
 # provider local state
 .vercel/
-.railway/
+
+# Railway: the infrastructure definition is source, everything else the CLI writes is local state
+.railway/*
+!.railway/railway.ts
+!.railway/README.md
 
 # test artefacts
 playwright-report/
