@@ -4,6 +4,8 @@
 > recorded in `docs/DECISIONS/ADR-*.md`; this document is the map. Gate 1: approved with
 > conditions (see `docs/DECISIONS/GATE-1.md`); aligned with D-013 (faceted provenance), D-014
 > (boolean capabilities), D-016 (Better Auth scope), D-017 (hosting deferred, persistent worker).
+> Implementation Gate 0 hardening applied: ADR-015 (domain purity / application layer), IG0-B01
+> (privileged helper contract in ADR-004), IG0-H02 (capability truth table in FEATURES.md §3).
 
 ## 1. Architectural style: modular monolith
 
@@ -60,8 +62,10 @@ flowchart LR
 
 ## 2. Bounded modules
 
-Modules live under `packages/domain/<module>/`. Each module exposes a **public API** (`index.ts`)
-of use-cases and read models; other modules may import only that. Tables are owned by exactly one
+Modules live under `packages/domain/<module>/` (pure rules) with their persistence-facing
+use-cases under `packages/application/<module>/` (ADR-015: the domain never imports `@eia/db`).
+Each module exposes a **public API** (`index.ts`) of use-cases and read models; other modules may
+import only that. Tables are owned by exactly one
 module; cross-module reads go through the owner's read models or through explicitly published
 events, never through foreign joins.
 
@@ -111,8 +115,8 @@ Every internal request follows the same pipeline, executed server-side:
    whether the tenant exists).
 3. **Resolve project** from `/p/:projectSlug` when present; verify `ProjectMembership` is linked to
    that tenant membership. Otherwise `permission denied`.
-4. **Resolve capabilities**: `PRODUCT_AVAILABLE ∧ TENANT_ENTITLED ∧ TENANT_ENABLED ∧
-   PROJECT_ENABLED` for each key (ADR-002) → `CapabilitySet` of booleans. Navigation
+4. **Resolve capabilities**: `PRODUCT_AVAILABLE ∧ TENANT_ALLOWED ∧ PROJECT_EFFECTIVE_ENABLED ∧
+   DEPENDENCIES_SATISFIED` for each key (ADR-002, FEATURES.md §3) → `CapabilitySet` of booleans. Navigation
    presentation (ACTIVE / ANNOUNCED / HIDDEN) is computed separately by the shell and never used
    for authorization.
 5. **Resolve permissions**: tenant role + project role → `PermissionSet`.
@@ -225,6 +229,7 @@ Slice 0 against current library status; nothing is installed in this phase.
 |---|---|---|---|
 | Package manager | **pnpm** (workspaces, strict hoisting) | npm, yarn, bun | pnpm's strictness catches phantom dependencies across packages; bun is fast but its workspace/lockfile story is less mature for a multi-year product. |
 | Repository | **pnpm monorepo + Turborepo**: `apps/web`, `apps/worker`, `packages/*` | single Next.js app with `src/modules` | Packages make module boundaries real (a module cannot import a sibling's internals) and let the worker share domain code without a second build. Cost: more config; acceptable. Start with few packages; promote modules to packages only when boundaries need enforcing. |
+| Layering | **`@eia/domain` pure, `@eia/application` orchestrates, `@eia/db` adapts** (ADR-015); enforced by ESLint and a purity unit test | ports in the domain with a unit-of-work abstraction | Option A moves existing orchestration instead of inventing interfaces; keeps one transaction per use-case. |
 | ORM / query layer | **Drizzle ORM only** + reviewed SQL where needed (ADR-013); Prisma is not added alongside | Prisma, Kysely, TypeORM | Drizzle is SQL-first, supports transactions with `SET LOCAL` (RLS), custom column types for PostGIS/pgvector, and generates readable migrations. Prisma's engine model makes RLS-per-transaction and PostGIS awkward and a second ORM would split the schema and migration history. Kysely is a fine query builder but no schema/migration tooling. |
 | Migrations | drizzle-kit for schema diff + **hand-written SQL migrations** for RLS policies, functions, triggers, PostGIS/pgvector indexes, all in one ordered folder applied by one runner | Flyway/graphile-migrate | Policies must be code-reviewed SQL, not inferred. One runner avoids two migration histories. |
 | Validation | **Zod** everywhere (server actions, route handlers, forms, config schemas, fixture manifests, portal DTO allowlists) | Valibot, TypeBox | Ubiquity and inference; `strict()` objects prevent mass assignment. |
@@ -272,8 +277,9 @@ eia-studio/
       lib/actions/               # server actions (thin: validate → ctx → use-case)
     worker/                      # pg-boss consumer, JobContext builder, job handlers per module
   packages/
-    domain/                      # bounded modules (one folder each, public index.ts)
+    domain/                      # PURE bounded modules (rules, types, ports; only dependency: zod)
       core/ projects/ documents/ gis/ field/ social/ quality/ reports/ client-portal/ ai/ provenance/ audit/
+    application/                 # orchestration over persistence: use-cases, context building, audit writes
     db/                          # drizzle schema per module, SQL migrations, RLS policies, roles, seeds runner
     contracts/                   # zod schemas shared by web/worker: DTOs, portal projections, job payloads, fixture manifests
     ui/                          # design tokens, primitives, state containers, provenance drawer, map components, Storybook

@@ -53,7 +53,53 @@ TanStack Router/Start/Table/Query/Virtual/Form, MapLibre, pg-boss, Redis, Prisma
 OpenTelemetry/Sentry SDKs, any email provider SDK, any S3 SDK. Each arrives with the slice that
 needs it (ADR-012, ADR-014; ports exist in `packages/domain/src/core/ports`).
 
-## Container image
+## Workspace layout (ADR-015)
 
-`docker/postgres/Dockerfile`: `imresamu/postgis:17-3.5` + `postgresql-17-pgvector` (PGDG).
-Verified: PostgreSQL 17.6, PostGIS 3.5.3, pgvector 0.8.6, pg_trgm 1.6 (DEPLOYMENT.md §4).
+`@eia/domain` is pure (only `zod`). `@eia/application` orchestrates persistence and depends on
+`@eia/domain` + `@eia/db`. Apps depend on both. The boundary is enforced by ESLint
+(`domainPurityConfig`) and by `packages/domain/test/purity.test.ts`.
+
+## Container image and supply chain (IG0-M01)
+
+`docker/postgres/Dockerfile` builds on `imresamu/postgis:17-3.5`, pinned by the **immutable
+digest of its manifest list**:
+
+```
+sha256:35fe7dceda62bfe7d2965b0ba78d915ff9f901b5e0466d633ecc58421b5b5210
+```
+
+Pinning the manifest-list digest (not a per-architecture digest) keeps multi-architecture builds
+working: arm64 developer machines and amd64 CI runners both resolve to reviewed content.
+`imresamu/postgis` is a multi-architecture build of the official `postgis/postgis` image recipe;
+the official image publishes amd64 only and `pgvector/pgvector` ships no PostGIS, so neither
+upstream alone satisfies this project.
+
+Verified in the running image: PostgreSQL 17.6, PostGIS 3.5.3, pgvector 0.8.6, pg_trgm 1.6, and
+the extension test in `packages/testing` re-asserts availability on every CI run.
+
+**Digest review procedure** (run when a PostgreSQL/PostGIS upgrade is wanted, or on a security
+advisory):
+
+1. `docker buildx imagetools inspect imresamu/postgis:17-3.5` and read the manifest-list digest;
+2. compare upstream release notes and the PGDG package versions;
+3. update the digest in `docker/postgres/Dockerfile` in a `chore(db)` pull request;
+4. CI's `db` job rebuilds and re-runs the extension and RLS suites against it.
+
+Residual gap: the `postgresql-17-pgvector` apt package is resolved at build time, so the built
+layer is not bit-reproducible (TECH_DEBT.md TD-001).
+
+## Better Auth upgrade guard (IG0-M02)
+
+`better-auth` is pinned to an exact version. `apps/web/test/auth-schema-compat.test.ts` asks the
+installed library which fields it requires (`getAuthTables` from `@better-auth/core/db`, the same
+source its own migrator uses) and compares them with our hand-written Drizzle `auth` schema. It
+runs offline in the unit suite.
+
+Upgrade procedure:
+
+1. bump `better-auth` (and `@better-auth/core`) in a `chore(deps)` pull request;
+2. CI fails the compatibility test naming any missing field (this is how `account.issuer` would
+   have been caught before runtime);
+3. add the columns to `packages/db/src/schema/auth.ts`, run `pnpm db:generate`, review the SQL by
+   hand and commit schema + migration with the version bump;
+4. vendor migrations are never executed automatically against any environment.

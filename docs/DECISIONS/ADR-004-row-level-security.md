@@ -64,6 +64,47 @@ tables.
 - Requirement for hosted databases: the migrator must be allowed to create a `BYPASSRLS` role
   (DEPLOYMENT.md §4).
 
+## Amendment — privileged helper hardening (Implementation Gate 0, IG0-B01)
+
+Migration `0004_security_definer_hardening.sql` fixes the contract every `SECURITY DEFINER`
+helper must satisfy. New helpers must satisfy it too; the integration test
+`packages/testing/test/rls/security-definer.integration.test.ts` asserts each point.
+
+| # | Requirement | How it is met |
+|---|---|---|
+| 1 | Dedicated owner | `eia_policy`, `NOLOGIN`, created in migration 0000 |
+| 2 | Owner is not the application runtime | the runtime is a login role in the `eia_app` group; `eia_policy` has no login and no members |
+| 3 | Runtime cannot `SET ROLE` to the owner | no membership grant; asserted by test |
+| 4 | Explicit, secure `search_path` | `pg_catalog, app, pg_temp` on every function |
+| 5 | `pg_temp` last | previously implicit and therefore FIRST; now explicitly last |
+| 6 | No untrusted or writable schema on the path | only `pg_catalog` and `app`, both owned by the migrator; the runtime has no `CREATE` on either, nor on `public` |
+| 7 | Schema-qualified references | every relation and function in the bodies is `app.…`; asserted by a catalogue test over `pg_proc.prosrc` |
+| 8 | No dynamic SQL | all bodies are plain `LANGUAGE sql`; asserted (no `EXECUTE`, `format(`, `quote_ident`) |
+| 9 | `EXECUTE` revoked from `PUBLIC` | revoked per function, and the schema default privilege for `PUBLIC` is removed so a future helper is never world-executable |
+| 10 | `EXECUTE` granted to the minimum | `eia_app` for all helpers; `eia_policy` additionally on `app.setting_uuid` and `app.current_user_id` only, because the definer bodies call them |
+| 11 | Owner owns nothing else | asserted: zero relations and zero schemas owned by `eia_policy` |
+| 12 | Runtime cannot disable RLS | not the table owner, `FORCE ROW LEVEL SECURITY`, `row_security = off` refused |
+| 13 | Minimum information returned | every helper returns `boolean`; asserted over `pg_proc.prorettype` |
+
+`public` schema: `CREATE` is revoked from `PUBLIC`, `eia_app` and `eia_policy`, so no application
+role can create objects that might influence name resolution.
+
+### Threat model (explicit)
+
+RLS and these helpers are a **defence against application authorization bugs, forged tenant or
+project context in a request, and accidental cross-tenant access**. A missing predicate, a wrong
+`project_id` from a payload or a use-case that forgets a check still cannot cross a tenant
+boundary.
+
+They are **not** a defence against arbitrary SQL executed on the runtime connection after a full
+SQL-injection compromise of the application. Such an attacker already acts as the runtime role
+and may call any helper that role is allowed to call. The hardening limits what that buys them
+(booleans only, always evaluated for the user in the transaction-local setting, no dynamic SQL,
+no ability to shadow objects, no path to the privileged owner), but the honest boundary is that
+SQL injection in the application is a full compromise of that tenant's runtime scope. Preventing
+injection remains the application's responsibility: parameterised queries, `strict()` schemas and
+the repository predicates.
+
 ## Consequences
 
 - Pooling in transaction mode works (settings are `LOCAL`); prepared statements across pooled

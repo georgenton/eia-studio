@@ -2,7 +2,8 @@
 
 > Related: ADR-002 (capability resolution), ADR-003 (project profiles).
 > Aligned with Gate 1 decisions D-014 (boolean capability resolution; navigation presentation is
-> separate) and D-020 (no `field.offline_sync` capability; the catalogue stays at 14).
+> separate) and D-020 (no `field.offline_sync` capability; the catalogue stays at 14), and with
+> Implementation Gate 0 decision IG0-H02 (project override may be true or false; §3 truth table).
 
 ## 1. Capability vs configuration
 
@@ -56,11 +57,33 @@ authorization consults.
 ```
 effective(cap, tenant, project) =
      PRODUCT_AVAILABLE(cap)             // catalogue status = AVAILABLE (a shipped surface or API)
-  ∧  TENANT_ENTITLED(cap, tenant.plan)  // plan includes the capability ("Incluido" vs "Extensión")
-  ∧  TENANT_ENABLED(cap, tenant)        // Tenant Settings › Módulos toggle
-  ∧  PROJECT_ENABLED(cap, project)      // Project Settings › Modules & Capabilities toggle
+  ∧  TENANT_ALLOWED(cap, tenant)        // plan entitlement ("Incluido") ∧ Tenant Settings toggle
+  ∧  PROJECT_EFFECTIVE_ENABLED(cap, project)
   ∧  ∀ d ∈ dependsOn(cap): effective(d)  // dependencies must be effective too
+
+PROJECT_EFFECTIVE_ENABLED(cap, project) =
+     project explicit override (true | false)      // Project Settings › Modules & Capabilities
+  ?? project profile default (from the profile snapshot)
+  ?? enabled
 ```
+
+A project decides **either way** for a capability the product and tenant allow: it may enable one
+its profile disables, and disable one its profile enables. It can never widen beyond the product
+and tenant layers, because those are separate conjuncts (Gate 0, IG0-H02). The earlier phrase
+"a project override can only restrict" was imprecise; the exact rule is the truth table below.
+
+| PRODUCT_AVAILABLE | TENANT_ALLOWED | profile default | explicit override | effective |
+|---|---|---|---|---|
+| true | true | true | (none) | **true** |
+| true | true | false | (none) | false |
+| true | true | false | true | **true** |
+| true | true | true | false | false |
+| true | false | true | true | false |
+| false | true | true | true | false |
+
+Profile defaults are read from the project's profile snapshot (`profile_key`) at resolution time;
+they are not materialised as override rows, so the two layers stay distinguishable. A dependency
+that resolves to false disables everything downstream regardless of overrides.
 
 Navigation presentation is a **separate, non-authorizing** value computed by the shell from the
 catalogue status and the tenant's entitlement/toggle:
@@ -81,9 +104,10 @@ Environmental Audit are navigation HIDDEN (and disabled).
 
 Invariants:
 
-- A project override can **never** enable a capability the tenant has not enabled or is not
-  entitled to. Enforced at write time (the settings use-case rejects it) **and** at resolution
-  time (the AND), so a corrupted row cannot widen access.
+- A project override can **never** enable a capability the product does not ship or the tenant
+  has not enabled/is not entitled to. Enforced at write time (`assertProjectOverrideAllowed`)
+  **and** at resolution time (the conjunction), so a corrupted or forged row cannot widen access.
+  Setting an override to `false` is always allowed.
 - Resolution happens once per request (or job) and the boolean result per key is part of the
   `RequestContext` (`CapabilitySet`). UI, routes, actions, handlers and jobs consult the same set.
 - "Hiding a sidebar item is not authorization": every server entry point calls
@@ -100,7 +124,7 @@ flowchart TD
   E1 -->|no| D
   E1 -->|yes| E2{Tenant enabled?}
   E2 -->|no| D
-  E2 -->|yes| E3{Project enabled?}
+  E2 -->|yes| E3{Project effective?<br/>override ?? profile default ?? enabled}
   E3 -->|no| D
   E3 -->|yes| E4{Dependencies effective?}
   E4 -->|no| D
@@ -115,7 +139,7 @@ flowchart TD
 |---|---|---|
 | `plan` / `plan_entitlement` | plan_key, capability_key | product-level entitlement source ("Incluido"/"Extensión") |
 | `tenant_capability_setting` | tenant_id, capability_key, enabled, changed_by, changed_at | absence = enabled if entitled (profile defaults apply at project level) |
-| `project_capability_setting` | tenant_id, project_id, capability_key, enabled, changed_by, changed_at | absence = enabled; only restriction is meaningful |
+| `project_capability_setting` | tenant_id, project_id, capability_key, enabled, changed_by, changed_at | one row = an explicit project decision (`true` or `false`); absence = fall through to the profile default, then to enabled |
 | `tenant_configuration` | tenant_id, key, value (jsonb), version | validated by the schema registry |
 | `project_configuration` | tenant_id, project_id, key, value (jsonb), version | overrides tenant value |
 
