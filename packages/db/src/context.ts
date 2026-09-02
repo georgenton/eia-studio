@@ -13,6 +13,15 @@ export interface DbContext {
   readonly tenantId: string | null;
   readonly projectId: string | null;
   readonly surface?: "internal" | "job";
+  /**
+   * Whether this unit of work may see field responses that are not the caller's own.
+   *
+   * Set from `field.responses.read` by the application layer, never inferred here: `packages/db`
+   * has no idea what a permission is, and must not acquire one. Default `false`, so a caller that
+   * forgets it sees only its own rows — the safe direction (SECURITY.md §5, same shape as
+   * `app.pii_access`).
+   */
+  readonly fieldResponsesAccess?: boolean;
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -32,12 +41,14 @@ export async function withDbContext<T>(
   const tenantId = uuidOrEmpty(ctx.tenantId, "tenantId");
   const projectId = uuidOrEmpty(ctx.projectId, "projectId");
   const surface = ctx.surface ?? "internal";
+  const fieldResponses = ctx.fieldResponsesAccess === true ? "on" : "off";
   return db.transaction(async (tx) => {
     await tx.execute(
       sql`select set_config('app.user_id', ${userId}, true),
                  set_config('app.tenant_id', ${tenantId}, true),
                  set_config('app.project_id', ${projectId}, true),
-                 set_config('app.surface', ${surface}, true)`,
+                 set_config('app.surface', ${surface}, true),
+                 set_config('app.field_responses_access', ${fieldResponses}, true)`,
     );
     return fn(tx);
   });

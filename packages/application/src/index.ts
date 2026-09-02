@@ -43,6 +43,40 @@ export {
   inspectAnalysisSrid,
 } from "./gis/analysis-crs";
 export type { AnalysisCrsCheck } from "./gis/analysis-crs";
+export {
+  loadAssignmentDetail,
+  loadFieldOverview,
+  loadFieldProgress,
+  loadMyWork,
+  loadParcelVisits,
+  loadSurveyQuestions,
+} from "./field/read-models";
+export type {
+  AnswerView,
+  AssignmentDetail,
+  FieldCampaignSummary,
+  FieldOverview,
+  FieldProgressSummary,
+  MyAssignment,
+  ParcelVisitEntry,
+  SurveyQuestionView,
+  TechnicianWorkload,
+} from "./field/read-models";
+export {
+  activateCampaign,
+  completeVisit,
+  saveSurveyDraft,
+  startVisit,
+  submitSurveyInstance,
+} from "./field/use-cases";
+export type {
+  CampaignActivation,
+  InstanceResult,
+  SaveDraftInput,
+  StartVisitInput,
+  VisitResult,
+} from "./field/use-cases";
+export { readsAllFieldResponses, withFieldContext } from "./field/context";
 export { activateDatasetVersion } from "./gis/activate-dataset-version";
 export type { DatasetActivation } from "./gis/activate-dataset-version";
 export {

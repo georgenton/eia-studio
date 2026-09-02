@@ -26,8 +26,17 @@ export const PROJECT_PERMISSIONS = [
   "parcels.read",
   "parcels.write",
   "geometry.import",
+  // Field permissions are deliberately finer than one `field.*` bundle. `field.read` is the
+  // operational workflow — campaigns, assignments, progress — which a GIS or environmental
+  // specialist may legitimately see. Reading an individual person's answers is a separate,
+  // narrower grant, because "can open the project" must never imply "can read every household's
+  // responses" (SECURITY.md §10).
   "field.read",
+  "field.campaigns.manage",
+  "field.assignments.manage",
+  "field.assignments.read_own",
   "field.capture",
+  "field.responses.read",
   "field.validate",
   "field.write",
   "media.upload",

@@ -5,7 +5,7 @@ import {
   migratorDatabaseEnvSchema,
   runtimeDatabaseEnvSchema,
 } from "@eia/contracts";
-import { appSchema, createDatabase, createPool } from "@eia/db";
+import { appSchema, authSchema, createDatabase, createPool } from "@eia/db";
 import { PROJECT_ROLES, TENANT_ROLES } from "@eia/domain";
 import { betterAuth } from "better-auth";
 import { config as loadDotenv } from "dotenv";
@@ -123,13 +123,17 @@ try {
     },
   });
 
+  // The identity layer is the authority on whether an identity exists, because that is what
+  // `signUpEmail` collides with. Checking `app.user` instead was wrong in a way only a reseed
+  // reveals: `db:seed:dev` truncates the app schema and leaves `auth`, after which the two
+  // disagree and provisioning fails with "User already exists" for a user the app cannot see.
   let userId: string;
-  const existing = await migratorDb
-    .select({ id: appSchema.user.id })
-    .from(appSchema.user)
-    .where(eq(appSchema.user.email, args.email));
-  if (existing[0]) {
-    userId = existing[0].id;
+  const existingIdentity = await migratorDb
+    .select({ id: authSchema.user.id })
+    .from(authSchema.user)
+    .where(eq(authSchema.user.email, args.email));
+  if (existingIdentity[0]) {
+    userId = existingIdentity[0].id;
     console.log("identity already exists; reusing it and ensuring memberships");
   } else {
     const created = await identity.api.signUpEmail({

@@ -60,6 +60,9 @@ export const PROJECT_ROLE_PERMISSIONS: Readonly<
     "parcels.read",
     "parcels.write",
     "field.read",
+    "field.campaigns.manage",
+    "field.assignments.manage",
+    "field.responses.read",
     "field.write",
     "field.validate",
     "documents.read",
@@ -76,6 +79,9 @@ export const PROJECT_ROLE_PERMISSIONS: Readonly<
   SOCIAL_SPECIALIST: new Set<ProjectPermission>([
     "parcels.read",
     "field.read",
+    "field.assignments.manage",
+    "field.responses.read",
+    "field.validate",
     "documents.read",
     "social.read",
     "social.write",
@@ -105,14 +111,20 @@ export const PROJECT_ROLE_PERMISSIONS: Readonly<
     "quality.read",
     "provenance.read",
   ]),
+  // A technician captures. They read *their own* assignments and never browse the project's
+  // responses: `field.read` and `field.responses.read` are both absent, and the RLS policies say
+  // the same thing again at the row level.
   FIELD_TECHNICIAN: new Set<ProjectPermission>([
     "parcels.read",
+    "field.assignments.read_own",
     "field.capture",
     "media.upload",
     "provenance.read",
   ]),
   REVIEWER: new Set<ProjectPermission>([
     "documents.read",
+    "field.read",
+    "field.responses.read",
     "quality.read",
     "quality.review",
     "reports.review",

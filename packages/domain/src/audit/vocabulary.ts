@@ -14,6 +14,13 @@ export const AUDIT_ACTIONS = [
   "capability.project.changed",
   "access.owner_implicit_project",
   "access.denied",
+  // FieldFlow (Slice 3). Material workflow events only: the row records *that* a response was
+  // submitted, never what it said. Ordinary row mutations are not audited — an event store that
+  // mirrors every write is noise nobody reads.
+  "field.campaign.activated",
+  "field.assignment.reassigned",
+  "field.survey.published",
+  "field.survey.submitted",
 ] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
