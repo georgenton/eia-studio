@@ -4,14 +4,16 @@ export {
   assertProjectOverrideAllowed,
   emptyCapabilitySet,
   navigationPresentation,
+  profileCapabilityDefaults,
   requireCapability,
   resolveCapabilities,
 } from "./resolver";
 export type {
   CapabilitySet,
   NavigationPresentation,
-  ProjectCapabilitySettings,
-  ProjectCapabilityState,
+  ProjectCapabilityInput,
+  ProjectCapabilityOverrides,
+  ProjectProfileDefaults,
   ResolveInput,
   TenantCapabilitySettings,
   TenantCapabilityState,

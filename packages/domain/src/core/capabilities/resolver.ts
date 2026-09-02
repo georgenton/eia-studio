@@ -1,4 +1,5 @@
 import { FeatureDisabled } from "../errors";
+import type { ProjectProfile } from "../profiles/index";
 import { CAPABILITY_CATALOG, CAPABILITY_KEYS, type CapabilityKey } from "./catalog";
 
 /** Tenant-level state per key: entitlement (plan/contract) and the tenant toggle. */
@@ -7,13 +8,18 @@ export interface TenantCapabilityState {
   readonly enabled: boolean;
 }
 
-/** Project-level override per key: only restriction is meaningful (absence = enabled). */
-export interface ProjectCapabilityState {
-  readonly enabled: boolean;
-}
-
 export type TenantCapabilitySettings = ReadonlyMap<CapabilityKey, TenantCapabilityState>;
-export type ProjectCapabilitySettings = ReadonlyMap<CapabilityKey, ProjectCapabilityState>;
+
+/** Explicit project decision per key; may be `true` or `false`. Absent = fall through. */
+export type ProjectCapabilityOverrides = ReadonlyMap<CapabilityKey, boolean>;
+
+/** Defaults copied from the project's profile snapshot. Absent = fall through to enabled. */
+export type ProjectProfileDefaults = ReadonlyMap<CapabilityKey, boolean>;
+
+export interface ProjectCapabilityInput {
+  readonly overrides?: ProjectCapabilityOverrides | undefined;
+  readonly profileDefaults?: ProjectProfileDefaults | undefined;
+}
 
 /** Boolean effective capabilities (Gate 1 D-014). The only value authorization consults. */
 export type CapabilitySet = Readonly<Record<CapabilityKey, boolean>>;
@@ -24,25 +30,32 @@ export type NavigationPresentation = "ACTIVE" | "ANNOUNCED" | "HIDDEN";
 export interface ResolveInput {
   readonly tenant: TenantCapabilitySettings;
   /** Absent when resolving at tenant scope (Portfolio, Tenant Settings). */
-  readonly project?: ProjectCapabilitySettings | undefined;
+  readonly project?: ProjectCapabilityInput | undefined;
 }
 
+/** TENANT_ALLOWED = entitled (plan) ∧ enabled (Tenant Settings › Módulos toggle). */
 function tenantAllows(input: ResolveInput, key: CapabilityKey): boolean {
   const state = input.tenant.get(key);
   return state !== undefined && state.entitled && state.enabled;
 }
 
-function projectAllows(input: ResolveInput, key: CapabilityKey): boolean {
+/**
+ * PROJECT_EFFECTIVE_ENABLED = explicit override ?? profile default ?? enabled.
+ * A project may enable or disable a tenant-entitled capability; it can never widen beyond the
+ * product and tenant layers, because those are separate conjuncts (IG0-H02).
+ */
+function projectEffectiveEnabled(input: ResolveInput, key: CapabilityKey): boolean {
   if (!input.project) return true;
-  const state = input.project.get(key);
-  return state === undefined ? true : state.enabled;
+  const override = input.project.overrides?.get(key);
+  if (override !== undefined) return override;
+  const profileDefault = input.project.profileDefaults?.get(key);
+  if (profileDefault !== undefined) return profileDefault;
+  return true;
 }
 
 /**
- * effective(cap) = PRODUCT_AVAILABLE ∧ TENANT_ENTITLED ∧ TENANT_ENABLED ∧ PROJECT_ENABLED
+ * effective(cap) = PRODUCT_AVAILABLE ∧ TENANT_ALLOWED ∧ PROJECT_EFFECTIVE_ENABLED
  *                  ∧ ∀ d ∈ dependsOn(cap): effective(d)
- * A project override can never enable what the tenant lacks: the AND makes a corrupted row
- * harmless, and `assertProjectOverrideAllowed` rejects it at write time as well.
  */
 export function resolveCapabilities(input: ResolveInput): CapabilitySet {
   const memo = new Map<CapabilityKey, boolean>();
@@ -57,7 +70,7 @@ export function resolveCapabilities(input: ResolveInput): CapabilitySet {
     const value =
       def.productStatus === "AVAILABLE" &&
       tenantAllows(input, key) &&
-      projectAllows(input, key) &&
+      projectEffectiveEnabled(input, key) &&
       def.dependsOn.every((dep) => effective(dep));
     visiting.delete(key);
     memo.set(key, value);
@@ -69,7 +82,15 @@ export function resolveCapabilities(input: ResolveInput): CapabilitySet {
   return Object.freeze(result);
 }
 
-/** Shell-only: ANNOUNCED is shown as a non-navigable placeholder; it is disabled for authorization. */
+/** Profile snapshot → default per key (enabled list → true, disabled list → false). */
+export function profileCapabilityDefaults(profile: ProjectProfile): ProjectProfileDefaults {
+  const map = new Map<CapabilityKey, boolean>();
+  for (const key of profile.capabilities.enabled) map.set(key, true);
+  for (const key of profile.capabilities.disabled) map.set(key, false);
+  return map;
+}
+
+/** Shell-only: ANNOUNCED is a non-navigable placeholder; it is disabled for authorization. */
 export function navigationPresentation(
   key: CapabilityKey,
   capabilities: CapabilitySet,
@@ -82,7 +103,10 @@ export function navigationPresentation(
   return "HIDDEN";
 }
 
-/** Write-time guard: a project may restrict but never widen (FEATURES.md §3). */
+/**
+ * Write-time guard: a project override of `true` is rejected when the product or the tenant does
+ * not allow the capability. Setting `false` is always permitted (FEATURES.md §3).
+ */
 export function assertProjectOverrideAllowed(
   tenant: TenantCapabilitySettings,
   key: CapabilityKey,
@@ -90,7 +114,8 @@ export function assertProjectOverrideAllowed(
 ): void {
   if (!enabled) return;
   const state = tenant.get(key);
-  if (!state || !state.entitled || !state.enabled) {
+  const productAvailable = CAPABILITY_CATALOG[key].productStatus === "AVAILABLE";
+  if (!productAvailable || !state || !state.entitled || !state.enabled) {
     throw new FeatureDisabled({
       capability: key,
       whoCanEnable: CAPABILITY_CATALOG[key].whoCanEnable,
