@@ -4,7 +4,12 @@ import { defineConfig } from "drizzle-kit";
 // are hand-written custom migrations in the same ordered folder — ADR-013).
 export default defineConfig({
   dialect: "postgresql",
-  schema: ["./src/schema/app.ts", "./src/schema/auth.ts", "./src/schema/audit.ts"],
+  schema: [
+    "./src/schema/app.ts",
+    "./src/schema/auth.ts",
+    "./src/schema/audit.ts",
+    "./src/schema/gis.ts",
+  ],
   out: "./migrations",
   schemaFilter: ["app", "auth", "audit"],
   migrations: { schema: "drizzle", table: "__drizzle_migrations" },

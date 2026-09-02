@@ -64,6 +64,20 @@
       "when": 1788365837460,
       "tag": "0008_scenario_clock_on_forecast",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1788369602461,
+      "tag": "0009_gis_parcels_and_geometry",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1788369603461,
+      "tag": "0010_gis_rls_and_constraints",
+      "breakpoints": true
     }
   ]
 }
