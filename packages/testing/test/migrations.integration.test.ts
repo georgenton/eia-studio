@@ -1,4 +1,7 @@
-import { runMigrations } from "@eia/db";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
+import { MIGRATIONS_FOLDER, runMigrations } from "@eia/db";
 import { sql } from "drizzle-orm";
 import { afterAll, describe, expect, it } from "vitest";
 
@@ -6,6 +9,17 @@ import { attempt, getTestDatabase } from "../src/index";
 
 const db = getTestDatabase();
 afterAll(() => db.close());
+
+/**
+ * The number of applied migrations is read from the repository's journal rather than hardcoded:
+ * the property under test is "the database matches the migrations folder", and a literal count
+ * only re-states today's total and breaks on every future migration.
+ */
+const journalEntries = (
+  JSON.parse(readFileSync(resolve(MIGRATIONS_FOLDER, "meta/_journal.json"), "utf8")) as {
+    entries: ReadonlyArray<unknown>;
+  }
+).entries.length;
 
 describe("migrations and database foundation", () => {
   it("required extensions are available and installed", async () => {
@@ -25,7 +39,7 @@ describe("migrations and database foundation", () => {
       sql`select count(*)::int as n from drizzle.__drizzle_migrations`,
     );
     expect((after.rows[0] as { n: number }).n).toBe((before.rows[0] as { n: number }).n);
-    expect((after.rows[0] as { n: number }).n).toBe(7);
+    expect((after.rows[0] as { n: number }).n).toBe(journalEntries);
   });
 
   it("every table in app and audit has RLS enabled, forced, and at least one policy", async () => {
@@ -110,10 +124,11 @@ describe("migrations and database foundation", () => {
     expect(priv.rows[0]).toMatchObject({ upd: false, del: false, ins: true });
   });
 
-  it("schema drift: migrations folder matches the Drizzle schema (journal has 7 entries)", async () => {
+  it("every migration in the repository journal is applied to the database", async () => {
     const journal = await db.migrator.execute(
       sql`select count(*)::int as n from drizzle.__drizzle_migrations`,
     );
-    expect((journal.rows[0] as { n: number }).n).toBe(7);
+    expect((journal.rows[0] as { n: number }).n).toBe(journalEntries);
+    expect(journalEntries).toBeGreaterThanOrEqual(8);
   });
 });

@@ -56,6 +56,8 @@ const provenanceSchema = z
     sourceVersion: z.string().min(1).nullable(),
     method: z.string().min(1).nullable(),
     capturedAt: z.iso.datetime().nullable(),
+    /** When true the record's capture instant is the scenario clock, not a fixed date. */
+    $capturedAtFromScenario: z.literal(true).optional(),
     validationState: z.enum(VALIDATION_STATES),
     validationNote: z.string().min(1).nullable(),
   })
@@ -74,6 +76,17 @@ const manifestSchema = z
       })
       .strict(),
     tenantSlug: z.string().min(1),
+    /**
+     * The scenario clock (IG1-003). Every DEMO_SIMULATION value is derived from it, so a demo
+     * session in any future month shows the same figures. It never falls back to the system date.
+     */
+    demoScenario: z
+      .object({
+        $comment: z.string(),
+        scenarioDate: z.iso.date(),
+        scenarioTime: z.string().regex(/^\d{2}:\d{2}$/),
+      })
+      .strict(),
     project: z
       .object({
         slug: z.string().regex(/^[a-z0-9-]{3,40}$/),
@@ -82,6 +95,7 @@ const manifestSchema = z
         profileKey: z.string().min(1),
         profileVersion: z.string().min(1),
         lifecycle: z.enum(["planning", "field", "analysis", "review", "delivered", "closed"]),
+        demoScenarioDate: z.iso.date(),
       })
       .strict(),
     provenance: z.record(z.string(), provenanceSchema),
@@ -101,15 +115,14 @@ const manifestSchema = z
       .min(1),
     forecast: z
       .object({
+        $comment: z.string(),
         pending: z.number().int().min(0),
         dailyCompletions: z.array(z.number().int().min(0)).min(1),
         windowDays: z.number().int().min(1),
-        calculatedFrom: z.iso.date(),
         targetDate: z.iso.date(),
         activeTechnicians: z.number().int().min(0),
         assignedTechnicians: z.number().int().min(0),
         assumptions: z.array(z.string().min(1)).min(1),
-        calculatedAt: z.iso.datetime(),
         provenance: z.string().min(1),
       })
       .strict(),
@@ -130,7 +143,9 @@ const manifestSchema = z
     activity: z.array(
       z
         .object({
-          occurredAt: z.iso.datetime(),
+          /** Days from the scenario date; 0 is the scenario day, negative is earlier. */
+          dayOffset: z.number().int().max(0),
+          time: z.string().regex(/^\d{2}:\d{2}$/),
           actorLabel: z.string().min(1),
           action: z.string().min(1),
           objectLabel: z.string().min(1).nullable(),
@@ -168,6 +183,22 @@ if (!provenanceByKey.has(manifest.forecast.provenance)) {
   throw new Error("forecast names an unknown provenance record");
 }
 
+/**
+ * The scenario clock, resolved once. Nothing in this script reads the system date: every
+ * DEMO_SIMULATION instant is derived from here, which is what makes the demo reproducible.
+ */
+const scenarioInstant = new Date(
+  `${manifest.demoScenario.scenarioDate}T${manifest.demoScenario.scenarioTime}:00.000Z`,
+);
+const scenarioDay = (offsetDays: number, time: string): Date =>
+  new Date(
+    `${new Date(
+      Date.parse(`${manifest.demoScenario.scenarioDate}T00:00:00.000Z`) + offsetDays * 86_400_000,
+    )
+      .toISOString()
+      .slice(0, 10)}T${time}:00.000Z`,
+  );
+
 const pool = createPool(env.DATABASE_MIGRATOR_URL, {
   max: 1,
   applicationName: "eia-studio-seed-demo-project",
@@ -194,6 +225,7 @@ try {
         profileVersion: manifest.project.profileVersion,
         lifecycle: manifest.project.lifecycle,
         locationLabel: manifest.project.locationLabel,
+        demoScenarioDate: manifest.project.demoScenarioDate,
       })
       .onConflictDoUpdate({
         target: [appSchema.project.tenantId, appSchema.project.slug],
@@ -202,6 +234,7 @@ try {
           lifecycle: manifest.project.lifecycle,
           locationLabel: manifest.project.locationLabel,
           profileVersion: manifest.project.profileVersion,
+          demoScenarioDate: manifest.project.demoScenarioDate,
         },
       })
       .returning({ id: appSchema.project.id });
@@ -245,7 +278,11 @@ try {
         sourceReference: record.sourceReference,
         sourceVersion: record.sourceVersion,
         method: record.method,
-        capturedAt: record.capturedAt ? new Date(record.capturedAt) : null,
+        capturedAt: record.$capturedAtFromScenario
+          ? scenarioInstant
+          : record.capturedAt
+            ? new Date(record.capturedAt)
+            : null,
         validationState: record.validationState,
         validationNote: record.validationNote,
       });
@@ -275,7 +312,7 @@ try {
         dateValue: metric.dateValue ?? null,
         note: metric.note,
         displayOrder: metric.displayOrder,
-        observedAt: new Date(manifest.forecast.calculatedAt),
+        observedAt: scenarioInstant,
         provenanceId: provenanceId(metric.provenance),
       });
     }
@@ -284,7 +321,7 @@ try {
       pending: manifest.forecast.pending,
       dailyCompletions: manifest.forecast.dailyCompletions,
       windowDays: manifest.forecast.windowDays,
-      calculatedFrom: manifest.forecast.calculatedFrom,
+      calculatedFrom: manifest.demoScenario.scenarioDate,
       targetDate: manifest.forecast.targetDate,
       activeTechnicians: manifest.forecast.activeTechnicians,
       assignedTechnicians: manifest.forecast.assignedTechnicians,
@@ -307,7 +344,7 @@ try {
       projectedCloseDate: result.projectedCloseDate,
       delayDays: result.delayDays,
       assumptions: manifest.forecast.assumptions,
-      calculatedAt: new Date(manifest.forecast.calculatedAt),
+      calculatedAt: scenarioInstant,
       provenanceId: provenanceId(manifest.forecast.provenance),
     });
 
@@ -332,7 +369,7 @@ try {
         id: randomUUID(),
         tenantId,
         projectId,
-        occurredAt: new Date(event.occurredAt),
+        occurredAt: scenarioDay(event.dayOffset, event.time),
         actorLabel: event.actorLabel,
         action: event.action,
         objectLabel: event.objectLabel,
@@ -343,6 +380,7 @@ try {
     console.log(
       [
         `project "${manifest.project.slug}" seeded`,
+        `scenario ${manifest.demoScenario.scenarioDate}`,
         `${manifest.metrics.length} metrics`,
         `forecast ${result.projectedCloseDate} (delay ${result.delayDays}d, rate ${result.movingAveragePerDay}/día)`,
         `${manifest.attention.length} attention items`,

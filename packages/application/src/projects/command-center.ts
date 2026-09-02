@@ -26,6 +26,11 @@ export interface ProjectHeader {
   readonly lifecycle: string;
   /** Free-text location line of the project, e.g. "Provincia, País". */
   readonly locationLabel: string | null;
+  /**
+   * Fixed as-of date of this project's demo simulation, or null when it carries none. The UI
+   * shows it so a reader knows which scenario the operational figures belong to (IG1-003).
+   */
+  readonly demoScenarioDate: string | null;
 }
 
 export interface CommandCenterView {
@@ -66,6 +71,7 @@ export async function loadCommandCenter(
         profileVersion: appSchema.project.profileVersion,
         lifecycle: appSchema.project.lifecycle,
         locationLabel: appSchema.project.locationLabel,
+        demoScenarioDate: appSchema.project.demoScenarioDate,
       })
       .from(appSchema.project)
       .where(
@@ -204,6 +210,7 @@ export async function loadCommandCenter(
         profileVersion: projectRow.profileVersion,
         lifecycle: projectRow.lifecycle,
         locationLabel: projectRow.locationLabel,
+        demoScenarioDate: projectRow.demoScenarioDate,
       },
       metrics,
       forecast,

@@ -1,4 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { calculateForecast, FORECAST_ALGORITHM_VERSION, type ForecastInput } from "../src/index";
 
@@ -61,5 +65,52 @@ describe("operational forecast (invariant 5)", () => {
 
   it("rejects an empty observation series", () => {
     expect(() => calculateForecast({ ...BASE, dailyCompletions: [] })).toThrow();
+  });
+});
+
+/**
+ * The demo scenario clock (IG1-003). A demo shown in six months must produce the figures a
+ * reviewer approved today, so the forecast may never consult the machine's date: `calculatedFrom`
+ * is an input, and the only clock in the system is the one the fixture states.
+ */
+describe("the forecast is anchored to its inputs, never to the machine's clock", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("produces the same result whatever date the machine believes it is", () => {
+    const expected = calculateForecast({ ...BASE });
+    for (const pretendToday of [
+      "2020-01-01T00:00:00.000Z",
+      "2026-09-17T14:02:00.000Z",
+      "2027-12-31T23:59:59.000Z",
+      "2099-06-15T09:30:00.000Z",
+    ]) {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date(pretendToday));
+      expect(calculateForecast({ ...BASE }), pretendToday).toEqual(expected);
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps the same projected close date across a year boundary", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-12-31T23:59:00.000Z"));
+    const endOfYear = calculateForecast({ ...BASE });
+    vi.setSystemTime(new Date("2027-01-01T00:01:00.000Z"));
+    const newYear = calculateForecast({ ...BASE });
+    expect(endOfYear.projectedCloseDate).toBe("2026-09-22");
+    expect(newYear).toEqual(endOfYear);
+  });
+
+  it("the implementation contains no reference to the current time", () => {
+    const source = readFileSync(
+      resolve(dirname(fileURLToPath(import.meta.url)), "../src/projects/forecast.ts"),
+      "utf8",
+    );
+    // `new Date(ms)` is used to format a computed instant; `Date.now()` and a bare `new Date()`
+    // would mean the result depends on when it ran.
+    expect(source).not.toMatch(/Date\.now\(\)/);
+    expect(source).not.toMatch(/new Date\(\s*\)/);
   });
 });

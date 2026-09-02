@@ -1,0 +1,1 @@
+ALTER TABLE "app"."project" ADD COLUMN "demo_scenario_date" date;

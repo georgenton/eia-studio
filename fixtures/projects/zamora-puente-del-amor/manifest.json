@@ -23,7 +23,8 @@
     "locationLabel": "Zamora Chinchipe, Ecuador",
     "profileKey": "road_eia_social",
     "profileVersion": "1",
-    "lifecycle": "field"
+    "lifecycle": "field",
+    "demoScenarioDate": "2026-09-17"
   },
   "provenance": {
     "historicalAggregate": {
@@ -70,9 +71,10 @@
       "sourceReference": null,
       "sourceVersion": "v1",
       "method": "Generados de forma determinista para la demostración; sin ponderación ni imputación.",
-      "capturedAt": "2026-09-17T14:02:00.000Z",
+      "capturedAt": null,
       "validationState": "PENDING",
-      "validationNote": "No validado: son valores de demostración"
+      "validationNote": "No validado: son valores de demostración",
+      "$capturedAtFromScenario": true
     },
     "forecast": {
       "key": "forecast",
@@ -86,9 +88,10 @@
       "sourceReference": null,
       "sourceVersion": "operational-forecast@1",
       "method": "pendientes ÷ media móvil de 5 días de predios completados = días restantes; cierre proyectado = fecha de cálculo + días restantes",
-      "capturedAt": "2026-09-17T14:02:00.000Z",
+      "capturedAt": null,
       "validationState": "NOT_REQUIRED",
-      "validationNote": "Cálculo determinista, reproducible a mano"
+      "validationNote": "Cálculo determinista, reproducible a mano",
+      "$capturedAtFromScenario": true
     },
     "activityDemo": {
       "key": "activity-demo",
@@ -102,9 +105,10 @@
       "sourceReference": null,
       "sourceVersion": "v1",
       "method": null,
-      "capturedAt": "2026-09-17T14:02:00.000Z",
+      "capturedAt": null,
       "validationState": "PENDING",
-      "validationNote": "No validado: son valores de demostración"
+      "validationNote": "No validado: son valores de demostración",
+      "$capturedAtFromScenario": true
     }
   },
   "metrics": [
@@ -180,10 +184,10 @@
     }
   ],
   "forecast": {
+    "$comment": "calculatedFrom and calculatedAt come from demoScenario; only the inputs live here.",
     "pending": 22,
     "dailyCompletions": [4, 6, 5, 3, 7, 5, 6, 4, 6, 5],
     "windowDays": 5,
-    "calculatedFrom": "2026-09-17",
     "targetDate": "2026-09-20",
     "activeTechnicians": 3,
     "assignedTechnicians": 4,
@@ -193,7 +197,6 @@
       "sin días perdidos por lluvia",
       "un tramo con acceso solo a pie"
     ],
-    "calculatedAt": "2026-09-17T14:02:00.000Z",
     "provenance": "forecast"
   },
   "attention": [
@@ -260,46 +263,58 @@
   ],
   "activity": [
     {
-      "occurredAt": "2026-09-17T14:02:00.000Z",
+      "dayOffset": 0,
+      "time": "14:02",
       "actorLabel": "Técnico de campo 1",
       "action": "Sincronizó 12 levantamientos desde FieldFlow",
       "objectLabel": "tramo 3"
     },
     {
-      "occurredAt": "2026-09-17T12:40:00.000Z",
+      "dayOffset": 0,
+      "time": "12:40",
       "actorLabel": "Especialista social",
       "action": "Validó 18 categorías de respuestas abiertas",
       "objectLabel": "variable abierta"
     },
     {
-      "occurredAt": "2026-09-17T11:15:00.000Z",
+      "dayOffset": 0,
+      "time": "11:15",
       "actorLabel": "Sistema",
       "action": "Procesó el anexo de afectaciones",
       "objectLabel": "anexo v4"
     },
     {
-      "occurredAt": "2026-09-17T10:52:00.000Z",
+      "dayOffset": 0,
+      "time": "10:52",
       "actorLabel": "Cartógrafo",
       "action": "Corrigió la geometría de 3 predios",
       "objectLabel": "capa de predios"
     },
     {
-      "occurredAt": "2026-09-17T09:40:00.000Z",
+      "dayOffset": 0,
+      "time": "09:40",
       "actorLabel": "Sistema",
       "action": "Ejecutó revisión de calidad sobre el expediente",
       "objectLabel": "expediente"
     },
     {
-      "occurredAt": "2026-09-17T09:05:00.000Z",
+      "dayOffset": 0,
+      "time": "09:05",
       "actorLabel": "Coordinador",
       "action": "Programó 6 revisitas",
       "objectLabel": "tramo 4"
     },
     {
-      "occurredAt": "2026-09-16T08:20:00.000Z",
+      "dayOffset": -1,
+      "time": "08:20",
       "actorLabel": "Asistente de consulta",
       "action": "Cargó el acta de la cuarta asamblea",
       "objectLabel": "acta 04"
     }
-  ]
+  ],
+  "demoScenario": {
+    "$comment": "Fixed as-of date of this project's simulation. Every DEMO_SIMULATION value below is anchored to it — the forecast is calculated from it and activity events are offsets from it — so the scenario is reproducible in every future demo session and never shifts with the machine's clock. Historical observed facts keep their own capture dates and do not inherit this.",
+    "scenarioDate": "2026-09-17",
+    "scenarioTime": "14:02"
+  }
 }

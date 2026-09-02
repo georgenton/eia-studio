@@ -15,12 +15,6 @@ import {
   Columns,
   DemoBadge,
   ForecastChart,
-  formatCount,
-  formatDayCount,
-  formatDecimal,
-  formatIsoDate,
-  formatMetricValue,
-  formatTime,
   MetricCell,
   MetricStrip,
   Mono,
@@ -28,11 +22,17 @@ import {
   PanelBody,
   PanelHeader,
   ProvenanceBadge,
-  ProvenanceLink,
-  StatusChip,
   Stack,
+  StatusChip,
   SystemState,
+  formatCount,
+  formatDayCount,
+  formatDecimal,
+  formatIsoDate,
+  formatMetricValue,
+  formatTime,
 } from "@eia/ui";
+import { ProvenanceLink } from "@/components/navigation";
 
 import { projectPath } from "@/lib/navigation";
 
@@ -80,6 +80,10 @@ export function CommandCenter({
   const length = byKey.get("corridor_length_km");
   const consultation = byKey.get("consultation_participants");
   const forecast = view.forecast;
+  // The scenario clock (IG1-003): demo values belong to a fixed as-of date, never to "today".
+  const scenarioLabel = view.project.demoScenarioDate
+    ? `Escenario demo · fecha de corte: ${formatIsoDate(view.project.demoScenarioDate)}`
+    : null;
 
   return (
     <Stack gap={16}>
@@ -123,7 +127,7 @@ export function CommandCenter({
                 <dd>{view.projectRole ?? `${view.tenantRole} (acceso implícito)`}</dd>
               </div>
               <div>
-                <dt>Última actualización</dt>
+                <dt>{scenarioLabel ? "Fecha de corte del escenario" : "Última actualización"}</dt>
                 <dd>{formatIsoDate(forecast.calculatedAt.toISOString().slice(0, 10))}</dd>
               </div>
             </dl>
@@ -139,8 +143,13 @@ export function CommandCenter({
         <Panel>
           <PanelHeader
             label="Control de ejecución"
-            badge={<DemoBadge facets={stripFacets} />}
-            note="Universo, levantamientos y consulta son cifras reales del estudio; el resto son métricas operativas de demostración."
+            badge={
+              <>
+                <DemoBadge facets={stripFacets} />
+                {scenarioLabel ? <Chip tone="demo">{scenarioLabel}</Chip> : null}
+              </>
+            }
+            note="Universo, levantamientos y consulta son cifras reales del estudio; el resto son métricas operativas de demostración, fijadas a la fecha de corte del escenario."
           />
           <MetricStrip>
             {strip.map((metric) => (
@@ -288,6 +297,7 @@ export function CommandCenter({
               <PanelHeader
                 label="Actividad reciente"
                 badge={<DemoBadge facets={view.activity.map((a) => a.provenance)} label="DEMO" />}
+                note={scenarioLabel ?? undefined}
               />
               <ActivityTable
                 caption="Actividad reciente del proyecto"

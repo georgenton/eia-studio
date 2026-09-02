@@ -107,6 +107,13 @@ export const project = app.table(
     lifecycle: projectLifecycle("lifecycle").notNull().default("planning"),
     /** Free-text location line shown under the project title, e.g. "Provincia, País". */
     locationLabel: text("location_label"),
+    /**
+     * Fixed as-of date of this project's DEMO_SIMULATION values (IG1-003). It is the scenario
+     * clock: forecasts and activity of a demo dataset are anchored to it, never to the machine's
+     * current date, so the same figures appear in every future demo session. NULL for a project
+     * that carries no simulation. Historical observed facts never inherit it.
+     */
+    demoScenarioDate: date("demo_scenario_date"),
     createdAt: createdAt(),
   },
   (t) => [

@@ -50,6 +50,13 @@
       "when": 1788323436665,
       "tag": "0006_slice1_rls_and_constraints",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1788362682739,
+      "tag": "0007_demo_scenario_clock",
+      "breakpoints": true
     }
   ]
 }
