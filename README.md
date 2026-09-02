@@ -41,3 +41,32 @@ packages/contracts  zod env/DTO schemas                               packages/t
 packages/ui     design tokens, presentation mappings                  packages/config    tsconfig / eslint / prettier
 fixtures/       synthetic demo data (never imported by code)          docs/              architecture, ADRs, standards
 ```
+
+## Running the product locally
+
+```bash
+pnpm db:up                       # PostgreSQL 17 + PostGIS + pgvector
+pnpm db:migrate                  # migrator role
+pnpm db:provision-runtime-role   # RLS-enforced runtime login role
+pnpm db:seed:dev                 # synthetic demo tenant
+pnpm db:seed:demo-project        # project fixture: historical aggregates + demo operations
+
+# a synthetic account to sign in with (the password never leaves your environment)
+DEMO_USER_PASSWORD='choose-a-long-local-password' pnpm provision:identity \
+  --email coordinadora@demo.invalid --name "Coordinadora de proyecto" \
+  --tenant demo-consultancy --tenant-role MEMBER \
+  --project puente-del-amor --project-role COORDINATOR
+
+pnpm dev:web                     # http://localhost:3000
+```
+
+Public sign-up is disabled by design, so accounts are always provisioned deliberately. The
+provisioning script refuses any address outside the reserved synthetic domains and refuses to run
+with `APP_ENV=production`.
+
+### End-to-end suite
+
+```bash
+DEMO_USER_PASSWORD='choose-a-long-local-password' pnpm e2e:prepare
+DEMO_USER_PASSWORD='choose-a-long-local-password' pnpm e2e
+```

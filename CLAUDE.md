@@ -3,13 +3,18 @@
 EIA Studio is a multi-tenant B2B SaaS for environmental consulting firms: field capture, parcels,
 surveys, social analysis with human-in-the-loop AI, quality review and client reporting.
 
-**Current phase: SLICE 0 (SaaS foundation) IMPLEMENTED ON `feat/slice-0-foundation`, PENDING
-IMPLEMENTATION GATE 0.** Gate 1 conditions D-013…D-020, the delivery-alignment decisions and
-the Slice 0 GO are recorded in `docs/DECISIONS/GATE-1.md`. The foundation exists (monorepo,
-tooling, database with roles and RLS, identity boundary, tenancy core, capability resolver,
-RequestContext, audit, worker, CI). No product surfaces exist yet; Slice 1 starts only after
-Implementation Gate 0 and an explicit go. Do not deploy staging or production, and do not port
-the design prototype, until instructed.
+**Current phase: SLICE 1 (product shell, project workspace, historical Command Center)
+IMPLEMENTED ON `feat/slice-1-project-workspace`, PENDING IMPLEMENTATION GATE 1.** Slice 0 (SaaS
+foundation) and Slice 0.5 (staging foundation) are merged into `main`; Implementation Gate 0 and
+Staging Gate 0.5 are closed. Slice 1 adds the first product surfaces — sign-in, Portfolio, the
+workspace shell with capability-driven navigation, the Command Center over real historical
+aggregates and labelled demo simulation, and the reusable Data Provenance drawer — plus their
+persistence (`metric_snapshot`, `forecast_snapshot`, `provenance_record`, `provenance_input`,
+`attention_item`, `activity_event`). See `docs/SLICE_1_REPORT.md` for what was built, what was
+deliberately omitted and every deviation from the design bundle. GIS, FieldFlow, Social
+Intelligence, Quality Gate, RAG, Reports and the Client Portal are **not** implemented; their
+routes exist only as capability-guarded placeholders. Staging is live for preview only; do not
+deploy production.
 
 ## Read before acting
 
