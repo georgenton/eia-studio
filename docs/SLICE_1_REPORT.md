@@ -24,7 +24,30 @@ client, and no screen reads a hardcoded project.
 | Entry | `/` | Redirects to the single tenant, offers a choice when there are several, states the empty case. |
 | Portfolio | `/t/[tenant]` | Built. |
 | Command Center | `/t/[tenant]/p/[project]` | Built. |
-| GIS, Field, Social, Quality, Documents, Reports | `/t/[tenant]/p/[project]/[surface]` | **Capability-guarded placeholder.** Not an implementation of those modules: no module data, no module actions. `requireCapability` runs server-side, so a disabled capability yields `feature disabled` even when the URL is typed by hand. |
+| GIS, Field, Social, Quality, Documents, Reports | `/t/[tenant]/p/[project]/[surface]` | **Capability-guarded, one policy (ADR-016).** A capability the project is not entitled to answers **404**; one it *is* entitled to whose surface is unbuilt shows an inert state. Neither implements the module: no module data, no module actions. |
+
+## 2a. Capability route policy (ADR-016, IG1-001)
+
+Route behaviour follows the **effective capability** and nothing else, resolved in one place —
+`apps/web/lib/surface-access.ts`. No page re-derives the rule.
+
+| Effective capability | Surface built | Route answers |
+|---|---|---|
+| `false` (product, tenant, project, dependency, or ANNOUNCED) | — | **404**, identical to a URL that means nothing |
+| `true` | yes | the surface |
+| `true` | not yet | *"Módulo habilitado para este proyecto. La implementación aún no está disponible."* — inert: no data, no actions, no claim the workflow exists |
+
+The 404 is the point: the `feature disabled` copy names the capability key and who can enable it,
+so serving it at a route let anyone who guesses a URL read another party's configuration. That
+state keeps its place inside surfaces the user may already see and in the settings surfaces.
+Navigation presentation cannot widen any of this — an ANNOUNCED module is `effective = false`, so
+its route is 404 however the rail chooses to show it.
+
+Covered by `packages/domain/test/workspace.test.ts` (the three outcomes as a pure function),
+`packages/application/test/command-center.integration.test.ts` (the server refuses before it
+reads, including a capability the tenant switched off), and `e2e/authorization.spec.ts` (404 with
+no capability key in the body, indistinguishable from a nonsense segment; the probe endpoint
+behaves the same; the unbuilt surface answers 200 with the inert state and exactly one link).
 
 ## 3. Data model
 
@@ -42,6 +65,14 @@ Five tables in `app`, all project-scoped, all with `ENABLE` + `FORCE` RLS and po
 `metric_snapshot` is a typed measurement entity rather than a generic key/value table: the key is
 a closed PostgreSQL enum, each key has a fixed meaning, unit and value kind in
 `packages/domain/src/projects/metrics.ts`, and an invented key is rejected by the database.
+
+**It is not the analytics store (IG1-002).** It is a curated projection for one purpose: the
+figures a coordinator reads at a glance. Every module keeps its canonical model — parcels and
+affectations in `gis`, visits and answers in `field`, codings in `social`, findings in `quality` —
+and *projects* a selected output here when the Command Center needs it. Three things hold the
+boundary: the database enum, a test that pins the exact curated set and asserts module-owned
+measurements are not valid keys, and the rule written above the vocabulary. Full statement in
+`docs/DATA_MODEL.md` §3.1.
 
 ## 4. Provenance
 
@@ -79,6 +110,28 @@ block-level `DEMO / SYNTHETIC` badge on the KPI panel and a `DEMO` badge on the 
 A reviewer sees the two regimes side by side in the same strip, each with its own badge and its
 own "Ver origen" link.
 
+## 5a. The demo scenario clock (IG1-003, IG1-008)
+
+A demo shown in six months has to produce the figures approved today, so the simulation has an
+explicit clock rather than a relationship with "now":
+
+- `app.project.demo_scenario_date` is the fixed as-of date of a project's simulation, `NULL` for
+  a project that carries none;
+- the fixture states it once (`demoScenario.scenarioDate`), and **everything demo derives from
+  it**: the forecast's `calculatedFrom` and `calculatedAt`, the capture instant of the demo
+  provenance records, and the activity feed, whose events are day offsets rather than dates;
+- the UI names it where it matters — *"Escenario demo · fecha de corte: 17 sep 2026"* on the KPI
+  panel and the activity feed, and the header's "última actualización" becomes "fecha de corte del
+  escenario";
+- **historical facts do not inherit it.** An aggregate from the concluded study keeps its own
+  capture date on its own provenance record. The two clocks live in different places precisely so
+  they cannot merge.
+
+`calculateForecast` takes `calculatedFrom` as an input and never reads the system clock. Tests
+run it under four faked machine dates spanning 2020 to 2099, and across a year boundary, and
+assert identical output; a further test asserts the module's source contains no `Date.now()` or
+bare `new Date()`.
+
 ## 6. Operational forecast
 
 `pendientes ÷ media móvil de N días = días restantes`, then `cierre proyectado = fecha de cálculo
@@ -86,13 +139,14 @@ own "Ver origen" link.
 observado · sin modelo predictivo"), with the algorithm version rendered on the panel. The stored
 snapshot carries the inputs and assumptions, so the number can be recomputed by hand.
 
-**Deviation from the prototype, deliberate.** The prototype shows 22 pending at 5,2 per day and a
-*4-day* projected delay against a target 23 days away. Those figures do not follow from the
-formula the same prototype states: 22 ÷ 5,2 is five days of work, and the prototype's own
-"ritmo necesario 7,3" implies a target three days out, which gives a **2-day** delay. Invariant 5
-requires the number to be reproducible, so the implementation seeds the coherent inputs and shows
-what the algorithm computes: rate 5,2 · required 7,3 · projected 22 sep · **2 días** of delay.
-The composition, the wording and the "retraso proyectado" chip are unchanged.
+**Deviation from the prototype, accepted at Gate 1 (IG1-003).** The prototype shows 22 pending at
+5,2 per day and a *4-day* projected delay. Those figures do not follow from the formula the same
+prototype states: 22 ÷ 5,2 is five days of work, and the prototype's own "ritmo necesario 7,3"
+implies a target three days out, which gives a **2-day** delay. A visual reference may not
+override deterministic algorithm output (ARCHITECTURE.md §11a), so the implementation shows what
+the algorithm computes: rate 5,2 · required 7,3 · projected 22 sep · **2 días**. The composition,
+the wording and the "retraso proyectado" chip are unchanged. The prototype's 4 is recorded as
+reference inconsistency #10 in `docs/DESIGN_BUNDLE_KNOWN_ISSUES.md`.
 
 ## 7. Deviations from the approved design
 
@@ -103,6 +157,7 @@ The composition, the wording and the "retraso proyectado" chip are unchanged.
 | Portfolio card "HALLAZGOS 7" | **Omitted** | Quality Gate data. |
 | "Requiere atención hoy" row actions | Row navigates only when its target surface exists in this slice; otherwise it offers "Ver origen" | The design has every row navigate. Linking to a route that does not exist would be worse than saying where the item lives. |
 | Forecast projected delay | 2 days, computed | §6. |
+| `feature disabled` at a route | Replaced by 404 (ADR-016) | The state's copy discloses configuration; §2a. |
 | Command palette (⌘K) | **Not built** | It is navigation sugar over routes that mostly do not exist yet; it belongs with the surfaces it would reach. |
 | Topbar search | **Not built** | Same reason: there is nothing to search yet. |
 | Tenant Settings | Rail placeholder only | Out of scope for this slice. |
@@ -130,17 +185,30 @@ specification.
 | Provenance drawer | Matches the 420 px right drawer with overlay; content is richer than the prototype because the facets are shown as facets. |
 | Right column of the Command Center | Shorter than the reference, by §7. |
 
-## 9. Accessibility baseline
+## 9. Accessibility
 
-Semantic landmarks (`nav`, `main`, `header`), a skip link, `aria-current` on the active rail item,
-labelled form controls and switchers, visible focus rings on every interactive element, a
-`role="dialog"` drawer with `aria-modal`, focus moved to its close button on open, a Tab trap,
-Escape to close and focus returned to the invoking element, `role="progressbar"` with values on
-the progress bar, a text alternative on the forecast chart, and severity communicated by a dot
-**and** a text label rather than colour alone.
+**By construction:** semantic landmarks (`nav`, `main`, `header`), a skip link, `aria-current` on
+the active rail item, labelled form controls and switchers, visible focus rings on every
+interactive element, a `role="dialog"` drawer with `aria-modal`, focus moved to its close button
+on open, a Tab trap, Escape to close and focus returned to the invoking element,
+`role="progressbar"` with values, a text alternative on the forecast chart, and severity
+communicated by a dot **and** a text label rather than colour alone.
 
-Not done: an automated axe pass, and a full keyboard walkthrough of the switchers under a screen
-reader. Recorded as TD-022.
+**Automated (IG1-005):** `e2e/accessibility.spec.ts` runs axe over four representative states —
+sign-in, Portfolio, Command Center, and the Command Center with the drawer open — against the
+WCAG 2.1 A/AA rule sets, failing the build on `serious` and `critical` violations. It runs in CI
+in the `e2e` job.
+
+It earned its place immediately: it found a genuine contrast defect. The approved palette's
+"texto tenue" `#7A858E` is 3,77:1 on white, below AA for the 9,5 px uppercase labels the design
+uses it for. The token is now `#6B747C` (4,76:1 on white, 4,59:1 on the subtle surface used by
+table headers), the announced rail items read in it rather than in the decorative disabled grey,
+and the highlighted forecast cell reads in the technical blue. The design bundle still specifies
+the failing value, so the divergence is recorded in TD-025 for design v0.3.
+
+**What this does not claim:** axe checks a minority of WCAG criteria. A green run is a regression
+net, not evidence of conformance. No assistive-technology walkthrough has been done — that is what
+remains of TD-022.
 
 ## 10. What this slice does not do
 

@@ -3,10 +3,30 @@ import { z } from "zod";
 import type { ProvenanceFacets } from "../provenance/facets";
 
 /**
- * Closed vocabulary of project metrics the Command Center and Portfolio can display. It is an
- * enum, not free text: the database mirrors it as a PostgreSQL enum, so no caller can invent a
- * metric key. Each key has a fixed meaning, unit and value kind, which is what makes
- * `MetricSnapshot` a typed domain entity rather than a generic key/value store.
+ * Closed vocabulary of project metrics the Command Center and Portfolio can display.
+ *
+ * ## Scope invariant (IG1-002) — read before adding a key
+ *
+ * `MetricSnapshot` is **not** the analytics store of EIA Studio. It is a small, curated
+ * projection for one purpose: the handful of figures a coordinator reads at a glance on the
+ * Command Center and the Portfolio card. It exists because those figures come from several
+ * modules and need one shape, one provenance link and one read model — not because measurements
+ * in general belong in one table.
+ *
+ * Every module keeps its own canonical domain model and remains the source of truth:
+ *
+ * - `gis` — parcels, affectations, spatial dataset versions;
+ * - `field` — assignments, visits, survey instances, answers;
+ * - `social` — codings, taxonomy versions, social analytics models;
+ * - `quality` — runs, findings, specialist reviews;
+ * - `documents`, `reports` — their own entities.
+ *
+ * A module **projects** a selected output into a `MetricSnapshot` when the Command Center needs
+ * to show it. It never stores its measurements here, and analytics never reads from here.
+ * Adding a key is therefore a deliberate Command Center curation decision, taken with the
+ * question "does a coordinator need this in the ten-second glance?" — not a place to put a
+ * module's numbers. `packages/domain/test/metrics.test.ts` pins the curated set so an addition
+ * has to be conscious, and the database mirrors the list as an enum so no caller can invent one.
  *
  * Nothing here is pilot-specific: these are the measurements any linear-corridor social study
  * reports. The pilot's *values* live in `fixtures/projects/*` (CLAUDE.md rule 3).

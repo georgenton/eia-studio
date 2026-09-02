@@ -158,8 +158,15 @@ State mapping from the prototype (README "State Management"): `screen`/`tab` →
 `?prov=`); `validated` → persisted mutations (HumanReview rows).
 
 Command palette, rail and breadcrumb all resolve to these routes; the route list is generated from
-the capability catalogue so that a disabled capability has **no route** (not a 404 page: a
-`feature disabled` state rendered only when reached by direct link).
+the capability catalogue so that a disabled capability has **no route**.
+
+> **Amended by ADR-016 (Implementation Gate 1).** The original text continued "not a 404 page: a
+> `feature disabled` state rendered only when reached by direct link". That is superseded: a
+> route whose effective capability is false now answers **404**, because the `feature disabled`
+> copy names the capability key and who can enable it, which turns the router into an oracle for
+> another party's configuration. The state itself remains one of the 15; its scope narrows to
+> in-page regions and the settings surfaces. A capability that *is* effective but whose surface is
+> not built yet gets an explicit inert state, distinct from both.
 
 ## 5. Data layer
 
@@ -208,7 +215,7 @@ serverless request limits. Rules:
 | Concern | Mechanism |
 |---|---|
 | Authorization | `core/authz`: typed permission catalogue, role → permissions, `requirePermission(ctx, key, resource)`; policies for row-level checks (e.g. PII) |
-| Capabilities | `core/capabilities`: catalogue + `resolveCapabilities()`; `requireCapability(ctx, key)` in every server action/handler/job (ADR-002) |
+| Capabilities | `core/capabilities`: catalogue + `resolveCapabilities()`; `requireCapability(ctx, key)` in every server action/handler/job (ADR-002). Route outcomes follow one policy — 404 / render / inert state — in `apps/web/lib/surface-access.ts` (ADR-016) |
 | Configuration | `core/config`: zod schema registry keyed by capability; tenant defaults + project overrides; typed getters (FEATURES.md) |
 | Provenance | `provenance` module with four facets (regime, origin, transformations, granularity); UI `ProvenanceDrawer` reads one `provenance_id`; the v0.2 SOURCE TYPE badges are derived labels (ADR-005, D-013) |
 | Regime (historical/live/demo) | a facet on `ProvenanceRecord`; read models return `{value, provenance facets, provenanceId}` (PROVENANCE.md) |
@@ -306,12 +313,39 @@ The 15 states are produced by the server as typed outcomes, not improvised by co
 | error | domain/infra error with a public reference id (`ref e7c1-9a44`) and "no data lost" flag |
 | offline / syncing / offline pending sync | field sync state machine (later), Command Center reads unsynced counts and excludes them |
 | permission denied | `PermissionDenied { role, restrictedData }` from authz |
-| feature disabled | `FeatureDisabled { capability, whoCanEnable }` from capability resolution |
+| feature disabled | `FeatureDisabled { capability, whoCanEnable }` from capability resolution. Since ADR-016 this is rendered **inside** a surface the user may already see and in the settings surfaces; at a route the same condition answers 404 |
+| module not implemented | the capability is effective but the slice has not built the surface: an inert state, never module data (ADR-016) |
 | no project selected | route without project for a project-dependent surface |
 | no GIS yet / partial GIS | gis read model reports geometry coverage (`withGeometry`, `withoutGeometry`) |
 | no survey data yet | social read model reports zero validated instruments + count in review |
 | no findings | quality read model: last run timestamp + zero open findings |
 | AI unavailable / AI low confidence | `ai` port outcomes (`Unavailable`, `LowConfidence { candidates }`) |
+
+## 11a. What a visual reference may and may not decide (Implementation Gate 1)
+
+The approved design bundle is the authority on how the product looks and behaves. It is not an
+authority on what is true. Written as an implementation invariant:
+
+**A visual reference defines** composition, hierarchy, treatment, and interaction intent.
+
+**A visual reference may not override** the output of a deterministic algorithm, an authorization
+decision, provenance truth, source data, or security behaviour.
+
+When a screenshot and one of those disagree, the screenshot is a **reference inconsistency to
+record**, not a specification to satisfy. The implementation follows the computation, the
+authorization rule or the data, and the divergence is documented in
+`docs/DESIGN_BUNDLE_KNOWN_ISSUES.md` and in the slice report.
+
+The worked example is Slice 1's operational forecast. The prototype displays a 4-day projected
+delay; the same prototype states the formula (`pendientes ÷ media móvil de 5 días`) and shows the
+inputs (22 pending, 5,2 per day, required 7,3), which yield **2**. Invariant 5 requires the number
+to be reproducible by hand, so the implementation shows 2 and the prototype's 4 is recorded as a
+reference inconsistency. The composition, the wording and the "retraso proyectado" chip are
+unchanged: only the figure follows the arithmetic.
+
+The same rule decided ADR-016. The design's `feature disabled` state is a legitimate treatment;
+served at a route it disclosed configuration, so security behaviour won and the route answers 404
+while the state keeps its place inside surfaces.
 
 ## 12. Risks (summary; full list in the Gate 1 report)
 

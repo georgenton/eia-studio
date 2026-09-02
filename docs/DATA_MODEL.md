@@ -76,10 +76,47 @@ ProjectUnit { id, tenant_id, project_id, kind: 'road_segment'|'sector'|'zone'|'s
 Milestone { id, ..., key, label, state: planned|in_progress|completed, note, planned_at, completed_at, visible_in_portal: bool }
 Deliverable { id, ..., name, note, due_at, state: planned|draft|review|approved|delivered, approved_by, document_version_id?, visible_in_portal }
 ActivityEvent { id, ..., occurred_at, actor (membership or system), action_key, object_ref (typed), summary, provenance_id }
-MetricSnapshot { id, ..., metric_key, value numeric, unit, as_of, provenance_id }   // KPI values are snapshots, never ad-hoc counts in the UI; facets on the provenance record
-ForecastSnapshot { id, ..., algorithm_key: 'pending_over_moving_avg', algorithm_version, window_days, inputs jsonb (pending, daily_series, active_technicians),
-                   assumptions jsonb, result jsonb (rate_current, rate_required, projected_close_date, delay_days), computed_at, provenance_id }
+MetricSnapshot { id, ..., metric_key (enum), numeric_value | date_value, note, display_order, observed_at, provenance_id }
+ForecastSnapshot { id, ..., algorithm_version, pending, daily_completions[], window_days, moving_average_per_day, required_rate_per_day,
+                   active_technicians, assigned_technicians, target_date, projected_close_date, delay_days, assumptions[], calculated_at, provenance_id }
 ```
+
+#### MetricSnapshot is a curated projection, not the analytics store (IG1-002)
+
+This is the scope boundary of the entity, and it is an invariant rather than a preference.
+
+`MetricSnapshot` exists for one purpose: the handful of figures a coordinator reads at a glance
+on the Command Center and the Portfolio card. It is a **read model** shaped for that surface —
+one shape, one provenance link, one ordering — assembled from values that originate in several
+modules.
+
+It is **not** where measurements live. Every module keeps its own canonical model and remains
+the source of truth for its data:
+
+| Module | Canonical models |
+|---|---|
+| `gis` | Parcel, ParcelGeometry, Affectation, SpatialDatasetVersion |
+| `field` | Assignment, Visit, SurveyInstance, Answer, Media |
+| `social` | AnswerCoding, TaxonomyVersion, SocialMetric and its analytics read models |
+| `quality` | QualityRun, QualityFinding, SpecialistReview |
+| `documents`, `reports` | SourceDocument, DocumentVersion, GeneratedReport |
+
+A module **projects** a selected output into a `MetricSnapshot` when the Command Center needs to
+show it; it never stores its measurements here, and analytics never reads from here. Reports and
+the portal snapshot the figures they publish, with the provenance id, exactly as before.
+
+Three mechanisms keep the boundary from eroding:
+
+1. `metric_key` is a PostgreSQL **enum**, so a caller cannot invent a key at runtime;
+2. `packages/domain/test/metrics.test.ts` pins the exact curated set and asserts that
+   module-owned measurements (parcel area, visit duration, coding score, open findings…) are
+   *not* valid keys, so an addition has to be deliberate and reviewed;
+3. the vocabulary is declared once, in `packages/domain/src/projects/metrics.ts`, with the rule
+   written above it.
+
+The question to ask before adding a key is "does a coordinator need this in the ten-second
+glance?" — not "where can I put this number?".
+
 
 ### 3.2 Documents
 

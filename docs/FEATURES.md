@@ -91,8 +91,8 @@ catalogue status and the tenant's entitlement/toggle:
 | Presentation | Rail | Route | Invocable (URL, API, server action, job, command) | When |
 |---|---|---|---|---|
 | `ACTIVE` | shown, navigable | active | yes, because `effective = enabled` | effective = enabled |
-| `ANNOUNCED` | shown as a non-navigable placeholder ("FASE 3") | none | **no** — `effective = disabled` | product status ANNOUNCED and tenant entitled + enabled |
-| `HIDDEN` | not shown | none (direct link → `feature disabled` state) | no — `effective = disabled` | everything else |
+| `ANNOUNCED` | shown as a non-navigable placeholder ("FASE 3") | none (direct link → **404**, ADR-016) | **no** — `effective = disabled` | product status ANNOUNCED and tenant entitled + enabled |
+| `HIDDEN` | not shown | none (direct link → **404**, ADR-016) | no — `effective = disabled` | everything else |
 
 An ANNOUNCED module is **disabled** from the authorization perspective: `requireCapability`
 throws `FeatureDisabled` for it exactly as for a HIDDEN one. The presentation value never reaches
@@ -225,7 +225,7 @@ route prefix, action and job has a `requireCapability` call (a static check over
 | Point | Mechanism |
 |---|---|
 | Navigation | rail/palette generated from `CapabilitySet` (boolean) plus the shell-only presentation hint (ACTIVE/ANNOUNCED/HIDDEN); ANNOUNCED rows are never executable |
-| Routes | layout-level guard per route prefix → `feature disabled` state |
+| Routes | one policy for every workspace route (ADR-016, `apps/web/lib/surface-access.ts`): effective `false` → **404**; effective `true` and built → render; effective `true` and not built → an inert "module not implemented" state |
 | Server actions | `withContext(requireCapability(key))(handler)` wrapper |
 | Route handlers / APIs | same wrapper |
 | Jobs | `JobContext` + `requireCapability` at handler start; enqueue also checks |
