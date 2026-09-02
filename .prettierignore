@@ -10,3 +10,8 @@ docs/*.md
 CLAUDE.md
 packages/db/migrations/meta/
 .changeset/*.md
+
+# Playwright: stored sessions (generated, git-ignored, may contain a session cookie)
+e2e/.auth/
+playwright-report/
+test-results/
