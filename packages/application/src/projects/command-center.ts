@@ -9,6 +9,7 @@ import {
   type MetricKey,
   type MetricSnapshot,
   type ProjectRole,
+  type ProvenanceFacets,
   type RequestContext,
   type WorkspaceSurface,
   isWorkspaceSurface,
@@ -26,17 +27,17 @@ export interface ProjectHeader {
   readonly lifecycle: string;
   /** Free-text location line of the project, e.g. "Provincia, País". */
   readonly locationLabel: string | null;
-  /**
-   * Fixed as-of date of this project's demo simulation, or null when it carries none. The UI
-   * shows it so a reader knows which scenario the operational figures belong to (IG1-003).
-   */
-  readonly demoScenarioDate: string | null;
+}
+
+/** The forecast plus the provenance it was recorded under, so a demo can be named as one. */
+export interface CommandCenterForecast extends ForecastSnapshot {
+  readonly provenance: ProvenanceFacets;
 }
 
 export interface CommandCenterView {
   readonly project: ProjectHeader;
   readonly metrics: ReadonlyArray<MetricSnapshot>;
-  readonly forecast: ForecastSnapshot | null;
+  readonly forecast: CommandCenterForecast | null;
   readonly attention: ReadonlyArray<AttentionItem>;
   readonly activity: ReadonlyArray<ActivityEvent>;
   readonly tenantRole: string;
@@ -71,7 +72,6 @@ export async function loadCommandCenter(
         profileVersion: appSchema.project.profileVersion,
         lifecycle: appSchema.project.lifecycle,
         locationLabel: appSchema.project.locationLabel,
-        demoScenarioDate: appSchema.project.demoScenarioDate,
       })
       .from(appSchema.project)
       .where(
@@ -155,10 +155,11 @@ export async function loadCommandCenter(
     });
 
     const forecastRow = forecastRows[0];
-    const forecast: ForecastSnapshot | null = forecastRow
+    const forecast: CommandCenterForecast | null = forecastRow
       ? {
           id: forecastRow.id,
           algorithmVersion: forecastRow.algorithmVersion,
+          asOfDate: forecastRow.asOfDate,
           pending: forecastRow.pending,
           dailyCompletions: forecastRow.dailyCompletions,
           windowDays: forecastRow.windowDays,
@@ -172,6 +173,7 @@ export async function loadCommandCenter(
           assumptions: forecastRow.assumptions,
           calculatedAt: forecastRow.calculatedAt,
           provenanceId: forecastRow.provenanceId,
+          provenance: facets(forecastRow.provenanceId),
         }
       : null;
 
@@ -210,7 +212,6 @@ export async function loadCommandCenter(
         profileVersion: projectRow.profileVersion,
         lifecycle: projectRow.lifecycle,
         locationLabel: projectRow.locationLabel,
-        demoScenarioDate: projectRow.demoScenarioDate,
       },
       metrics,
       forecast,

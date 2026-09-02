@@ -60,6 +60,8 @@ beforeAll(async () => {
       projectId: w.projectX.id,
       regime: "HISTORICAL_OBSERVED",
       title: "Cifra histórica del proyecto X",
+      // A concluded study's own capture date, deliberately far from any demo scenario clock.
+      capturedAt: new Date("2024-03-05T00:00:00.000Z"),
     })
   ).id;
   provenanceZ = (
@@ -85,6 +87,7 @@ beforeAll(async () => {
     tenantId: w.tenantA.id,
     projectId: w.projectX.id,
     algorithmVersion: FORECAST_ALGORITHM_VERSION,
+    asOfDate: "2026-09-17",
     pending: 22,
     dailyCompletions: [5, 6, 4, 6, 5],
     windowDays: 5,
@@ -155,6 +158,47 @@ describe("loadCommandCenter", () => {
         projectSlug: w.projectZ.slug,
       }),
     ).rejects.toBeInstanceOf(PermissionDenied);
+  });
+});
+
+/**
+ * IG1-009. The scenario clock is a property of the simulated calculation; the project entity has
+ * no demo state at all. These assertions are what stop it drifting back.
+ */
+describe("the demo scenario clock lives with the forecast", () => {
+  it("the forecast carries its own anchor and its provenance regime", async () => {
+    const ctx = await contextFor(w.memberA, w.projectX.slug);
+    const view = await loadCommandCenter(db.runtime, ctx);
+    expect(view.forecast?.asOfDate).toBe("2026-09-17");
+    expect(view.forecast?.provenance.regime).toBeDefined();
+  });
+
+  it("the project header exposes no demo field", async () => {
+    const ctx = await contextFor(w.memberA, w.projectX.slug);
+    const view = await loadCommandCenter(db.runtime, ctx);
+    for (const key of Object.keys(view.project)) {
+      expect(key, `project.${key}`).not.toMatch(/demo|scenario|simulation/i);
+    }
+  });
+
+  it("historical metrics keep their own capture time and do not inherit the scenario", async () => {
+    const ctx = await contextFor(w.memberA, w.projectX.slug);
+    const historical = await loadProvenanceView(db.runtime, ctx, provenanceX);
+    expect(historical.facets.regime).toBe("HISTORICAL_OBSERVED");
+    // The historical record was captured long before the simulation's as-of date, and nothing in
+    // the read path rewrites it to the scenario.
+    expect(historical.capturedAt?.toISOString().slice(0, 10)).toBe("2024-03-05");
+    const view = await loadCommandCenter(db.runtime, ctx);
+    const metric = view.metrics.find((m) => m.provenanceId === provenanceX);
+    expect(metric?.provenance.regime).toBe("HISTORICAL_OBSERVED");
+  });
+
+  it("a project with no simulation needs no demo metadata anywhere", async () => {
+    // Project Y has no forecast and no metrics; the read model returns a coherent view anyway.
+    const ownerCtx = await contextFor(w.ownerA, w.projectY.slug);
+    const view = await loadCommandCenter(db.runtime, ownerCtx);
+    expect(view.forecast).toBeNull();
+    expect(view.metrics).toEqual([]);
   });
 });
 

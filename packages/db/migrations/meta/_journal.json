@@ -57,6 +57,13 @@
       "when": 1788362682739,
       "tag": "0007_demo_scenario_clock",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1788365837460,
+      "tag": "0008_scenario_clock_on_forecast",
+      "breakpoints": true
     }
   ]
 }

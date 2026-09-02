@@ -4,7 +4,12 @@ import { fileURLToPath } from "node:url";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { calculateForecast, FORECAST_ALGORITHM_VERSION, type ForecastInput } from "../src/index";
+import {
+  calculateForecast,
+  demoScenarioDate,
+  FORECAST_ALGORITHM_VERSION,
+  type ForecastInput,
+} from "../src/index";
 
 /** The pilot-shaped inputs: 22 pending at an observed 5,2 per day, three days before the target. */
 const BASE: ForecastInput = {
@@ -112,5 +117,39 @@ describe("the forecast is anchored to its inputs, never to the machine's clock",
     // would mean the result depends on when it ran.
     expect(source).not.toMatch(/Date\.now\(\)/);
     expect(source).not.toMatch(/new Date\(\s*\)/);
+  });
+});
+
+/**
+ * Where the demo scenario clock lives (IG1-009). It is a property of the simulated calculation,
+ * not of the project: a Project is a real consulting engagement and must not carry demonstration
+ * state. The rule is one function over the forecast's own anchor and its provenance regime.
+ */
+describe("demo scenario clock", () => {
+  const forecast = { asOfDate: "2026-09-17" };
+
+  it("names the as-of date of a simulated forecast", () => {
+    expect(
+      demoScenarioDate(forecast, {
+        regime: "DEMO_SIMULATION",
+        origin: "SYSTEM_GENERATED",
+        transformations: ["ORIGINAL", "DERIVED"],
+        granularity: "AGGREGATE",
+      }),
+    ).toBe("2026-09-17");
+  });
+
+  it("is absent for a real forecast, so a live project needs no demo metadata", () => {
+    for (const regime of ["LIVE_OPERATIONAL", "HISTORICAL_OBSERVED"] as const) {
+      expect(
+        demoScenarioDate(forecast, {
+          regime,
+          origin: "FIELD_CAPTURE",
+          transformations: ["ORIGINAL"],
+          granularity: "AGGREGATE",
+        }),
+        regime,
+      ).toBeNull();
+    }
   });
 });

@@ -65,6 +65,30 @@ describe("migrations and database foundation", () => {
     }
   });
 
+  /**
+   * IG1-009: `Project` is a canonical EIA Studio entity and must not carry demonstration state.
+   * The simulation's as-of date lives with the calculation it anchors, on `forecast_snapshot`.
+   */
+  it("app.project carries no demo-specific column", async () => {
+    const result = await db.migrator.execute(sql`
+      select column_name from information_schema.columns
+      where table_schema = 'app' and table_name = 'project'
+      order by column_name
+    `);
+    const columns = (result.rows as Array<{ column_name: string }>).map((r) => r.column_name);
+    expect(columns).not.toContain("demo_scenario_date");
+    for (const column of columns) {
+      expect(column, `app.project.${column}`).not.toMatch(/demo|scenario|simulation/i);
+    }
+    // …and the anchor is on the forecast, where a simulated calculation can own it.
+    const forecast = await db.migrator.execute(sql`
+      select column_name, is_nullable from information_schema.columns
+      where table_schema = 'app' and table_name = 'forecast_snapshot' and column_name = 'as_of_date'
+    `);
+    expect(forecast.rows).toHaveLength(1);
+    expect((forecast.rows[0] as { is_nullable: string }).is_nullable).toBe("NO");
+  });
+
   it("roles follow least privilege (ADR-004)", async () => {
     const result = await db.migrator.execute(sql`
       select rolname, rolsuper, rolbypassrls, rolcanlogin, rolcreatedb, rolcreaterole

@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import type { ProvenanceFacets } from "../provenance/facets";
+
 /**
  * Operational forecast (invariant 5). Deterministic arithmetic over the observed rate:
  *
@@ -94,6 +96,15 @@ export function calculateForecast(rawInput: ForecastInput): ForecastResult {
 export interface ForecastSnapshot {
   readonly id: string;
   readonly algorithmVersion: string;
+  /**
+   * The date the calculation is anchored to — `calculatedFrom` above, persisted so the input
+   * snapshot is complete and the result can be recomputed from the row alone.
+   *
+   * For a `DEMO_SIMULATION` forecast this date *is* the demo scenario clock (IG1-009). The
+   * scenario has no other home and needs none: it is a property of the simulated calculation,
+   * not of the project, which is a real EIA Studio entity that knows nothing about demos.
+   */
+  readonly asOfDate: string;
   readonly pending: number;
   readonly dailyCompletions: ReadonlyArray<number>;
   readonly windowDays: number;
@@ -107,4 +118,17 @@ export interface ForecastSnapshot {
   readonly assumptions: ReadonlyArray<string>;
   readonly calculatedAt: Date;
   readonly provenanceId: string;
+}
+
+/**
+ * The fixed as-of date of a demo simulation, or `null` when the forecast is a real one.
+ *
+ * There is no scenario subsystem and no scenario table: a demo forecast's anchor already *is*
+ * the clock, and its provenance already says the regime. This is the whole rule.
+ */
+export function demoScenarioDate(
+  forecast: Pick<ForecastSnapshot, "asOfDate">,
+  provenance: ProvenanceFacets,
+): string | null {
+  return provenance.regime === "DEMO_SIMULATION" ? forecast.asOfDate : null;
 }

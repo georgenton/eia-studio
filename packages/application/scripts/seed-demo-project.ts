@@ -78,7 +78,11 @@ const manifestSchema = z
     tenantSlug: z.string().min(1),
     /**
      * The scenario clock (IG1-003). Every DEMO_SIMULATION value is derived from it, so a demo
-     * session in any future month shows the same figures. It never falls back to the system date.
+     * session in any future month shows the same figures, and it never falls back to the system
+     * date. It is fixture metadata: the loader turns it into persisted timestamps on the derived
+     * rows — the forecast's `as_of_date` and `calculated_at`, the activity feed's `occurred_at`,
+     * the capture instant of the demo provenance records — and nothing keeps it on `project`
+     * (IG1-009).
      */
     demoScenario: z
       .object({
@@ -95,7 +99,6 @@ const manifestSchema = z
         profileKey: z.string().min(1),
         profileVersion: z.string().min(1),
         lifecycle: z.enum(["planning", "field", "analysis", "review", "delivered", "closed"]),
-        demoScenarioDate: z.iso.date(),
       })
       .strict(),
     provenance: z.record(z.string(), provenanceSchema),
@@ -225,7 +228,6 @@ try {
         profileVersion: manifest.project.profileVersion,
         lifecycle: manifest.project.lifecycle,
         locationLabel: manifest.project.locationLabel,
-        demoScenarioDate: manifest.project.demoScenarioDate,
       })
       .onConflictDoUpdate({
         target: [appSchema.project.tenantId, appSchema.project.slug],
@@ -234,7 +236,6 @@ try {
           lifecycle: manifest.project.lifecycle,
           locationLabel: manifest.project.locationLabel,
           profileVersion: manifest.project.profileVersion,
-          demoScenarioDate: manifest.project.demoScenarioDate,
         },
       })
       .returning({ id: appSchema.project.id });
@@ -332,6 +333,8 @@ try {
       tenantId,
       projectId,
       algorithmVersion: FORECAST_ALGORITHM_VERSION,
+      // The scenario clock is persisted here, with the calculation it anchors (IG1-009).
+      asOfDate: manifest.demoScenario.scenarioDate,
       pending: manifest.forecast.pending,
       dailyCompletions: manifest.forecast.dailyCompletions,
       windowDays: manifest.forecast.windowDays,

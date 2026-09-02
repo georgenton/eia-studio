@@ -77,9 +77,33 @@ Milestone { id, ..., key, label, state: planned|in_progress|completed, note, pla
 Deliverable { id, ..., name, note, due_at, state: planned|draft|review|approved|delivered, approved_by, document_version_id?, visible_in_portal }
 ActivityEvent { id, ..., occurred_at, actor (membership or system), action_key, object_ref (typed), summary, provenance_id }
 MetricSnapshot { id, ..., metric_key (enum), numeric_value | date_value, note, display_order, observed_at, provenance_id }
-ForecastSnapshot { id, ..., algorithm_version, pending, daily_completions[], window_days, moving_average_per_day, required_rate_per_day,
-                   active_technicians, assigned_technicians, target_date, projected_close_date, delay_days, assumptions[], calculated_at, provenance_id }
+ForecastSnapshot { id, ..., algorithm_version, as_of_date, pending, daily_completions[], window_days, moving_average_per_day,
+                   required_rate_per_day, active_technicians, assigned_technicians, target_date, projected_close_date, delay_days,
+                   assumptions[], calculated_at, provenance_id }
 ```
+
+#### Where a demo simulation's clock lives (IG1-009)
+
+A demo dataset needs a fixed as-of date, or its figures drift with the machine's calendar and a
+reviewer sees different numbers each session. That date is **not** a property of `Project`.
+
+`Project` is a real consulting engagement. Putting `demo_scenario_date` on it would have leaked a
+demonstration concern into the canonical entity every module builds on, and every future project —
+including real ones — would have carried a column that means nothing to them.
+
+The date belongs to the calculation it anchors, so it is `ForecastSnapshot.as_of_date`: the
+`calculatedFrom` input, persisted so the result can be recomputed from the row alone. For a
+`DEMO_SIMULATION` forecast that anchor *is* the scenario clock, and the regime on its provenance
+record already says which kind it is. `demoScenarioDate(forecast, provenance)` is the whole rule.
+
+The other demo instants are persisted on the rows that own them — `activity_event.occurred_at`,
+the `captured_at` of the demo provenance records — derived at seed time from the fixture's
+`demoScenario.scenarioDate`, which stays fixture metadata and reaches no table.
+
+There is no `Scenario` entity, no scenario table and no scenario subsystem: one field, on the row
+that already needed it. Historical observed values are untouched and keep their own capture dates
+on their own provenance records; the two clocks live in different places precisely so they cannot
+merge by accident.
 
 #### MetricSnapshot is a curated projection, not the analytics store (IG1-002)
 

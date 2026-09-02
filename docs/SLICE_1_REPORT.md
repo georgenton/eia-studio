@@ -115,14 +115,18 @@ own "Ver origen" link.
 A demo shown in six months has to produce the figures approved today, so the simulation has an
 explicit clock rather than a relationship with "now":
 
-- `app.project.demo_scenario_date` is the fixed as-of date of a project's simulation, `NULL` for
-  a project that carries none;
-- the fixture states it once (`demoScenario.scenarioDate`), and **everything demo derives from
-  it**: the forecast's `calculatedFrom` and `calculatedAt`, the capture instant of the demo
-  provenance records, and the activity feed, whose events are day offsets rather than dates;
+- the clock lives on the calculation it anchors — `forecast_snapshot.as_of_date` — and **not** on
+  `Project`, which is a real consulting engagement and carries no demonstration state (IG1-009).
+  A demo forecast's anchor *is* the scenario; its provenance regime says which kind it is, and
+  `demoScenarioDate(forecast, provenance)` is the whole rule. There is no scenario table and no
+  scenario subsystem;
+- the fixture states it once (`demoScenario.scenarioDate`) and it stays fixture metadata: at seed
+  time it becomes persisted timestamps on the rows that own them — the forecast's `as_of_date` and
+  `calculated_at`, the activity feed's `occurred_at`, and the capture instant of the demo
+  provenance records, whose events are day offsets rather than dates;
 - the UI names it where it matters — *"Escenario demo · fecha de corte: 17 sep 2026"* on the KPI
   panel and the activity feed, and the header's "última actualización" becomes "fecha de corte del
-  escenario";
+  escenario". The value is read from the simulated forecast, never from the project;
 - **historical facts do not inherit it.** An aggregate from the concluded study keeps its own
   capture date on its own provenance record. The two clocks live in different places precisely so
   they cannot merge.
@@ -131,6 +135,13 @@ explicit clock rather than a relationship with "now":
 run it under four faked machine dates spanning 2020 to 2099, and across a year boundary, and
 assert identical output; a further test asserts the module's source contains no `Date.now()` or
 bare `new Date()`.
+
+Five further assertions pin the arrangement: `app.project` has no column matching
+`demo|scenario|simulation` and `forecast_snapshot.as_of_date` is `NOT NULL`; the project header
+read model exposes no such field; a historical metric keeps its own capture date (2024) rather
+than inheriting the scenario (2026); a project with no simulation returns a coherent view with a
+null forecast; and `demoScenarioDate` returns null for a `LIVE_OPERATIONAL` or
+`HISTORICAL_OBSERVED` forecast, so a real project never needs demo metadata.
 
 ## 6. Operational forecast
 

@@ -119,22 +119,6 @@ export function surfaceForSegment(segment: string): SurfaceDefinition | null {
   return null;
 }
 
-/**
- * Fixed as-of date of a project's demo simulation (IG1-003). Operational values of a
- * DEMO_SIMULATION dataset — the forecast, the activity feed, "pending today" — are anchored to
- * this date rather than to the machine's clock, so the same scenario yields the same figures in
- * every future session. `null` means the project carries no simulation.
- *
- * Historical observed facts do **not** inherit it: an aggregate from a concluded study keeps its
- * own capture date, which is why the two live in different places (the fact's provenance record,
- * versus the project's scenario clock).
- */
-export interface DemoScenarioClock {
-  readonly scenarioDate: string;
-  /** Copy for the badge, e.g. "Escenario demo · fecha de corte: 17 sep 2026". */
-  readonly label: string;
-}
-
 /** Severity of an item in "Requiere atención hoy"; always rendered with a label, not colour alone. */
 export const ATTENTION_SEVERITIES = ["high", "medium", "low"] as const;
 export const attentionSeveritySchema = z.enum(ATTENTION_SEVERITIES);

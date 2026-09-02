@@ -1,6 +1,7 @@
 import type { CommandCenterView } from "@eia/application";
 import {
   ATTENTION_SEVERITY_LABEL,
+  demoScenarioDate,
   SURFACE_DEFINITIONS,
   type MetricKey,
   type MetricSnapshot,
@@ -80,9 +81,12 @@ export function CommandCenter({
   const length = byKey.get("corridor_length_km");
   const consultation = byKey.get("consultation_participants");
   const forecast = view.forecast;
-  // The scenario clock (IG1-003): demo values belong to a fixed as-of date, never to "today".
-  const scenarioLabel = view.project.demoScenarioDate
-    ? `Escenario demo · fecha de corte: ${formatIsoDate(view.project.demoScenarioDate)}`
+  // The scenario clock (IG1-003, IG1-009): demo values belong to a fixed as-of date, never to
+  // "today". It comes from the simulated forecast that is anchored to it — the project entity
+  // carries no demo state.
+  const scenarioDate = forecast ? demoScenarioDate(forecast, forecast.provenance) : null;
+  const scenarioLabel = scenarioDate
+    ? `Escenario demo · fecha de corte: ${formatIsoDate(scenarioDate)}`
     : null;
 
   return (

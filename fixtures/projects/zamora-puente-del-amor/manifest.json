@@ -23,8 +23,7 @@
     "locationLabel": "Zamora Chinchipe, Ecuador",
     "profileKey": "road_eia_social",
     "profileVersion": "1",
-    "lifecycle": "field",
-    "demoScenarioDate": "2026-09-17"
+    "lifecycle": "field"
   },
   "provenance": {
     "historicalAggregate": {
@@ -313,7 +312,7 @@
     }
   ],
   "demoScenario": {
-    "$comment": "Fixed as-of date of this project's simulation. Every DEMO_SIMULATION value below is anchored to it — the forecast is calculated from it and activity events are offsets from it — so the scenario is reproducible in every future demo session and never shifts with the machine's clock. Historical observed facts keep their own capture dates and do not inherit this.",
+    "$comment": "Fixed as-of date of this project's simulation, and the single source of every DEMO_SIMULATION instant below: the loader derives the forecast's as_of_date and calculated_at, the activity feed's occurred_at and the capture instant of the demo provenance records from it. It is fixture metadata and is never stored on the project — a Project is a real engagement and knows nothing about demos (IG1-009). Historical observed facts keep their own capture dates and do not inherit this.",
     "scenarioDate": "2026-09-17",
     "scenarioTime": "14:02"
   }

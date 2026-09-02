@@ -107,13 +107,6 @@ export const project = app.table(
     lifecycle: projectLifecycle("lifecycle").notNull().default("planning"),
     /** Free-text location line shown under the project title, e.g. "Provincia, País". */
     locationLabel: text("location_label"),
-    /**
-     * Fixed as-of date of this project's DEMO_SIMULATION values (IG1-003). It is the scenario
-     * clock: forecasts and activity of a demo dataset are anchored to it, never to the machine's
-     * current date, so the same figures appear in every future demo session. NULL for a project
-     * that carries no simulation. Historical observed facts never inherit it.
-     */
-    demoScenarioDate: date("demo_scenario_date"),
     createdAt: createdAt(),
   },
   (t) => [
@@ -357,6 +350,13 @@ export const forecastSnapshot = app.table(
     tenantId: uuid("tenant_id").notNull(),
     projectId: uuid("project_id").notNull(),
     algorithmVersion: text("algorithm_version").notNull(),
+    /**
+     * The date the calculation is anchored to, completing the input snapshot: with it the result
+     * can be recomputed from this row alone. For a DEMO_SIMULATION forecast it is also the demo
+     * scenario clock (IG1-009) — the simulation's as-of date lives with the simulated
+     * calculation, never on `project`, which is a real entity that knows nothing about demos.
+     */
+    asOfDate: date("as_of_date").notNull(),
     pending: integer("pending").notNull(),
     dailyCompletions: integer("daily_completions").array().notNull(),
     windowDays: integer("window_days").notNull(),

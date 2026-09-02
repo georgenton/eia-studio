@@ -185,6 +185,7 @@ export async function createProvenanceRecord(
     projectId: string;
     regime?: "HISTORICAL_OBSERVED" | "LIVE_OPERATIONAL" | "DEMO_SIMULATION";
     title?: string;
+    capturedAt?: Date;
   },
 ): Promise<{ id: string }> {
   const id = randomUUID();
@@ -198,6 +199,7 @@ export async function createProvenanceRecord(
     granularity: "AGGREGATE",
     title: input.title ?? `Provenance ${next()}`,
     note: "Factory record for isolation tests.",
+    capturedAt: input.capturedAt ?? null,
     validationState: "PENDING",
   });
   return { id };
