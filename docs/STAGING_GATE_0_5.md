@@ -111,6 +111,68 @@ That run covers, on the real provider:
 environment.** The only environmental differences are the PostgreSQL patch version (17.6 in both),
 TLS being exercised in staging, and connections traversing Railway's TCP proxy.
 
+## 4a. Worker validation (Railway)
+
+Service `worker`, Railpack build of the workspace, deployed to the `staging` environment.
+Observed in the deployment logs, with `pid: 1` on every line:
+
+```
+worker starting              version=0.0.0 healthPort=8080
+database reachable with RLS-enforced role   role=eia_app_login
+readiness check passed       check=database
+worker running               healthPort=8080
+heartbeat                    pending=0 uptimeSeconds=15 … (every 15s)
+worker stopping              reason="signal SIGTERM" timeoutMs=10000
+worker stopped               reason="signal SIGTERM" uptimeSeconds=352
+Stopping Container
+```
+
+| Check (Part G) | Result |
+|---|---|
+| Correct monorepo root | PASS — repository root; build filters to `@eia/worker` |
+| Build command | PASS — `pnpm install --frozen-lockfile && pnpm --filter @eia/worker build` |
+| Start command | PASS — `node apps/worker/dist/main.js` |
+| Node 24 | PASS — resolved from `engines.node` / `.nvmrc` |
+| Environment validation | PASS — the process validates its configuration at startup and exits 1 on invalid input; it started only after the schema parsed |
+| Database readiness with the RLS-enforced role | PASS — connects as `eia_app_login` over Railway's private network and refuses to start if the role can bypass RLS |
+| Health mechanism | PASS — `/health` on port 8080; Railway's healthcheck gates the deployment, which reached SUCCESS |
+| Graceful SIGTERM | PASS — see the log excerpt above; the process drains and exits before the container stops |
+| Restart behaviour | Configured `ON_FAILURE`, max 5 retries; not exercised (no crash occurred) |
+
+**Finding: the worker must run Node as PID 1.** The first working deployment used
+`pnpm --filter @eia/worker start` as the container command. On SIGTERM the shutdown handler never
+ran and the deployment logged
+`ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL @eia/worker start: node dist/main.js`, i.e. a non-zero exit
+from a killed child. Replacing the command with `node apps/worker/dist/main.js` produced the clean
+shutdown shown above. `railway.toml` carries the fix and the reason.
+
+## 4b. Web application (Vercel)
+
+| Item | Value |
+|---|---|
+| Project | `eia-studio-web` (`prj_kPETrPyPEFHPK1ZPbl6Wgg0D2BsK`) |
+| Root directory | `apps/web` |
+| Node | 24.x |
+| Install / build | `pnpm install --frozen-lockfile` / `pnpm --filter @eia/web build` |
+| Git integration | connected to `georgenton/eia-studio`, production branch `main` |
+| Preview deployment | `https://eia-studio-58q5n2k96-georgentons-projects.vercel.app` (target `preview`, commit `dc8aef4`) |
+| `/health` | `200` → `{"status":"ok","service":"web","version":"0.0.0","gitSha":"dc8aef4e…"}` |
+| Foundation page | `200`, renders "Plataforma en construcción" with `env preview` |
+| Deployment protection | Vercel SSO on all deployment URLs (restored after the check; an unauthenticated request returns `302`) |
+
+Environment validation was exercised implicitly: the page and `/health` render only after
+`getEnv()` parses `APP_ENV`, `DATABASE_URL`, `BETTER_AUTH_SECRET` and the derived origin. Better
+Auth runs in preview mode with `BETTER_AUTH_URL` taken from Vercel's per-deployment hostname.
+
+**Finding: Vercel promoted the first deployment of the new project to `production`**, from branch
+`chore/staging-foundation`, even though the project's production branch is `main` and the API
+request asked for a preview (the API also rejects `target: "preview"`; a preview is requested by
+omitting `target`). The instruction for this slice was to deploy no production. Remediation
+applied: both production-target deployments were **deleted**, the production alias
+`eia-studio-web.vercel.app` now returns `404`, and the project holds exactly one deployment, of
+target `preview`. Before any future deployment of this project, expect Vercel to promote the first
+one again if the project's deployment history is ever emptied.
+
 ## 5. Operational findings (Railway)
 
 | Topic | Observed |
