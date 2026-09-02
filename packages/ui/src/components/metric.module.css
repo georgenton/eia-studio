@@ -1,0 +1,89 @@
+.strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(122px, 1fr));
+  gap: 1px;
+  background: var(--eia-hairline);
+}
+.cell {
+  background: var(--eia-surface);
+  padding: 13px 14px 15px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.cellLabel {
+  font-size: var(--eia-size-label);
+  font-weight: 600;
+  letter-spacing: var(--eia-tracking-label);
+  text-transform: uppercase;
+  color: var(--eia-text-muted);
+  line-height: 14px;
+}
+.value {
+  font-family: var(--eia-font-serif);
+  font-size: 25px;
+  font-weight: 600;
+  line-height: 32px;
+  letter-spacing: -0.01em;
+}
+.figureValue {
+  font-family: var(--eia-font-serif);
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 26px;
+}
+.default {
+  color: var(--eia-ink);
+}
+.warn {
+  color: var(--eia-warn-text);
+}
+.crit {
+  color: var(--eia-crit-text);
+}
+.note {
+  font-size: 10.5px;
+  color: var(--eia-text-muted);
+  line-height: 15px;
+}
+.provenance {
+  margin-top: 2px;
+  font-size: 11px;
+}
+.figure {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.progressWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.progressHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.progressLabel {
+  font-size: 11.5px;
+  color: var(--eia-text-secondary);
+}
+.progressValue {
+  font-family: var(--eia-font-mono);
+  font-size: var(--eia-size-mono);
+  color: var(--eia-ink);
+}
+.progressTrack {
+  height: 7px;
+  background: var(--eia-hairline);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.progressFill {
+  height: 100%;
+  background: var(--eia-accent);
+}

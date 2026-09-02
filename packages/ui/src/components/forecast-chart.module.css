@@ -1,0 +1,24 @@
+.figure {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.svg {
+  width: 100%;
+  height: 88px;
+  display: block;
+}
+.bar {
+  fill: #b8cbd6;
+}
+.barActive {
+  fill: var(--eia-accent);
+}
+.caption {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--eia-font-mono);
+  font-size: 10px;
+  color: var(--eia-text-muted);
+}

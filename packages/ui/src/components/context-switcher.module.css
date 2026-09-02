@@ -1,0 +1,37 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 10px 12px 0;
+}
+.label {
+  font-size: var(--eia-size-label);
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--eia-text-muted);
+}
+.select {
+  font-family: inherit;
+  font-size: 12px;
+  color: var(--eia-ink);
+  background: var(--eia-surface);
+  border: 1px solid var(--eia-border);
+  border-radius: var(--eia-radius-chip);
+  padding: 7px 9px;
+  width: 100%;
+}
+.select:focus-visible {
+  outline: 2px solid var(--eia-accent);
+  outline-offset: 1px;
+}
+.select:disabled {
+  color: var(--eia-text-disabled);
+}
+.empty {
+  font-size: 12px;
+  color: var(--eia-text-disabled);
+  border: 1px dashed var(--eia-border-strong);
+  border-radius: var(--eia-radius-chip);
+  padding: 7px 9px;
+}

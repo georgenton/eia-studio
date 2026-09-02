@@ -1,0 +1,90 @@
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.item,
+.announced {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: var(--eia-radius-chip);
+  font-size: 12.5px;
+  color: var(--eia-ink);
+  text-decoration: none;
+}
+.item:hover {
+  background: #f4f6f7;
+  text-decoration: none;
+  color: var(--eia-ink);
+}
+.item:focus-visible,
+.announced:focus-visible {
+  outline: 2px solid var(--eia-accent);
+  outline-offset: 1px;
+}
+.active {
+  background: var(--eia-accent-soft);
+  color: var(--eia-accent);
+  font-weight: 600;
+}
+.announced {
+  color: var(--eia-text-disabled);
+  cursor: default;
+}
+.badge {
+  margin-left: auto;
+  font-family: var(--eia-font-mono);
+  font-size: 10.5px;
+  color: var(--eia-text-muted);
+}
+.phase {
+  margin-left: auto;
+  font-family: var(--eia-font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  color: var(--eia-text-disabled);
+}
+.external {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--eia-text-muted);
+}
+.breadcrumb {
+  min-width: 0;
+}
+.breadcrumbList {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  font-size: 12px;
+  color: var(--eia-text-secondary);
+}
+.breadcrumbItem {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.separator {
+  color: var(--eia-text-disabled);
+}
+.breadcrumbLink {
+  color: var(--eia-text-secondary);
+}
+.breadcrumbCurrent {
+  color: var(--eia-ink);
+  font-weight: 600;
+}
+.provenanceLink {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--eia-accent);
+}

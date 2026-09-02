@@ -31,9 +31,11 @@
   --eia-text-disabled: #a6aeb4;
   --eia-demo: #8a6512;
 
-  --eia-font-serif: "Source Serif 4", Georgia, "Times New Roman", serif;
-  --eia-font-sans: "Archivo", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --eia-font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  /* The `*-loaded` variables are set by the host app when it self-hosts the approved families;
+     the stacks below are the fallback so tokens work without a font loader. */
+  --eia-font-serif: var(--eia-font-serif-loaded), "Source Serif 4", Georgia, serif;
+  --eia-font-sans: var(--eia-font-sans-loaded), "Archivo", system-ui, -apple-system, sans-serif;
+  --eia-font-mono: var(--eia-font-mono-loaded), "JetBrains Mono", ui-monospace, Menlo, monospace;
 
   --eia-size-display: 38px;
   --eia-size-title-screen: 26px;
