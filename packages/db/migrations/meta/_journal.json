@@ -29,6 +29,13 @@
       "when": 1788297956968,
       "tag": "0003_auth_account_issuer",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1788297957968,
+      "tag": "0004_security_definer_hardening",
+      "breakpoints": true
     }
   ]
 }

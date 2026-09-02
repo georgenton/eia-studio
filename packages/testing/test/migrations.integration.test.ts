@@ -25,7 +25,7 @@ describe("migrations and database foundation", () => {
       sql`select count(*)::int as n from drizzle.__drizzle_migrations`,
     );
     expect((after.rows[0] as { n: number }).n).toBe((before.rows[0] as { n: number }).n);
-    expect((after.rows[0] as { n: number }).n).toBe(4);
+    expect((after.rows[0] as { n: number }).n).toBe(5);
   });
 
   it("every table in app and audit has RLS enabled, forced, and at least one policy", async () => {
@@ -110,10 +110,10 @@ describe("migrations and database foundation", () => {
     expect(priv.rows[0]).toMatchObject({ upd: false, del: false, ins: true });
   });
 
-  it("schema drift: migrations folder matches the Drizzle schema (journal has 4 entries)", async () => {
+  it("schema drift: migrations folder matches the Drizzle schema (journal has 5 entries)", async () => {
     const journal = await db.migrator.execute(
       sql`select count(*)::int as n from drizzle.__drizzle_migrations`,
     );
-    expect((journal.rows[0] as { n: number }).n).toBe(4);
+    expect((journal.rows[0] as { n: number }).n).toBe(5);
   });
 });
