@@ -64,11 +64,27 @@ project outside zone 17S could not have been stored at all.
 | Source — what a dataset version arrived in | `spatial_dataset_version.source_srid` | per dataset |
 | Analysis — where metres are computed | `spatial_dataset_version.analysis_srid` | per dataset |
 
-`analysis_srid` must be projected; a CHECK rejects the geographic 4xxx block. The pilot's `32717`
-lives in the project fixture as a `DEMO_ASSUMPTION` and appears nowhere in `packages/domain` — a
-unit test fails if it comes back. Migration `0011` is forward-only: it reprojects the columns with
-`USING ST_Transform(geom, 4326)` and backfills the two SRIDs; `0009` and `0010`, already applied to
-staging, are not rewritten.
+**An SRID numeric value is never used to infer CRS type.** The first attempt at this rule rejected
+the 4xxx block as geographic, which refuses `EPSG:4087` (projected, metres) and accepts `EPSG:6318`
+(geographic, degrees) — under which every stored area would silently be square degrees. Validation
+now reads the CRS definition from `spatial_ref_sys`: registered (any authority, custom SRS
+included), `PROJCS`/`PROJCRS`, a metre linear unit with factor 1, and `ST_Transform` able to build a
+transform. `source_srid` need only be registered, since a package delivered in a geographic CRS is
+normal.
+
+The contract is **projected + metre-based**, because the stored columns are metres and square
+metres; a projected CRS in feet is refused rather than reinterpreted, and non-metric support is
+future work only if a real project needs it.
+
+**Measurement ownership**: the alignment's CRS measures the corridor and every chainage along it;
+each parcel's and affectation's own dataset measures its area. A test gives an alignment and a
+parcel layer different valid metric CRS — 11 107,7 m against 11 131,9 m for the same line — and
+asserts the chainage follows the alignment's.
+
+The pilot's `32717` lives in the project fixture as a `DEMO_ASSUMPTION` and appears nowhere in
+`packages/domain` — a unit test fails if it comes back. Migrations `0011` (reproject, backfill the
+SRIDs) and `0012` (drop the numeric CHECKs, add the catalogue-backed predicates and trigger) are
+forward-only; `0009`–`0011`, already applied to staging, are not rewritten.
 
 ## 3b. Chainage (IG2-003)
 

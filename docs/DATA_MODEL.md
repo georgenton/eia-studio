@@ -212,8 +212,25 @@ geometry into the dataset's analysis CRS:
 ST_Area(ST_Transform(geom, analysis_srid))
 ```
 
-`analysis_srid` must be **projected** — a CHECK rejects the geographic 4xxx block, because an area
-computed there is square degrees. Both SRIDs are bounded to the published EPSG range.
+**An SRID numeric value is never used to infer CRS type.** `analysis_srid` must be projected and
+metre-based, and that is decided from the CRS **definition** in `spatial_ref_sys`, not from the
+number: `EPSG:4087` is projected and metric inside the 4xxx block, `EPSG:6318` is geographic
+outside it, so any numeric rule gets both wrong (ADR-017 §"How a CRS is judged").
+
+Four conditions, checked by `app.srid_is_metric_projected` and by
+`assertAnalysisSridUsable` in the application layer: registered in `spatial_ref_sys` (any
+authority, including a custom SRS); `PROJCS`/`PROJCRS`; a linear unit of metre with factor 1; and
+`ST_Transform` able to build a transform for it. `source_srid` need only be registered — a package
+delivered in a geographic CRS is normal.
+
+The supported analysis-CRS contract is **projected + metre-based**, because the stored columns are
+metres and square metres. A projected CRS in feet is refused rather than silently reinterpreted;
+non-metric support is future work, and only if a real project needs it.
+
+**Which CRS owns which measurement**: the alignment's `analysis_srid` measures the corridor's
+length and every chainage along it; a parcel's own dataset measures its area; an affectation's own
+dataset measures its affected area. In the pilot all three coincide; after an official import they
+may not, and a road must not be measured with a parcel layer's ruler.
 
 The pilot's `analysis_srid` is `32717` (UTM 17S) and is a **demo assumption** recorded in the
 project fixture with `crsBasis: "DEMO_ASSUMPTION"`: the official GIS package has not been

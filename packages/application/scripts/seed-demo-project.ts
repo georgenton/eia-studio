@@ -13,14 +13,16 @@ import {
   generateCorridor,
   GRANULARITIES,
   METRIC_KEYS,
-  analysisSridSchema,
   CANONICAL_SRID,
   ORIGINS,
   REGIMES,
+  sridSchema,
   TRANSFORMATIONS,
   VALIDATION_STATES,
 } from "@eia/domain";
 import { config as loadDotenv } from "dotenv";
+
+import { assertAnalysisSridUsable } from "../src/gis/analysis-crs";
 import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 
@@ -154,7 +156,7 @@ const manifestSchema = z
         $comment: z.string(),
         generator: z.literal(CORRIDOR_GENERATOR_VERSION),
         /** Projected CRS this project's lengths and areas are measured in (ADR-017). */
-        analysisSrid: analysisSridSchema,
+        analysisSrid: sridSchema,
         crsBasis: z.enum(["DEMO_ASSUMPTION", "SOURCE_DECLARED"]),
         alignmentLabel: z.string().min(1),
         input: corridorGeneratorInputSchema,
@@ -424,19 +426,36 @@ try {
     const lineWkt = `LINESTRING(${corridor.alignment.map(([x, y]) => `${x} ${y}`).join(",")})`;
     const ringWkt = (ring: ReadonlyArray<readonly [number, number]>) =>
       `POLYGON((${ring.map(([x, y]) => `${x} ${y}`).join(",")}))`;
+    /*
+     * The analysis CRS is checked against `spatial_ref_sys` before anything is written: it must
+     * be registered, projected, metre-based and usable by ST_Transform. The check reads the CRS
+     * definition, never the SRID number (IG2-009). Doing it here means a bad fixture fails with a
+     * sentence, at the start, rather than as a PostGIS exception on the last insert.
+     */
+    const analysisSrid = await assertAnalysisSridUsable(tx, manifest.gis.analysisSrid);
+
     /**
      * The SRIDs are inlined with `sql.raw` because a bound parameter arrives as text and PostGIS
-     * then reads "4326" as a proj string. `CANONICAL_SRID` is a compile-time constant; the
-     * analysis SRID comes from the fixture and is validated by `analysisSridSchema` before it
-     * reaches SQL, so neither is user input.
+     * then reads "4326" as a proj string. `CANONICAL_SRID` is a compile-time constant, and
+     * `analysisSrid` has just been validated against the catalogue and re-parsed as an integer,
+     * so neither is user input by the time it reaches SQL.
      */
-    const analysisSrid = analysisSridSchema.parse(manifest.gis.analysisSrid);
     const canonical = sql.raw(String(CANONICAL_SRID));
     const analysis = sql.raw(String(analysisSrid));
     /** WKT → canonical geometry, stored as the generator emitted it. */
     const toCanonical = (wkt: string) => sql`ST_GeomFromText(${wkt}, ${canonical})`;
-    /** Canonical geometry → the dataset's analysis CRS, where metres mean metres. */
-    const forMetrics = (wkt: string) => sql`ST_Transform(${toCanonical(wkt)}, ${analysis})`;
+    /**
+     * Canonical geometry → an analysis CRS, where metres mean metres.
+     *
+     * Which analysis CRS is a property of the **dataset whose measurement it is** (IG2-009). In
+     * this fixture all three layers share one, so the parameter looks redundant; it is not. An
+     * official import can bring parcels in one CRS and an alignment in another, and then a
+     * parcel's area must come from the parcels dataset while the corridor's length and every
+     * chainage along it must come from the alignment dataset. Passing it explicitly is what stops
+     * a future import from measuring a road with a parcel layer's CRS.
+     */
+    const forMetrics = (wkt: string, srid = analysis) =>
+      sql`ST_Transform(${toCanonical(wkt)}, ${srid})`;
 
     const datasets = {
       alignment: { id: randomUUID(), versionId: randomUUID() },
@@ -577,8 +596,11 @@ try {
      */
     const chainage = await tx.execute(sql`
       with axis as (
-        select ST_Transform(a.geom, ${analysis}) as geom,
-               ST_Length(ST_Transform(a.geom, ${analysis})) as length_m
+        -- The alignment dataset's own analysis CRS, read from its version row: a distance along
+        -- the road is the road layer's measurement, never the parcel layer's.
+        select ST_Transform(a.geom, v.analysis_srid) as geom,
+               v.analysis_srid as srid,
+               ST_Length(ST_Transform(a.geom, v.analysis_srid)) as length_m
         from app.alignment a
         join app.spatial_dataset_version v
           on v.tenant_id = a.tenant_id and v.id = a.dataset_version_id and v.is_active
@@ -589,7 +611,9 @@ try {
          set chainage_m = round((
                ST_LineLocatePoint(
                  axis.geom,
-                 ST_Centroid(ST_Transform(g.geom, ${analysis}))
+                 -- The parcel centroid is projected into the *alignment's* CRS, so both sides of
+                 -- the measurement live in one coordinate system.
+                 ST_Centroid(ST_Transform(g.geom, axis.srid))
                ) * axis.length_m
              )::numeric, 1),
              chainage_method = 'centroid_projection'
@@ -608,7 +632,7 @@ try {
         `${manifest.attention.length} attention items`,
         `${manifest.activity.length} activity events`,
         `GIS ${corridor.parcels.length} parcels · alignment ${(corridor.alignmentLengthM / 1000).toFixed(2)} km · ${corridor.generatorVersion}`,
-        `chainage derived for ${chainage.rowCount ?? 0} parcels (centroid_projection, EPSG:${analysisSrid})`,
+        `chainage derived for ${chainage.rowCount ?? 0} parcels (centroid_projection, alignment CRS EPSG:${analysisSrid})`,
       ].join(" · "),
     );
   });

@@ -301,6 +301,9 @@ describe("Slice 2 · PostGIS storage invariants", () => {
   });
 
   it("refuses a geographic CRS as an analysis CRS", async () => {
+    // Judged from the CRS definition, never from the number (IG2-009): 4326 is geographic, and
+    // the full matrix — including 4087 accepted and 6318 rejected — lives in
+    // `packages/application/test/analysis-crs.integration.test.ts`.
     const error = await attempt(
       createSpatialDatasetVersion(db.migrator, {
         tenantId: w.tenantA.id,
@@ -311,7 +314,7 @@ describe("Slice 2 · PostGIS storage invariants", () => {
         analysisSrid: 4326,
       }),
     );
-    expect(error).toMatch(/analysis_srid_projected/i);
+    expect(error).toMatch(/analysis_crs_not_metric_projected/i);
   });
 
   it("refuses geometry in the wrong SRID rather than storing it silently", async () => {

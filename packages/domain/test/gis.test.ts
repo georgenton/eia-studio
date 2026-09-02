@@ -12,10 +12,9 @@ import {
   isParcelCode,
   PARCEL_STATUS_PRESENTATION,
   PARCEL_STATUSES,
-  analysisSridSchema,
+  ANALYSIS_CRS_CONTRACT,
   CANONICAL_SRID,
   epsgLabel,
-  isGeographicSrid,
   LAYER_LEGEND_ORDER,
   orderLayersForLegend,
   parseChainage,
@@ -322,22 +321,31 @@ describe("coordinate reference systems", () => {
     }
   });
 
-  it("refuses a geographic CRS for analysis: areas in degrees are not areas", () => {
-    expect(isGeographicSrid(4326)).toBe(true);
-    expect(isGeographicSrid(32717)).toBe(false);
-    expect(analysisSridSchema.safeParse(32717).success).toBe(true);
-    // A different project, a different zone: the schema does not care which.
-    expect(analysisSridSchema.safeParse(32718).success).toBe(true);
-    expect(analysisSridSchema.safeParse(3857).success).toBe(true);
-    expect(analysisSridSchema.safeParse(4326).success).toBe(false);
-    expect(analysisSridSchema.safeParse(4978).success).toBe(false);
+  it("never classifies a CRS from its number", () => {
+    // The regression (IG2-009). An SRID is an identifier; its value encodes nothing about the
+    // coordinate system. The rule this replaces read the 4xxx block as "geographic", which is
+    // wrong in both directions:
+    //   EPSG:4087 is projected and metre-based, inside that block;
+    //   EPSG:6318 is geographic and degree-based, outside it.
+    // Both of these parse here, because the *shape* is all a number can tell us. Whether either
+    // may be used for analysis is decided from the CRS definition, in the application layer and
+    // in the database, and is asserted in the integration suite.
+    for (const srid of [4087, 6318, 4326, 32717, 32718, 2225, 900913]) {
+      expect(sridSchema.safeParse(srid).success, `EPSG:${srid}`).toBe(true);
+    }
+    // No upper bound either: a custom SRS registered in spatial_ref_sys may use any code.
+    expect(sridSchema.safeParse(1_000_000).success).toBe(true);
   });
 
-  it("bounds an SRID so a forged value cannot reach ST_Transform as any integer", () => {
+  it("still refuses values that are not SRIDs at all", () => {
     expect(sridSchema.safeParse(0).success).toBe(false);
     expect(sridSchema.safeParse(-32717).success).toBe(false);
-    expect(sridSchema.safeParse(1_000_000).success).toBe(false);
     expect(sridSchema.safeParse(32.7).success).toBe(false);
+    expect(sridSchema.safeParse("32717").success).toBe(false);
+  });
+
+  it("states the analysis-CRS contract this product actually supports", () => {
+    expect(ANALYSIS_CRS_CONTRACT).toBe("projected + metre-based");
   });
 
   it("derives the CRS label instead of mapping codes to names", () => {

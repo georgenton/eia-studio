@@ -57,23 +57,38 @@ export function epsgLabel(srid: number): string {
 }
 
 /**
- * An EPSG code as stored in dataset metadata. Bounded to the published EPSG range so a typo or a
- * forged payload cannot reach `ST_Transform` as an arbitrary integer.
+ * The **shape** of an SRID: a positive integer. That is the whole of what can be known about a
+ * coordinate system from its number.
+ *
+ * ## An SRID number says nothing about the CRS
+ *
+ * This schema deliberately does not classify. An earlier version rejected the 4xxx block as
+ * "geographic", which is wrong in both directions:
+ *
+ * | Code | What it actually is |
+ * |---|---|
+ * | `EPSG:4087` | **projected**, equidistant cylindrical, metres — inside the 4xxx block |
+ * | `EPSG:6318` | **geographic**, NAD83(2011), degrees — outside it |
+ *
+ * The rule would have refused a perfectly good metric analysis CRS and accepted one in which
+ * every area is silently square degrees. No upper bound is imposed either: a custom SRS
+ * legitimately registered in `spatial_ref_sys` may use any code.
+ *
+ * Whether a CRS may be used for analysis is answered from its **definition**, by
+ * `assertAnalysisSridUsable` in the application layer and by the `spatial_dataset_version_crs_valid`
+ * trigger underneath it. Neither reads the number.
  */
-export const sridSchema = z.number().int().min(1024).max(999_999);
+export const sridSchema = z.number().int().positive();
 
 /**
- * A metric CRS is required for length and area. Geographic CRS codes (the 4xxx block, including
- * 4326 itself) measure in degrees, so computing an area in one yields square degrees — a number
- * that looks plausible and means nothing. Analysis SRIDs are validated at the boundary.
+ * The analysis-CRS contract this product currently supports: **projected and metre-based**.
+ *
+ * Stored metric columns are metres and square metres (`area_m2`, `affected_area_m2`, `length_m`,
+ * `chainage_m`, `frontage_m`), so a CRS whose linear unit is the foot is refused rather than
+ * silently reinterpreted. Supporting non-metric projected CRS is future work, and only if a real
+ * project needs it.
  */
-export function isGeographicSrid(srid: number): boolean {
-  return srid >= 4000 && srid <= 4999;
-}
-
-export const analysisSridSchema = sridSchema.refine((srid) => !isGeographicSrid(srid), {
-  message: "an analysis CRS must be projected: areas and lengths in a geographic CRS are degrees",
-});
+export const ANALYSIS_CRS_CONTRACT = "projected + metre-based" as const;
 
 /**
  * The pilot's analysis CRS is an assumption, not a declared fact: the official GIS package has

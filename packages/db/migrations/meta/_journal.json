@@ -85,6 +85,13 @@
       "when": 1788380834148,
       "tag": "0011_gis_canonical_crs_and_invariants",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1788383906255,
+      "tag": "0012_analysis_crs_validation",
+      "breakpoints": true
     }
   ]
 }
