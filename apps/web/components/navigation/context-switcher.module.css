@@ -30,7 +30,7 @@
 }
 .empty {
   font-size: 12px;
-  color: var(--eia-text-disabled);
+  color: var(--eia-text-muted);
   border: 1px dashed var(--eia-border-strong);
   border-radius: var(--eia-radius-chip);
   padding: 7px 9px;

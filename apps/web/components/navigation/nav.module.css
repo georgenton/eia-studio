@@ -33,7 +33,9 @@
   font-weight: 600;
 }
 .announced {
-  color: var(--eia-text-disabled);
+  /* An announced module is shown but not navigable; its label still has to be readable, so the
+     "not available" meaning is carried by the badge and aria-disabled, not by low contrast. */
+  color: var(--eia-text-muted);
   cursor: default;
 }
 .badge {
@@ -47,7 +49,7 @@
   font-family: var(--eia-font-mono);
   font-size: 9.5px;
   letter-spacing: 0.08em;
-  color: var(--eia-text-disabled);
+  color: var(--eia-text-muted);
 }
 .external {
   margin-left: auto;
@@ -87,4 +89,36 @@
   font-size: 11px;
   font-weight: 500;
   color: var(--eia-accent);
+}
+.button {
+  display: inline-flex;
+  align-items: center;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 8px 14px;
+  border-radius: var(--eia-radius-control);
+  border: 1px solid var(--eia-border-strong);
+  background: var(--eia-surface);
+  color: var(--eia-ink);
+  text-decoration: none;
+}
+.button:hover {
+  background: #f4f6f7;
+  text-decoration: none;
+  color: var(--eia-ink);
+}
+.button:focus-visible {
+  outline: 2px solid var(--eia-accent);
+  outline-offset: 1px;
+}
+.primary {
+  background: var(--eia-accent);
+  border-color: var(--eia-accent);
+  color: #ffffff;
+}
+.primary:hover {
+  background: var(--eia-accent-hover);
+  border-color: var(--eia-accent-hover);
+  color: #ffffff;
 }

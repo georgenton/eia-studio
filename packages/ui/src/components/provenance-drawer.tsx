@@ -1,7 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 
 import styles from "./provenance-drawer.module.css";
 
@@ -14,26 +13,27 @@ const FOCUSABLE =
  * rather than knowing anything about KPIs. Its content is produced on the server from a
  * `provenance_id`; this component only owns the overlay, focus and dismissal behaviour.
  *
- * Closing is a navigation back to `closeHref` (the same page without `?prov=`), which keeps the
- * open drawer shareable and reproducible from the URL, exactly like the prototype's `prov` state.
+ * Dismissal is delegated: the host decides what closing means. In this application it is a
+ * navigation back to the page without `?prov=`, which keeps an open drawer shareable and
+ * reproducible from the URL, exactly like the prototype's `prov` state. Taking `onClose` rather
+ * than a route keeps the component free of any router (IG1-004).
  */
 export function ProvenanceDrawer({
   title,
-  closeHref,
+  onClose,
   children,
 }: {
   title: string;
-  closeHref: string;
+  onClose: () => void;
   children: ReactNode;
 }) {
-  const router = useRouter();
   const panelRef = useRef<HTMLDivElement | null>(null);
   const closeRef = useRef<HTMLButtonElement | null>(null);
   const returnFocusTo = useRef<Element | null>(null);
-
-  const close = useCallback(() => {
-    router.push(closeHref, { scroll: false });
-  }, [router, closeHref]);
+  // Keep the latest handler without re-registering the key listener on every render.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  const close = () => onCloseRef.current();
 
   useEffect(() => {
     returnFocusTo.current = document.activeElement;
@@ -51,7 +51,7 @@ export function ProvenanceDrawer({
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
         event.preventDefault();
-        close();
+        onCloseRef.current();
         return;
       }
       if (event.key !== "Tab") return;
@@ -73,7 +73,7 @@ export function ProvenanceDrawer({
     }
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [close]);
+  }, []);
 
   return (
     <div className={styles.root}>

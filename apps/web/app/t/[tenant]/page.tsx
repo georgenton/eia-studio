@@ -10,15 +10,10 @@ import {
   ActivityTable,
   AttentionList,
   AttentionRow,
-  ButtonLink,
   Chip,
   Columns,
   DemoBadge,
   EmptyState,
-  formatCount,
-  formatIsoDateShort,
-  formatMetricValue,
-  formatPercent,
   MetricFigure,
   Mono,
   PageHeader,
@@ -27,11 +22,15 @@ import {
   PanelHeader,
   ProgressBar,
   ProvenanceBadge,
-  ProvenanceLink,
-  StatusChip,
   Stack,
+  StatusChip,
   SystemState,
+  formatCount,
+  formatIsoDateShort,
+  formatMetricValue,
+  formatPercent,
 } from "@eia/ui";
+import { ButtonLink, ProvenanceLink } from "@/components/navigation";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 

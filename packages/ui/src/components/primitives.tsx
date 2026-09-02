@@ -1,4 +1,3 @@
-import Link from "next/link";
 import type { ReactNode } from "react";
 
 import styles from "./primitives.module.css";
@@ -20,22 +19,6 @@ export function PageHeader({
       </div>
       {actions ? <div className={styles.pageActions}>{actions}</div> : null}
     </div>
-  );
-}
-
-export function ButtonLink({
-  href,
-  variant = "secondary",
-  children,
-}: {
-  href: string;
-  variant?: "primary" | "secondary";
-  children: ReactNode;
-}) {
-  return (
-    <Link className={`${styles.button} ${styles[variant]}`} href={href}>
-      {children}
-    </Link>
   );
 }
 

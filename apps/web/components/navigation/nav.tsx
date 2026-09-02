@@ -3,6 +3,13 @@ import type { ReactNode } from "react";
 
 import styles from "./nav.module.css";
 
+/*
+ * Application navigation (IG1-004). These components construct routes and drive the App Router,
+ * so they live with the application rather than in `@eia/ui`: the shared package holds visual
+ * primitives and stays free of framework coupling. Everything visual they need — panels, chips,
+ * metric cells, the shell — still comes from `@eia/ui`.
+ */
+
 export interface NavEntry {
   readonly key: string;
   readonly label: string;
@@ -94,6 +101,22 @@ export function ProvenanceLink({ href, children }: { href: string; children?: Re
   return (
     <Link className={styles.provenanceLink} href={href} scroll={false} prefetch={false}>
       {children ?? "Ver origen"}
+    </Link>
+  );
+}
+
+export function ButtonLink({
+  href,
+  variant = "secondary",
+  children,
+}: {
+  href: string;
+  variant?: "primary" | "secondary";
+  children: ReactNode;
+}) {
+  return (
+    <Link className={`${styles.button} ${styles[variant]}`} href={href}>
+      {children}
     </Link>
   );
 }

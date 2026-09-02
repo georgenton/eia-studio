@@ -31,38 +31,6 @@
   gap: 8px;
   flex: none;
 }
-.button {
-  display: inline-flex;
-  align-items: center;
-  font-family: inherit;
-  font-size: 12px;
-  font-weight: 500;
-  padding: 8px 14px;
-  border-radius: var(--eia-radius-control);
-  border: 1px solid var(--eia-border-strong);
-  background: var(--eia-surface);
-  color: var(--eia-ink);
-  text-decoration: none;
-}
-.button:hover {
-  background: #f4f6f7;
-  text-decoration: none;
-  color: var(--eia-ink);
-}
-.button:focus-visible {
-  outline: 2px solid var(--eia-accent);
-  outline-offset: 1px;
-}
-.primary {
-  background: var(--eia-accent);
-  border-color: var(--eia-accent);
-  color: #ffffff;
-}
-.primary:hover {
-  background: var(--eia-accent-hover);
-  border-color: var(--eia-accent-hover);
-  color: #ffffff;
-}
 .mono {
   font-family: var(--eia-font-mono);
   font-size: var(--eia-size-mono);

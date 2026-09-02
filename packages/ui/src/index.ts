@@ -15,8 +15,6 @@ export { ActivityTable, AttentionList, AttentionRow } from "./components/attenti
 export type { AttentionTone } from "./components/attention";
 export { Chip, DemoBadge, ProvenanceBadge, StatusChip } from "./components/chips";
 export type { ChipTone } from "./components/chips";
-export { ContextSwitcher } from "./components/context-switcher";
-export type { SwitcherOption } from "./components/context-switcher";
 export { EmptyState, SystemState } from "./components/empty-state";
 export { ForecastChart } from "./components/forecast-chart";
 export {
@@ -27,10 +25,8 @@ export {
   formatMetricValue,
 } from "./components/metric";
 export type { MetricTone } from "./components/metric";
-export { Breadcrumb, CapabilityNav, ProvenanceLink } from "./components/nav";
-export type { NavEntry } from "./components/nav";
 export { Label, Panel, PanelBody, PanelHeader } from "./components/panel";
-export { ButtonLink, Columns, Mono, PageHeader, Stack } from "./components/primitives";
+export { Columns, Mono, PageHeader, Stack } from "./components/primitives";
 export {
   ProvenanceDrawer,
   ProvenanceField,

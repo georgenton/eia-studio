@@ -1,5 +1,6 @@
 import { listUserTenants } from "@eia/application";
-import { ButtonLink, Panel, PanelBody, PanelHeader, SystemState } from "@eia/ui";
+import { Panel, PanelBody, PanelHeader, SystemState } from "@eia/ui";
+import { ButtonLink } from "@/components/navigation";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 

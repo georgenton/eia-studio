@@ -1,16 +1,12 @@
 import { listUserTenants } from "@eia/application";
 import type { RequestContext, TenantCapabilitySettings, WorkspaceSurface } from "@eia/domain";
+import { AppShell, RailBrand, RailFooter, RailSection, TopbarUser } from "@eia/ui";
 import {
-  AppShell,
   Breadcrumb,
   CapabilityNav,
   ContextSwitcher,
-  RailBrand,
-  RailFooter,
-  RailSection,
-  TopbarUser,
   type SwitcherOption,
-} from "@eia/ui";
+} from "@/components/navigation";
 import type { ReactNode } from "react";
 
 import { getDb } from "@/lib/db";

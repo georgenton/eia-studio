@@ -8,14 +8,9 @@ import {
   VALIDATION_STATE_LABEL,
   type RequestContext,
 } from "@eia/domain";
-import {
-  Chip,
-  formatDateTime,
-  ProvenanceBadge,
-  ProvenanceDrawer,
-  ProvenanceField,
-  ProvenanceSection,
-} from "@eia/ui";
+import { Chip, formatDateTime, ProvenanceBadge, ProvenanceField, ProvenanceSection } from "@eia/ui";
+
+import { RouteDrawer } from "@/components/navigation";
 
 import { getDb } from "@/lib/db";
 
@@ -42,14 +37,14 @@ export async function ProvenancePanel({
   } catch (error) {
     if (!(error instanceof NotFound)) throw error;
     return (
-      <ProvenanceDrawer title="Registro no disponible" closeHref={closeHref}>
+      <RouteDrawer title="Registro no disponible" closeHref={closeHref}>
         <ProvenanceSection>
           <p>
             No existe un registro de procedencia con ese identificador en este proyecto, o no tienes
             acceso a él.
           </p>
         </ProvenanceSection>
-      </ProvenanceDrawer>
+      </RouteDrawer>
     );
   }
 
@@ -57,7 +52,7 @@ export async function ProvenancePanel({
   const transformations = facets.transformations.map((t) => TRANSFORMATION_LABEL[t]).join(" → ");
 
   return (
-    <ProvenanceDrawer title={view.title} closeHref={closeHref}>
+    <RouteDrawer title={view.title} closeHref={closeHref}>
       <ProvenanceSection>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <ProvenanceBadge facets={facets} />
@@ -130,6 +125,6 @@ export async function ProvenancePanel({
           ) : null}
         </span>
       </ProvenanceField>
-    </ProvenanceDrawer>
+    </RouteDrawer>
   );
 }

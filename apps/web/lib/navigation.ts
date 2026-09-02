@@ -9,7 +9,7 @@ import {
   type TenantCapabilitySettings,
   type WorkspaceSurface,
 } from "@eia/domain";
-import type { NavEntry } from "@eia/ui";
+import type { NavEntry } from "@/components/navigation";
 
 export function projectPath(tenantSlug: string, projectSlug: string, segment: string): string {
   const base = `/t/${tenantSlug}/p/${projectSlug}`;
