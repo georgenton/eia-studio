@@ -2,9 +2,11 @@ import { randomUUID } from "node:crypto";
 
 import { appSchema } from "@eia/db";
 import {
+  FeatureDisabled,
   FORECAST_ALGORITHM_VERSION,
   NotFound,
   PermissionDenied,
+  requireCapability,
   type SessionUser,
 } from "@eia/domain";
 import {
@@ -174,6 +176,59 @@ describe("loadProvenanceView", () => {
     await expect(loadProvenanceView(db.runtime, ctx, randomUUID())).rejects.toBeInstanceOf(
       NotFound,
     );
+  });
+});
+
+/**
+ * The server side of the capability route policy (ADR-016). The read model must refuse before it
+ * reads, and it must refuse for a capability the project is not entitled to even when the caller
+ * is a full member — which is what makes the 404 at the route honest rather than cosmetic.
+ */
+describe("capability enforcement in the read models", () => {
+  it("a member of an entitled project reaches the Command Center", async () => {
+    const ctx = await contextFor(w.memberA, w.projectX.slug);
+    expect(ctx.capabilities["core.projects"]).toBe(true);
+    await expect(loadCommandCenter(db.runtime, ctx)).resolves.toBeDefined();
+  });
+
+  it("an ANNOUNCED capability is never effective, so its route can only be a 404", async () => {
+    const ctx = await contextFor(w.memberA, w.projectX.slug);
+    // reports.social_generator is ANNOUNCED in the catalogue: presentation may show it, the
+    // resolver never enables it, and requireCapability throws for it exactly as for a hidden one.
+    expect(ctx.capabilities["reports.social_generator"]).toBe(false);
+    expect(() => requireCapability(ctx, "reports.social_generator")).toThrow(FeatureDisabled);
+  });
+
+  it("a capability the tenant switched off stops being effective for its surface", async () => {
+    await db.migrator
+      .insert(appSchema.tenantCapability)
+      .values({
+        tenantId: w.tenantA.id,
+        capabilityKey: "gis.parcels",
+        entitled: true,
+        enabled: false,
+      })
+      .onConflictDoUpdate({
+        target: [appSchema.tenantCapability.tenantId, appSchema.tenantCapability.capabilityKey],
+        set: { enabled: false },
+      });
+    const ctx = await contextFor(w.memberA, w.projectX.slug);
+    expect(ctx.capabilities["gis.parcels"]).toBe(false);
+    expect(() => requireCapability(ctx, "gis.parcels")).toThrow(FeatureDisabled);
+    // …and core.projects is untouched, so the Command Center still resolves.
+    expect(ctx.capabilities["core.projects"]).toBe(true);
+    await db.migrator
+      .insert(appSchema.tenantCapability)
+      .values({
+        tenantId: w.tenantA.id,
+        capabilityKey: "gis.parcels",
+        entitled: true,
+        enabled: true,
+      })
+      .onConflictDoUpdate({
+        target: [appSchema.tenantCapability.tenantId, appSchema.tenantCapability.capabilityKey],
+        set: { enabled: true },
+      });
   });
 });
 

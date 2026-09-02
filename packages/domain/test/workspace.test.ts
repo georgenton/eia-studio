@@ -2,12 +2,16 @@ import { describe, expect, it } from "vitest";
 
 import {
   CAPABILITY_CATALOG,
+  emptyCapabilitySet,
+  FeatureDisabled,
   isWorkspaceSurface,
+  requireCapability,
   ROAD_EIA_SOCIAL_PROFILE,
   SURFACE_DEFINITIONS,
   surfaceForSegment,
   WORKSPACE_RAIL_ORDER,
   WORKSPACE_SURFACES,
+  type WorkspaceSurface,
 } from "../src/index";
 
 describe("workspace surface registry", () => {
@@ -42,5 +46,40 @@ describe("workspace surface registry", () => {
     for (const key of WORKSPACE_SURFACES) {
       expect(enabled.has(SURFACE_DEFINITIONS[key].capability), `${key} in profile`).toBe(true);
     }
+  });
+});
+
+/**
+ * The capability route policy (ADR-016, IG1-001) expressed at the level the domain owns: which
+ * of the three outcomes a route must produce is a pure function of the effective capability and
+ * whether the surface is implemented. The web layer maps these to 404 / render / inert state; the
+ * mapping itself is covered by `packages/application/test` and by the browser suite.
+ */
+describe("capability route policy", () => {
+  const outcome = (effective: boolean, surface: WorkspaceSurface) =>
+    !effective ? "not-found" : SURFACE_DEFINITIONS[surface].implemented ? "ok" : "not-implemented";
+
+  it("an ineffective capability is never distinguishable from an unknown route", () => {
+    for (const key of WORKSPACE_SURFACES) expect(outcome(false, key)).toBe("not-found");
+  });
+
+  it("an effective capability renders, or states plainly that the surface is not built", () => {
+    expect(outcome(true, "command-center")).toBe("ok");
+    for (const key of WORKSPACE_SURFACES.filter((k) => k !== "command-center")) {
+      expect(outcome(true, key)).toBe("not-implemented");
+    }
+  });
+
+  it("presentation cannot widen the policy: ANNOUNCED resolves as disabled", () => {
+    // Reports is ANNOUNCED in the catalogue, so it can never be effective, so its route is 404
+    // however the rail chooses to show it.
+    expect(CAPABILITY_CATALOG[SURFACE_DEFINITIONS.reports.capability].productStatus).toBe(
+      "ANNOUNCED",
+    );
+    const capabilities = emptyCapabilitySet();
+    expect(capabilities[SURFACE_DEFINITIONS.reports.capability]).toBe(false);
+    expect(() =>
+      requireCapability({ capabilities }, SURFACE_DEFINITIONS.reports.capability),
+    ).toThrow(FeatureDisabled);
   });
 });

@@ -31,9 +31,11 @@ test.describe("implementation screenshots", () => {
     await page.screenshot({ path: `${OUT}/03-provenance-drawer.png` });
   });
 
-  test("feature disabled state", async ({ page }) => {
-    await page.goto(`/t/${TENANT}/p/${PROJECT}/reports`);
+  test("module enabled but not implemented", async ({ page }) => {
+    // A capability the project *is* entitled to whose surface this slice has not built. A
+    // capability it is not entitled to answers 404 and has nothing to capture (ADR-016).
+    await page.goto(`/t/${TENANT}/p/${PROJECT}/gis`);
     await page.waitForLoadState("networkidle");
-    await page.screenshot({ path: `${OUT}/04-feature-disabled.png` });
+    await page.screenshot({ path: `${OUT}/04-module-not-implemented.png` });
   });
 });
