@@ -1,10 +1,13 @@
-import type { CommandCenterView } from "@eia/application";
+import type { CommandCenterView, TerritorialSummary } from "@eia/application";
 import {
   ATTENTION_SEVERITY_LABEL,
   demoScenarioDate,
+  LAYER_LEGEND_COPY,
+  PARCEL_STATUS_PRESENTATION,
   SURFACE_DEFINITIONS,
   type MetricKey,
   type MetricSnapshot,
+  type ParcelStatus,
   type ProvenanceFacets,
   type RequestContext,
 } from "@eia/domain";
@@ -67,11 +70,16 @@ export function CommandCenter({
   view,
   basePath,
   lifecycleLabel,
+  territory,
+  gisPath,
 }: {
   ctx: RequestContext;
   view: CommandCenterView;
   basePath: string;
   lifecycleLabel: string;
+  /** Null when the project has no geometry, or when `gis.parcels` is not effective. */
+  territory: TerritorialSummary | null;
+  gisPath: string | null;
 }) {
   const byKey = new Map(view.metrics.map((m) => [m.key, m]));
   const strip = STRIP_ORDER.map((key) => byKey.get(key)).filter(
@@ -334,19 +342,96 @@ export function CommandCenter({
             </Panel>
           ) : null}
 
+          {territory ? (
+            <TerritorySummaryPanel basePath={basePath} gisPath={gisPath} territory={territory} />
+          ) : null}
+
           <Panel>
             <PanelHeader label="Alcance de esta fase" />
             <PanelBody>
               <p className={styles.muted}>
-                El resumen territorial, los instrumentos del proyecto y los hallazgos de calidad
-                llegan con los módulos de GIS, campo y Quality Gate. No se muestran cifras
-                inventadas en su lugar.
+                Los instrumentos del proyecto y los hallazgos de calidad llegan con los módulos de
+                campo y Quality Gate. No se muestran cifras inventadas en su lugar.
               </p>
             </PanelBody>
           </Panel>
         </Stack>
       </Columns>
     </Stack>
+  );
+}
+
+/**
+ * Territorial summary (TD-023, GIS portion). Every figure is counted from the active layers, and
+ * the panel carries those layers' provenance: summarising a synthetic corridor does not make it
+ * observed. Parcels still without geometry are stated rather than folded into the totals, which
+ * is what the `partial GIS` state means.
+ */
+function TerritorySummaryPanel({
+  territory,
+  basePath,
+  gisPath,
+}: {
+  territory: TerritorialSummary;
+  basePath: string;
+  gisPath: string | null;
+}) {
+  const statuses = (Object.keys(territory.byStatus) as ParcelStatus[]).filter(
+    (status) => territory.byStatus[status] > 0,
+  );
+  const layer = territory.layers[0] ?? null;
+  return (
+    <Panel>
+      <PanelHeader
+        label="Resumen territorial"
+        badge={layer ? <ProvenanceBadge facets={layer.provenance} /> : undefined}
+        action={gisPath ? <ProvenanceLink href={gisPath}>Abrir GIS</ProvenanceLink> : undefined}
+      />
+      <PanelBody>
+        <div className={styles.territoryHead}>
+          <span className={styles.bigValue}>{formatCount(territory.parcelCount)}</span>
+          <span className={styles.bigNote}>
+            predios en el corredor
+            {territory.alignmentLengthM === null
+              ? ""
+              : ` · ${formatDecimal(territory.alignmentLengthM / 1000, 1)} km de eje`}
+          </span>
+        </div>
+        <ul className={styles.territoryList}>
+          {statuses.map((status) => (
+            <li className={styles.territoryRow} key={status}>
+              <span aria-hidden="true" className={styles.territoryGlyph}>
+                {PARCEL_STATUS_PRESENTATION[status].glyph}
+              </span>
+              <span>{PARCEL_STATUS_PRESENTATION[status].label}</span>
+              <Mono>{formatCount(territory.byStatus[status])}</Mono>
+            </li>
+          ))}
+          <li className={styles.territoryRow}>
+            <span aria-hidden="true" className={styles.territoryGlyph} />
+            <span>Superficie cartografiada</span>
+            <Mono>{formatDecimal(territory.totalAreaM2 / 10_000, 1)} ha</Mono>
+          </li>
+          <li className={styles.territoryRow}>
+            <span aria-hidden="true" className={styles.territoryGlyph} />
+            <span>Afectación estimada</span>
+            <Mono>{formatDecimal(territory.affectedAreaM2 / 10_000, 1)} ha</Mono>
+          </li>
+        </ul>
+        {territory.withoutGeometry > 0 ? (
+          <p className={styles.muted} data-system-state="partial gis">
+            {formatCount(territory.withoutGeometry)} de {formatCount(territory.parcelCount)} predios
+            aún no tienen geometría; las superficies de arriba sólo cubren los que sí la tienen.
+          </p>
+        ) : null}
+        {layer ? (
+          <p className={styles.muted}>
+            {LAYER_LEGEND_COPY[layer.legend].label} · {LAYER_LEGEND_COPY[layer.legend].note}{" "}
+            <ProvenanceLink href={provHref(basePath, layer.provenanceId)} />
+          </p>
+        ) : null}
+      </PanelBody>
+    </Panel>
   );
 }
 

@@ -41,3 +41,4 @@ test-results/
 
 # Playwright (report dirs are already covered above)
 blob-report/
+apps/web/public/vendor/

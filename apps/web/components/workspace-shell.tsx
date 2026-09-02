@@ -139,6 +139,7 @@ export function projectBreadcrumb(
   tenantName: string,
   projectName: string,
   surfaceLabel: string,
+  surfaceHref?: string,
 ): Array<{ label: string; href?: string }> {
   const items: Array<{ label: string; href?: string }> = [
     { label: tenantName, href: `/t/${ctx.tenantSlug}` },
@@ -148,6 +149,6 @@ export function projectBreadcrumb(
       ? { label: projectName, href: projectPath(ctx.tenantSlug, ctx.projectSlug, "") }
       : { label: projectName },
   );
-  items.push({ label: surfaceLabel });
+  items.push(surfaceHref ? { label: surfaceLabel, href: surfaceHref } : { label: surfaceLabel });
   return items;
 }

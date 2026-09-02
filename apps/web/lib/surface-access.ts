@@ -2,6 +2,7 @@ import "server-only";
 
 import {
   FeatureDisabled,
+  NotFound,
   PermissionDenied,
   SURFACE_DEFINITIONS,
   surfaceForSegment,
@@ -98,6 +99,9 @@ export async function resolveSurfaceAccessBySegment(
  */
 export function accessForDomainError(error: unknown): SurfaceAccess | null {
   if (error instanceof FeatureDisabled) return { kind: "not-found" };
+  // A record the context cannot see is indistinguishable from one that does not exist, which is
+  // the point: a parcel code must not be probeable across projects.
+  if (error instanceof NotFound) return { kind: "not-found" };
   if (error instanceof PermissionDenied) {
     return { kind: "denied", role: error.role, restrictedData: error.restrictedData };
   }
