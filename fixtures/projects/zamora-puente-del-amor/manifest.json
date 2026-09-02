@@ -108,6 +108,57 @@
       "validationState": "PENDING",
       "validationNote": "No validado: son valores de demostración",
       "$capturedAtFromScenario": true
+    },
+    "alignment": {
+      "key": "alignment-reconstructed",
+      "regime": "DEMO_SIMULATION",
+      "origin": "SYSTEM_GENERATED",
+      "transformations": ["ORIGINAL", "RECONSTRUCTED"],
+      "granularity": null,
+      "title": "Eje vial reconstruido del corredor",
+      "note": "Trazado aproximado generado para la demostración. No procede del paquete GIS oficial, que todavía no se ha recibido: se dibuja de forma discontinua y se reemplazará por el eje oficial cuando llegue. No es cartografía de referencia.",
+      "sourceLabel": "corridor-generator@1 · eje reconstruido",
+      "sourceReference": "fixtures/projects/zamora-puente-del-amor",
+      "sourceVersion": "alignment_v1",
+      "method": "Polilínea sobre puntos de control fijos, remuestreada cada 40 m con sinuosidad determinista; longitud verificada contra la cifra histórica del corredor.",
+      "capturedAt": null,
+      "$capturedAtFromScenario": true,
+      "validationState": "PENDING",
+      "validationNote": "Se reemplazará con el eje del GIS oficial"
+    },
+    "parcels": {
+      "key": "parcels-synthetic",
+      "regime": "DEMO_SIMULATION",
+      "origin": "SYSTEM_GENERATED",
+      "transformations": ["ORIGINAL"],
+      "granularity": "INDIVIDUAL",
+      "title": "Predios sintéticos del corredor",
+      "note": "Polígonos generados para representar el universo histórico de 141 predios frentistas. NO SON CATASTRO y no son los linderos históricos: son geometría de demostración con el mismo recuento que la cifra del expediente. La identidad de cada predio persiste cuando llegue la capa oficial; solo se reemplaza su geometría.",
+      "sourceLabel": "corridor-generator@1 · predios sintéticos",
+      "sourceReference": "fixtures/projects/zamora-puente-del-amor",
+      "sourceVersion": "parcels_v1",
+      "method": "Cuadriláteros perpendiculares al eje, alternando lados, con frente y fondo variados de forma determinista a partir de una semilla fija.",
+      "capturedAt": null,
+      "$capturedAtFromScenario": true,
+      "validationState": "PENDING",
+      "validationNote": "Geometría de demostración, sin validar"
+    },
+    "affectations": {
+      "key": "affectations-synthetic",
+      "regime": "DEMO_SIMULATION",
+      "origin": "SYSTEM_GENERATED",
+      "transformations": ["ORIGINAL", "DERIVED"],
+      "granularity": "INDIVIDUAL",
+      "title": "Afectación estimada por franja de derecho de vía",
+      "note": "Intersección calculada entre cada predio sintético y una franja de derecho de vía de ancho fijo. Es una estimación geométrica de demostración: no es un avalúo, no representa un acuerdo y no incluye datos de personas.",
+      "sourceLabel": "corridor-generator@1 · afectación derivada",
+      "sourceReference": null,
+      "sourceVersion": "affectations_v1",
+      "method": "Área del predio dentro de la franja de derecho de vía ÷ área total del predio.",
+      "capturedAt": null,
+      "$capturedAtFromScenario": true,
+      "validationState": "PENDING",
+      "validationNote": "Estimación geométrica de demostración"
     }
   },
   "metrics": [
@@ -315,5 +366,53 @@
     "$comment": "Fixed as-of date of this project's simulation, and the single source of every DEMO_SIMULATION instant below: the loader derives the forecast's as_of_date and calculated_at, the activity feed's occurred_at and the capture instant of the demo provenance records from it. It is fixture metadata and is never stored on the project — a Project is a real engagement and knows nothing about demos (IG1-009). Historical observed facts keep their own capture dates and do not inherit this.",
     "scenarioDate": "2026-09-17",
     "scenarioTime": "14:02"
+  },
+  "gis": {
+    "$comment": "Deterministic generator inputs for the reconstructed corridor and its synthetic parcels. Repeated seeding reproduces identical business codes and geometry. NOT cadastre, NOT field survey: the official GIS package has not been received. Contains no owner names, no phone numbers, no personal coordinates and no cadastral keys.",
+    "generator": "corridor-generator@1",
+    "storageCrs": "EPSG:32717",
+    "presentationCrs": "EPSG:4326",
+    "crsBasis": "DEMO_ASSUMPTION",
+    "chainageMethod": "frontage_midpoint",
+    "alignmentLabel": "Eje vial del corredor",
+    "input": {
+      "seed": "puente-del-amor-v1",
+      "controlPoints": [
+        [-78.9536, -4.0812],
+        [-78.941, -4.0755],
+        [-78.9268, -4.0723],
+        [-78.9105, -4.0688],
+        [-78.8894, -4.063]
+      ],
+      "parcelCount": 141,
+      "frontageM": 62,
+      "depthM": 210,
+      "rightOfWayHalfWidthM": 25,
+      "setbackM": 6,
+      "sectors": [
+        {
+          "label": "Tramo 1",
+          "share": 0.28
+        },
+        {
+          "label": "Tramo 2",
+          "share": 0.3
+        },
+        {
+          "label": "Tramo 3",
+          "share": 0.23
+        },
+        {
+          "label": "Tramo 4",
+          "share": 0.19
+        }
+      ],
+      "codePrefix": "PRED-ZAM",
+      "statusPlan": {
+        "estimated": 2,
+        "notLocated": 1,
+        "excluded": 0
+      }
+    }
   }
 }

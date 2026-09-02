@@ -4,19 +4,24 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { appEnvSchema, loadEnv, migratorDatabaseEnvSchema } from "@eia/contracts";
-import { appSchema, createDatabase, createPool } from "@eia/db";
+import { appSchema, createDatabase, createPool, gisSchema } from "@eia/db";
 import {
   calculateForecast,
+  CORRIDOR_GENERATOR_VERSION,
+  corridorGeneratorInputSchema,
   FORECAST_ALGORITHM_VERSION,
+  generateCorridor,
   GRANULARITIES,
   METRIC_KEYS,
   ORIGINS,
+  PRESENTATION_SRID,
   REGIMES,
+  STORAGE_SRID,
   TRANSFORMATIONS,
   VALIDATION_STATES,
 } from "@eia/domain";
 import { config as loadDotenv } from "dotenv";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 
 /**
@@ -143,6 +148,24 @@ const manifestSchema = z
         })
         .strict(),
     ),
+    /** Deterministic GIS generation inputs; the geometry itself is never stored in the fixture. */
+    gis: z
+      .object({
+        $comment: z.string(),
+        generator: z.literal(CORRIDOR_GENERATOR_VERSION),
+        storageCrs: z.string().min(1),
+        presentationCrs: z.string().min(1),
+        crsBasis: z.enum(["DEMO_ASSUMPTION", "SOURCE_DECLARED"]),
+        chainageMethod: z.enum([
+          "frontage_midpoint",
+          "centroid_projection",
+          "access_point",
+          "declared",
+        ]),
+        alignmentLabel: z.string().min(1),
+        input: corridorGeneratorInputSchema,
+      })
+      .strict(),
     activity: z.array(
       z
         .object({
@@ -380,6 +403,159 @@ try {
       });
     }
 
+    /* ------------------------------------------------------------------------------------
+     * GIS: a reconstructed alignment and synthetic parcels, produced by the deterministic
+     * generator rather than checked in as geometry, so the same seed always yields the same
+     * corridor and every polygon is traceable to the code that made it.
+     *
+     * Geometry arrives as EPSG:4326 lon/lat and is transformed to the projected storage CRS on
+     * the way in; areas and lengths are then computed by PostGIS in metres.
+     * ---------------------------------------------------------------------------------- */
+    const corridor = generateCorridor(manifest.gis.input);
+
+    await tx.delete(gisSchema.affectation).where(eq(gisSchema.affectation.projectId, projectId));
+    await tx
+      .delete(gisSchema.parcelGeometry)
+      .where(eq(gisSchema.parcelGeometry.projectId, projectId));
+    await tx.delete(gisSchema.parcel).where(eq(gisSchema.parcel.projectId, projectId));
+    await tx.delete(gisSchema.alignment).where(eq(gisSchema.alignment.projectId, projectId));
+    await tx
+      .delete(gisSchema.spatialDatasetVersion)
+      .where(eq(gisSchema.spatialDatasetVersion.projectId, projectId));
+    await tx
+      .delete(gisSchema.spatialDataset)
+      .where(eq(gisSchema.spatialDataset.projectId, projectId));
+
+    const lineWkt = `LINESTRING(${corridor.alignment.map(([x, y]) => `${x} ${y}`).join(",")})`;
+    const ringWkt = (ring: ReadonlyArray<readonly [number, number]>) =>
+      `POLYGON((${ring.map(([x, y]) => `${x} ${y}`).join(",")}))`;
+    /**
+     * 4326 WKT → storage-CRS geometry. The SRIDs are inlined with `sql.raw` because a bound
+     * parameter arrives as text and PostGIS then reads "32717" as a proj string; they are
+     * compile-time constants from the domain, never user input, so raw is safe here. The WKT
+     * itself stays a bound parameter.
+     */
+    const srid4326 = sql.raw(String(PRESENTATION_SRID));
+    const sridStorage = sql.raw(String(STORAGE_SRID));
+    const toStorage = (wkt: string) =>
+      sql`ST_Transform(ST_GeomFromText(${wkt}, ${srid4326}), ${sridStorage})`;
+
+    const datasets = {
+      alignment: { id: randomUUID(), versionId: randomUUID() },
+      parcels: { id: randomUUID(), versionId: randomUUID() },
+      affectations: { id: randomUUID(), versionId: randomUUID() },
+    } as const;
+
+    const datasetSpec = [
+      {
+        kind: "alignment" as const,
+        label: manifest.gis.alignmentLabel,
+        ids: datasets.alignment,
+        versionLabel: "alignment_v1",
+        featureCount: 1,
+        provenance: "alignment-reconstructed",
+      },
+      {
+        kind: "parcels" as const,
+        label: "Predios frentistas",
+        ids: datasets.parcels,
+        versionLabel: "parcels_v1",
+        featureCount: corridor.parcels.length,
+        provenance: "parcels-synthetic",
+      },
+      {
+        kind: "affectations" as const,
+        label: "Afectación por derecho de vía",
+        ids: datasets.affectations,
+        versionLabel: "affectations_v1",
+        featureCount: corridor.parcels.filter((p) => p.affectationRing).length,
+        provenance: "affectations-synthetic",
+      },
+    ];
+
+    for (const spec of datasetSpec) {
+      await tx.insert(gisSchema.spatialDataset).values({
+        id: spec.ids.id,
+        tenantId,
+        projectId,
+        kind: spec.kind,
+        label: spec.label,
+      });
+      await tx.insert(gisSchema.spatialDatasetVersion).values({
+        id: spec.ids.versionId,
+        tenantId,
+        projectId,
+        datasetId: spec.ids.id,
+        versionLabel: spec.versionLabel,
+        origin: "generated",
+        sourceCrs: manifest.gis.storageCrs,
+        generatorVersion: corridor.generatorVersion,
+        featureCount: spec.featureCount,
+        isActive: true,
+        supersedesVersionId: null,
+        producedAt: scenarioInstant,
+        note: manifest.gis.$comment,
+        provenanceId: provenanceId(spec.provenance),
+      });
+    }
+
+    await tx.insert(gisSchema.alignment).values({
+      id: randomUUID(),
+      tenantId,
+      projectId,
+      datasetVersionId: datasets.alignment.versionId,
+      label: manifest.gis.alignmentLabel,
+      geom: toStorage(lineWkt) as unknown as string,
+      lengthM: String(corridor.alignmentLengthM),
+      provenanceId: provenanceId("alignment-reconstructed"),
+    });
+
+    for (const generated of corridor.parcels) {
+      const parcelId = randomUUID();
+      await tx.insert(gisSchema.parcel).values({
+        id: parcelId,
+        tenantId,
+        projectId,
+        parcelCode: generated.parcelCode,
+        sectorLabel: generated.sectorLabel,
+        side: generated.side,
+        status: generated.status,
+        chainageM: String(generated.chainageM),
+        chainageMethod: manifest.gis.chainageMethod,
+        frontageM: String(generated.frontageM),
+        provenanceId: provenanceId("parcels-synthetic"),
+      });
+      const polygon = ringWkt(generated.ring as ReadonlyArray<readonly [number, number]>);
+      await tx.insert(gisSchema.parcelGeometry).values({
+        id: randomUUID(),
+        tenantId,
+        projectId,
+        parcelId,
+        datasetVersionId: datasets.parcels.versionId,
+        geom: toStorage(polygon) as unknown as string,
+        // Area is computed by PostGIS in the projected CRS, never in the generator.
+        areaM2: sql`ST_Area(${toStorage(polygon)})` as unknown as string,
+        isActive: true,
+        provenanceId: provenanceId("parcels-synthetic"),
+      });
+      if (generated.affectationRing) {
+        const strip = ringWkt(
+          generated.affectationRing as ReadonlyArray<readonly [number, number]>,
+        );
+        await tx.insert(gisSchema.affectation).values({
+          id: randomUUID(),
+          tenantId,
+          projectId,
+          parcelId,
+          datasetVersionId: datasets.affectations.versionId,
+          category: "right_of_way",
+          geom: toStorage(strip) as unknown as string,
+          affectedAreaM2: sql`ST_Area(${toStorage(strip)})` as unknown as string,
+          provenanceId: provenanceId("affectations-synthetic"),
+        });
+      }
+    }
+
     console.log(
       [
         `project "${manifest.project.slug}" seeded`,
@@ -388,6 +564,7 @@ try {
         `forecast ${result.projectedCloseDate} (delay ${result.delayDays}d, rate ${result.movingAveragePerDay}/día)`,
         `${manifest.attention.length} attention items`,
         `${manifest.activity.length} activity events`,
+        `GIS ${corridor.parcels.length} parcels · alignment ${(corridor.alignmentLengthM / 1000).toFixed(2)} km · ${corridor.generatorVersion}`,
       ].join(" · "),
     );
   });

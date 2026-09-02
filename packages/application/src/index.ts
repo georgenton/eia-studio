@@ -36,3 +36,18 @@ export {
   loadProvenanceView,
   toProvenanceRecord,
 } from "./projects/provenance";
+export {
+  loadParcelExplorer,
+  loadParcelWorkspace,
+  loadTerritorialSummary,
+  PARCEL_PAYLOAD_LIMIT,
+} from "./gis/read-models";
+export type {
+  LayerProvenance,
+  ParcelAffectation,
+  ParcelExplorerView,
+  ParcelFeature,
+  ParcelRow,
+  ParcelWorkspaceView,
+  TerritorialSummary,
+} from "./gis/read-models";
