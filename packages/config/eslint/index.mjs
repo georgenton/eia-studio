@@ -162,5 +162,7 @@ export const ignores = {
     "design/**",
     "pnpm-lock.yaml",
     "**/next-env.d.ts",
+    // Vendored third-party bundles copied into /public by a build step (the MapLibre worker).
+    "apps/*/public/vendor/**",
   ],
 };

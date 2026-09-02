@@ -1,0 +1,78 @@
+/* The parent always sets the height; a `min-height` here only overflowed the smaller box on the
+   Parcel Workspace and clipped the scale bar. */
+.wrap {
+  position: relative;
+  height: 100%;
+}
+.canvas {
+  position: absolute;
+  inset: 0;
+}
+.legends {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: none;
+  max-width: 260px;
+}
+.legend {
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid var(--eia-border);
+  border-radius: var(--eia-radius-panel);
+  box-shadow: var(--eia-shadow-card);
+  padding: 10px 12px;
+}
+.legendTitle {
+  font-size: var(--eia-size-label);
+  font-weight: 600;
+  letter-spacing: var(--eia-tracking-label);
+  text-transform: uppercase;
+  color: var(--eia-text-muted);
+  margin-bottom: 7px;
+}
+.legendList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.legendRow {
+  display: grid;
+  grid-template-columns: 16px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  font-size: 11.5px;
+}
+.swatch {
+  width: 16px;
+  height: 16px;
+  border: 1px solid;
+  border-radius: 2px;
+  display: grid;
+  place-items: center;
+  font-size: 9px;
+  line-height: 1;
+  color: var(--eia-ink);
+}
+.legendLabel {
+  color: var(--eia-ink);
+}
+.legendCount {
+  font-family: var(--eia-font-mono);
+  font-size: 10.5px;
+  color: var(--eia-text-muted);
+}
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

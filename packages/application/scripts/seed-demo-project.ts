@@ -4,19 +4,26 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { appEnvSchema, loadEnv, migratorDatabaseEnvSchema } from "@eia/contracts";
-import { appSchema, createDatabase, createPool } from "@eia/db";
+import { appSchema, createDatabase, createPool, gisSchema } from "@eia/db";
 import {
   calculateForecast,
+  CORRIDOR_GENERATOR_VERSION,
+  corridorGeneratorInputSchema,
   FORECAST_ALGORITHM_VERSION,
+  generateCorridor,
   GRANULARITIES,
   METRIC_KEYS,
+  CANONICAL_SRID,
   ORIGINS,
   REGIMES,
+  sridSchema,
   TRANSFORMATIONS,
   VALIDATION_STATES,
 } from "@eia/domain";
 import { config as loadDotenv } from "dotenv";
-import { eq } from "drizzle-orm";
+
+import { assertAnalysisSridUsable } from "../src/gis/analysis-crs";
+import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 
 /**
@@ -143,6 +150,18 @@ const manifestSchema = z
         })
         .strict(),
     ),
+    /** Deterministic GIS generation inputs; the geometry itself is never stored in the fixture. */
+    gis: z
+      .object({
+        $comment: z.string(),
+        generator: z.literal(CORRIDOR_GENERATOR_VERSION),
+        /** Projected CRS this project's lengths and areas are measured in (ADR-017). */
+        analysisSrid: sridSchema,
+        crsBasis: z.enum(["DEMO_ASSUMPTION", "SOURCE_DECLARED"]),
+        alignmentLabel: z.string().min(1),
+        input: corridorGeneratorInputSchema,
+      })
+      .strict(),
     activity: z.array(
       z
         .object({
@@ -380,6 +399,230 @@ try {
       });
     }
 
+    /* ------------------------------------------------------------------------------------
+     * GIS: a reconstructed alignment and synthetic parcels, produced by the deterministic
+     * generator rather than checked in as geometry, so the same seed always yields the same
+     * corridor and every polygon is traceable to the code that made it.
+     *
+     * Geometry is persisted in the canonical CRS (EPSG:4326) exactly as the generator emits it.
+     * Metres come from PostGIS transforming that geometry into the dataset's analysis CRS, which
+     * is fixture configuration, not a constant of the product (ADR-017).
+     * ---------------------------------------------------------------------------------- */
+    const corridor = generateCorridor(manifest.gis.input);
+
+    await tx.delete(gisSchema.affectation).where(eq(gisSchema.affectation.projectId, projectId));
+    await tx
+      .delete(gisSchema.parcelGeometry)
+      .where(eq(gisSchema.parcelGeometry.projectId, projectId));
+    await tx.delete(gisSchema.parcel).where(eq(gisSchema.parcel.projectId, projectId));
+    await tx.delete(gisSchema.alignment).where(eq(gisSchema.alignment.projectId, projectId));
+    await tx
+      .delete(gisSchema.spatialDatasetVersion)
+      .where(eq(gisSchema.spatialDatasetVersion.projectId, projectId));
+    await tx
+      .delete(gisSchema.spatialDataset)
+      .where(eq(gisSchema.spatialDataset.projectId, projectId));
+
+    const lineWkt = `LINESTRING(${corridor.alignment.map(([x, y]) => `${x} ${y}`).join(",")})`;
+    const ringWkt = (ring: ReadonlyArray<readonly [number, number]>) =>
+      `POLYGON((${ring.map(([x, y]) => `${x} ${y}`).join(",")}))`;
+    /*
+     * The analysis CRS is checked against `spatial_ref_sys` before anything is written: it must
+     * be registered, projected, metre-based and usable by ST_Transform. The check reads the CRS
+     * definition, never the SRID number (IG2-009). Doing it here means a bad fixture fails with a
+     * sentence, at the start, rather than as a PostGIS exception on the last insert.
+     */
+    const analysisSrid = await assertAnalysisSridUsable(tx, manifest.gis.analysisSrid);
+
+    /**
+     * The SRIDs are inlined with `sql.raw` because a bound parameter arrives as text and PostGIS
+     * then reads "4326" as a proj string. `CANONICAL_SRID` is a compile-time constant, and
+     * `analysisSrid` has just been validated against the catalogue and re-parsed as an integer,
+     * so neither is user input by the time it reaches SQL.
+     */
+    const canonical = sql.raw(String(CANONICAL_SRID));
+    const analysis = sql.raw(String(analysisSrid));
+    /** WKT → canonical geometry, stored as the generator emitted it. */
+    const toCanonical = (wkt: string) => sql`ST_GeomFromText(${wkt}, ${canonical})`;
+    /**
+     * Canonical geometry → an analysis CRS, where metres mean metres.
+     *
+     * Which analysis CRS is a property of the **dataset whose measurement it is** (IG2-009). In
+     * this fixture all three layers share one, so the parameter looks redundant; it is not. An
+     * official import can bring parcels in one CRS and an alignment in another, and then a
+     * parcel's area must come from the parcels dataset while the corridor's length and every
+     * chainage along it must come from the alignment dataset. Passing it explicitly is what stops
+     * a future import from measuring a road with a parcel layer's CRS.
+     */
+    const forMetrics = (wkt: string, srid = analysis) =>
+      sql`ST_Transform(${toCanonical(wkt)}, ${srid})`;
+
+    const datasets = {
+      alignment: { id: randomUUID(), versionId: randomUUID() },
+      parcels: { id: randomUUID(), versionId: randomUUID() },
+      affectations: { id: randomUUID(), versionId: randomUUID() },
+    } as const;
+
+    const datasetSpec = [
+      {
+        kind: "alignment" as const,
+        label: manifest.gis.alignmentLabel,
+        ids: datasets.alignment,
+        versionLabel: "alignment_v1",
+        featureCount: 1,
+        provenance: "alignment-reconstructed",
+      },
+      {
+        kind: "parcels" as const,
+        label: "Predios frentistas",
+        ids: datasets.parcels,
+        versionLabel: "parcels_v1",
+        featureCount: corridor.parcels.length,
+        provenance: "parcels-synthetic",
+      },
+      {
+        kind: "affectations" as const,
+        label: "Afectación por derecho de vía",
+        ids: datasets.affectations,
+        versionLabel: "affectations_v1",
+        featureCount: corridor.parcels.filter((p) => p.affectationRing).length,
+        provenance: "affectations-synthetic",
+      },
+    ];
+
+    for (const spec of datasetSpec) {
+      await tx.insert(gisSchema.spatialDataset).values({
+        id: spec.ids.id,
+        tenantId,
+        projectId,
+        kind: spec.kind,
+        label: spec.label,
+      });
+      await tx.insert(gisSchema.spatialDatasetVersion).values({
+        id: spec.ids.versionId,
+        tenantId,
+        projectId,
+        datasetId: spec.ids.id,
+        versionLabel: spec.versionLabel,
+        origin: "generated",
+        // The generator works in a local metric frame and emits lon/lat, so canonical storage is
+        // also what it produced; the analysis CRS is where this project's metres are measured.
+        sourceSrid: CANONICAL_SRID,
+        analysisSrid: analysisSrid,
+        generatorVersion: corridor.generatorVersion,
+        featureCount: spec.featureCount,
+        isActive: true,
+        supersedesVersionId: null,
+        producedAt: scenarioInstant,
+        note: manifest.gis.$comment,
+        provenanceId: provenanceId(spec.provenance),
+      });
+    }
+
+    await tx.insert(gisSchema.alignment).values({
+      id: randomUUID(),
+      tenantId,
+      projectId,
+      datasetVersionId: datasets.alignment.versionId,
+      label: manifest.gis.alignmentLabel,
+      geom: toCanonical(lineWkt) as unknown as string,
+      // Measured by PostGIS in the analysis CRS, never taken from the generator's own arithmetic.
+      lengthM: sql`ST_Length(${forMetrics(lineWkt)})` as unknown as string,
+      provenanceId: provenanceId("alignment-reconstructed"),
+    });
+
+    for (const generated of corridor.parcels) {
+      const parcelId = randomUUID();
+      await tx.insert(gisSchema.parcel).values({
+        id: parcelId,
+        tenantId,
+        projectId,
+        parcelCode: generated.parcelCode,
+        sectorLabel: generated.sectorLabel,
+        side: generated.side,
+        status: generated.status,
+        // Chainage is derived from geometry after the parcels are in place (see below), not
+        // carried over from the generator: two numbers for one fact drift.
+        chainageM: null,
+        chainageMethod: null,
+        frontageM: String(generated.frontageM),
+        provenanceId: provenanceId("parcels-synthetic"),
+      });
+      const polygon = ringWkt(generated.ring as ReadonlyArray<readonly [number, number]>);
+      await tx.insert(gisSchema.parcelGeometry).values({
+        id: randomUUID(),
+        tenantId,
+        projectId,
+        parcelId,
+        datasetVersionId: datasets.parcels.versionId,
+        geom: toCanonical(polygon) as unknown as string,
+        // Area is computed by PostGIS in the analysis CRS, never in the generator.
+        areaM2: sql`ST_Area(${forMetrics(polygon)})` as unknown as string,
+        isActive: true,
+        provenanceId: provenanceId("parcels-synthetic"),
+      });
+      if (generated.affectationRing) {
+        const strip = ringWkt(
+          generated.affectationRing as ReadonlyArray<readonly [number, number]>,
+        );
+        await tx.insert(gisSchema.affectation).values({
+          id: randomUUID(),
+          tenantId,
+          projectId,
+          parcelId,
+          datasetVersionId: datasets.affectations.versionId,
+          category: "right_of_way",
+          geom: toCanonical(strip) as unknown as string,
+          affectedAreaM2: sql`ST_Area(${forMetrics(strip)})` as unknown as string,
+          provenanceId: provenanceId("affectations-synthetic"),
+        });
+      }
+    }
+
+    /*
+     * Chainage, derived (IG2-003). One deterministic method, computed by PostGIS from the
+     * geometry that is actually stored:
+     *
+     *   parcel centroid → ST_LineLocatePoint on the active alignment → fraction along the line
+     *   → × the alignment's length measured in the analysis CRS → metres.
+     *
+     * It is `centroid_projection` and not `frontage_midpoint` because a frontage midpoint would
+     * claim we know where each parcel meets the road, and for synthetic polygons we do not: the
+     * centroid is a fact of the geometry we have. Deriving it here rather than carrying the
+     * generator's own number means there is one chainage, not two that can disagree.
+     *
+     * Chainage is a reference along the corridor. It is never identity: the parcel's UUID and its
+     * business code are unaffected by it.
+     */
+    const chainage = await tx.execute(sql`
+      with axis as (
+        -- The alignment dataset's own analysis CRS, read from its version row: a distance along
+        -- the road is the road layer's measurement, never the parcel layer's.
+        select ST_Transform(a.geom, v.analysis_srid) as geom,
+               v.analysis_srid as srid,
+               ST_Length(ST_Transform(a.geom, v.analysis_srid)) as length_m
+        from app.alignment a
+        join app.spatial_dataset_version v
+          on v.tenant_id = a.tenant_id and v.id = a.dataset_version_id and v.is_active
+        where a.tenant_id = ${tenantId} and a.project_id = ${projectId}
+        limit 1
+      )
+      update app.parcel p
+         set chainage_m = round((
+               ST_LineLocatePoint(
+                 axis.geom,
+                 -- The parcel centroid is projected into the *alignment's* CRS, so both sides of
+                 -- the measurement live in one coordinate system.
+                 ST_Centroid(ST_Transform(g.geom, axis.srid))
+               ) * axis.length_m
+             )::numeric, 1),
+             chainage_method = 'centroid_projection'
+        from app.parcel_geometry g, axis
+       where g.tenant_id = p.tenant_id and g.parcel_id = p.id and g.is_active
+         and p.tenant_id = ${tenantId} and p.project_id = ${projectId}
+      returning p.id
+    `);
+
     console.log(
       [
         `project "${manifest.project.slug}" seeded`,
@@ -388,6 +631,8 @@ try {
         `forecast ${result.projectedCloseDate} (delay ${result.delayDays}d, rate ${result.movingAveragePerDay}/día)`,
         `${manifest.attention.length} attention items`,
         `${manifest.activity.length} activity events`,
+        `GIS ${corridor.parcels.length} parcels · alignment ${(corridor.alignmentLengthM / 1000).toFixed(2)} km · ${corridor.generatorVersion}`,
+        `chainage derived for ${chainage.rowCount ?? 0} parcels (centroid_projection, alignment CRS EPSG:${analysisSrid})`,
       ].join(" · "),
     );
   });

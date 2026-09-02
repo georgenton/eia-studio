@@ -19,7 +19,7 @@
   "tenantSlug": "demo-consultancy",
   "project": {
     "slug": "puente-del-amor",
-    "name": "Vía Puente del Amor – Los Hachos",
+    "name": "V\u00eda Puente del Amor \u2013 Los Hachos",
     "locationLabel": "Zamora Chinchipe, Ecuador",
     "profileKey": "road_eia_social",
     "profileVersion": "1",
@@ -33,8 +33,8 @@
       "transformations": ["ORIGINAL"],
       "granularity": "AGGREGATE",
       "title": "Cifras agregadas del expediente concluido",
-      "note": "Cifras agregadas de un estudio de impacto ambiental y social concluido. Se cargaron como fixture aprobado: el corpus documental del proyecto todavía no se ha ingestado por el módulo Documents, por lo que no existe un localizador de página al que apuntar.",
-      "sourceLabel": "Expediente del estudio concluido · fixture aprobado",
+      "note": "Cifras agregadas de un estudio de impacto ambiental y social concluido. Se cargaron como fixture aprobado: el corpus documental del proyecto todav\u00eda no se ha ingestado por el m\u00f3dulo Documents, por lo que no existe un localizador de p\u00e1gina al que apuntar.",
+      "sourceLabel": "Expediente del estudio concluido \u00b7 fixture aprobado",
       "sourceReference": "fixtures/projects/zamora-puente-del-amor",
       "sourceVersion": "v1",
       "method": null,
@@ -48,12 +48,12 @@
       "origin": "IMPORTED_DOCUMENT",
       "transformations": ["ORIGINAL"],
       "granularity": "AGGREGATE",
-      "title": "Consulta significativa · participantes registrados",
+      "title": "Consulta significativa \u00b7 participantes registrados",
       "note": "Cifra agregada del expediente real del estudio. No incluye datos identificables: es la suma de participantes registrados, sin nombres ni firmas.",
       "sourceLabel": "Registros de asistencia de las asambleas de consulta significativa",
-      "sourceReference": "4 asambleas · fixture agregado",
+      "sourceReference": "4 asambleas \u00b7 fixture agregado",
       "sourceVersion": "v2",
-      "method": "Suma de asistentes registrados; sin deduplicación de quienes asistieron a más de una asamblea.",
+      "method": "Suma de asistentes registrados; sin deduplicaci\u00f3n de quienes asistieron a m\u00e1s de una asamblea.",
       "capturedAt": "2026-08-26T00:00:00.000Z",
       "validationState": "VALIDATED",
       "validationNote": "Consolidado al cierre del expediente"
@@ -64,15 +64,15 @@
       "origin": "SYSTEM_GENERATED",
       "transformations": ["ORIGINAL"],
       "granularity": "AGGREGATE",
-      "title": "Métricas operativas de demostración",
-      "note": "Valores generados para demostrar el control de ejecución. No provienen del expediente ni de captura en campo y nunca deben leerse como avance real del estudio.",
-      "sourceLabel": "ops_metrics_demo · dataset sintético del proyecto",
+      "title": "M\u00e9tricas operativas de demostraci\u00f3n",
+      "note": "Valores generados para demostrar el control de ejecuci\u00f3n. No provienen del expediente ni de captura en campo y nunca deben leerse como avance real del estudio.",
+      "sourceLabel": "ops_metrics_demo \u00b7 dataset sint\u00e9tico del proyecto",
       "sourceReference": null,
       "sourceVersion": "v1",
-      "method": "Generados de forma determinista para la demostración; sin ponderación ni imputación.",
+      "method": "Generados de forma determinista para la demostraci\u00f3n; sin ponderaci\u00f3n ni imputaci\u00f3n.",
       "capturedAt": null,
       "validationState": "PENDING",
-      "validationNote": "No validado: son valores de demostración",
+      "validationNote": "No validado: son valores de demostraci\u00f3n",
       "$capturedAtFromScenario": true
     },
     "forecast": {
@@ -81,15 +81,15 @@
       "origin": "SYSTEM_GENERATED",
       "transformations": ["ORIGINAL", "DERIVED"],
       "granularity": "AGGREGATE",
-      "title": "Operational forecast · cierre proyectado",
-      "note": "Proyección aritmética sobre el ritmo observado, no un modelo predictivo. Se recalcula con cada sincronización, no incorpora estacionalidad ni variables externas, y se apoya en métricas operativas de demostración.",
-      "sourceLabel": "Cálculo determinista sobre ops_metrics_demo",
+      "title": "Operational forecast \u00b7 cierre proyectado",
+      "note": "Proyecci\u00f3n aritm\u00e9tica sobre el ritmo observado, no un modelo predictivo. Se recalcula con cada sincronizaci\u00f3n, no incorpora estacionalidad ni variables externas, y se apoya en m\u00e9tricas operativas de demostraci\u00f3n.",
+      "sourceLabel": "C\u00e1lculo determinista sobre ops_metrics_demo",
       "sourceReference": null,
       "sourceVersion": "operational-forecast@1",
-      "method": "pendientes ÷ media móvil de 5 días de predios completados = días restantes; cierre proyectado = fecha de cálculo + días restantes",
+      "method": "pendientes \u00f7 media m\u00f3vil de 5 d\u00edas de predios completados = d\u00edas restantes; cierre proyectado = fecha de c\u00e1lculo + d\u00edas restantes",
       "capturedAt": null,
       "validationState": "NOT_REQUIRED",
-      "validationNote": "Cálculo determinista, reproducible a mano",
+      "validationNote": "C\u00e1lculo determinista, reproducible a mano",
       "$capturedAtFromScenario": true
     },
     "activityDemo": {
@@ -98,16 +98,67 @@
       "origin": "SYSTEM_GENERATED",
       "transformations": ["ORIGINAL"],
       "granularity": "AGGREGATE",
-      "title": "Actividad reciente de demostración",
-      "note": "Eventos generados para ilustrar el flujo de trabajo. Los actores son etiquetas de demostración, no personas.",
-      "sourceLabel": "ops_activity_demo · dataset sintético del proyecto",
+      "title": "Actividad reciente de demostraci\u00f3n",
+      "note": "Eventos generados para ilustrar el flujo de trabajo. Los actores son etiquetas de demostraci\u00f3n, no personas.",
+      "sourceLabel": "ops_activity_demo \u00b7 dataset sint\u00e9tico del proyecto",
       "sourceReference": null,
       "sourceVersion": "v1",
       "method": null,
       "capturedAt": null,
       "validationState": "PENDING",
-      "validationNote": "No validado: son valores de demostración",
+      "validationNote": "No validado: son valores de demostraci\u00f3n",
       "$capturedAtFromScenario": true
+    },
+    "alignment": {
+      "key": "alignment-reconstructed",
+      "regime": "DEMO_SIMULATION",
+      "origin": "SYSTEM_GENERATED",
+      "transformations": ["ORIGINAL", "RECONSTRUCTED"],
+      "granularity": null,
+      "title": "Eje vial reconstruido del corredor",
+      "note": "Trazado aproximado generado para la demostraci\u00f3n. No procede del paquete GIS oficial, que todav\u00eda no se ha recibido: se dibuja de forma discontinua y se reemplazar\u00e1 por el eje oficial cuando llegue. No es cartograf\u00eda de referencia.",
+      "sourceLabel": "corridor-generator@1 \u00b7 eje reconstruido",
+      "sourceReference": "fixtures/projects/zamora-puente-del-amor",
+      "sourceVersion": "alignment_v1",
+      "method": "Polil\u00ednea sobre puntos de control fijos, remuestreada cada 40 m con sinuosidad determinista; longitud verificada contra la cifra hist\u00f3rica del corredor.",
+      "capturedAt": null,
+      "$capturedAtFromScenario": true,
+      "validationState": "PENDING",
+      "validationNote": "Se reemplazar\u00e1 con el eje del GIS oficial"
+    },
+    "parcels": {
+      "key": "parcels-synthetic",
+      "regime": "DEMO_SIMULATION",
+      "origin": "SYSTEM_GENERATED",
+      "transformations": ["ORIGINAL"],
+      "granularity": "INDIVIDUAL",
+      "title": "Predios sint\u00e9ticos del corredor",
+      "note": "Pol\u00edgonos generados para representar el universo hist\u00f3rico de 141 predios frentistas. NO SON CATASTRO y no son los linderos hist\u00f3ricos: son geometr\u00eda de demostraci\u00f3n con el mismo recuento que la cifra del expediente. La identidad de cada predio persiste cuando llegue la capa oficial; solo se reemplaza su geometr\u00eda.",
+      "sourceLabel": "corridor-generator@1 \u00b7 predios sint\u00e9ticos",
+      "sourceReference": "fixtures/projects/zamora-puente-del-amor",
+      "sourceVersion": "parcels_v1",
+      "method": "Cuadril\u00e1teros perpendiculares al eje, alternando lados, con frente y fondo variados de forma determinista a partir de una semilla fija.",
+      "capturedAt": null,
+      "$capturedAtFromScenario": true,
+      "validationState": "PENDING",
+      "validationNote": "Geometr\u00eda de demostraci\u00f3n, sin validar"
+    },
+    "affectations": {
+      "key": "affectations-synthetic",
+      "regime": "DEMO_SIMULATION",
+      "origin": "SYSTEM_GENERATED",
+      "transformations": ["ORIGINAL", "DERIVED"],
+      "granularity": "INDIVIDUAL",
+      "title": "Afectaci\u00f3n estimada por franja de derecho de v\u00eda",
+      "note": "Intersecci\u00f3n calculada entre cada predio sint\u00e9tico y una franja de derecho de v\u00eda de ancho fijo. Es una estimaci\u00f3n geom\u00e9trica de demostraci\u00f3n: no es un aval\u00fao, no representa un acuerdo y no incluye datos de personas.",
+      "sourceLabel": "corridor-generator@1 \u00b7 afectaci\u00f3n derivada",
+      "sourceReference": null,
+      "sourceVersion": "affectations_v1",
+      "method": "\u00c1rea del predio dentro de la franja de derecho de v\u00eda \u00f7 \u00e1rea total del predio.",
+      "capturedAt": null,
+      "$capturedAtFromScenario": true,
+      "validationState": "PENDING",
+      "validationNote": "Estimaci\u00f3n geom\u00e9trica de demostraci\u00f3n"
     }
   },
   "metrics": [
@@ -121,14 +172,14 @@
     {
       "key": "universe_estimated",
       "numericValue": 141,
-      "note": "predios frentistas · dato real del estudio",
+      "note": "predios frentistas \u00b7 dato real del estudio",
       "displayOrder": 1,
       "provenance": "historical-aggregate"
     },
     {
       "key": "universe_confirmed",
       "numericValue": 138,
-      "note": "3 en verificación",
+      "note": "3 en verificaci\u00f3n",
       "displayOrder": 2,
       "provenance": "operations-demo"
     },
@@ -163,7 +214,7 @@
     {
       "key": "productivity_per_day",
       "numericValue": 5.2,
-      "note": "media móvil de 5 días",
+      "note": "media m\u00f3vil de 5 d\u00edas",
       "displayOrder": 7,
       "provenance": "operations-demo"
     },
@@ -191,9 +242,9 @@
     "activeTechnicians": 3,
     "assignedTechnicians": 4,
     "assumptions": [
-      "6 predios por técnico en tramos accesibles",
+      "6 predios por t\u00e9cnico en tramos accesibles",
       "2 revisitas por cada 10 visitas",
-      "sin días perdidos por lluvia",
+      "sin d\u00edas perdidos por lluvia",
       "un tramo con acceso solo a pie"
     ],
     "provenance": "forecast"
@@ -202,17 +253,17 @@
     {
       "severity": "high",
       "title": "Retraso proyectado sobre la fecha objetivo",
-      "note": "El ritmo necesario supera al ritmo observado con los técnicos activos.",
+      "note": "El ritmo necesario supera al ritmo observado con los t\u00e9cnicos activos.",
       "surfaceLabel": "Operational forecast",
       "surfaceKey": null,
-      "actionLabel": "Ver cálculo",
+      "actionLabel": "Ver c\u00e1lculo",
       "displayOrder": 0,
       "provenance": "forecast"
     },
     {
       "severity": "high",
       "title": "Hallazgos abiertos en Quality Gate",
-      "note": "Posible inconsistencia — requiere revisión de especialista.",
+      "note": "Posible inconsistencia \u2014 requiere revisi\u00f3n de especialista.",
       "surfaceLabel": "Quality Gate",
       "surfaceKey": null,
       "actionLabel": "Revisar",
@@ -222,7 +273,7 @@
     {
       "severity": "medium",
       "title": "Predios sin completar levantamiento",
-      "note": "Concentrados en el último tramo del corredor.",
+      "note": "Concentrados en el \u00faltimo tramo del corredor.",
       "surfaceLabel": "GIS & Predios",
       "surfaceKey": null,
       "actionLabel": "Abrir mapa",
@@ -242,7 +293,7 @@
     {
       "severity": "low",
       "title": "Respuestas abiertas sin validar",
-      "note": "Parte con confianza baja del modelo; ninguna entra en los cálculos hasta validarse.",
+      "note": "Parte con confianza baja del modelo; ninguna entra en los c\u00e1lculos hasta validarse.",
       "surfaceLabel": "Social Intelligence",
       "surfaceKey": null,
       "actionLabel": "Ir a la cola",
@@ -264,56 +315,102 @@
     {
       "dayOffset": 0,
       "time": "14:02",
-      "actorLabel": "Técnico de campo 1",
-      "action": "Sincronizó 12 levantamientos desde FieldFlow",
+      "actorLabel": "T\u00e9cnico de campo 1",
+      "action": "Sincroniz\u00f3 12 levantamientos desde FieldFlow",
       "objectLabel": "tramo 3"
     },
     {
       "dayOffset": 0,
       "time": "12:40",
       "actorLabel": "Especialista social",
-      "action": "Validó 18 categorías de respuestas abiertas",
+      "action": "Valid\u00f3 18 categor\u00edas de respuestas abiertas",
       "objectLabel": "variable abierta"
     },
     {
       "dayOffset": 0,
       "time": "11:15",
       "actorLabel": "Sistema",
-      "action": "Procesó el anexo de afectaciones",
+      "action": "Proces\u00f3 el anexo de afectaciones",
       "objectLabel": "anexo v4"
     },
     {
       "dayOffset": 0,
       "time": "10:52",
-      "actorLabel": "Cartógrafo",
-      "action": "Corrigió la geometría de 3 predios",
+      "actorLabel": "Cart\u00f3grafo",
+      "action": "Corrigi\u00f3 la geometr\u00eda de 3 predios",
       "objectLabel": "capa de predios"
     },
     {
       "dayOffset": 0,
       "time": "09:40",
       "actorLabel": "Sistema",
-      "action": "Ejecutó revisión de calidad sobre el expediente",
+      "action": "Ejecut\u00f3 revisi\u00f3n de calidad sobre el expediente",
       "objectLabel": "expediente"
     },
     {
       "dayOffset": 0,
       "time": "09:05",
       "actorLabel": "Coordinador",
-      "action": "Programó 6 revisitas",
+      "action": "Program\u00f3 6 revisitas",
       "objectLabel": "tramo 4"
     },
     {
       "dayOffset": -1,
       "time": "08:20",
       "actorLabel": "Asistente de consulta",
-      "action": "Cargó el acta de la cuarta asamblea",
+      "action": "Carg\u00f3 el acta de la cuarta asamblea",
       "objectLabel": "acta 04"
     }
   ],
   "demoScenario": {
-    "$comment": "Fixed as-of date of this project's simulation, and the single source of every DEMO_SIMULATION instant below: the loader derives the forecast's as_of_date and calculated_at, the activity feed's occurred_at and the capture instant of the demo provenance records from it. It is fixture metadata and is never stored on the project — a Project is a real engagement and knows nothing about demos (IG1-009). Historical observed facts keep their own capture dates and do not inherit this.",
+    "$comment": "Fixed as-of date of this project's simulation, and the single source of every DEMO_SIMULATION instant below: the loader derives the forecast's as_of_date and calculated_at, the activity feed's occurred_at and the capture instant of the demo provenance records from it. It is fixture metadata and is never stored on the project \u2014 a Project is a real engagement and knows nothing about demos (IG1-009). Historical observed facts keep their own capture dates and do not inherit this.",
     "scenarioDate": "2026-09-17",
     "scenarioTime": "14:02"
+  },
+  "gis": {
+    "$comment": "Deterministic generator inputs for the reconstructed corridor and its synthetic parcels. Repeated seeding reproduces identical business codes and geometry. Geometry is stored canonically in EPSG:4326; analysisSrid is the projected CRS this project's lengths and areas are measured in, and is a DEMO assumption because the official GIS package has not been received. NOT cadastre, NOT field survey. Contains no owner names, no phone numbers, no personal coordinates and no cadastral keys.",
+    "generator": "corridor-generator@1",
+    "analysisSrid": 32717,
+    "crsBasis": "DEMO_ASSUMPTION",
+    "alignmentLabel": "Eje vial del corredor",
+    "input": {
+      "seed": "puente-del-amor-v1",
+      "controlPoints": [
+        [-78.9536, -4.0812],
+        [-78.941, -4.0755],
+        [-78.9268, -4.0723],
+        [-78.9105, -4.0688],
+        [-78.8894, -4.063]
+      ],
+      "parcelCount": 141,
+      "frontageM": 62,
+      "depthM": 210,
+      "rightOfWayHalfWidthM": 25,
+      "setbackM": 6,
+      "sectors": [
+        {
+          "label": "Tramo 1",
+          "share": 0.28
+        },
+        {
+          "label": "Tramo 2",
+          "share": 0.3
+        },
+        {
+          "label": "Tramo 3",
+          "share": 0.23
+        },
+        {
+          "label": "Tramo 4",
+          "share": 0.19
+        }
+      ],
+      "codePrefix": "PRED-ZAM",
+      "statusPlan": {
+        "estimated": 2,
+        "notLocated": 1,
+        "excluded": 0
+      }
+    }
   }
 }

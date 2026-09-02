@@ -5,6 +5,8 @@
   "description": "EIA Studio web application (internal workspace + client portal route group)",
   "type": "module",
   "scripts": {
+    "predev": "node ../../tooling/scripts/copy-maplibre-worker.mjs",
+    "prebuild": "node ../../tooling/scripts/copy-maplibre-worker.mjs",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
@@ -18,9 +20,11 @@
     "@eia/db": "workspace:*",
     "@eia/domain": "workspace:*",
     "@eia/ui": "workspace:*",
+    "@tanstack/react-table": "9.2.4",
     "better-auth": "1.7.2",
     "dotenv": "17.4.2",
     "drizzle-orm": "0.45.2",
+    "maplibre-gl": "6.7.0",
     "next": "16.3.4",
     "pg": "8.23.0",
     "pino": "10.3.1",
@@ -35,8 +39,8 @@
     "@types/pg": "8.23.1",
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.5",
+    "tsx": "4.23.13",
     "typescript": "5.9.3",
-    "vitest": "4.1.11",
-    "tsx": "4.23.13"
+    "vitest": "4.1.11"
   }
 }

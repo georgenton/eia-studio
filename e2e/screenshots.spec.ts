@@ -10,6 +10,7 @@ import { PROJECT, TENANT, test } from "./fixtures";
  * Run with `pnpm e2e:screenshots`; the files are committed under docs/screenshots/slice-1/.
  */
 const OUT = "docs/screenshots/slice-1";
+const OUT2 = "docs/screenshots/slice-2";
 
 test.describe("implementation screenshots", () => {
   test("portfolio", async ({ page }) => {
@@ -34,8 +35,35 @@ test.describe("implementation screenshots", () => {
   test("module enabled but not implemented", async ({ page }) => {
     // A capability the project *is* entitled to whose surface this slice has not built. A
     // capability it is not entitled to answers 404 and has nothing to capture (ADR-016).
-    await page.goto(`/t/${TENANT}/p/${PROJECT}/gis`);
+    await page.goto(`/t/${TENANT}/p/${PROJECT}/field`);
     await page.waitForLoadState("networkidle");
     await page.screenshot({ path: `${OUT}/04-module-not-implemented.png` });
+  });
+
+  test("parcel explorer", async ({ page }) => {
+    await page.goto(`/t/${TENANT}/p/${PROJECT}/gis`);
+    await page.getByRole("table").waitFor();
+    await page.waitForTimeout(1200);
+    await page.screenshot({ path: `${OUT2}/01-parcel-explorer.png` });
+  });
+
+  test("parcel explorer with a parcel selected", async ({ page }) => {
+    await page.goto(`/t/${TENANT}/p/${PROJECT}/gis`);
+    await page.getByRole("table").waitFor();
+    await page.waitForTimeout(1200);
+    await page
+      .getByRole("row")
+      .filter({ hasText: "PRED-ZAM-004" })
+      .getByRole("button", { name: /Seleccionar/ })
+      .click();
+    await page.waitForTimeout(600);
+    await page.screenshot({ path: `${OUT2}/02-parcel-selected.png` });
+  });
+
+  test("parcel workspace summary", async ({ page }) => {
+    await page.goto(`/t/${TENANT}/p/${PROJECT}/parcels/PRED-ZAM-004`);
+    await page.getByRole("heading", { name: "PRED-ZAM-004", level: 1 }).waitFor();
+    await page.waitForTimeout(1200);
+    await page.screenshot({ path: `${OUT2}/03-parcel-workspace.png`, fullPage: true });
   });
 });

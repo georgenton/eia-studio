@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 
-import { appSchema, type Database } from "@eia/db";
+import { and, eq, sql } from "drizzle-orm";
+
+import { appSchema, gisSchema, type Database } from "@eia/db";
 
 /**
  * Generic factories (TESTING_STRATEGY.md §1): tenant A / tenant B, projects X / Y / Z, users
@@ -227,4 +229,147 @@ export async function createMetricSnapshot(
     provenanceId: input.provenanceId,
   });
   return { id };
+}
+
+/* ---------------------------------------------------------------------------------------------
+ * Slice 2 factories: spatial datasets, parcels and geometry.
+ *
+ * Geometry is written through PostGIS (`ST_GeomFromText`) rather than as literal WKB, so the
+ * tests exercise the same path the seeder uses: canonical `EPSG:4326` storage, with metres
+ * measured by transforming into the dataset's own analysis CRS.
+ * ------------------------------------------------------------------------------------------- */
+
+/** A small square around a lon/lat, in degrees. Enough to be a valid, non-degenerate polygon. */
+export function squareAround(lon: number, lat: number, sizeDeg = 0.002): string {
+  const half = sizeDeg / 2;
+  const ring = [
+    [lon - half, lat - half],
+    [lon + half, lat - half],
+    [lon + half, lat + half],
+    [lon - half, lat + half],
+    [lon - half, lat - half],
+  ];
+  return `POLYGON((${ring.map(([x, y]) => `${x} ${y}`).join(",")}))`;
+}
+
+export async function createSpatialDatasetVersion(
+  db: Database,
+  input: {
+    tenantId: string;
+    projectId: string;
+    provenanceId: string;
+    kind?: "alignment" | "parcels" | "affectations";
+    versionLabel?: string;
+    isActive?: boolean;
+    supersedesVersionId?: string | null;
+    origin?: "generated" | "imported" | "field_captured";
+    generatorVersion?: string | null;
+    datasetId?: string;
+    /** EPSG the geometry arrived in. Canonical storage by default. */
+    sourceSrid?: number;
+    /** Projected EPSG this dataset's metres are measured in. UTM 17S by default. */
+    analysisSrid?: number;
+  },
+): Promise<{ id: string; datasetId: string }> {
+  const kind = input.kind ?? "parcels";
+  let datasetId = input.datasetId;
+  if (!datasetId) {
+    const existing = await db
+      .select({ id: gisSchema.spatialDataset.id })
+      .from(gisSchema.spatialDataset)
+      .where(
+        and(
+          eq(gisSchema.spatialDataset.tenantId, input.tenantId),
+          eq(gisSchema.spatialDataset.projectId, input.projectId),
+          eq(gisSchema.spatialDataset.kind, kind),
+        ),
+      );
+    datasetId = existing[0]?.id;
+    if (!datasetId) {
+      datasetId = randomUUID();
+      await db.insert(gisSchema.spatialDataset).values({
+        id: datasetId,
+        tenantId: input.tenantId,
+        projectId: input.projectId,
+        kind,
+        label: `Factory ${kind} ${next()}`,
+      });
+    }
+  }
+  const id = randomUUID();
+  const origin = input.origin ?? "generated";
+  await db.insert(gisSchema.spatialDatasetVersion).values({
+    id,
+    tenantId: input.tenantId,
+    projectId: input.projectId,
+    datasetId,
+    versionLabel: input.versionLabel ?? `${kind}_v${next()}`,
+    origin,
+    sourceSrid: input.sourceSrid ?? 4326,
+    analysisSrid: input.analysisSrid ?? 32717,
+    generatorVersion:
+      input.generatorVersion === undefined
+        ? origin === "generated"
+          ? "corridor-generator@1"
+          : null
+        : input.generatorVersion,
+    featureCount: 1,
+    isActive: input.isActive ?? true,
+    supersedesVersionId: input.supersedesVersionId ?? null,
+    producedAt: new Date(),
+    provenanceId: input.provenanceId,
+  });
+  return { id, datasetId };
+}
+
+export async function createParcelWithGeometry(
+  db: Database,
+  input: {
+    tenantId: string;
+    projectId: string;
+    provenanceId: string;
+    datasetVersionId: string;
+    parcelCode?: string;
+    lon?: number;
+    lat?: number;
+    isActive?: boolean;
+    parcelId?: string;
+    /** Where this parcel's area is measured. Defaults to UTM 17S, like the pilot. */
+    analysisSrid?: number;
+  },
+): Promise<{ parcelId: string; geometryId: string }> {
+  const parcelId = input.parcelId ?? randomUUID();
+  if (!input.parcelId) {
+    await db.insert(gisSchema.parcel).values({
+      id: parcelId,
+      tenantId: input.tenantId,
+      projectId: input.projectId,
+      parcelCode: input.parcelCode ?? `PRED-FAC-${String(next()).padStart(3, "0")}`,
+      sectorLabel: "Tramo 1",
+      side: "left",
+      status: "confirmed",
+      chainageM: "100.0",
+      chainageMethod: "frontage_midpoint",
+      frontageM: "60.0",
+      provenanceId: input.provenanceId,
+    });
+  }
+  const wkt = squareAround(input.lon ?? -78.93, input.lat ?? -4.07);
+  const analysisSrid = input.analysisSrid ?? 32717;
+  const geometryId = randomUUID();
+  // Canonical geometry goes in as 4326; the area is measured by transforming into the analysis
+  // CRS, which is the same thing the seeder does.
+  await db.execute(sql`
+    insert into app.parcel_geometry
+      (id, tenant_id, project_id, parcel_id, dataset_version_id, geom, area_m2, is_active,
+       provenance_id)
+    values (
+      ${geometryId}, ${input.tenantId}, ${input.projectId}, ${parcelId}, ${input.datasetVersionId},
+      ST_GeomFromText(${wkt}, 4326),
+      ST_Area(ST_Transform(ST_GeomFromText(${wkt}, 4326), ${sql.raw(String(analysisSrid))})),
+      ${input.isActive ?? true},
+      ${input.provenanceId}
+    )
+  `);
+  return { parcelId, geometryId };
 }

@@ -36,3 +36,27 @@ export {
   loadProvenanceView,
   toProvenanceRecord,
 } from "./projects/provenance";
+export {
+  AnalysisCrsUnusable,
+  assertAnalysisSridUsable,
+  assertSourceSridUsable,
+  inspectAnalysisSrid,
+} from "./gis/analysis-crs";
+export type { AnalysisCrsCheck } from "./gis/analysis-crs";
+export { activateDatasetVersion } from "./gis/activate-dataset-version";
+export type { DatasetActivation } from "./gis/activate-dataset-version";
+export {
+  loadParcelExplorer,
+  loadParcelWorkspace,
+  loadTerritorialSummary,
+  PARCEL_PAYLOAD_LIMIT,
+} from "./gis/read-models";
+export type {
+  LayerProvenance,
+  ParcelAffectation,
+  ParcelExplorerView,
+  ParcelFeature,
+  ParcelRow,
+  ParcelWorkspaceView,
+  TerritorialSummary,
+} from "./gis/read-models";

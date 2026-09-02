@@ -13,5 +13,8 @@ packages/db/migrations/meta/
 
 # Playwright: stored sessions (generated, git-ignored, may contain a session cookie)
 e2e/.auth/
+
+# Vendored third-party bundles copied into /public by a build step
+apps/web/public/vendor/
 playwright-report/
 test-results/

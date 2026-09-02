@@ -36,9 +36,17 @@ describe("workspace surface registry", () => {
     expect(isWorkspaceSurface("nope")).toBe(false);
   });
 
-  it("only the Command Center is implemented in this slice", () => {
+  it("only the Command Center and GIS are implemented in this slice", () => {
     const implemented = WORKSPACE_SURFACES.filter((k) => SURFACE_DEFINITIONS[k].implemented);
-    expect(implemented).toEqual(["command-center"]);
+    expect(implemented).toEqual(["command-center", "gis"]);
+  });
+
+  it("an unbuilt surface names the phase it is coming in; a built one names none", () => {
+    for (const key of WORKSPACE_SURFACES) {
+      const surface = SURFACE_DEFINITIONS[key];
+      if (surface.implemented) expect(surface.plannedIn, key).toBeNull();
+      else expect(surface.plannedIn, key).toBeTruthy();
+    }
   });
 
   it("the pilot profile enables every surface capability except the announced ones", () => {
@@ -64,10 +72,14 @@ describe("capability route policy", () => {
   });
 
   it("an effective capability renders, or states plainly that the surface is not built", () => {
-    expect(outcome(true, "command-center")).toBe("ok");
-    for (const key of WORKSPACE_SURFACES.filter((k) => k !== "command-center")) {
-      expect(outcome(true, key)).toBe("not-implemented");
+    for (const key of WORKSPACE_SURFACES) {
+      expect(outcome(true, key), key).toBe(
+        SURFACE_DEFINITIONS[key].implemented ? "ok" : "not-implemented",
+      );
     }
+    expect(outcome(true, "command-center")).toBe("ok");
+    expect(outcome(true, "gis")).toBe("ok");
+    expect(outcome(true, "field")).toBe("not-implemented");
   });
 
   it("presentation cannot widen the policy: ANNOUNCED resolves as disabled", () => {

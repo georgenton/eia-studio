@@ -34,7 +34,7 @@ export default defineConfig({
     {
       name: "coordinator",
       testMatch:
-        /journey\.spec\.ts|authorization\.spec\.ts|screenshots\.spec\.ts|accessibility\.spec\.ts/,
+        /journey\.spec\.ts|gis\.spec\.ts|authorization\.spec\.ts|screenshots\.spec\.ts|accessibility\.spec\.ts/,
       dependencies: ["setup"],
       use: {
         ...devices["Desktop Chrome"],

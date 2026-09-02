@@ -33,7 +33,10 @@ export function SignInForm() {
   }
 
   return (
-    <form className={styles.form} onSubmit={onSubmit}>
+    // `method="post"`: submission is handled in JS, but if the button is pressed before the page
+    // has hydrated the browser falls back to a native submit. Without this the fallback is a GET
+    // and the password lands in the URL, history and any referrer.
+    <form className={styles.form} method="post" onSubmit={onSubmit}>
       <div className={styles.field}>
         <label className={styles.label} htmlFor="email">
           Correo institucional

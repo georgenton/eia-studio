@@ -12,9 +12,12 @@ Provenance facets per PROVENANCE.md §2 (D-013); the last column is the derived 
 |---|---|---|---|---|---|---|
 | Road length, roadside parcel count, socioeconomic survey count, consultation participants | Real aggregate figures from the finished study | HISTORICAL_OBSERVED | IMPORTED_DOCUMENT | [ORIGINAL] | AGGREGATE | REAL_AGGREGATE |
 | Consultation assemblies (four minutes, attendance) | Real documents of the study | HISTORICAL_OBSERVED | IMPORTED_DOCUMENT | [ORIGINAL] | (n/a) | none (document) |
-| Base map (hydrography, towns, general location) | Real geography | HISTORICAL_OBSERVED | IMPORTED_DATASET | [ORIGINAL] | (n/a) | legend `REAL_BASE_MAP` |
-| Corridor alignment (dashed line) | Approximate reconstruction until the official GIS arrives | HISTORICAL_OBSERVED | IMPORTED_DATASET | [RECONSTRUCTED] | (n/a) | RECONSTRUCTED / legend `RECONSTRUCTED_ALIGNMENT` |
-| 24 parcel polygons on the map | Generated; not cadastre | DEMO_SIMULATION | SYSTEM_GENERATED | [ORIGINAL] | INDIVIDUAL | SYNTHETIC / legend `SYNTHETIC_PARCELS` |
+| Base map (hydrography, towns, general location) | **Not implemented.** No base map has been received, so none is drawn and the legend does not claim one (TD-029) | — | — | — | — | legend `REAL_BASE_MAP` reserved, unused |
+| Corridor alignment (dashed line) | Approximate reconstruction until the official GIS arrives; drawn from control points, never surveyed | HISTORICAL_OBSERVED | IMPORTED_DATASET | [RECONSTRUCTED] | (n/a) | RECONSTRUCTED / legend `RECONSTRUCTED_ALIGNMENT` |
+| Parcel polygons on the map (141 as seeded in Slice 2; the prototype drew 24) | Generated deterministically by `corridor-generator@1`; not cadastre | DEMO_SIMULATION | SYSTEM_GENERATED | [ORIGINAL] | INDIVIDUAL | SYNTHETIC / legend `SYNTHETIC_PARCELS` |
+| Parcel statuses (138 confirmed · 2 in verification · 1 not located) | Simulation: no field work has confirmed any parcel | DEMO_SIMULATION | SYSTEM_GENERATED | [ORIGINAL] | INDIVIDUAL | SYNTHETIC |
+| Parcel areas, frontages, chainages and affectation areas | Measured by PostGIS over the generated geometry | DEMO_SIMULATION | SYSTEM_GENERATED | [DERIVED] | INDIVIDUAL | SYNTHETIC |
+| Geometry storage CRS (`EPSG:32717`) | A defensible assumption for the region, not the project's declared CRS (TD-028) | DEMO_SIMULATION | SYSTEM_GENERATED | [RECONSTRUCTED] | (n/a) | n/a |
 | Parcel sheet (area, front, use, owner anonymised) | Demo sheet with synthetic values | DEMO_SIMULATION | SYSTEM_GENERATED | [ORIGINAL] | INDIVIDUAL | SYNTHETIC (badge `DEMO · ANONIMIZADO`) |
 | Visited, revisits, pending, productivity, projected close, activity feed, field inbox | Operational simulation to demonstrate the workflow | DEMO_SIMULATION | SYSTEM_GENERATED | [ORIGINAL] or [DERIVED] | AGGREGATE | SYNTHETIC |
 | Operational forecast | Deterministic calculation over simulated inputs | DEMO_SIMULATION | SYSTEM_GENERATED | [DERIVED] | AGGREGATE | SYNTHETIC (never published to the portal, D-019) |

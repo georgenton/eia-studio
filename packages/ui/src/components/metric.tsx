@@ -44,8 +44,16 @@ export function MetricCell({
   );
 }
 
-export function MetricStrip({ children }: { children: ReactNode }) {
-  return <div className={styles.strip}>{children}</div>;
+/**
+ * The KPI strip. `label` names it as a group so a reader can reach the figures as one unit and
+ * tell them apart from the same numbers appearing elsewhere on the page.
+ */
+export function MetricStrip({ children, label }: { children: ReactNode; label?: string }) {
+  return (
+    <div aria-label={label} className={styles.strip} role={label ? "group" : undefined}>
+      {children}
+    </div>
+  );
 }
 
 /** Compact figure used on Portfolio cards (`PREDIOS 141`). */

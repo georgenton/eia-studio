@@ -1,4 +1,4 @@
-import { loadCommandCenter, loadPortfolio } from "@eia/application";
+import { loadCommandCenter, loadPortfolio, loadTerritorialSummary } from "@eia/application";
 import { SURFACE_DEFINITIONS } from "@eia/domain";
 import { notFound, redirect } from "next/navigation";
 
@@ -82,6 +82,16 @@ export default async function CommandCenterPage({
     throw error;
   }
 
+  // The territorial summary is a GIS read model, gated by its own capability: the Command Center
+  // composes it rather than reaching into another module's tables (TD-023, GIS portion).
+  const gisSurface = SURFACE_DEFINITIONS.gis;
+  const gisEnabled = ctx.capabilities[gisSurface.capability];
+  const territory = gisEnabled ? await loadTerritorialSummary(getDb(), ctx) : null;
+  const gisPath =
+    gisEnabled && gisSurface.implemented
+      ? projectPath(ctx.tenantSlug, project, gisSurface.segment)
+      : null;
+
   return (
     <WorkspaceShell
       {...shellProps}
@@ -98,7 +108,9 @@ export default async function CommandCenterPage({
       <CommandCenter
         basePath={basePath}
         ctx={ctx}
+        gisPath={gisPath}
         lifecycleLabel={lifecycleLabel(view.project.lifecycle)}
+        territory={territory}
         view={view}
       />
     </WorkspaceShell>

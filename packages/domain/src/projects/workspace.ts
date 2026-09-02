@@ -50,8 +50,8 @@ export const SURFACE_DEFINITIONS: Readonly<Record<WorkspaceSurface, SurfaceDefin
     capability: "gis.parcels",
     label: "GIS & Predios",
     segment: "gis",
-    implemented: false,
-    plannedIn: "la fase de GIS y predios",
+    implemented: true,
+    plannedIn: null,
   },
   field: {
     key: "field",

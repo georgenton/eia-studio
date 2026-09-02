@@ -64,6 +64,34 @@
       "when": 1788365837460,
       "tag": "0008_scenario_clock_on_forecast",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1788369602461,
+      "tag": "0009_gis_parcels_and_geometry",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1788369603461,
+      "tag": "0010_gis_rls_and_constraints",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1788380834148,
+      "tag": "0011_gis_canonical_crs_and_invariants",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1788383906255,
+      "tag": "0012_analysis_crs_validation",
+      "breakpoints": true
     }
   ]
 }
