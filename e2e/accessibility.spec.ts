@@ -46,6 +46,20 @@ test.describe("accessibility smoke", () => {
     await scan(page);
   });
 
+  test("parcel explorer", async ({ page }) => {
+    await page.goto(`/t/${TENANT}/p/${PROJECT}/gis`);
+    // The map keeps a WebGL render loop alive, so `networkidle` never settles here; waiting for
+    // the table is the meaningful signal that the surface has rendered.
+    await expect(page.getByRole("table")).toBeVisible();
+    await scan(page);
+  });
+
+  test("parcel workspace", async ({ page }) => {
+    await page.goto(`/t/${TENANT}/p/${PROJECT}/parcels/PRED-ZAM-004`);
+    await expect(page.getByRole("heading", { name: "PRED-ZAM-004", level: 1 })).toBeVisible();
+    await scan(page);
+  });
+
   test("provenance drawer open", async ({ page }) => {
     await page.goto(`/t/${TENANT}/p/${PROJECT}`);
     await page.getByRole("link", { name: "Ver origen" }).first().click();
