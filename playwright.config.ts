@@ -34,7 +34,7 @@ export default defineConfig({
     {
       name: "coordinator",
       testMatch:
-        /journey\.spec\.ts|gis\.spec\.ts|field-coordinator\.spec\.ts|field-integration\.spec\.ts|authorization\.spec\.ts|screenshots\.spec\.ts|accessibility\.spec\.ts/,
+        /(^|\/)(journey|gis|field-coordinator|field-integration|authorization|screenshots|accessibility)\.spec\.ts$/,
       dependencies: ["setup"],
       use: {
         ...devices["Desktop Chrome"],
@@ -78,7 +78,7 @@ export default defineConfig({
       // Social Intelligence: the specialist is the only role that can start a run and settle a
       // coding, so the journey is theirs.
       name: "specialist",
-      testMatch: /social\.spec\.ts|social-accessibility\.spec\.ts|social-screenshots\.spec\.ts/,
+      testMatch: /(^|\/)(social|social-accessibility|social-screenshots)\.spec\.ts$/,
       dependencies: ["setup"],
       use: {
         ...devices["Desktop Chrome"],

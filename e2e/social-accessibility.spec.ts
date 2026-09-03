@@ -2,6 +2,7 @@ import AxeBuilder from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
 
 import { expect, PROJECT, TENANT, test } from "./fixtures";
+import { ensureProposals } from "./social-worker";
 
 /**
  * Accessibility of the Social Intelligence states (Slice 4 §61).
@@ -30,6 +31,12 @@ async function scan(page: Page) {
 }
 
 test.describe("Social Intelligence · accessibility", () => {
+  // The states below only exist once a run has been processed, and this file may run before the
+  // journey spec: it makes its own proposals rather than assuming somebody else's.
+  test.beforeEach(async ({ page }) => {
+    await ensureProposals(page);
+  });
+
   test("deterministic tabulation", async ({ page }) => {
     await page.goto(SOCIAL);
     await expect(page.getByRole("main")).toContainText("Tabulación");

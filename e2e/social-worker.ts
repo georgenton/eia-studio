@@ -1,3 +1,4 @@
+import { expect, type Page } from "@playwright/test";
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -32,6 +33,27 @@ const SCENARIOS: Array<[string, Record<string, unknown>]> = [
   ],
   ["mercado", { categories: ["GENERAL_SUPPORT_BENEFITS"], confidence: 0.41, needsReview: true }],
 ];
+
+/**
+ * Ensure this environment has at least one proposal to look at.
+ *
+ * The accessibility and screenshot specs assert on states that only exist once a run has been
+ * processed, and Playwright runs files alphabetically — so they cannot assume `social.spec.ts` went
+ * first, and a freshly seeded CI database has no proposals at all. Each spec calls this and becomes
+ * independent of the order and of whatever another spec happened to leave behind.
+ */
+export async function ensureProposals(page: Page): Promise<void> {
+  await page.goto("/t/demo-consultancy/p/puente-del-amor/social?tab=abiertas");
+  const main = page.getByRole("main");
+  if ((await main.innerText()).includes("Propuesta de la IA")) return;
+
+  const run = page.getByRole("button", { name: "Ejecutar codificación asistida" });
+  if ((await run.count()) === 0) return; // this role cannot start one; nothing to prepare
+  await run.click();
+  await expect(main).toContainText(/Ejecución creada/);
+  drainClassificationQueue();
+  await page.reload();
+}
 
 export function drainClassificationQueue(): string {
   const dir = mkdtempSync(join(tmpdir(), "eia-e2e-social-"));
