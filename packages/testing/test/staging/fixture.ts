@@ -23,7 +23,8 @@ export const FIELD_TABLES = [
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../../..");
 
 interface ProjectManifest {
-  readonly slug: string;
+  readonly tenantSlug: string;
+  readonly project: { readonly slug: string };
   readonly field: {
     readonly campaign: { readonly assignmentCount: number; readonly completedCount: number };
     readonly technician: { readonly email: string; readonly name: string };
@@ -36,34 +37,47 @@ interface ProjectManifest {
  *
  * The project's name, province and customer belong in `fixtures/`, never in a package (CLAUDE.md
  * rule 3), so the manifest is *discovered* rather than addressed: one project fixture, one
- * manifest. When a second one exists, `EIA_STAGING_PROJECT_SLUG` says which environment is being
- * verified.
+ * manifest, and it names its own tenant. When a second fixture exists,
+ * `EIA_STAGING_PROJECT_SLUG` says which environment is being verified.
  */
-function readManifest<T extends { slug: string }>(kind: "projects" | "tenants"): T {
-  const base = resolve(ROOT, "fixtures", kind);
+function readProjectManifest(): ProjectManifest {
+  const base = resolve(ROOT, "fixtures", "projects");
   const manifests = readdirSync(base, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
     .map((entry) => resolve(base, entry.name, "manifest.json"))
     .filter((path) => existsSync(path))
-    .map((path) => JSON.parse(readFileSync(path, "utf8")) as T);
+    .map((path) => JSON.parse(readFileSync(path, "utf8")) as ProjectManifest);
 
   const wanted = process.env.EIA_STAGING_PROJECT_SLUG;
-  if (kind === "projects" && wanted) {
-    const found = manifests.find((m) => m.slug === wanted);
-    if (!found) throw new Error(`no project fixture with slug ${wanted} under fixtures/projects`);
-    return found;
-  }
-  if (manifests.length !== 1) {
+  const chosen = wanted
+    ? manifests.find((m) => m.project?.slug === wanted)
+    : manifests.length === 1
+      ? manifests[0]
+      : undefined;
+
+  if (!chosen) {
     throw new Error(
-      `expected exactly one ${kind} fixture, found ${manifests.length}; ` +
-        `set EIA_STAGING_PROJECT_SLUG to say which environment is being verified`,
+      wanted
+        ? `no project fixture with slug ${wanted} under fixtures/projects`
+        : `expected exactly one project fixture, found ${manifests.length}; ` +
+            `set EIA_STAGING_PROJECT_SLUG to say which environment is being verified`,
     );
   }
-  return manifests[0]!;
+  // Fail here, with the field that is missing, rather than three queries later with a SQL syntax
+  // error from an undefined parameter.
+  for (const [path, value] of [
+    ["tenantSlug", chosen.tenantSlug],
+    ["project.slug", chosen.project?.slug],
+    ["field.technician.email", chosen.field?.technician?.email],
+    ["field.secondTechnician.email", chosen.field?.secondTechnician?.email],
+    ["field.campaign.assignmentCount", chosen.field?.campaign?.assignmentCount],
+  ] as const) {
+    if (value === undefined) throw new Error(`project fixture manifest has no ${path}`);
+  }
+  return chosen;
 }
 
-const manifest = readManifest<ProjectManifest>("projects");
-const tenantManifest = readManifest<{ slug: string }>("tenants");
+const manifest = readProjectManifest();
 
 /**
  * The demo baseline, taken from the fixture rather than from a number typed here.
@@ -74,8 +88,8 @@ const tenantManifest = readManifest<{ slug: string }>("tenants");
  * fixture changes, instead of pinning today's total and going stale.
  */
 export const DEMO_BASELINE = {
-  tenantSlug: tenantManifest.slug,
-  projectSlug: manifest.slug,
+  tenantSlug: manifest.tenantSlug,
+  projectSlug: manifest.project.slug,
   coordinatorEmail: "coordinadora@demo.invalid",
   technicianEmail: manifest.field.technician.email,
   secondTechnicianEmail: manifest.field.secondTechnician.email,

@@ -263,9 +263,10 @@ precisely so its isolation is proved against real rows rather than an empty tabl
 | Suite | Result |
 |---|---|
 | Unit and domain | **154 passed** — 41 of them the new field suite (offline modes, channel, activation, transitions, progress, publishable questionnaires, the definition hash, answer typing, submission completeness, location schema) |
-| Integration (Testcontainers, RLS) | **188 passed**, including the two new Slice 3 suites |
+| Integration (Testcontainers, RLS) | **196 passed** (16 files), including the two Slice 3 suites and the seven cases that prove the destructive helpers refuse an unstamped database |
+| Staging verification (non-destructive) | **43 passed** (3 files) against the real provider, twice, changing nothing (§11a.2) |
 | End to end (Playwright) | **73 passed** across coordinator, admin, technician, second technician and anonymous projects |
-| Seeder idempotency | stable across a second pass: 141 parcels, 1 survey version, 1 campaign, 12 assignments, 4 responses, 26 answers, 10 provenance records, none re-created |
+| Seeder idempotency | stable across a second pass, locally and on staging: 141 parcels, 1 survey version, 1 campaign, 12 assignments, 4 responses, 26 answers, 10 provenance records, none re-created |
 | Lint, format, typecheck, build | clean |
 
 Two Slice 2 e2e assertions were **corrected rather than preserved**: the "enabled but unbuilt
@@ -324,6 +325,34 @@ The exhaustive v1→v2 versioning regression stays in Testcontainers. On staging
 narrower: is the contract installed and effective here, and did verifying it change anything.
 
 ### 11a.2 Results
+
+Staging was restored first — the identities the earlier run removed were re-provisioned with an
+operator-supplied `DEMO_USER_PASSWORD`, and the demo project re-seeded — then verified twice with
+a full snapshot taken before, between and after.
+
+| Step | Result |
+|---|---|
+| Restoration (`pnpm e2e:prepare` against staging) | 4 synthetic identities created through Better Auth, 4 tenant memberships, 3 project memberships; the campaign then seeded with **12 assignments · 4 submitted responses** |
+| Baseline before verification | 16 migrations · 141 parcels · 1 template · 1 published version · 7 questions · 15 options · 1 campaign · 12 assignments · 4 visits · 4 responses · 26 answers · 8 multi-choice selections · 10 provenance records · 9 metrics · **no dangling provenance** |
+| Staging verification, run 1 | **43 passed** (3 files) |
+| Snapshot after run 1 vs before | **identical** — byte-for-byte, ids and counts |
+| Staging verification, run 2 | **43 passed** |
+| Snapshot after run 2 vs after run 1 | **identical** |
+| Seeder idempotency on staging | stable across a second pass; snapshot after the re-seed **identical** to the one before it |
+| `postgres-gis` | deployment SUCCESS; served the restoration, two verification runs and two seeds without a restart |
+| `worker` | deployment SUCCESS; heartbeats continuous, `pending: 0`, ~23 h uptime, no error line through any of the above |
+
+"Identical" is the whole claim, so it is worth saying what it covers: every auth identity, app
+user, tenant, project, tenant membership, project membership, campaign, survey version, question,
+option, assignment, visit, response, answer, provenance record and parcel — **by id**, not by
+count. A run that had deleted and recreated the campaign would keep every count and fail this.
+
+Staging is demonstrable: a reviewer signs in as `coordinadora@demo.invalid` and sees the demo
+campaign with its 12 assignments and submitted progress, or as `tecnico@demo.invalid` and sees
+their own assignments and nobody else's. Running the verification suite again does not change that.
+
+Nothing was deployed. Staging still runs the `main` build (Slice 2); these migrations are additive,
+so that build is unaffected by them. Production was not touched.
 
 ## 12. What this slice does not do
 

@@ -58,10 +58,9 @@ describe("staging · the demo field baseline", () => {
         and pm.role = 'FIELD_TECHNICIAN'
       order by u.email
     `);
-    expect(members.rows.map((r) => (r as { email: string }).email)).toEqual([
-      DEMO_BASELINE.technicianEmail,
-      DEMO_BASELINE.secondTechnicianEmail,
-    ]);
+    expect(members.rows.map((r) => (r as { email: string }).email).sort()).toEqual(
+      [DEMO_BASELINE.technicianEmail, DEMO_BASELINE.secondTechnicianEmail].sort(),
+    );
   });
 
   it("holds the documented number of assignments and submitted responses", async () => {
@@ -228,12 +227,38 @@ describe("staging · the installed contracts, probed and rolled back", () => {
   });
 
   it("the fixture's own answers each fill exactly one typed column", async () => {
+    // …except a multi-choice answer, which fills none: its selections are rows in
+    // `survey_answer_option`, so that the Social slice tabulates with a GROUP BY rather than by
+    // parsing a string. The trigger enforces both halves, and this asserts the data obeys them.
     const malformed = await count(sql`
-      select count(*)::int as n from app.survey_answer
-      where tenant_id = ${f.tenantId}
-        and num_nonnulls(text_value, number_value, boolean_value, date_value, option_id) <> 1
+      select count(*)::int as n
+      from app.survey_answer a
+      join app.survey_question q on q.tenant_id = a.tenant_id and q.id = a.question_id
+      where a.tenant_id = ${f.tenantId}
+        and case
+              when q.type = 'MULTI_CHOICE'
+                then num_nonnulls(a.text_value, a.number_value, a.boolean_value, a.date_value,
+                                  a.option_id) <> 0
+                     or not exists (select 1 from app.survey_answer_option o
+                                    where o.tenant_id = a.tenant_id and o.answer_id = a.id)
+              else num_nonnulls(a.text_value, a.number_value, a.boolean_value, a.date_value,
+                                a.option_id) <> 1
+            end
     `);
     expect(malformed).toBe(0);
+  });
+
+  it("every multi-choice selection belongs to the question its answer answers", async () => {
+    const foreign = await count(sql`
+      select count(*)::int as n
+      from app.survey_answer_option o
+      join app.survey_answer a on a.tenant_id = o.tenant_id and a.id = o.answer_id
+      where o.tenant_id = ${f.tenantId}
+        and not exists (select 1 from app.survey_option so
+                        where so.tenant_id = o.tenant_id and so.id = o.option_id
+                          and so.question_id = a.question_id)
+    `);
+    expect(foreign).toBe(0);
   });
 
   it("every chosen option belongs to the question it answers", async () => {
