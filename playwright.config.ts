@@ -87,6 +87,28 @@ export default defineConfig({
       },
     },
     {
+      // The Quality Gate has two personas, and the split is the point: a coordinator runs the
+      // check and reads the findings, a reviewer settles them.
+      name: "quality-coordinator",
+      testMatch: /(^|\/)(quality|quality-accessibility|quality-screenshots)\.spec\.ts$/,
+      dependencies: ["setup"],
+      use: {
+        ...devices["Desktop Chrome"],
+        viewport: { width: 1440, height: 940 },
+        storageState: "e2e/.auth/coordinator.json",
+      },
+    },
+    {
+      name: "quality-reviewer",
+      testMatch: /(^|\/)quality-review\.spec\.ts$/,
+      dependencies: ["setup", "quality-coordinator"],
+      use: {
+        ...devices["Desktop Chrome"],
+        viewport: { width: 1440, height: 940 },
+        storageState: "e2e/.auth/reviewer.json",
+      },
+    },
+    {
       name: "anonymous",
       // No stored session: these specs sign in for themselves, or test being signed out.
       testMatch: /(^|\/)(anonymous|session)\.spec\.ts$/,

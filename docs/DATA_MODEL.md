@@ -422,22 +422,54 @@ projection (`AnswerCoding`) recomputed from reviews; analytics read only rows wi
 
 ### 3.6 Quality gate
 
+> **Amended by ADR-020 (Slice 5).** `Requirement` and `RequirementVersion` are **not tables**. The
+> rule catalogue is versioned code (`packages/domain/src/quality/requirements.ts`) and a finding
+> stores `requirement_key` + `requirement_version` as text. A `definition jsonb` beside a
+> TypeScript implementation would give one rule two homes that nothing keeps in agreement; making
+> the jsonb authoritative means writing an interpreter for it, which is the generic rule engine the
+> slice deliberately does not build.
+
 ```
-Requirement { id, tenant_id?, key ('rule.numeric_cross_doc'), title, finding_type: numerical_mismatch|geographical_mismatch|temporal_mismatch|document_completeness|cross_document_inconsistency|missing_evidence,
-              default_severity, interdisciplinary_by_default, applicability (profile families, capability keys), current_version_id }
-RequirementVersion { id, requirement_id, version_label, definition jsonb (inputs, comparison, tolerance keys), copy_templates (title, explanation, why, suggested_action), published_at, immutable }
-QualityRun { id, ..., trigger: manual|scheduled|event, requirement_versions[], scope jsonb, started_at, finished_at, status, findings_created, findings_reopened, provenance_id }
-QualityFinding { id, ..., finding_code ('QG-014'), run_id (first), last_run_id, requirement_version_id, fingerprint (dedupe across runs), type, severity: high|medium|low,
-                 state: open|reviewing|accepted|dismissed|resolved, title, explanation, why_flagged, suggested_action, interdisciplinary_review_required: bool,
-                 assignee_membership_id?, parcel_id?, detected_at, updated_at, provenance_id }
-FindingEvidence { id, finding_id, role: source_a|source_b|context, locator jsonb (kind + ids + position, see below), label, quote text, captured_at }
-SpecialistReview { id, finding_id, decision: accept|dismiss|resolve|reassign|request_interdisciplinary|reopen, justification text NOT NULL, reviewer_membership_id, reviewed_at, immutable }
+DocumentAssertion { id, ..., key ('parcels.affected_count'), source_kind: RECONSTRUCTED_CORPUS|DOCUMENT_VERSION,
+                    source_ref ('Anexo de afectaciones prediales'), exactly one of
+                    value_text | value_number | value_date | value_boolean, quote?, qualifier?, provenance_id }
+QualityRun { id, ..., trigger: MANUAL|SCHEDULED|EVENT, requirements text[] ('rule.x@1'), status,
+             started_at, finished_at, findings_created, findings_updated, findings_reopened,
+             initiated_by_user_id, provenance_id }
+QualityFinding { id, ..., finding_code ('QG-014'), fingerprint (dedupe across runs, unique per project),
+                 first_run_id, last_run_id, requirement_key, requirement_version, type, severity: high|medium|low,
+                 state: OPEN|UNDER_REVIEW|ACCEPTED|DISMISSED|RESOLVED, title, explanation, why_flagged,
+                 suggested_action, interdisciplinary_review_required, parcel_id?, detected_at, last_seen_at,
+                 updated_at, provenance_id }
+FindingEvidence { id, ..., finding_id, role: SOURCE_A|SOURCE_B|CONTEXT, locator jsonb (typed union),
+                  label, quote, ordinal }
+SpecialistReview { id, ..., finding_id, decision, from_state, to_state, justification (>= 12 chars),
+                   reviewer_user_id, reviewed_at }   // append-only: no UPDATE grant, no DELETE grant, triggers too
 ```
 
-Evidence locator kinds: `document_version {document_version_id, page?, section?, chunk_id?}`,
-`dataset {dataset_key, version, filter?}`, `record {entity: parcel|survey_instance|visit|media, id, field?}`,
-`layer {dataset_version_id, feature_id?}`, `metric {metric_snapshot_id}`. One finding can hold
-many evidence items.
+Evidence locator kinds (Slice 5): `assertion {assertion_id, source_ref}`, `project {field}`, and
+`document_version {document_version_id, page?, chunk_id?}` — the last declared for Slice 6 so a
+finding raised now can be *enriched* with a real citation later rather than rewritten. Nothing
+produces a `document_version` locator yet, and a CHECK refuses a `DOCUMENT_VERSION` assertion while
+no document has been ingested: a page number nobody can verify is a fabricated citation in the one
+field whose purpose is verification.
+
+`DocumentAssertion` is the evidence substrate until document ingestion exists. One extracted value
+from the study corpus, with the human-readable reference it was read from and its own provenance
+(`HISTORICAL_OBSERVED` / `IMPORTED_DOCUMENT` / `RECONSTRUCTED`). Exactly one of the four value
+columns is populated, enforced by a CHECK — a rule comparing dates must compare dates, and a row
+carrying both a number and a date lets a rule silently read the wrong one.
+
+Invariants enforced in the database (migration 0019), not only in the use-case:
+
+| Guarantee | Mechanism |
+|---|---|
+| A decision is never edited or deleted | `REVOKE UPDATE, DELETE` from `eia_app` (required: migration 0002's `ALTER DEFAULT PRIVILEGES` grants full DML on every new `app` table) **and** BEFORE UPDATE/DELETE triggers, so the owning role cannot either |
+| A justification is not a token word | CHECK `length(btrim(justification)) >= 12` |
+| A finding compares exactly two sources | deferred CONSTRAINT TRIGGER on both `quality_finding` and `finding_evidence`, checked at commit |
+| An assertion holds exactly one value | CHECK over the four value columns |
+| A date is a calendar date | CHECK on the `yyyy-mm-dd` shape |
+| A finding is raised once per disagreement | `fingerprint` unique per project; a re-run updates, and only *changed evidence* reopens a decided finding |
 
 State machine (ADR-008):
 

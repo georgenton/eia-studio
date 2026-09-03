@@ -1,0 +1,243 @@
+.surface {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 1000px;
+}
+.note {
+  margin: 0 0 12px;
+  font-size: 11.5px;
+  color: var(--eia-text-secondary);
+  line-height: 1.5;
+}
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 12px;
+  margin: 0;
+}
+.kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.kpiLabel {
+  font-size: var(--eia-size-label);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--eia-text-muted);
+}
+.kpiValue {
+  font-size: 22px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.primary {
+  appearance: none;
+  border: 1px solid var(--eia-accent);
+  background: var(--eia-accent);
+  color: #ffffff;
+  border-radius: 5px;
+  padding: 6px 12px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.primary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.secondary {
+  appearance: none;
+  border: 1px solid #d8dde1;
+  background: #ffffff;
+  border-radius: 5px;
+  padding: 6px 12px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.secondary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* --- the list --------------------------------------------------------------------------- */
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.table th {
+  text-align: left;
+  font-size: var(--eia-size-label);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--eia-text-muted);
+  padding: 6px 10px 6px 0;
+  border-bottom: 1px solid var(--eia-hairline);
+  white-space: nowrap;
+}
+.table td {
+  padding: 9px 10px 9px 0;
+  border-bottom: 1px solid var(--eia-hairline);
+  vertical-align: top;
+}
+.code {
+  font-family: var(--eia-font-mono, ui-monospace, monospace);
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+.findingLink {
+  font-weight: 600;
+  color: var(--eia-ink);
+}
+.findingLink:hover {
+  color: var(--eia-accent);
+}
+
+/* --- the detail ------------------------------------------------------------------------- */
+.sources {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+@media (max-width: 760px) {
+  .sources {
+    grid-template-columns: 1fr;
+  }
+}
+.source {
+  border: 1px solid var(--eia-hairline);
+  border-radius: 5px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: var(--eia-surface-subtle, #fafbfc);
+}
+.sourceRole {
+  font-size: var(--eia-size-label);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--eia-text-muted);
+}
+.sourceLabel {
+  font-size: 12px;
+  font-weight: 600;
+}
+.quote {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  border-left: 2px solid var(--eia-accent);
+  padding-left: 10px;
+}
+.sourceRef {
+  font-size: var(--eia-size-label);
+  color: var(--eia-text-muted);
+  line-height: 1.45;
+}
+.explain {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+.label {
+  font-size: var(--eia-size-label);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--eia-text-muted);
+}
+.select,
+.textarea {
+  font: inherit;
+  font-size: 12.5px;
+  border: 1px solid #d8dde1;
+  border-radius: 5px;
+  padding: 7px 9px;
+  background: #ffffff;
+  width: 100%;
+  max-width: 520px;
+}
+.textarea {
+  min-height: 76px;
+  resize: vertical;
+  line-height: 1.5;
+}
+.actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.history {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+}
+.historyItem {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  border-left: 2px solid var(--eia-hairline);
+  padding-left: 10px;
+}
+.historyHead {
+  font-size: 11.5px;
+  font-weight: 600;
+}
+.historyMeta {
+  font-size: var(--eia-size-label);
+  color: var(--eia-text-muted);
+}
+.historyText {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.feedback {
+  margin: 8px 0 0;
+  font-size: 12px;
+}
+.ok {
+  color: var(--eia-ok, #1f7a4d);
+}
+.bad {
+  color: var(--eia-danger, #b42318);
+}
+.ruleList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ruleItem {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ruleName {
+  font-size: 12px;
+  font-weight: 600;
+}
+.ruleWhat {
+  font-size: 11.5px;
+  color: var(--eia-text-secondary);
+  line-height: 1.45;
+}

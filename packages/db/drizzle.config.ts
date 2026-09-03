@@ -11,6 +11,7 @@ export default defineConfig({
     "./src/schema/gis.ts",
     "./src/schema/field.ts",
     "./src/schema/social.ts",
+    "./src/schema/quality.ts",
   ],
   out: "./migrations",
   schemaFilter: ["app", "auth", "audit"],

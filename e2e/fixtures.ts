@@ -37,6 +37,14 @@ export const USERS = {
     name: "Especialista social",
     state: "e2e/.auth/specialist.json",
   },
+  // The Quality Gate splits checking from deciding: a specialist runs the rules, a reviewer
+  // settles what a finding means. Two identities, because one of the things worth asserting is
+  // that the specialist *cannot* decide.
+  reviewer: {
+    email: "revisor@demo.invalid",
+    name: "Revisora de calidad",
+    state: "e2e/.auth/reviewer.json",
+  },
 } as const;
 
 /**

@@ -322,3 +322,24 @@ from real ones once they are rows.
 **Screenshots of AI states are UI evidence, not model evidence.** Every proposal in
 `docs/screenshots/slice-4/` came from the fake classifier; the report says so beside them. A live
 model result is only ever produced by an explicit operator smoke against staging.
+
+## 17. Quality Gate (Slice 5)
+
+**A rule is tested by writing down the two values.** The detectors are pure functions from two
+values to *a finding or nothing*; they know nothing about the database, so "does this rule fire?"
+never needs a fixture. What does need a database is everything about *time*: what a second run does
+to a finding somebody already decided, and what changed evidence does to a settled conclusion.
+
+| Layer | What it proves |
+|---|---|
+| Domain unit (`packages/domain/test/quality.test.ts`) | each rule stays quiet when the sources agree and fires when they differ; accents, case and whitespace are normalised before a mismatch is claimed; a non-calendar date is refused rather than string-compared; a fingerprint identifies the *comparison* and not its values, so a changed figure updates a finding instead of orphaning its decision; the state machine refuses every transition it does not declare; a justification under twelve characters is refused; the vocabulary of invariant 11 holds over the catalogue's copy **and** over every generated finding; the catalogue names no pilot project, province or figure |
+| Application integration (`packages/application/test/quality-gate.integration.test.ts`) | the whole journey against a real database: a run raises one finding per real disagreement and reports the rules it could not feed rather than inventing `MISSING_EVIDENCE`; a second run updates and does not duplicate; **a re-run leaves a decided finding decided**, and only changed evidence reopens it with the decision history intact; a coordinator runs and cannot settle, a reviewer settles and cannot run, a technician sees nothing; the capability gates the module whatever the permission says; a change of mind is a second row; the audit log records the transition and never the justification |
+| Database isolation (`packages/testing/test/rls/slice5-quality.integration.test.ts`) | cross-tenant and no-context denial on all five tables; the same `QG-001` in two tenants without either leaking; a finding readable **without** `field.responses.read`, because it is project data and not response data; `specialist_review` refused for UPDATE and DELETE by the runtime role *and* by the owning role; a one-sided finding refused at commit and one side of an existing pair undeletable; an assertion with two values, no values, a malformed date, or a claim to come from an ingested document, all refused; forced RLS on every table |
+| End to end (`e2e/quality*.spec.ts`) | the coordinator's journey — the surface states what it checks, the run produces the corpus's four known discrepancies, a re-run produces none, both sources appear at equal weight, the evidence says it is reconstructed and carries no page number, and the decision form is absent for a coordinator; the reviewer's — a decision needs a justification, is recorded with its author, a forbidden transition is not even offered, and a change of mind is a second entry; a finding code that means nothing answers 404 |
+| Accessibility (axe) | the list, a finding's two panels, and severity/state carried as words rather than only as colours |
+| Staging (non-destructive) | the tables, policies, triggers and CHECKs exist; `eia_app` genuinely lacks UPDATE and DELETE on `specialist_review` (privilege introspection, because the `ALTER DEFAULT PRIVILEGES` of migration 0002 makes the REVOKE load-bearing); every assertion is `RECONSTRUCTED_CORPUS` with a source reference; no stored finding declares compliance; and two rollback probes attempt what the CHECKs forbid |
+
+**No AI is involved.** Slice 5's rules are deterministic comparisons; the semantic rule compares two
+statements the corpus itself makes, and nothing in this module calls a model. Semantic proposal by
+a model remains a later slice, and when it arrives it proposes a finding for a specialist to
+validate — it never settles one.

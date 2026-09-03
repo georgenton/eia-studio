@@ -144,3 +144,17 @@ export {
   releaseStaleClaims,
 } from "./social/worker";
 export type { ClaimedClassification, ProcessOutcome } from "./social/worker";
+
+// Quality Gate (Slice 5). The rule catalogue itself lives in @eia/domain (ADR-020).
+export { runQualityCheck } from "./quality/run";
+export type { QualityRunResult } from "./quality/run";
+export { decideQualityFinding, decideFindingInputSchema } from "./quality/review";
+export type { DecideFindingInput, FindingDecisionResult } from "./quality/review";
+export { loadQualityOverview, loadFindingDetail } from "./quality/read-models";
+export type {
+  FindingDetail,
+  FindingEvidenceItem,
+  FindingReviewEntry,
+  FindingSummary,
+  QualityOverview,
+} from "./quality/read-models";

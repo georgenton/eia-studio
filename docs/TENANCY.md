@@ -166,6 +166,26 @@ specialist acts. A REVIEWER may settle a coding — that is what the role means 
 initiate model runs. A FIELD_TECHNICIAN holds none of these keys and no `field.responses.read`, so
 the Social route denies them; a GIS or environmental specialist likewise.
 
+### 3.3 Quality permissions: checking is not deciding (Slice 5)
+
+The Quality Gate splits one workflow across two grants that already existed, and the split is
+deliberate rather than incidental.
+
+| Key | Grants | Held by |
+|---|---|---|
+| `quality.read` | the findings, their evidence and the decision history | COORDINATOR, SOCIAL_SPECIALIST, ENVIRONMENTAL_SPECIALIST, GIS_SPECIALIST, REVIEWER, VIEWER |
+| `quality.write` | **run** the rule set over the project | COORDINATOR, SOCIAL_SPECIALIST, ENVIRONMENTAL_SPECIALIST |
+| `quality.review` | **settle** a finding: accept, dismiss, resolve, reopen | REVIEWER |
+
+A specialist runs the check and reads what it found; a **reviewer decides what it means**. That is
+what the role is for, and it is why the pilot fixture provisions a fifth synthetic identity rather
+than letting the coordinator settle their own project's findings.
+
+No new permission was minted. A finding is a statement about documents and counts, not about an
+individual's answers, so it sits behind ordinary project access and does **not** inherit the
+`field.responses.read` door of §3.1 — a GIS specialist must be able to see a finding about a parcel
+count without being able to read what a household answered, and the row-level policies say so.
+
 Aggregate analytics also require `field.responses.read` today, for a reason that is a limitation
 rather than a policy: the counts are computed from response rows under RLS, so a caller who cannot
 see those rows would be shown *zeros* rather than a denial — a plausible-looking, entirely false

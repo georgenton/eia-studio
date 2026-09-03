@@ -87,6 +87,23 @@ run([
   "--project-role",
   "SOCIAL_SPECIALIST",
 ]);
+// The reviewer: the only role that settles a quality finding. A specialist runs the check and
+// reads the findings; deciding one is what `quality.review` means (TENANCY.md §2.2).
+run([
+  "provision:identity",
+  "--email",
+  "revisor@demo.invalid",
+  "--name",
+  "Revisora de calidad",
+  "--tenant",
+  "demo-consultancy",
+  "--tenant-role",
+  "MEMBER",
+  "--project",
+  "puente-del-amor",
+  "--project-role",
+  "REVIEWER",
+]);
 run([
   "provision:identity",
   "--email",

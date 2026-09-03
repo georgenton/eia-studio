@@ -26,6 +26,12 @@ export const AUDIT_ACTIONS = [
   // what was said — counts, codes and configuration only.
   "social.classification_run.started",
   "social.coding.reviewed",
+  // Quality Gate (Slice 5). The run's counts, and the transition a decision produced. Never the
+  // justification: a specialist's reasoning about a study lives on the finding, attributed and
+  // permanent, and copying it into the audit log would put the same text in two places that can
+  // disagree.
+  "quality.run.completed",
+  "quality.finding.decided",
 ] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];

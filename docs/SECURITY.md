@@ -235,6 +235,20 @@ operator scripts alike.
   startup failure: taking the whole deployment down over a feature it may not use would be a worse
   outcome than losing that feature.
 
+## 10d. A specialist decision, and a citation nobody can check (Slice 5)
+
+Two controls, and neither is about isolation. They protect the record from *us*.
+
+| Control | Mechanism |
+|---|---|
+| A decision is permanent | `specialist_review` is append-only: `REVOKE UPDATE, DELETE` from `eia_app`, plus BEFORE UPDATE/DELETE triggers so the owning role cannot either. A change of mind is another row. A dismissal that could be quietly rewritten would leave the study carrying a conclusion nobody reached, attributed to somebody who did not reach it |
+| The revoke is load-bearing | migration 0002 set `ALTER DEFAULT PRIVILEGES IN SCHEMA app GRANT SELECT, INSERT, UPDATE, DELETE`, so every new table in `app` arrives with full DML. A narrower `GRANT` beside it changes nothing; only the explicit `REVOKE` does. Asserted on staging by privilege introspection, not inferred |
+| A justification is mandatory | CHECK `length(btrim(justification)) >= 12`, so "ok" cannot stand as the recorded reason a finding about a study was settled |
+| A finding never shows one side | deferred CONSTRAINT TRIGGER: exactly one `SOURCE_A` and one `SOURCE_B` at commit. A one-sided finding is an assertion, and this module does not make assertions |
+| No fabricated citation | a CHECK refuses `source_kind = 'DOCUMENT_VERSION'` while no document has been ingested, and no locator carries a page number. Inventing a page in the one field whose purpose is verification is the worst thing this module could do; the check is dropped by the migration that adds document versions (ADR-020 §5–6) |
+| No compliance conclusion | the permitted/forbidden vocabulary of invariant 11 is data in the domain, asserted over the rule catalogue's copy, over every generated finding, and — on staging — over whatever is actually stored |
+| No special-category data | the vulnerability rule compares two statements from the **corpus**, never a conclusion against survey records. A vulnerability indicator attached to a household is special-category personal data, the demo questionnaire collects none, and adding a field so a rule could count it would be exactly the "small exception for a demo" the compliance gate exists to prevent |
+
 ## 10a. Privacy by design and the compliance gate (Gate 1 D-018)
 
 Before **production ingestion of any real personal data**, the project requires a specific

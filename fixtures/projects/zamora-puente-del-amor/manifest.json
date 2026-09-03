@@ -14,7 +14,7 @@
       "parcel codes"
     ],
     "reviewedBy": "architecture",
-    "note": "Aggregate figures come from a concluded, publicly reported study. Everything describing day-to-day operations is a demo simulation and is labelled DEMO_SIMULATION in provenance."
+    "note": "Aggregate figures come from a concluded, publicly reported study. Everything describing day-to-day operations is a demo simulation and is labelled DEMO_SIMULATION in provenance. Quality Gate assertions are values reconstructed by hand from the concluded study's corpus; they carry a human-readable source reference and no page number, because no document has been ingested. They contain no personal data: the vulnerability figures are aggregates the study itself published."
   },
   "tenantSlug": "demo-consultancy",
   "project": {
@@ -209,6 +209,23 @@
       "capturedAt": null,
       "validationState": "PENDING",
       "validationNote": "No validado: no existe una taxonomía oficial entregada por el equipo consultor",
+      "$capturedAtFromScenario": true
+    },
+    "qualityAssertions": {
+      "key": "quality-corpus-assertions",
+      "regime": "HISTORICAL_OBSERVED",
+      "origin": "IMPORTED_DOCUMENT",
+      "transformations": ["RECONSTRUCTED"],
+      "granularity": "AGGREGATE",
+      "title": "Afirmaciones extraídas del expediente del estudio concluido",
+      "note": "Valores leídos a mano del corpus documental del estudio concluido y transcritos aquí con la referencia humana de su origen. El origen es documental, pero **el documento no está ingerido por el sistema** (la ingesta es una fase posterior): por eso ninguna afirmación lleva número de página. Son cifras agregadas publicadas por el propio estudio; no contienen datos personales.",
+      "sourceLabel": "Expediente del estudio concluido · extracción manual",
+      "sourceReference": null,
+      "sourceVersion": null,
+      "method": "Transcripción manual de valores declarados en el expediente, sin localizador de página.",
+      "capturedAt": null,
+      "validationState": "PARTIAL",
+      "validationNote": "Los valores son los del expediente; su reconciliación entre documentos es precisamente lo que el Quality Gate señala para revisión de especialista.",
       "$capturedAtFromScenario": true
     }
   },
@@ -703,5 +720,59 @@
         }
       ]
     }
+  },
+  "quality": {
+    "$comment": "Afirmaciones RECONSTRUIDAS del expediente del estudio concluido: valores que se leyeron del corpus del proyecto, con la referencia humana de donde se leyeron. NO hay documentos ingeridos todavía (eso es la Slice 6), por lo que ninguna afirmación lleva número de página: inventarlo sería una cita falsa en el único campo cuyo propósito es poder comprobarse. Las cuatro inconsistencias conocidas del expediente real están aquí; la quinta regla existe y no dispara en este proyecto, lo cual también se muestra en pantalla.",
+    "assertions": [
+      {
+        "key": "parcels.affected_count",
+        "sourceRef": "Anexo de afectaciones prediales",
+        "valueNumber": 71,
+        "quote": "71 predios con afectación identificados en el corredor"
+      },
+      {
+        "key": "parcels.affected_count",
+        "sourceRef": "Informe social — capítulo de afectaciones",
+        "valueNumber": 70,
+        "quote": "se registran 70 predios afectados por el trazado"
+      },
+      {
+        "key": "document.institution_mentioned",
+        "sourceRef": "Informe social — marco institucional",
+        "valueText": "PREFECTURA DE PICHINCHA",
+        "qualifier": "Pichincha",
+        "quote": "…en coordinación con la PREFECTURA DE PICHINCHA…"
+      },
+      {
+        "key": "consultation.planned_date",
+        "sourceRef": "Plan de participación social",
+        "valueDate": "2025-10-25",
+        "quote": "Asamblea de consulta prevista para el 25 de octubre de 2025"
+      },
+      {
+        "key": "consultation.actual_date",
+        "sourceRef": "Acta de la asamblea de consulta",
+        "valueDate": "2025-10-22",
+        "quote": "Acta de la asamblea celebrada el 22 de octubre de 2025"
+      },
+      {
+        "key": "social.no_vulnerable_groups",
+        "sourceRef": "Componente legal — conclusiones",
+        "valueBoolean": true,
+        "quote": "No se identificaron grupos en situación de vulnerabilidad en el área de influencia."
+      },
+      {
+        "key": "social.vulnerable_cases_reported",
+        "sourceRef": "Informe social — caracterización de la población",
+        "valueNumber": 4,
+        "quote": "cuatro hogares en condición de vulnerabilidad según los criterios del estudio"
+      },
+      {
+        "key": "project.location_label",
+        "sourceRef": "Ficha técnica del proyecto",
+        "valueText": "Zamora Chinchipe, Ecuador",
+        "quote": "Provincia de Zamora Chinchipe, Ecuador"
+      }
+    ]
   }
 }
