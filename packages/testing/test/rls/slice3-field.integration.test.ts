@@ -11,6 +11,7 @@ import {
   createCampaign,
   createParcelWithGeometry,
   createProjectMembership,
+  createMultiChoiceAnswer,
   createProvenanceRecord,
   createPublishedSurvey,
   createSpatialDatasetVersion,
@@ -198,7 +199,9 @@ beforeAll(async () => {
   instanceTwo = second.instanceId;
   visitTwo = second.visitId;
 
-  // One answer on each, so "cannot read another's answers" has something to fail on.
+  // One answer on each, so "cannot read another's answers" has something to fail on — and a
+  // multi-choice answer besides, so the same holds for `survey_answer_option`, whose rows are a
+  // person's selections and are reached through the answer rather than by a column of their own.
   for (const [instanceId, optionCode] of [
     [instanceOne, "owner_occupier"],
     [instanceTwo, "tenant"],
@@ -210,6 +213,13 @@ beforeAll(async () => {
       instanceId,
       questionId: survey.questionIds.tenure_category!,
       optionId: survey.optionIds[optionCode]!,
+    });
+    await createMultiChoiceAnswer(db.migrator, {
+      tenantId: w.tenantA.id,
+      projectId: w.projectX.id,
+      instanceId,
+      questionId: survey.questionIds.services_present!,
+      optionIds: [survey.optionIds.services_water!, survey.optionIds.services_power!],
     });
   }
 
@@ -282,6 +292,7 @@ const FIELD_TABLES = [
   "app.field_visit",
   "app.survey_instance",
   "app.survey_answer",
+  "app.survey_answer_option",
   "app.project_configuration",
 ] as const;
 
@@ -363,7 +374,23 @@ describe("Slice 3 · technician ownership", () => {
     const own = await asContext(db.runtime, technician(techOne), (tx) =>
       tx.execute(sql`select id from app.survey_answer where instance_id = ${instanceOne}`),
     );
-    expect(own.rows).toHaveLength(1);
+    expect(own.rows).toHaveLength(2);
+  });
+
+  it("a technician cannot read another technician's multi-choice selections", async () => {
+    const foreign = await asContext(db.runtime, technician(techOne), (tx) =>
+      tx.execute(sql`
+        select o.id from app.survey_answer_option o
+        join app.survey_answer a on a.tenant_id = o.tenant_id and a.id = o.answer_id
+        where a.instance_id = ${instanceTwo}
+      `),
+    );
+    expect(foreign.rows).toHaveLength(0);
+
+    const own = await asContext(db.runtime, technician(techOne), (tx) =>
+      tx.execute(sql`select id from app.survey_answer_option`),
+    );
+    expect(own.rows).toHaveLength(2);
   });
 
   it("a technician cannot update another technician's draft", async () => {
@@ -439,7 +466,9 @@ describe("Slice 3 · roles that may read responses, and roles that may not", () 
   it("a caller holding field.responses.read sees the project's work", async () => {
     expect(await countVisible(db.runtime, coordinator(), "app.field_assignment")).toBe(2);
     expect(await countVisible(db.runtime, coordinator(), "app.survey_instance")).toBe(2);
-    expect(await countVisible(db.runtime, coordinator(), "app.survey_answer")).toBe(2);
+    // Two single-choice answers and two multi-choice ones, four selections between them.
+    expect(await countVisible(db.runtime, coordinator(), "app.survey_answer")).toBe(4);
+    expect(await countVisible(db.runtime, coordinator(), "app.survey_answer_option")).toBe(4);
   });
 
   it("project access alone reveals no individual response", async () => {
@@ -448,6 +477,7 @@ describe("Slice 3 · roles that may read responses, and roles that may not", () 
     const withoutPermission = { ...coordinator(), fieldResponsesAccess: false };
     expect(await countVisible(db.runtime, withoutPermission, "app.survey_instance")).toBe(0);
     expect(await countVisible(db.runtime, withoutPermission, "app.survey_answer")).toBe(0);
+    expect(await countVisible(db.runtime, withoutPermission, "app.survey_answer_option")).toBe(0);
     expect(await countVisible(db.runtime, withoutPermission, "app.field_visit")).toBe(0);
     // The questionnaire itself is not an individual's data: it stays readable.
     expect(

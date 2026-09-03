@@ -475,6 +475,37 @@ export async function createPublishedSurvey(
     sensitivity: "NON_PERSONAL",
   });
 
+  // A multi-choice question too, so `survey_answer_option` — the eleventh Slice 3 table, whose
+  // rows carry a selection and therefore inherit an individual's visibility — has something for
+  // the isolation suite to try to read across a boundary.
+  const multiId = randomUUID();
+  await db.insert(fieldSchema.surveyQuestion).values({
+    id: multiId,
+    tenantId: input.tenantId,
+    projectId: input.projectId,
+    versionId,
+    code: "services_present",
+    ordinal: 2,
+    type: "MULTI_CHOICE",
+    prompt: "¿Qué servicios hay en el sector?",
+    helpText: null,
+    required: false,
+    sensitivity: "NON_PERSONAL",
+  });
+  for (const [ordinal, code] of ["water", "power"].entries()) {
+    const optionId = randomUUID();
+    optionIds[`services_${code}`] = optionId;
+    await db.insert(fieldSchema.surveyOption).values({
+      id: optionId,
+      tenantId: input.tenantId,
+      projectId: input.projectId,
+      questionId: multiId,
+      code,
+      label: code,
+      ordinal,
+    });
+  }
+
   await db
     .update(fieldSchema.surveyVersion)
     .set({ status: "PUBLISHED", publishedAt: new Date(), definitionHash: `hash_${next()}` })
@@ -483,9 +514,43 @@ export async function createPublishedSurvey(
   return {
     templateId,
     versionId,
-    questionIds: { [questionCode]: choiceId, has_concern: requiredId },
+    questionIds: { [questionCode]: choiceId, has_concern: requiredId, services_present: multiId },
     optionIds,
   };
+}
+
+/**
+ * A multi-choice answer and its selections, written the way the model requires: the
+ * `survey_answer` row carries no typed value at all, and each choice is a `survey_answer_option`.
+ */
+export async function createMultiChoiceAnswer(
+  db: Database,
+  input: {
+    tenantId: string;
+    projectId: string;
+    instanceId: string;
+    questionId: string;
+    optionIds: ReadonlyArray<string>;
+  },
+): Promise<{ answerId: string }> {
+  const answerId = randomUUID();
+  await db.insert(fieldSchema.surveyAnswer).values({
+    id: answerId,
+    tenantId: input.tenantId,
+    projectId: input.projectId,
+    instanceId: input.instanceId,
+    questionId: input.questionId,
+  });
+  for (const optionId of input.optionIds) {
+    await db.insert(fieldSchema.surveyAnswerOption).values({
+      id: randomUUID(),
+      tenantId: input.tenantId,
+      projectId: input.projectId,
+      answerId,
+      optionId,
+    });
+  }
+  return { answerId };
 }
 
 export async function createCampaign(

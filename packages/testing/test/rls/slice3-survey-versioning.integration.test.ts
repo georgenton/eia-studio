@@ -170,6 +170,7 @@ describe("Slice 3 · a published questionnaire is frozen", () => {
     expect(questions.rows.map((r) => (r as { code: string }).code)).toEqual([
       "tenure_category",
       "has_concern",
+      "services_present",
     ]);
 
     const options = await db.migrator.execute(sql`
@@ -284,7 +285,7 @@ describe("Slice 3 · a submitted response keeps its version", () => {
       order by q.ordinal
     `);
     const codes = rows.rows.map((r) => (r as { code: string }).code);
-    expect(codes).toEqual(["tenure_category", "has_concern"]);
+    expect(codes).toEqual(["tenure_category", "has_concern", "services_present"]);
     expect(codes).not.toContain("tenure_category_revised");
   });
 

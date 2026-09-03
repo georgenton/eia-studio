@@ -207,3 +207,88 @@ The e2e suite authenticates once per role in a setup project and reuses the stor
 identity layer rate-limits sign-in, and re-authenticating per test made the suite both slower and
 flaky. It never creates accounts, because public self-signup is disabled; `pnpm e2e:prepare`
 provisions synthetic identities from `DEMO_USER_PASSWORD`.
+
+## 15. Test environments: what may be destroyed, and what may not (IG3-001)
+
+A test suite and an environment are two different things, and the difference is not a matter of
+care. The integration suite starts every file from a known world — it truncates tenants, projects
+and identities — which is correct against a container that lives for one run and destructive
+against anything else. Pointed at the persistent staging database it did exactly what it says on
+the tin: the synthetic identities went, and the next demo re-seed produced a campaign with no
+technicians to assign work to.
+
+So the two are separated by construction, not by convention.
+
+| | Full integration suite | Staging verification |
+|---|---|---|
+| Command | `pnpm test:integration` (and `pnpm test:rls`) | `pnpm test:staging` |
+| Config | `vitest.config.mts`, project `integration` | `vitest.staging.config.mts` (a separate file, so `pnpm test` can never reach it) |
+| Database | **only** the Testcontainers PostGIS container the setup creates | a persistent environment named by `EIA_STAGING_MIGRATOR_URL` / `EIA_STAGING_RUNTIME_URL` |
+| May truncate, drop, reset, rebuild fixtures | yes | **never** |
+| Writes | anything | only inside transactions that always `ROLLBACK` |
+| Fixtures | created per file by `packages/testing/src/factories.ts` | the persistent demo seed; the suite reads it and fails with an instruction if it is missing |
+| Runs in CI | yes, on an ephemeral database | no — an explicit operator command at a gate |
+
+### 15.1 How "ephemeral" is decided
+
+Not by hostname, not by database name, not by `NODE_ENV`, and not by the absence of a
+"this is production" flag: each of those is a guess, and a forgotten environment variable turns a
+guess into a wiped environment. Instead the setup that *creates* the throwaway container stamps
+it, in the same process, with a marker table holding a token generated in that run:
+
+```
+ephemeral_test.marker (token)   -- one row, a fresh random token per run
+```
+
+`assertEphemeralTestDatabase(db, token)` requires that the marker exists **and** that its token is
+this run's. Every other outcome — no schema, no table, no row, more than one row, a different
+token, any error at all — refuses. A persistent database has no marker because nothing but the
+container setup writes one, and a copied marker fails because the token is new every run and never
+leaves the process. `resetDatabase` calls it before its first statement, so the failure is the
+first line of a test file rather than a discovery afterwards. There is no flag, argument or
+environment variable that makes it pass: the escape hatch that used to point the destructive suite
+at an external database (`EIA_TEST_MIGRATOR_URL`, `EIA_TEST_RUNTIME_URL`) is gone, and setting
+those variables now fails the run with an explanation.
+
+The staging suite asserts the same boundary from the other side: a persistent environment that
+*did* carry the marker schema would fail its first check.
+
+### 15.2 What the staging suite verifies
+
+Migration ledger at the repository's head; extensions installed; the eleven Slice 3 tables present
+with RLS enabled, forced and policied; the policy functions, immutability triggers and provenance
+foreign keys installed; the runtime role without superuser or `BYPASSRLS`. Then isolation, through
+the runtime role, using the identities actually provisioned there: no context reads nothing, a
+forged tenant/project/user widens nothing, one technician cannot reach another's assignment, visit,
+response or answers, a technician can reach their own, and `field.responses.read` is what separates
+the two. Then the demo baseline — campaign, technicians, assignments, submitted responses,
+ownership coherence, no dangling provenance, `DEMO_SIMULATION` on every captured response, the
+historical aggregate still `HISTORICAL_OBSERVED` and not derived from demo answers, and no answer
+text that looks like an identifier. Finally the installed contracts, each as a rollback probe: a
+published version refuses an edit and a delete, its questions refuse a change, a submitted response
+refuses a new answer and refuses being moved to another version.
+
+The exhaustive v1→v2 versioning regression stays in Testcontainers, where creating and destroying
+questionnaires is free. On staging the question is narrower: is the contract installed and
+effective here, and is the environment exactly as it was found.
+
+### 15.3 Proving the suite changed nothing
+
+`pnpm -s staging:baseline` prints ids and counts — identities, memberships, campaign, survey
+version, assignments, responses, answers, provenance, parcels — as stable JSON containing no
+credential and no personal data. Run it before and after and `diff` the two: identity is what
+matters, because a suite that deleted and recreated the campaign would leave every count identical
+while destroying the demo.
+
+### 15.4 Local development
+
+`pnpm e2e:prepare` reconciles: it migrates, seeds and provisions the synthetic identities, and now
+also **updates an existing identity's credential** to the supplied `DEMO_USER_PASSWORD` instead of
+leaving an unknown one in place — which is what previously made "wipe the database" the only way
+back in. Emptying a local database is a separate, named, guarded command:
+
+```bash
+APP_ENV=local EIA_CONFIRM_RESET=yes-delete-my-local-data pnpm db:reset:local
+```
+
+It refuses unless `APP_ENV=local`, the database host is loopback, and the confirmation is present.

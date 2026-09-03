@@ -218,6 +218,46 @@ regression net, not evidence of conformance (TD-022).
 | PII | none captured (§7) |
 | Audit | the material workflow events are audited — campaign activation and survey submission — with actor, project and object; the details carry counts and identifiers only, never an answer, a respondent's words or a coordinate. Ordinary row mutations (starting a visit, saving a draft) are not: an event store that mirrors every write is noise nobody reads |
 
+## 10a. The eleven tables, and how each one is defended (IG3-001 §10)
+
+The audit the gate asked for, in full. Every Slice 3 table is tenant-scoped and project-scoped,
+carries the composite foreign key to `project`, and has RLS `ENABLE` + `FORCE` with a select and a
+write policy. Where the columns differ is *ownership*: four tables carry an individual's work
+directly, two inherit it through a parent, and five hold definitions that belong to the project
+rather than to a person.
+
+| # | Table | Tenant | Project | FORCE RLS | Policies | Technician row ownership | Testcontainers | Staging suite |
+|---|---|---|---|---|---|---|---|---|
+| 1 | `project_configuration` | yes | yes | yes | select + write | not applicable — a project's settings, not a person's work | cross-tenant, no-context, forged context | table + RLS state |
+| 2 | `survey_template` | yes | yes | yes | select + write | not applicable — a questionnaire is the questions, not the answers | cross-tenant, no-context | table + RLS state |
+| 3 | `survey_version` | yes | yes | yes | select + write | not applicable; immutability instead (trigger) | cross-tenant + the full v1→v2 regression | table, trigger, provenance FK, rollback probes |
+| 4 | `survey_question` | yes | yes | yes | select + write | not applicable; frozen with its version | cross-tenant + frozen-definition regression | table, trigger, rollback probe |
+| 5 | `survey_option` | yes | yes | yes | select + write | not applicable; frozen with its version | cross-tenant + frozen-definition regression | table, trigger |
+| 6 | `survey_campaign` | yes | yes | yes | select + write | not applicable — operational workflow, visible to the project | cross-tenant, readable without `field.responses.read` | table, baseline, provenance FK |
+| 7 | `field_assignment` | yes | yes | yes | select + write | **yes**, by `assignee_user_id` | own vs other technician, list scoping, self-reassignment attempt, composite-FK borrowing | own vs other, list scoping, forged ids |
+| 8 | `field_visit` | yes | yes | yes | select + write | **yes**, by `technician_user_id` | own vs other | own vs other |
+| 9 | `survey_instance` | yes | yes | yes | select + write | **yes**, by `respondent_user_id` | own vs other, draft update, submission attempt | own vs other, submitted-state probes |
+| 10 | `survey_answer` | yes | yes | yes | select + write | **inherited** — `EXISTS` over its instance, whose policy has already applied | own vs other, foreign write refused | own vs other, typed-column and option integrity |
+| 11 | `survey_answer_option` | yes | yes | yes | select + write | **inherited** — `EXISTS` over its answer | own vs other multi-choice selections | RLS state, no-context, forged context |
+
+Two notes, because a table of "yes" is worth less than the exceptions.
+
+**Why five tables have no ownership rule.** A technician must be able to read the form they are
+being asked to fill in. A questionnaire is a definition, not an individual's data, so
+`survey_template`, `survey_version`, `survey_question` and `survey_option` follow the ordinary
+project-access policy, and what protects them is immutability rather than visibility. The campaign
+is the same argument for the operational workflow: that a campaign exists and how far along it is
+does not disclose what any household said. No artificial ownership predicate was added to make the
+counts line up.
+
+**Why the last two inherit instead of declaring.** `survey_answer` and `survey_answer_option` have
+no user column, and denormalising one onto them would create a second place where the truth about
+who captured a response lives — the duplicated fact this slice removed everywhere else. Their
+policies are `EXISTS` over the parent, whose own policy has already run, so a technician's answer
+query sees only their own instances. `survey_answer_option` was the eleventh table and the one the
+Gate 2 report's "ten field tables" missed; it now carries a multi-choice answer in the fixture
+precisely so its isolation is proved against real rows rather than an empty table.
+
 ## 11. Verification
 
 | Suite | Result |
@@ -233,33 +273,57 @@ surface" example moved from FieldFlow to the Quality Gate, and the Parcel Worksp
 now asserts visit history where it previously asserted the empty state. Both were true when
 written and became false because this slice built the thing they pointed at.
 
-## 11a. Staging verification
+## 11a. Staging verification, and the boundary that was missing (IG3-001)
 
-Applied and exercised on the real staging environment (Railway `eia-studio-staging` / `staging`),
-with the **migrator** credential — never the runtime one — over the TCP proxy and TLS:
+The first Slice 3 staging run applied the migrations, exercised the isolation guarantees on the
+real provider — and **left staging unusable**. The integration suite truncates tenant and identity
+rows between files, which is how each file starts from a known world; against a persistent
+environment it removed the synthetic identities the demo campaign assigns work to, and the re-seed
+that followed produced a campaign with zero assignments. The remedy on offer was "re-provision
+afterwards", which is a habit, not a contract.
 
-| Step | Result |
-|---|---|
-| `pnpm db:migrate` | `migrations applied`; the ledger went from 13 to 16 rows (0013, 0014, 0015) |
-| Schema check | all eleven field tables present, each with `rowsecurity = t` and its two policies |
-| Integration suite against staging (`EIA_TEST_MIGRATOR_URL` + `EIA_TEST_RUNTIME_URL`) | **188 passed (15 files)** — the same result as the local Testcontainers run, on the provider, through the proxy, under TLS |
-| Demo seed, then a second pass | `db:check-seeder-idempotency`: 141 parcels, 1 survey version, 1 campaign, 10 provenance records, **none re-created** |
-| `postgres-gis` | latest deployment SUCCESS; served the migration, the suite and two seeds without a restart |
-| `worker` | latest deployment SUCCESS; heartbeats continuous, `pending: 0`, ~21 h uptime, no error line through any of the above |
+Implementation Gate 3 called this blocking, and it was right to. The suite was never the problem;
+the missing boundary was. It is now two commands against two kinds of database:
 
-Two things to know about the state this left staging in. The integration suite truncates tenant
-and identity rows by design (that is how each file starts from a known world), so the demo project
-was re-seeded afterwards and staging now holds exactly one tenant and one project again. The
-**synthetic identities are gone with them**, and the campaign therefore seeded with zero
-assignments — the seeder says so rather than inventing a technician. Restoring them is one command
-with a password of the operator's choosing:
+| | `pnpm test:integration` | `pnpm test:staging` |
+|---|---|---|
+| Database | only the Testcontainers container its own setup creates and stamps | a persistent environment named by `EIA_STAGING_*` |
+| May truncate / reset | yes | never |
+| Writes | anything | only inside transactions that always `ROLLBACK` |
+| Enforcement | `assertEphemeralTestDatabase` verifies a per-run marker token before the first statement; no flag overrides it | fails if the environment carries that marker |
 
-```bash
-DEMO_USER_PASSWORD='<chosen locally>' pnpm e2e:prepare
-```
+`EIA_TEST_MIGRATOR_URL` / `EIA_TEST_RUNTIME_URL` — the external-database mode that made the damage
+possible — no longer exist; setting them fails the run with an explanation. The full contract is in
+TESTING_STRATEGY.md §15 and SECURITY.md §12a.
 
-Nothing was deployed. Staging still runs the `main` build (Slice 2); these migrations are
-additive, so that build is unaffected by them. Production was not touched.
+### 11a.1 What the staging suite checks
+
+Schema (9 checks): migration ledger at head, extensions, the eleven field tables with RLS enabled,
+forced and policied, no table in `app`/`audit` without forced RLS, the policy functions, the seven
+immutability and typing triggers, the five provenance foreign keys, and a runtime role with no
+superuser and no `BYPASSRLS`.
+
+Isolation (12 checks), through the runtime role with the identities actually provisioned there: no
+context reads nothing; a tenant without a user is not enough; forged tenant, project and user ids
+widen nothing; a technician sees their own assignment and not the other's; their assignment list
+contains only their own work; they cannot read another's visits, responses or answers; they can
+read their own submitted response and its answers; the questionnaire stays readable; a caller with
+`field.responses.read` sees the project's responses and the same caller without it sees none.
+
+Fixture and contracts (14 checks): the demo baseline (campaign, published version, both synthetic
+technicians as project members, the documented assignment and submitted-response counts, every
+assignment owned by a project member, every response captured by the assignment's own technician,
+no dangling provenance); demo/historical separation (`DEMO_SIMULATION` on every captured response,
+the historical socioeconomic aggregate still `HISTORICAL_OBSERVED` and not derived from demo
+answers); no personal data (no question marked personal, no answer text shaped like an identifier);
+and five rollback probes — a published version refuses an edit and a delete, its questions refuse a
+change, a submitted response refuses a new answer and refuses being moved to another version —
+followed by a re-read asserting the baseline is exactly as it was found.
+
+The exhaustive v1→v2 versioning regression stays in Testcontainers. On staging the question is
+narrower: is the contract installed and effective here, and did verifying it change anything.
+
+### 11a.2 Results
 
 ## 12. What this slice does not do
 

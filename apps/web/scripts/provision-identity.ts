@@ -125,8 +125,9 @@ try {
 
   // The identity layer is the authority on whether an identity exists, because that is what
   // `signUpEmail` collides with. Checking `app.user` instead was wrong in a way only a reseed
-  // reveals: `db:seed:dev` truncates the app schema and leaves `auth`, after which the two
-  // disagree and provisioning fails with "User already exists" for a user the app cannot see.
+  // reveals: the two tables can disagree — the application rows can be rebuilt while `auth` keeps
+  // its own — after which provisioning fails with "User already exists" for a user the app cannot
+  // see. So the question is always put to `auth.user`.
   let userId: string;
   const existingIdentity = await migratorDb
     .select({ id: authSchema.user.id })
@@ -134,7 +135,14 @@ try {
     .where(eq(authSchema.user.email, args.email));
   if (existingIdentity[0]) {
     userId = existingIdentity[0].id;
-    console.log("identity already exists; reusing it and ensuring memberships");
+    // Reconcile the credential to the supplied password rather than leaving the old one in place.
+    // Without this, an operator who no longer knows the previous DEMO_USER_PASSWORD has only one
+    // way back into the environment — deleting the identities and re-creating them — and on a
+    // persistent environment that is precisely the destruction IG3-001 is about. Re-provisioning
+    // is idempotent either way: the same password re-hashes to an equivalent credential.
+    const ctx = await identity.$context;
+    await ctx.internalAdapter.updatePassword(userId, await ctx.password.hash(password));
+    console.log("identity already exists; credential reconciled and memberships ensured");
   } else {
     const created = await identity.api.signUpEmail({
       body: { email: args.email, password, name: args.name },

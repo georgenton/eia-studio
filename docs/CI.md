@@ -114,6 +114,20 @@ the production-readiness gate (DEPLOYMENT.md §6).
 | `release` | push to `main` | n/a | Stage F |
 | `deploy-staging` | push to `main` (only if CI-driven deploys are chosen) | n/a | Stage G |
 
+### 3.1 The database CI runs on an ephemeral database, and only on one (IG3-001)
+
+The `db` job builds the PostGIS container from `docker/postgres` and throws it away; the suite it
+runs truncates tenants, projects and identities between files, so it may run nowhere else. This is
+enforced rather than documented: the setup stamps the container with a per-run marker token and
+every destructive helper verifies it first (TESTING_STRATEGY.md §15). No persistent database
+credential is added to PR CI, and none is needed — pointing this job at a real environment is not
+a configuration option any more.
+
+Verifying a persistent environment is the separate, non-destructive `pnpm test:staging`, run by an
+operator at a gate with `EIA_STAGING_MIGRATOR_URL` / `EIA_STAGING_RUNTIME_URL`. It is deliberately
+not a PR check: it needs credentials for a shared environment, and a green PR must not depend on
+the state of one.
+
 ## 4. Local parity
 
 `pnpm ci:local` (Slice 0) runs the same script sequence as `quality` and `db` so the developer

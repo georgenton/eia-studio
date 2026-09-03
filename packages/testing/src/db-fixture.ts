@@ -2,6 +2,7 @@ import { createDatabase, createPool, type Database, type Pool } from "@eia/db";
 import { sql } from "drizzle-orm";
 import { inject } from "vitest";
 
+import { assertEphemeralTestDatabase } from "./ephemeral-guard";
 import type { EiaTestDatabase } from "./global-setup";
 
 export interface TestDatabase {
@@ -40,8 +41,16 @@ export function getTestDatabase(): TestDatabase {
   return cached;
 }
 
-/** Remove all rows from tenant-owned and identity tables between test files. */
+/**
+ * Remove all rows from tenant-owned and identity tables between test files.
+ *
+ * Destructive by design, and therefore guarded: it verifies the ephemeral marker written by the
+ * Testcontainers setup before it truncates anything, and refuses otherwise (IG3-001). The check
+ * costs one query per test file and makes "this suite wiped staging" a failure at the first
+ * statement instead of a discovery afterwards.
+ */
 export async function resetDatabase(db: Database): Promise<void> {
+  await assertEphemeralTestDatabase(db, inject("eiaTestDatabase").ephemeralToken);
   await db.execute(sql`
     truncate table
       audit.log,

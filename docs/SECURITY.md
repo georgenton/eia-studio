@@ -240,6 +240,30 @@ same-site cookies, rate limits, dependency audit in CI, secrets never in the rep
 TTL ≤ 15 minutes, admin actions require recent re-authentication (step-up) for ownership transfer
 and PII export.
 
+## 12a. Test tooling must not be able to destroy a real environment (IG3-001)
+
+Isolation controls protect tenants from each other. This one protects an environment from our own
+tooling, and it belongs here because the failure mode is the same shape: a helper that operates on
+whatever database it is handed, trusted to be pointed at the right one.
+
+The integration suite truncates tenant and identity tables between files. Pointed at persistent
+staging it removed the synthetic identities the demo campaign assigns work to, and the campaign
+re-seeded with zero assignments. Nothing crossed a tenant boundary and no data of consequence was
+lost — staging holds only synthetic, PII-free demo data — but an environment that a reviewer is
+expected to log in to stopped working, and the remedy on offer was "re-provision afterwards",
+which is not a contract.
+
+| Control | Mechanism |
+|---|---|
+| Destructive helpers refuse unknown databases | `assertEphemeralTestDatabase` verifies a marker table whose token is generated per run by the Testcontainers setup; every other outcome refuses (fail closed) |
+| Identification is positive, not heuristic | not hostname, database name, `NODE_ENV` or a "not production" flag — a stamp written by the process that created the throwaway container |
+| No override | no flag, argument or environment variable makes the check pass; the external-database mode that allowed it (`EIA_TEST_MIGRATOR_URL`) is removed and now fails the run |
+| Separate command and config | `pnpm test:staging` with its own vitest config, so `pnpm test` cannot reach a persistent environment |
+| Staging writes | only inside transactions that always `ROLLBACK`; no truncate, no drop, no seed, no fixture repair |
+| Both sides asserted | the staging suite fails if the environment carries the ephemeral marker; the integration suite fails if it does not |
+| Local development | `pnpm e2e:prepare` reconciles identities (including the credential) and never wipes; emptying a local database is the separate, guarded `pnpm db:reset:local` |
+| Credentials | the synthetic demo password is supplied through `DEMO_USER_PASSWORD` in the environment only — never committed, never printed, never written to a log or to documentation |
+
 ## 13. Security tests (acceptance)
 
 Listed in TESTING_STRATEGY.md §5–§8: cross-tenant read/mutate, project id tampering, client

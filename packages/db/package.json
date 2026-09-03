@@ -15,6 +15,8 @@
     "provision-runtime-role": "tsx scripts/provision-runtime-role.ts",
     "seed:dev": "tsx scripts/seed-dev.ts",
     "check-seeder-idempotency": "node scripts/check-seeder-idempotency.mjs",
+    "staging:baseline": "node scripts/staging-baseline.mjs",
+    "reset:local": "node scripts/reset-local-db.mjs",
     "probe": "node scripts/capability-probe.mjs"
   },
   "dependencies": {
