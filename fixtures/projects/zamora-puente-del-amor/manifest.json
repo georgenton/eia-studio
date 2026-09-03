@@ -193,6 +193,23 @@
       "validationState": "PENDING",
       "validationNote": "No validado: campaña de demostración",
       "$capturedAtFromScenario": true
+    },
+    "socialTaxonomy": {
+      "key": "social-taxonomy-reconstructed",
+      "regime": "DEMO_SIMULATION",
+      "origin": "SYSTEM_GENERATED",
+      "transformations": ["RECONSTRUCTED"],
+      "granularity": null,
+      "title": "Preocupaciones sociales viales — DEMO / RECONSTRUIDA",
+      "note": "Esquema de codificación reconstruido para la demostración. La consultora NO entregó una taxonomía oficial: estas categorías se derivaron de los temas que el cuestionario demo puede producir. No incluye categorías de salud, discapacidad ni ninguna otra característica personal sensible.",
+      "sourceLabel": "road_social_concerns_demo · taxonomía reconstruida",
+      "sourceReference": null,
+      "sourceVersion": "v1",
+      "method": "Categorías redactadas a partir de los temas del cuestionario demo; ninguna proviene de un esquema entregado.",
+      "capturedAt": null,
+      "validationState": "PENDING",
+      "validationNote": "No validado: no existe una taxonomía oficial entregada por el equipo consultor",
+      "$capturedAtFromScenario": true
     }
   },
   "metrics": [
@@ -623,6 +640,68 @@
       "longitude": -78.9412,
       "latitude": -4.0761,
       "accuracyM": 12.0
+    }
+  },
+  "social": {
+    "$comment": "Taxonomía DEMO / RECONSTRUIDA para la codificación de respuestas abiertas. La consultora NO entregó un esquema oficial de codificación: estas categorías se reconstruyeron a partir de los temas que el cuestionario demo puede producir, y así se declaran en la interfaz y en la procedencia. Sin categorías de salud, discapacidad ni ninguna característica personal sensible.",
+    "taxonomy": {
+      "key": "road_social_concerns_demo",
+      "name": "Preocupaciones sociales viales — DEMO / RECONSTRUIDA",
+      "description": "Esquema corto y reconstruido para demostrar la codificación asistida de respuestas abiertas. No es la codificación oficial del estudio concluido."
+    },
+    "version": {
+      "versionLabel": "v1",
+      "sourceNote": "DEMO / RECONSTRUIDA · derivada de los temas del cuestionario demo, no de un esquema entregado por la consultora.",
+      "categories": [
+        {
+          "code": "COMMUNICATION_INFORMATION",
+          "label": "Comunicación e información",
+          "description": "La persona pide información, avisos previos, señalización o mejor comunicación sobre el proyecto, sus plazos o sus trabajos.",
+          "ordinal": 0
+        },
+        {
+          "code": "LOCAL_EMPLOYMENT",
+          "label": "Empleo local",
+          "description": "La persona menciona trabajo, contratación de mano de obra local, oportunidades laborales o compras a proveedores de la zona.",
+          "ordinal": 1
+        },
+        {
+          "code": "ACCESS_PROPERTY_FENCES",
+          "label": "Acceso al predio, cerramientos y linderos",
+          "description": "La persona se refiere al acceso vehicular o peatonal a su predio, a cercas, linderos, portones o al paso durante la obra.",
+          "ordinal": 2
+        },
+        {
+          "code": "CONSTRUCTION_IMPACTS",
+          "label": "Molestias de la construcción",
+          "description": "La persona menciona polvo, ruido, vibraciones, tránsito de maquinaria, horarios de trabajo u otras molestias propias de la obra.",
+          "ordinal": 3
+        },
+        {
+          "code": "SAFETY_ROAD_USE",
+          "label": "Seguridad vial y uso de la vía",
+          "description": "La persona se refiere a seguridad de peatones, cruces, velocidad, escuelas cercanas, señalización de tránsito o riesgo de accidentes.",
+          "ordinal": 4
+        },
+        {
+          "code": "GRIEVANCE_MECHANISM",
+          "label": "Mecanismo de quejas y reclamos",
+          "description": "La persona pregunta cómo presentar un reclamo, a quién dirigirse, o menciona reclamos anteriores sin respuesta.",
+          "ordinal": 5
+        },
+        {
+          "code": "GENERAL_SUPPORT_BENEFITS",
+          "label": "Apoyo al proyecto y beneficios esperados",
+          "description": "La persona expresa apoyo al proyecto o expectativas de beneficio: mejor traslado, acceso a mercados, servicios o valorización.",
+          "ordinal": 6
+        },
+        {
+          "code": "OTHER",
+          "label": "Otro tema",
+          "description": "La respuesta no corresponde a ninguna de las categorías anteriores. Categoría residual: se elige explícitamente, nunca por descarte automático.",
+          "ordinal": 7
+        }
+      ]
     }
   }
 }

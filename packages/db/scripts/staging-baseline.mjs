@@ -44,6 +44,13 @@ const ID_QUERIES = {
   answers: `select id as v from app.survey_answer order by id`,
   provenance: `select id || ':' || regime as v from app.provenance_record order by id`,
   parcels: `select id || ':' || parcel_code as v from app.parcel order by parcel_code`,
+  // Social (Slice 4): a taxonomy version whose id moved would orphan every coding made against it,
+  // and a classification or review that vanished would take a decision with it.
+  taxonomyVersions: `select id || ':' || version_label || ':' || status as v from app.taxonomy_version order by id`,
+  taxonomyCategories: `select id || ':' || code as v from app.taxonomy_category order by id`,
+  classificationRuns: `select id || ':' || status || ':' || requested_model as v from app.classification_run order by id`,
+  aiClassifications: `select id || ':' || status as v from app.ai_classification order by id`,
+  humanReviews: `select id || ':' || decision as v from app.human_review order by id`,
 };
 
 const COUNT_QUERY = `
@@ -66,6 +73,12 @@ const COUNT_QUERY = `
     (select count(*) from app.survey_answer)      as answers,
     (select count(*) from app.survey_answer_option) as answer_options,
     (select count(*) from app.project_configuration) as project_configuration,
+    (select count(*) from app.taxonomy)           as taxonomies,
+    (select count(*) from app.taxonomy_version)   as taxonomy_versions,
+    (select count(*) from app.taxonomy_category)  as taxonomy_categories,
+    (select count(*) from app.classification_run) as classification_runs,
+    (select count(*) from app.ai_classification)  as ai_classifications,
+    (select count(*) from app.human_review)       as human_reviews,
     (select count(*) from app.provenance_record)  as provenance,
     (select count(*) from app.metric_snapshot)    as metrics
 `;
@@ -82,6 +95,10 @@ const DANGLING_TABLES = [
   "field_assignment",
   "field_visit",
   "survey_instance",
+  "taxonomy_version",
+  "classification_run",
+  "ai_classification",
+  "human_review",
 ];
 
 try {

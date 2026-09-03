@@ -36,9 +36,9 @@ describe("workspace surface registry", () => {
     expect(isWorkspaceSurface("nope")).toBe(false);
   });
 
-  it("the Command Center, GIS and FieldFlow are implemented", () => {
+  it("the Command Center, GIS, FieldFlow and Social Intelligence are implemented", () => {
     const implemented = WORKSPACE_SURFACES.filter((k) => SURFACE_DEFINITIONS[k].implemented);
-    expect(implemented).toEqual(["command-center", "gis", "field"]);
+    expect(implemented).toEqual(["command-center", "gis", "field", "social"]);
   });
 
   it("an unbuilt surface names the phase it is coming in; a built one names none", () => {
@@ -80,7 +80,9 @@ describe("capability route policy", () => {
     expect(outcome(true, "command-center")).toBe("ok");
     expect(outcome(true, "gis")).toBe("ok");
     expect(outcome(true, "field")).toBe("ok");
-    expect(outcome(true, "social")).toBe("not-implemented");
+    expect(outcome(true, "social")).toBe("ok");
+    // Quality Gate is the current example of "the capability is on, the surface is not built".
+    expect(outcome(true, "quality")).toBe("not-implemented");
   });
 
   it("presentation cannot widen the policy: ANNOUNCED resolves as disabled", () => {

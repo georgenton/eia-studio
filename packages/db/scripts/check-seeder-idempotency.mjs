@@ -50,6 +50,12 @@ async function snapshot() {
       (select count(*) from app.field_visit)         as visits,
       (select count(*) from app.survey_instance)     as instances,
       (select count(*) from app.survey_answer)       as answers,
+      (select count(*) from app.taxonomy)            as taxonomies,
+      (select count(*) from app.taxonomy_version)    as taxonomy_versions,
+      (select count(*) from app.taxonomy_category)   as taxonomy_categories,
+      (select count(*) from app.classification_run)  as classification_runs,
+      (select count(*) from app.ai_classification)   as ai_classifications,
+      (select count(*) from app.human_review)        as human_reviews,
       (select count(*) from app.metric_snapshot)     as metrics
   `);
 
@@ -62,6 +68,11 @@ async function snapshot() {
     parcels: "select id from app.parcel order by id",
     instances: "select id, status from app.survey_instance order by id",
     answers: "select id from app.survey_answer order by id",
+    // A taxonomy version whose id moved would orphan every classification made against it — the
+    // same failure as a survey version, one layer along.
+    taxonomyVersions:
+      "select id, version_label, definition_hash from app.taxonomy_version order by id",
+    taxonomyCategories: "select id, code from app.taxonomy_category order by id",
     // Every provenance record a row points at: the determinism this regression is about.
     provenance: "select id from app.provenance_record order by id",
   })) {
@@ -109,6 +120,10 @@ async function danglingProvenance() {
     "field_assignment",
     "field_visit",
     "survey_instance",
+    "taxonomy_version",
+    "classification_run",
+    "ai_classification",
+    "human_review",
   ];
   const dangling = [];
   for (const table of tables) {
@@ -158,7 +173,9 @@ try {
       `${before.counts.parcels} parcels, ${before.counts.versions} survey version(s), ` +
       `${before.counts.campaigns} campaign(s), ${before.counts.assignments} assignments, ` +
       `${before.counts.instances} responses, ${before.counts.answers} answers, ` +
-      `${before.counts.provenance} provenance records, none re-created.`,
+      `${before.counts.provenance} provenance records, ` +
+      `${before.counts.taxonomy_versions} taxonomy version(s) with ` +
+      `${before.counts.taxonomy_categories} categories, none re-created.`,
   );
 } finally {
   await client.end();

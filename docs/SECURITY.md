@@ -189,6 +189,52 @@ position at the time of the visit, captured only with the browser's permission a
 `denied` or `unavailable` when there is none — never fabricated, and never a household's address.
 Answer payloads are not written to logs.
 
+## 10c. Sending text to a language model (Slice 4)
+
+This is the first slice where data leaves the system for a third party, and the controls are
+deliberately about the **data**, not about the person asking.
+
+| Control | Mechanism |
+|---|---|
+| Demo-only gate | `assertAiProcessingAllowed` refuses any answer whose provenance regime is not `DEMO_SIMULATION`. Checked when a run is created *and* again in the worker at the moment the text would leave. A specialist with every permission cannot send a `HISTORICAL_OBSERVED` or `LIVE_OPERATIONAL` answer |
+| Not a hidden button | the gate is in the domain, on the path every caller takes; the integration test asserts the classifier port was **never invoked** for a refused run |
+| Data minimisation | the classifier's input type carries the response text and the taxonomy definition, and has nowhere to put a respondent, a technician, a parcel code, a coordinate, a visit or another answer |
+| Prompt injection | response text arrives inside a delimited block, the instruction says it cannot redefine the task, and the output schema admits only category codes of one published taxonomy version. An invented code is a **failed** classification, never coerced to `OTHER` |
+| No agency | the classifier has no tools, no retrieval, no browsing, no filesystem and no database. One text in, one structured answer out |
+| No reasoning stored | chain-of-thought is neither requested nor persisted; nor is the raw provider response body. A plausible machine-written rationale for a coding of what a person said is exactly the artefact that would later be quoted as evidence |
+| Vendor boundary | one narrow port (`OpenTextClassifier`); the live adapter is the AI SDK through the Vercel AI Gateway, selected by explicit configuration with **no fallback** — a misconfigured environment fails rather than fabricating codings |
+| Logs | answer text never reaches a log line; the worker logs identifiers and statuses, and a classification's stored `error` is bounded operational text |
+| Model output is a proposal | it is never the validated coding, never overwrites the answer, and never enters a validated figure without a human decision (ADR-019) |
+
+This restriction stands until the privacy, legal and vendor review of §10a explicitly authorises
+real data. Lifting it is a decision recorded there, not a configuration change here.
+
+### 10c.1 Which classifier runs where, and why unset is not `fake` (IG4-001)
+
+A second question sits beside "may this text leave?": **what answered?** A proposal written by a
+keyword matcher and a proposal written by a model are the same shape once they are rows, so a
+persistent environment that ran the deterministic fake would be producing an artefact nobody could
+afterwards tell apart from a real one. `SOCIAL_CLASSIFIER` therefore has **no default**, and one
+domain function (`resolveClassifierAvailability`) decides for the web app, the worker and the
+operator scripts alike.
+
+| `APP_ENV` | unset | `fake` | `ai-gateway`, no credential | `ai-gateway`, credential |
+|---|---|---|---|---|
+| `local`, `test` | unavailable | **available** | `BLOCKED_EXTERNAL_CONFIG` | available (live) |
+| anything else | unavailable | **refused** | `BLOCKED_EXTERNAL_CONFIG` | available (live) |
+
+- **Unknown environments are persistent.** The predicate names `local` and `test`; everything else,
+  including a misspelt value, is persistent. A typo loses assisted coding rather than gaining a
+  fake one.
+- **Unavailable is not an outage.** Deterministic tabulation never asks a model for a number, so it
+  keeps working; only the coding half stops, and the surface says which of the three reasons it is.
+- **Nothing unprocessable is written.** `startClassificationRun` refuses before it reads an answer,
+  so a `ClassificationRun` that no worker could ever process does not exist. A worker whose
+  classifier is unavailable never constructs the consumer, so it never claims.
+- **No process refuses to boot over it.** A missing gateway credential is a reported state, not a
+  startup failure: taking the whole deployment down over a feature it may not use would be a worse
+  outcome than losing that feature.
+
 ## 10a. Privacy by design and the compliance gate (Gate 1 D-018)
 
 Before **production ingestion of any real personal data**, the project requires a specific

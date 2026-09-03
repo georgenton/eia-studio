@@ -147,3 +147,57 @@
     padding: 18px 16px 36px;
   }
 }
+
+/* UX-001: the account disclosure in the topbar. A native <details>, so the summary is focusable,
+   announces expanded/collapsed, and works before hydration. */
+.userMenu {
+  margin-left: auto;
+  position: relative;
+}
+/* Reads as a control, not as a label. The manual review's complaint was that the way out was not
+   findable, so the identity carries a visible border and a caret rather than sitting as plain
+   text in the corner. */
+.userSummary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  padding: 4px 10px 4px 6px;
+  border: 1px solid var(--eia-border);
+  border-radius: 999px;
+  background: var(--eia-surface);
+  list-style: none;
+}
+.userSummary::-webkit-details-marker {
+  display: none;
+}
+.userSummary:hover {
+  background: var(--eia-surface-muted, #f2f4f6);
+}
+.userSummary:focus-visible {
+  outline: 2px solid var(--eia-accent);
+  outline-offset: 2px;
+}
+.caret {
+  font-size: 10px;
+  line-height: 1;
+  color: var(--eia-text-muted);
+}
+.userMenu[open] .caret {
+  transform: rotate(180deg);
+}
+.userPanel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 30;
+  min-width: 232px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  background: #ffffff;
+  border: 1px solid #e8ebee;
+  border-radius: 8px;
+  box-shadow: 0 10px 28px rgb(16 24 32 / 14%);
+}

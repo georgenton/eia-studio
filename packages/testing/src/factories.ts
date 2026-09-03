@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { and, eq, sql } from "drizzle-orm";
 
-import { appSchema, fieldSchema, gisSchema, type Database } from "@eia/db";
+import { appSchema, fieldSchema, gisSchema, socialSchema, type Database } from "@eia/db";
 
 /**
  * Generic factories (TESTING_STRATEGY.md §1): tenant A / tenant B, projects X / Y / Z, users
@@ -650,4 +650,207 @@ export async function createVisitWithInstance(
       .where(eq(fieldSchema.surveyInstance.id, instanceId));
   }
   return { visitId, instanceId };
+}
+
+/* ---------------------------------------------------------------------------------------------
+ * Slice 4 factories: taxonomies, classification runs, proposals and reviews.
+ * ------------------------------------------------------------------------------------------- */
+
+export interface SeededTaxonomy {
+  readonly taxonomyId: string;
+  readonly versionId: string;
+  readonly versionLabel: string;
+  readonly categoryIds: Readonly<Record<string, string>>;
+}
+
+/**
+ * A published taxonomy version.
+ *
+ * Published the way the application publishes one — insert DRAFT, write categories, flip to
+ * PUBLISHED — because the immutability triggers refuse category writes afterwards, and a factory
+ * that bypassed them would be exercising a database nobody runs.
+ */
+export async function createPublishedTaxonomy(
+  db: Database,
+  input: {
+    tenantId: string;
+    projectId: string;
+    provenanceId: string;
+    taxonomyId?: string;
+    versionLabel?: string;
+    /** Codes of this version. `OTHER` is appended when absent: a scheme needs a residual. */
+    codes?: ReadonlyArray<string>;
+    sourceNote?: string;
+  },
+): Promise<SeededTaxonomy> {
+  const taxonomyId = input.taxonomyId ?? randomUUID();
+  if (!input.taxonomyId) {
+    await db.insert(socialSchema.taxonomy).values({
+      id: taxonomyId,
+      tenantId: input.tenantId,
+      projectId: input.projectId,
+      key: `tax_${next()}`,
+      name: `Esquema ${next()}`,
+      description: null,
+    });
+  }
+
+  const versionId = randomUUID();
+  const versionLabel = input.versionLabel ?? `v${next()}`;
+  await db.insert(socialSchema.taxonomyVersion).values({
+    id: versionId,
+    tenantId: input.tenantId,
+    projectId: input.projectId,
+    taxonomyId,
+    versionLabel,
+    status: "DRAFT",
+    sourceNote: input.sourceNote ?? "DEMO / RECONSTRUIDA",
+    provenanceId: input.provenanceId,
+  });
+
+  const codes = [...(input.codes ?? ["TOPIC_A", "TOPIC_B"])];
+  if (!codes.includes("OTHER")) codes.push("OTHER");
+
+  const categoryIds: Record<string, string> = {};
+  for (const [ordinal, code] of codes.entries()) {
+    const id = randomUUID();
+    categoryIds[code] = id;
+    await db.insert(socialSchema.taxonomyCategory).values({
+      id,
+      tenantId: input.tenantId,
+      projectId: input.projectId,
+      versionId,
+      code,
+      label: code.toLowerCase(),
+      description: `Definición de la categoría ${code} para pruebas.`,
+      ordinal,
+    });
+  }
+
+  await db
+    .update(socialSchema.taxonomyVersion)
+    .set({
+      status: "PUBLISHED",
+      publishedAt: new Date(),
+      definitionHash: `hash_${next()}`,
+    })
+    .where(eq(socialSchema.taxonomyVersion.id, versionId));
+
+  return { taxonomyId, versionId, versionLabel, categoryIds };
+}
+
+export async function createClassificationRun(
+  db: Database,
+  input: {
+    tenantId: string;
+    projectId: string;
+    provenanceId: string;
+    taxonomyVersionId: string;
+    surveyVersionId: string;
+    questionId: string;
+    initiatedByUserId: string;
+    requestedModel?: string;
+    classifierKind?: string;
+    promptVersion?: string;
+    promptHash?: string;
+  },
+): Promise<{ id: string }> {
+  const id = randomUUID();
+  await db.insert(socialSchema.classificationRun).values({
+    id,
+    tenantId: input.tenantId,
+    projectId: input.projectId,
+    taxonomyVersionId: input.taxonomyVersionId,
+    sourceSurveyVersionId: input.surveyVersionId,
+    sourceQuestionId: input.questionId,
+    requestedModel: input.requestedModel ?? "fake/deterministic",
+    classifierKind: input.classifierKind ?? "fake",
+    promptVersion: input.promptVersion ?? "social-open-coding@1",
+    promptHash: input.promptHash ?? "0000000000000000",
+    status: "PENDING",
+    initiatedByUserId: input.initiatedByUserId,
+    provenanceId: input.provenanceId,
+  });
+  return { id };
+}
+
+export async function createAiClassification(
+  db: Database,
+  input: {
+    tenantId: string;
+    projectId: string;
+    provenanceId: string;
+    runId: string;
+    answerId: string;
+    status?: "PENDING" | "PROCESSING" | "SUCCEEDED" | "FAILED";
+    confidence?: number | null;
+    categoryIds?: ReadonlyArray<string>;
+  },
+): Promise<{ id: string }> {
+  const id = randomUUID();
+  await db.insert(socialSchema.aiClassification).values({
+    id,
+    tenantId: input.tenantId,
+    projectId: input.projectId,
+    runId: input.runId,
+    answerId: input.answerId,
+    status: input.status ?? "SUCCEEDED",
+    confidence: input.confidence === undefined ? "0.850" : (input.confidence?.toFixed(3) ?? null),
+    provenanceId: input.provenanceId,
+  });
+  for (const categoryId of input.categoryIds ?? []) {
+    await db.insert(socialSchema.aiClassificationCategory).values({
+      id: randomUUID(),
+      tenantId: input.tenantId,
+      projectId: input.projectId,
+      classificationId: id,
+      categoryId,
+    });
+  }
+  return { id };
+}
+
+export async function createHumanReview(
+  db: Database,
+  input: {
+    tenantId: string;
+    projectId: string;
+    provenanceId: string;
+    classificationId: string;
+    answerId: string;
+    taxonomyVersionId: string;
+    reviewerUserId: string;
+    reviewerMembershipId: string;
+    decision?: "ACCEPTED" | "CORRECTED";
+    categoryIds?: ReadonlyArray<string>;
+  },
+): Promise<{ id: string }> {
+  const id = randomUUID();
+  // One transaction, like the use-case: a review's categories are written with it, and the
+  // finality trigger refuses a later transaction touching them. A factory that wrote them
+  // separately would be exercising a path the application never takes.
+  await db.transaction(async (tx) => {
+    await tx.insert(socialSchema.humanReview).values({
+      id,
+      tenantId: input.tenantId,
+      projectId: input.projectId,
+      classificationId: input.classificationId,
+      answerId: input.answerId,
+      taxonomyVersionId: input.taxonomyVersionId,
+      reviewerUserId: input.reviewerUserId,
+      reviewerMembershipId: input.reviewerMembershipId,
+      decision: input.decision ?? "ACCEPTED",
+      provenanceId: input.provenanceId,
+    });
+    for (const categoryId of input.categoryIds ?? []) {
+      await tx.insert(socialSchema.humanReviewCategory).values({
+        id: randomUUID(),
+        tenantId: input.tenantId,
+        projectId: input.projectId,
+        reviewId: id,
+        categoryId,
+      });
+    }
+  });
+  return { id };
 }

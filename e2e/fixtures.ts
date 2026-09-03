@@ -29,6 +29,14 @@ export const USERS = {
     name: "Técnico de campo 2",
     state: "e2e/.auth/technician2.json",
   },
+  // Social Intelligence has a persona of its own: only a SOCIAL_SPECIALIST (and a REVIEWER)
+  // settles a coding, and only a specialist starts a model run. A coordinator can watch the
+  // workflow and read the analytics, which is a different screen and a different assertion.
+  specialist: {
+    email: "especialista@demo.invalid",
+    name: "Especialista social",
+    state: "e2e/.auth/specialist.json",
+  },
 } as const;
 
 /**

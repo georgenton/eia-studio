@@ -24,5 +24,7 @@ export { storageEnvSchema } from "./env/storage";
 export type { StorageEnv } from "./env/storage";
 export { workerEnvSchema } from "./env/worker";
 export type { WorkerEnv } from "./env/worker";
+export { socialEnvSchema, SOCIAL_CLASSIFIERS } from "./env/social";
+export type { SocialEnv } from "./env/social";
 export { emailEnvSchema } from "./env/email";
 export type { EmailEnv } from "./env/email";

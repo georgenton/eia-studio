@@ -57,6 +57,7 @@ export default async function GisPage({
     projects: portfolio.projects,
     currentSurface: "gis" as const,
     userName: sessionUser?.name ?? sessionUser?.email ?? "Usuario",
+    userEmail: sessionUser?.email ?? null,
     breadcrumb: projectBreadcrumb(
       ctx,
       portfolio.tenantName,

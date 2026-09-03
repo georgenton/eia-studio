@@ -113,6 +113,20 @@
       "when": 1788390323644,
       "tag": "0015_provenance_foreign_keys",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1788452531587,
+      "tag": "0016_social_intelligence_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1788452532587,
+      "tag": "0017_social_rls_and_invariants",
+      "breakpoints": true
     }
   ]
 }

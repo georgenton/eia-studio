@@ -21,6 +21,11 @@ export const AUDIT_ACTIONS = [
   "field.assignment.reassigned",
   "field.survey.published",
   "field.survey.submitted",
+  // Social Intelligence (Slice 4). Two events, for the two moments that matter: text left this
+  // system for a model, and a human settled what a response means. Neither row carries a word of
+  // what was said — counts, codes and configuration only.
+  "social.classification_run.started",
+  "social.coding.reviewed",
 ] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];

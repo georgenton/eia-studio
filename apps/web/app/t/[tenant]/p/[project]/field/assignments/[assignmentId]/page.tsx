@@ -76,6 +76,7 @@ export default async function AssignmentPage({
       projects={portfolio.projects}
       currentSurface="field"
       userName={sessionUser?.name ?? sessionUser?.email ?? "Usuario"}
+      userEmail={sessionUser?.email ?? null}
       breadcrumb={[
         ...projectBreadcrumb(
           ctx,

@@ -34,7 +34,7 @@ export default defineConfig({
     {
       name: "coordinator",
       testMatch:
-        /journey\.spec\.ts|gis\.spec\.ts|field-coordinator\.spec\.ts|field-integration\.spec\.ts|authorization\.spec\.ts|screenshots\.spec\.ts|accessibility\.spec\.ts/,
+        /(^|\/)(journey|gis|field-coordinator|field-integration|authorization|screenshots|accessibility)\.spec\.ts$/,
       dependencies: ["setup"],
       use: {
         ...devices["Desktop Chrome"],
@@ -75,8 +75,21 @@ export default defineConfig({
       },
     },
     {
+      // Social Intelligence: the specialist is the only role that can start a run and settle a
+      // coding, so the journey is theirs.
+      name: "specialist",
+      testMatch: /(^|\/)(social|social-accessibility|social-screenshots)\.spec\.ts$/,
+      dependencies: ["setup"],
+      use: {
+        ...devices["Desktop Chrome"],
+        viewport: { width: 1440, height: 940 },
+        storageState: "e2e/.auth/specialist.json",
+      },
+    },
+    {
       name: "anonymous",
-      testMatch: /anonymous\.spec\.ts/,
+      // No stored session: these specs sign in for themselves, or test being signed out.
+      testMatch: /(^|\/)(anonymous|session)\.spec\.ts$/,
       use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 940 } },
     },
   ],
@@ -96,6 +109,10 @@ export default defineConfig({
           PUBLIC_APP_URL: baseURL,
           BETTER_AUTH_URL: baseURL,
           AUTH_TRUSTED_ORIGINS: baseURL,
+          // Explicit, never defaulted (IG4-001): the deterministic classifier is selected here
+          // because this is a test run, and nowhere else selects it for us.
+          SOCIAL_CLASSIFIER: "fake",
+          SOCIAL_CLASSIFIER_MODEL: "fake/deterministic",
         },
       },
 });

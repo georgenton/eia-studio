@@ -292,3 +292,33 @@ APP_ENV=local EIA_CONFIRM_RESET=yes-delete-my-local-data pnpm db:reset:local
 ```
 
 It refuses unless `APP_ENV=local`, the database host is loopback, and the confirmation is present.
+
+
+## 16. Social Intelligence and the AI boundary (Slice 4)
+
+**CI never calls a model.** The classifier is a port with two adapters, and since IG4-001 it has
+**no default**: `SOCIAL_CLASSIFIER=fake` is written explicitly where a test needs it — the
+Playwright web server, the queue-drain child process — and nowhere else. The whole suite therefore
+runs with a deterministic in-process classifier and needs no credential, and a suite that forgot to
+select one would lose assisted coding rather than silently acquire it.
+
+The same rule refuses the fake outside `local` and `test`, so a persistent environment cannot store
+keyword-matcher output in `ai_classification` (SECURITY.md §10c.1). There is no fallback in either
+direction: an environment configured for the gateway without a key reports
+`BLOCKED_EXTERNAL_CONFIG`, because the alternative is fabricated codings that are indistinguishable
+from real ones once they are rows.
+
+| Layer | What it proves |
+|---|---|
+| Availability unit (`packages/domain/test/classifier-availability.test.ts`) | the IG4-001 table: the fake runs only in `local`/`test`, is refused in `preview`/`staging`/`production` and in any environment name nobody anticipated; unset is `NOT_CONFIGURED` everywhere, never a default; a gateway without its credential, or with a model id that does not name its provider, is `BLOCKED_EXTERNAL_CONFIG` and is never demoted to the fake; the detail text names variables and never a secret |
+| Worker configuration unit (`apps/worker/test/config.test.ts`) | the worker resolves availability at startup, keeps running without one, and reports each of the three unavailable reasons — `main.ts` constructs the consumer only for `AVAILABLE`, so an unavailable worker never claims |
+| Domain unit (`packages/domain/test/social.test.ts`) | taxonomy publishability and hashing, the demo-only gate, output validation including the injection case, confidence banding and its copy, eligibility, the ACCEPTED/CORRECTED derivation, label-set comparison, denominators, validated distribution, bounded retries |
+| Application integration (`packages/application/test/social-coding.integration.test.ts`) | the whole journey against a real database: the gate refuses a non-demo run **and the classifier is never invoked**; a run queues one pending row per eligible answer; two concurrent claims take different rows; usage and latency are stored; a specialist accepts one proposal and corrects another and the proposal survives unchanged; validated metrics count human labels; a second review is refused; a technician and a viewer are denied; `social.ai_coding` off leaves tabulation working; **no run and no classification row is written for any of the three unavailable-classifier reasons** |
+| Database isolation (`slice4-social.integration.test.ts`) | cross-tenant and no-context denial on all eight tables, ADMIN without membership, the coding tables gated by `field.responses.read` while the scheme stays project-readable, unique constraints, cross-tenant category borrowing, forced RLS |
+| Versioning regression (`slice4-taxonomy-versioning.integration.test.ts`) | v1 published → proposal and review made against it → v2 published with changed categories; v1's rows untouched, both codings still resolve to v1, a v2 category cannot be attached to a v1 coding, a published version refuses edit and delete, a submitted review is final, and a second run with a different model and prompt leaves the first run's metadata unchanged |
+| End to end (`e2e/social.spec.ts`) | the specialist's journey in a browser, with the queue drained by `pnpm social:drain` and the deterministic fake |
+| Accessibility (`e2e/social-accessibility.spec.ts`) | axe over tabulation, workflow, queue, low-confidence and the review workspace; category chips carry text, not colour alone |
+
+**Screenshots of AI states are UI evidence, not model evidence.** Every proposal in
+`docs/screenshots/slice-4/` came from the fake classifier; the report says so beside them. A live
+model result is only ever produced by an explicit operator smoke against staging.

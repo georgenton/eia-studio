@@ -85,6 +85,8 @@ export const PROJECT_ROLE_PERMISSIONS: Readonly<
     "documents.read",
     "social.read",
     "social.write",
+    "social.ai.run",
+    "social.coding.review",
     "taxonomy.approve",
     "quality.read",
     "quality.write",
@@ -125,6 +127,10 @@ export const PROJECT_ROLE_PERMISSIONS: Readonly<
     "documents.read",
     "field.read",
     "field.responses.read",
+    // A reviewer decides; that is the role's whole meaning, and settling a coding is the same kind
+    // of act as deciding a finding. They do not initiate model runs.
+    "social.read",
+    "social.coding.review",
     "quality.read",
     "quality.review",
     "reports.review",

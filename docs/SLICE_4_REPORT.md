@@ -1,0 +1,301 @@
+# Slice 4 — Social Intelligence / human-in-the-loop
+
+> What was built on `feat/slice-4-social-intelligence`, what was deliberately left out, and every
+> place the implementation departs from the approved design bundle. Companion to
+> `docs/SLICE_1_REPORT.md`, `docs/SLICE_2_REPORT.md` and `docs/SLICE_3_REPORT.md`.
+
+## 1. The journey this slice delivers
+
+A social specialist opens Social Intelligence and sees the **deterministic tabulation** of the
+closed questions of one survey version, with its denominators stated in words. On the second tab
+they see the **open responses** that were submitted, start a **classification run**, and watch a
+background worker turn each response into a **proposal** — labelled provisional, carrying the
+model's confidence heuristic. They open one, agree with it, and it becomes a **validated coding**;
+they open the next, change two labels, and it becomes a **correction**. The proposal is still
+there, unedited, beside the decision. The validated theme distribution counts only what they
+decided; the AI's own distribution sits in its own panel with its own base.
+
+## 2. Rules calculate, AI proposes, a human validates
+
+Three kinds of claim, three storage locations, and no overwriting — the subject of **ADR-019**.
+
+| Layer | Produced by | Stored in | Read by |
+|---|---|---|---|
+| Deterministic | SQL counts + `tabulation.ts` arithmetic | nothing — computed on read | Tabulación tab, workflow counts |
+| AI proposal | a `ClassificationRun` through the classifier port | `ai_classification` (+ categories) | the queue, the provisional distribution, evaluation |
+| Validated coding | a specialist, one review per proposal | `human_review` (+ categories) | validated themes, and any future report |
+
+Four rules make it hold rather than describe it:
+
+- a correction writes new rows and **never touches** the proposal;
+- a submitted review is final — one per proposal, no UPDATE, no DELETE (database triggers);
+- validated figures count `human_review` labels only, and the provisional distribution never shares
+  a denominator with them;
+- no deterministic number is ever asked of a model.
+
+The review **decision is derived**, not sent: `decideReview` compares the two label sets. A client
+that could send `ACCEPTED` could record a correction as an agreement, and that is exactly the
+figure an evaluation would rest on.
+
+## 3. Deterministic tabulation, and its denominators
+
+Counts come from SQL over **submitted** responses only — drafts never participate — and the shares
+are computed by `tabulateQuestion`, which also decides and names the rule:
+
+| Rule | Meaning | Where |
+|---|---|---|
+| `submitted` | responses submitted for this survey version: the universe | every question's header |
+| `answered` | responses that answered *this* question; shares sum to 100 % | single choice, boolean, numeric |
+| `answered_multi` | responses that answered this question, where one person may choose several — **shares can exceed 100 %**, and the screen says so | multi-choice, and the multi-label theme distributions |
+
+Three counts are computed separately rather than inferred from one another (`submitted`,
+`answered`, per-option tallies), because deriving "answered" from the sum of option counts is
+wrong for multi-choice and is the single commonest way to publish a false percentage. A denominator
+of zero yields `—`, never a division.
+
+**Versions are not added together.** Tabulation groups by `SurveyVersion` and offers a chooser.
+Aggregating across versions needs a declared mapping between their questions; matching on question
+text would be a guess dressed as a result (TD-039 stays open).
+
+## 4. The coding scheme is versioned, and its versions are immutable
+
+`Taxonomy` → `TaxonomyVersion` (`DRAFT` → `PUBLISHED` → `RETIRED`) → `TaxonomyCategory`. A
+published version and its categories cannot be edited or deleted; refinement publishes v2, and **v2
+gets its own category rows** even where a code is unchanged. A classification and a review each
+name the exact version they were made against, and a constraint trigger refuses attaching a
+category of any other version.
+
+That is the whole point: a coding means what the scheme said when the coding was made.
+`slice4-taxonomy-versioning.integration.test.ts` proves it end to end — v1 published, a proposal
+and a review made against it, v2 published with changed categories, and afterwards v1's rows are
+untouched, both codings still resolve to v1, and every attempt to blur the two is refused.
+
+## 5. The demo taxonomy is a reconstruction, and says so
+
+The consultancy has **not** provided an official coding scheme. The fixture's
+`road_social_concerns_demo` v1 is eight categories reconstructed from the themes the demo
+questionnaire can produce, carrying `sourceNote` "DEMO / RECONSTRUIDA · derivada de los temas del
+cuestionario demo, no de un esquema entregado por la consultora", its own provenance record
+(`DEMO_SIMULATION` / `SYSTEM_GENERATED` / `RECONSTRUCTED`), and a `DEMO / RECONSTRUIDA` badge on
+screen.
+
+Categories: comunicación e información · empleo local · acceso al predio, cerramientos y linderos ·
+molestias de la construcción · seguridad vial y uso de la vía · mecanismo de quejas y reclamos ·
+apoyo al proyecto y beneficios esperados · otro tema (residual). No category concerns health,
+disability or any other special-category personal characteristic.
+
+## 6. The AI boundary
+
+**Demo data only, enforced twice.** `assertAiProcessingAllowed` refuses any answer whose provenance
+regime is not `DEMO_SIMULATION` — when the run is created, and again in the worker at the moment
+the text would leave. It is a check on the *data*, not the caller: a specialist with every
+permission cannot send a historical answer. The integration test asserts the classifier port was
+**never invoked** for a refused run.
+
+**Data minimisation by type.** `ClassificationInput` carries the response text and the taxonomy
+definition. There is nowhere in it for a respondent, a technician, a parcel code, a coordinate, a
+visit or another answer.
+
+**Injection boundary.** Response text arrives inside a delimited block; the instruction states that
+nothing inside it can redefine the task; the structured output admits only category codes of one
+published version. An invented code — `ADMIN`, or prose — is a **failed classification**, never
+coerced to `OTHER`. `OTHER` is a category a classifier may choose, not a landing pad.
+
+**No agency, no reasoning stored.** The classifier has no tools, no retrieval, no browsing, no
+filesystem, no database. Chain-of-thought is neither requested nor persisted, and neither is the
+raw provider body: the product stores labels, a confidence heuristic and a review flag.
+
+**Confidence is a heuristic.** Labelled "Confianza del modelo", with visible text — not a tooltip —
+saying it is not a calibrated probability and not a percentage of correctness. It orders review and
+gates nothing.
+
+**Agreement is not accuracy.** The reviewer decided while looking at the proposal, so the rate at
+which the two coincide is operational concordance. The UI says so in words beside the figure.
+
+## 7. Runs, models and reproducibility
+
+A `ClassificationRun` fixes one evaluation: taxonomy version, source survey version and question,
+**requested** model, **resolved** model (what the provider says answered — they can differ),
+provider, classifier kind, prompt version, prompt hash, initiator, status and timings. Changing the
+model, the prompt or the scheme creates a **new run**; no "latest configuration" lookup can
+reinterpret historic proposals, and the regression test proves a second run leaves the first
+untouched.
+
+What this makes reproducible is *which text, which scheme, which prompt, which model, which run,
+which output*. It is not a claim that running the same model twice returns the same labels.
+
+Per classification: status, confidence, `needs_review`, model id, provider, input/output/total
+tokens, latency, attempts. Cost is deliberately not computed (TD-047).
+
+## 8. The worker, without `BYPASSRLS`
+
+A worker has no session and no membership, so it cannot select a queue under RLS — and giving it
+`BYPASSRLS` would trade a tenancy guarantee for a scheduling convenience. Instead:
+
+1. `app.claim_classification` (SECURITY DEFINER, owned by `eia_policy`, fixed `search_path`, no
+   dynamic SQL, EXECUTE revoked from PUBLIC) claims **one** pending row with
+   `FOR UPDATE SKIP LOCKED` and returns four **uuids**: the classification, its tenant, its project
+   and the user who started the run. No text, no categories, no other tenant's rows. A contract
+   test asserts every returned column is a uuid.
+2. The worker opens an ordinary RLS transaction **as that user** and does all of its reading and
+   writing there. Revoked access in the meantime means the row is invisible and the job fails
+   safely.
+3. The privacy gate is re-checked on the answer before the call.
+
+Idempotency: `SKIP LOCKED` plus the status transition plus the unique key on `(run, answer)` — two
+workers cannot both succeed, and the integration test claims twice concurrently to prove it. A
+claim that never completes returns to `PENDING` after a bounded interval; that is the whole of the
+recovery strategy, and there is no broker, no Redis and no scheduler.
+
+The privileged-helper contract test was **amended, not loosened**: it now describes two classes —
+membership predicates (boolean, `LANGUAGE sql`) and the job helpers (identifiers and counts only) —
+and holds both to the same hardening rules.
+
+## 9. Authorization
+
+| Act | Key | Who |
+|---|---|---|
+| read deterministic analytics | `social.read` | COORDINATOR, SOCIAL_SPECIALIST, REVIEWER, VIEWER |
+| read an individual open response and its codings | `field.responses.read` (**reused**, not duplicated) | COORDINATOR, SOCIAL_SPECIALIST, REVIEWER |
+| start a classification run | `social.ai.run` | SOCIAL_SPECIALIST |
+| settle a coding | `social.coding.review` | SOCIAL_SPECIALIST, REVIEWER |
+
+A FIELD_TECHNICIAN has none of them and is denied at the route. A coordinator watches the workflow
+but neither sends text to a model nor settles a coding.
+
+**One honest limitation.** Aggregate tabulation also requires `field.responses.read`, because the
+counts are computed from response rows under RLS: a caller without it would be shown **zeros**
+rather than a denial — a plausible-looking, entirely false tabulation. Denying is the correct
+failure; the aggregate projection that would let a VIEWER see real totals without seeing rows is
+TD-045. This was found by a test written for the opposite expectation, and the code changed rather
+than the test.
+
+## 10. Provenance
+
+`AIClassification`: regime `DEMO_SIMULATION`, origin `SYSTEM_GENERATED`, transformation `DERIVED`,
+granularity `INDIVIDUAL`, validation state `PENDING` — a proposal is explicitly not validated.
+`HumanReview`: the same facets with validation state `VALIDATED`. The four canonical facets are
+unchanged and no new SOURCE_TYPE enum was introduced; the badges remain derived labels.
+
+## 11. What was built
+
+| Layer | Files |
+|---|---|
+| Domain | `packages/domain/src/social/{taxonomy,classification,review,tabulation,classifier-port}.ts` |
+| Database | migration `0016` (8 tables), `0017` (RLS, immutability and version triggers, the two job helpers) |
+| Application | `packages/application/src/social/{prompt,classifier,use-cases,read-models,worker}.ts`, `scripts/drain-classifications.ts` |
+| Worker | `apps/worker/src/classification-consumer.ts` |
+| Web | `app/t/[tenant]/p/[project]/social/page.tsx`, `components/social/*`, `lib/social-actions.ts` |
+| Configuration | `packages/contracts/src/env/social.ts` (shape) + `packages/domain/src/social/availability.ts` (the rule) |
+| Session control | `packages/ui/src/components/app-shell.tsx` (`TopbarUser` disclosure), `apps/web/components/account-menu.tsx` |
+
+## 12. Verification
+
+| Suite | Result |
+|---|---|
+| Unit and domain | **201 passed** — 31 of them the new social suite, 16 from the Vercel-origin hotfix this branch has since merged from `main` |
+| Integration (Testcontainers, RLS) | **240 passed** (18 files), including the taxonomy versioning regression, the AI-gate regression and the worker concurrency test |
+| End to end (Playwright) | **96 passed** (91 specs + 5 sign-in setups, nothing skipped) across coordinator, admin, technician, second technician, specialist and anonymous projects — 20 of them the specialist's |
+| Accessibility (axe) | 16 scans, no serious or critical violations (5 of them new Social states) |
+| Seeder idempotency | stable across a second pass, taxonomy reused rather than re-created |
+| Lint, format, typecheck, build | clean |
+
+**CI makes zero live model calls.** No API key is required by any job, and since IG4-001 nothing
+defaults: `SOCIAL_CLASSIFIER=fake` is written explicitly in the Playwright web server and in the
+queue-drain child process, and nowhere else.
+
+## 12b. IG4-001 — a persistent environment never classifies with the fake
+
+The condition closed before merge. `SOCIAL_CLASSIFIER` had defaulted to `fake`, so an environment
+that simply never set it would have written keyword-matcher output into `ai_classification` — rows
+that, once stored, nobody could tell apart from a model's proposals.
+
+One domain function now decides for the web app, the worker and the operator scripts
+(`resolveClassifierAvailability`, SECURITY.md §10c.1): `local`/`test` may select the fake
+explicitly; every other environment refuses it; unset means assisted coding is unavailable, not
+defaulted; a gateway without its credential or with a model id that does not name its provider is
+`BLOCKED_EXTERNAL_CONFIG` and is never demoted to the fake. Environments nobody anticipated count as
+persistent, so a misspelt `APP_ENV` loses assisted coding rather than gaining a fake one.
+
+Two consequences are enforced rather than described:
+
+- **nothing unprocessable is written.** `startClassificationRun` refuses before it reads an answer,
+  so a run no worker could process never exists. Proved for all three reasons in
+  `social-coding.integration.test.ts`, asserting zero `classification_run` **and** zero
+  `ai_classification` rows.
+- **an unavailable worker never claims.** `apps/worker/src/main.ts` constructs the consumer only for
+  an `AVAILABLE` classifier; otherwise it logs the reason and polls nothing.
+
+No process refuses to boot over it. Deterministic tabulation is untouched, and the Social surface
+names which of the three reasons applies.
+
+**Staging today: `LIVE_AI = BLOCKED_EXTERNAL_CONFIG`.** The staging worker's variables are
+`APP_ENV`, `DATABASE_URL`, `DEMO_FIXTURES_ENABLED`, `LOG_LEVEL`, `PORT`, `PUBLIC_APP_URL`,
+`WORKER_DB_CHECK`, `WORKER_HEALTH_PORT` and Railway's own — no `SOCIAL_CLASSIFIER` and no
+`AI_GATEWAY_API_KEY`. Before this change that meant staging would have run the fake; now it means
+assisted coding is unavailable there and says so. Recorded as TD-049; the credential is an owner
+decision, not a code change.
+
+## 12c. UX-001 — signing out is findable
+
+The first manual review could not find how to sign out, and therefore could not move between the
+synthetic identities the demo roles live on. The topbar identity is now a native `<details>`
+disclosure: it opens with the keyboard, announces its state, works before hydration, and contains
+the signed-in address, the active role and one action, `Cerrar sesión`.
+
+There is deliberately **no role switcher**. A role here is a membership resolved server-side; a
+control that appeared to change one would either lie about the session or drive a privilege change
+from a browser. The menu says to sign out and sign in as someone else, which is what the demo
+actually requires. Covered by `e2e/session.spec.ts` in the project with no stored session — signing
+out revokes the session server-side, so a shared `storageState` could not host this test.
+
+## 12a. Staging
+
+| Step | Result |
+|---|---|
+| Forward migrations (`0016`, `0017`) with the migrator credential | applied; the ledger went from 16 to 18 |
+| Demo taxonomy seeded | `road_social_concerns_demo` v1, 8 categories, `DEMO / RECONSTRUIDA`, **0 classifications seeded** |
+| Field baseline afterwards | unchanged: 1 campaign · 12 assignments · 4 submitted responses · 26 answers · 8 selections · 141 parcels · no dangling provenance |
+| `pnpm test:staging` (non-destructive) | **57 passed** (4 files), 14 of them the new Social checks |
+| Snapshot before vs after the suite | **identical** |
+| `postgres-gis` / `worker` | both SUCCESS, heartbeats continuous, `pending: 0` |
+
+**The live AI smoke did not run: `BLOCKED_EXTERNAL_CONFIG`.** No `AI_GATEWAY_API_KEY` is configured
+in Vercel Preview, in the Railway worker, or locally. The gateway's *catalogue* is readable without
+one (342 models, from which `anthropic/claude-haiku-4.5` was selected as the configured default for
+a short classification task), but inference is not: an attempt with an invalid key was refused by
+the provider — `Unauthenticated request to AI Gateway` — and the five classifications were recorded
+`FAILED` with that message. **No fabricated result was written**, which is the behaviour the
+no-fallback rule exists to produce, and `docs/screenshots/slice-4/06-classification-failed.png`
+shows the resulting state with the deterministic tabulation unaffected beside it.
+
+Staging also lacks the synthetic `especialista@demo.invalid` identity, whose creation needs the
+operator's `DEMO_USER_PASSWORD`; until it exists, a reviewer can see the Social surface on staging
+as the coordinator (tabulation, workflow, run history) but cannot start a run or settle a coding
+there. One command restores it, and it does not wipe anything:
+
+```bash
+DEMO_USER_PASSWORD='<chosen locally>' pnpm e2e:prepare   # pointed at staging
+```
+
+## 13. What this slice does not do
+
+No Quality Gate · no RAG, no embeddings, no pgvector · no report generation · no agents or tool
+calling · no fine-tuning · no taxonomy editor (TD-043) · no correction of a submitted review
+(TD-041) · no manual coding without a proposal (TD-048) · no cross-version aggregation (TD-039) ·
+no cost computation (TD-047) · **no thesis evaluation protocol** — `HumanReview` is not a gold
+standard, and ADR-019 and TD-044 say so where a later slice cannot miss them.
+
+## 14. Deviations and notes
+
+- **The demo fixture gained a fifth synthetic identity**, `especialista@demo.invalid`
+  (SOCIAL_SPECIALIST), because no existing demo role may start a run or settle a coding. The field
+  baseline — 1 campaign, 12 assignments, 4 submitted responses, 26 answers, 8 multi-choice
+  selections — is unchanged.
+- **Only two of the four submitted demo responses carry open text**, because the field fixture
+  writes `concern_text` on alternate assignments. That was left alone rather than widened: Slice 3's
+  baseline is not rewritten to make Social look busier.
+- **The design bundle has no Social screens for this exact composition.** The two states it does
+  define — open response, low confidence — are honoured; the surrounding layout follows the
+  established panel grammar.
+- **No chart library was added.** Distributions are tables with a two-element bar.

@@ -94,3 +94,53 @@ export type {
   ParcelWorkspaceView,
   TerritorialSummary,
 } from "./gis/read-models";
+
+// Social Intelligence (Slice 4): deterministic tabulation, AI proposals, human validation.
+export {
+  loadDistributions,
+  loadOpenQuestion,
+  loadOpenResponses,
+  loadPublishedTaxonomy,
+  loadRuns,
+  loadSocialMetrics,
+  loadSocialVersions,
+  loadTabulation,
+  loadTaxonomyDefinition,
+} from "./social/read-models";
+export type {
+  ClassificationRunSummary,
+  OpenResponseRow,
+  SocialDistributions,
+  SocialSurveyVersionOption,
+  SocialTabulation,
+  SocialWorkflowMetrics,
+  TaxonomyVersionSummary,
+} from "./social/read-models";
+export {
+  startClassificationRun,
+  startRunInputSchema,
+  submitHumanReview,
+  submitReviewInputSchema,
+} from "./social/use-cases";
+export type {
+  ClassificationRunConfig,
+  ReviewResult,
+  StartedRun,
+  StartRunInput,
+  SubmitReviewInput,
+} from "./social/use-cases";
+export { AiGatewayClassifier, createClassifier, FakeClassifier } from "./social/classifier";
+export type { FakeScenario } from "./social/classifier";
+export {
+  PROMPT_VERSION,
+  promptHash,
+  renderSystemPrompt,
+  renderTaxonomy,
+  renderUserPrompt,
+} from "./social/prompt";
+export {
+  claimNextClassification,
+  processClassification,
+  releaseStaleClaims,
+} from "./social/worker";
+export type { ClaimedClassification, ProcessOutcome } from "./social/worker";

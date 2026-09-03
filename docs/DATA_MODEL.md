@@ -553,3 +553,42 @@ Quality (`QualityFinding` where `parcel_id` matches or evidence locator referenc
 3. Is `ProjectUnit` geometry required for portal "sectors" progress? Proposed: optional.
 4. Should `AnswerCoding` be a materialised table or a view? Proposed: table maintained in the same
    transaction as `HumanReview`, for indexable queue filters.
+
+
+## 3.5b Social Intelligence tables (Slice 4)
+
+Eight tables, in three groups that must never be collapsed into one another (ADR-019).
+
+**The coding scheme.** `taxonomy` is the scheme as a concept; `taxonomy_version` is an immutable
+definition with a status (`DRAFT` → `PUBLISHED` → `RETIRED`), a `definition_hash` and a
+`source_note`; `taxonomy_category` belongs to exactly one version and is never shared between
+versions, even at the same code. That last point is what stops a refinement from re-pointing a
+historic coding at a redefined category. Project-scoped, like `survey_template` — a tenant-level
+library of schemes is future work (TD-042).
+
+**The proposal.** `classification_run` fixes one evaluation: taxonomy version, source survey
+version and question, requested model, resolved model, provider, classifier kind, prompt version,
+prompt hash, initiator, status and timings. `ai_classification` is one proposal for one answer
+inside one run — status, confidence heuristic, `needs_review`, model id, provider, token counts,
+latency, attempts, claim timestamp — with its labels in `ai_classification_category`. Unique on
+`(tenant, run, answer)`, which is what makes a duplicate success impossible.
+
+**The decision.** `human_review` records the reviewer, the classification reviewed, the exact
+taxonomy version, the derived `ACCEPTED`/`CORRECTED` decision and the elapsed review time;
+`human_review_category` holds the validated labels. Unique on `(tenant, classification)`: one final
+review per proposal, and the row is immutable afterwards.
+
+No table stores a count, a percentage or a distribution. Deterministic tabulation is computed on
+read from `survey_answer`, because a stored aggregate is a second copy of a number the source rows
+already determine.
+
+| Table | Tenant | Project | FORCE RLS | Ownership rule | Immutability |
+|---|---|---|---|---|---|
+| `taxonomy` | yes | yes | yes | project access | — |
+| `taxonomy_version` | yes | yes | yes | project access | published version frozen (trigger) |
+| `taxonomy_category` | yes | yes | yes | project access | frozen with its version (trigger) |
+| `classification_run` | yes | yes | yes | project access | requires a published taxonomy (trigger) |
+| `ai_classification` | yes | yes | yes | `EXISTS` over `survey_answer` | — (a re-run creates a new row) |
+| `ai_classification_category` | yes | yes | yes | via its classification | category must belong to the run's version (trigger) |
+| `human_review` | yes | yes | yes | `EXISTS` over `survey_answer` | final: no UPDATE, no DELETE (trigger) |
+| `human_review_category` | yes | yes | yes | via its review | frozen once the review is submitted (trigger) |

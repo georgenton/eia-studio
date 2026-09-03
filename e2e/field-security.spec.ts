@@ -61,3 +61,27 @@ test.describe("FieldFlow · technician isolation", () => {
     await expect(main).not.toContainText("Técnico de campo 2");
   });
 });
+
+/**
+ * Social Intelligence is a different door, and a technician does not have the key (Slice 4 §43).
+ *
+ * A technician captured these responses; that does not make the project's coding queue theirs to
+ * browse. The route resolves — `social.analytics` is effective for the project — and the surface
+ * refuses, because the permission that governs individual responses is absent.
+ */
+test.describe("Social Intelligence · a technician has no coding access", () => {
+  test("the Social route denies rather than showing an empty queue", async ({ page }) => {
+    await page.goto(`/t/${TENANT}/p/${PROJECT}/social`);
+    const main = page.getByRole("main");
+
+    // Denied, not zeros: a page of empty tallies would read as a finding about the project.
+    await expect(main).toContainText(/no incluye|permiso/i);
+    await expect(main).not.toContainText("Propuesta de la IA");
+    await expect(main).not.toContainText("Temas validados");
+  });
+
+  test("the rail offers no Social destination the technician can act on", async ({ page }) => {
+    await page.goto(`/t/${TENANT}/p/${PROJECT}/field`);
+    await expect(page.getByRole("main")).not.toContainText("Codificación de respuestas abiertas");
+  });
+});

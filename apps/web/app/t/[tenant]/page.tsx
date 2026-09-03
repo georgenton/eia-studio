@@ -112,6 +112,7 @@ export default async function PortfolioPage({
       projects={portfolio.projects}
       tenantSettings={tenantSettings}
       userName={sessionUser?.name ?? sessionUser?.email ?? "Usuario"}
+      userEmail={sessionUser?.email ?? null}
     >
       <PageHeader
         title="Portfolio"

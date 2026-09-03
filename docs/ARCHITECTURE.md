@@ -76,7 +76,7 @@ events, never through foreign joins.
 | `documents` | SourceDocument, DocumentVersion, DocumentChunk, document viewer locators, object storage keys for documents | core, projects, provenance | RAG chunks are owned here; embeddings are produced by `ai` on request. |
 | `gis` | SpatialDataset, SpatialDatasetVersion, Layer, Parcel, ParcelGeometry, LinearReference (extension), Road/Alignment (extension), Affectation (extension), map read models | core, projects, provenance | Parcel is core to this module even though profiles decide which extension attributes exist. |
 | `field` | SurveyCampaign, Assignment, Visit, Device (later), SurveyTemplate, SurveyVersion, Question, SurveyInstance, Answer, Media (later), field inbox read model, sync protocol (later) | core, projects, gis (Parcel id only), provenance | Answers are immutable after submission. A published `SurveyVersion` is immutable by database trigger. Offline capture is configuration, not a capability (ADR-018). |
-| `social` | Taxonomy, TaxonomyVersion, Category, CategoryProposal, ClassificationRun, AIClassification, HumanReview, AnswerCoding (derived), SocialMetric, analytics read models | core, projects, field (validated answers read model), ai (port), provenance | Analytics consume only HUMAN VALIDATED codings. |
+| `social` | Taxonomy, TaxonomyVersion, TaxonomyCategory, ClassificationRun, AIClassification, HumanReview, the `OpenTextClassifier` port, tabulation and agreement arithmetic, analytics read models | core, projects, field (answers), provenance | Three layers kept apart: rules calculate, AI proposes, a human validates (ADR-019). Validated analytics read only `human_review` labels. Deterministic tabulation is computed on read and never asks a model for a number. |
 | `quality` | Requirement (rule catalogue), QualityRun, QualityFinding, FindingEvidence, SpecialistReview | core, projects, documents, gis, field, social (read models only), provenance | Rules are pluggable; evidence references are typed locators, not FKs to every table. |
 | `reports` (later) | GeneratedReport, ReportVersion, GeneratedSection, citations | core, projects, documents, social, quality, ai, provenance | Every number in a report snapshots a provenance id. |
 | `client-portal` | PortalPublication, portal read models/DTOs, ClientPortalGrant | core, projects (publish input), provenance | Separate security surface; reads only its own projection tables at request time. |
@@ -196,7 +196,14 @@ serverless request limits. Rules:
   with the same RLS settings; a job can therefore not read another tenant's rows;
 - jobs are idempotent by key (`ImportRun.id`, `QualityRun.id`, `ClassificationRun.id`);
 - long GIS imports and document processing stream to object storage and write progress into the
-  run row, feeding the `syncing`/`loading` states.
+  run row, feeding the `syncing`/`loading` states;
+- **the first real job is Social classification (Slice 4)**, and it is queued in its own table
+  rather than a broker: `ai_classification` rows are claimed with `FOR UPDATE SKIP LOCKED` through
+  `app.claim_classification`, a SECURITY DEFINER function that returns four identifiers — the
+  classification, its tenant, its project and the user who started the run — and no content. The
+  worker then opens an ordinary RLS transaction **as that user**, so it needs no `BYPASSRLS` and
+  sees exactly what the initiator may see; if their project access was revoked in the meantime the
+  job fails safely. A crashed claim returns to the queue after a bounded interval.
 
 ## 7. GIS
 

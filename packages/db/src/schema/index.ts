@@ -3,12 +3,14 @@ export * as authSchema from "./auth";
 export * as auditSchema from "./audit";
 export * as gisSchema from "./gis";
 export * as fieldSchema from "./field";
+export * as socialSchema from "./social";
 
 import * as appTables from "./app";
 import * as auditTables from "./audit";
 import * as authTables from "./auth";
 import * as fieldTables from "./field";
 import * as gisTables from "./gis";
+import * as socialTables from "./social";
 
 /** Flat schema object for the drizzle client (unique keys across schemas). */
 export const schema = {
@@ -45,4 +47,12 @@ export const schema = {
   surveyInstance: fieldTables.surveyInstance,
   surveyAnswer: fieldTables.surveyAnswer,
   surveyAnswerOption: fieldTables.surveyAnswerOption,
+  taxonomy: socialTables.taxonomy,
+  taxonomyVersion: socialTables.taxonomyVersion,
+  taxonomyCategory: socialTables.taxonomyCategory,
+  classificationRun: socialTables.classificationRun,
+  aiClassification: socialTables.aiClassification,
+  aiClassificationCategory: socialTables.aiClassificationCategory,
+  humanReview: socialTables.humanReview,
+  humanReviewCategory: socialTables.humanReviewCategory,
 };

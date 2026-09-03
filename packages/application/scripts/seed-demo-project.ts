@@ -4,7 +4,14 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { appEnvSchema, loadEnv, migratorDatabaseEnvSchema } from "@eia/contracts";
-import { appSchema, createDatabase, createPool, fieldSchema, gisSchema } from "@eia/db";
+import {
+  appSchema,
+  createDatabase,
+  createPool,
+  fieldSchema,
+  gisSchema,
+  socialSchema,
+} from "@eia/db";
 import {
   calculateForecast,
   CORRIDOR_GENERATOR_VERSION,
@@ -25,6 +32,7 @@ import {
   sridSchema,
   surveyOptionCodeSchema,
   surveyQuestionCodeSchema,
+  socialTaxonomyHash,
   surveyVersionHash,
   TRANSFORMATIONS,
   VALIDATION_STATES,
@@ -229,6 +237,41 @@ const manifestSchema = z
           .strict(),
       })
       .strict(),
+    /**
+     * The reconstructed coding scheme (Slice 4). Declared in the fixture, never in code: the
+     * categories a study codes against are project data, and this one is explicitly a
+     * reconstruction rather than a scheme the consultancy handed over.
+     */
+    social: z
+      .object({
+        $comment: z.string(),
+        taxonomy: z
+          .object({
+            key: z.string().min(3),
+            name: z.string().min(1),
+            description: z.string().min(1),
+          })
+          .strict(),
+        version: z
+          .object({
+            versionLabel: z.string().min(1),
+            sourceNote: z.string().min(1),
+            categories: z
+              .array(
+                z
+                  .object({
+                    code: z.string().regex(/^[A-Z][A-Z0-9_]*$/),
+                    label: z.string().min(2),
+                    description: z.string().min(10),
+                    ordinal: z.number().int().min(0),
+                  })
+                  .strict(),
+              )
+              .min(2),
+          })
+          .strict(),
+      })
+      .strict(),
     activity: z.array(
       z
         .object({
@@ -358,6 +401,13 @@ try {
          and not exists (select 1 from app.parcel_geometry g where g.provenance_id = pr.id)
          and not exists (select 1 from app.affectation af where af.provenance_id = pr.id)
          and not exists (select 1 from app.alignment al where al.provenance_id = pr.id)
+         -- Social (Slice 4). A provenance-bearing table added later and forgotten here is a
+         -- re-seed that fails on a foreign key, which is the loud version of the failure; the
+         -- quiet version would be a dangling reference. Both are avoided by listing every one.
+         and not exists (select 1 from app.taxonomy_version tv where tv.provenance_id = pr.id)
+         and not exists (select 1 from app.classification_run cr where cr.provenance_id = pr.id)
+         and not exists (select 1 from app.ai_classification ac where ac.provenance_id = pr.id)
+         and not exists (select 1 from app.human_review hr where hr.provenance_id = pr.id)
     `);
     /*
      * Provenance ids are **derived from the fixture key**, not random.
@@ -1140,6 +1190,97 @@ try {
       }
     }
 
+    /**
+     * The reconstructed coding scheme (Slice 4).
+     *
+     * Idempotent in the way this seeder has had to learn to be: a published taxonomy version is
+     * immutable and classifications point at it, so a re-seed *reuses* the matching published
+     * version rather than deleting and recreating it. Only a genuinely different definition —
+     * a different content hash — publishes a new version, which is exactly the behaviour the
+     * product requires of a real refinement.
+     */
+    const social = manifest.social;
+    const taxonomyDefinitionHashValue = socialTaxonomyHash(social.version.categories);
+
+    const existingTaxonomy = await tx.execute(sql`
+      select id from app.taxonomy
+       where tenant_id = ${tenantId} and project_id = ${projectId} and key = ${social.taxonomy.key}
+    `);
+    let taxonomyId = (existingTaxonomy.rows[0] as { id: string } | undefined)?.id;
+    if (!taxonomyId) {
+      taxonomyId = randomUUID();
+      await tx.insert(socialSchema.taxonomy).values({
+        id: taxonomyId,
+        tenantId,
+        projectId,
+        key: social.taxonomy.key,
+        name: social.taxonomy.name,
+        description: social.taxonomy.description,
+      });
+    } else {
+      await tx
+        .update(socialSchema.taxonomy)
+        .set({ name: social.taxonomy.name, description: social.taxonomy.description })
+        .where(eq(socialSchema.taxonomy.id, taxonomyId));
+    }
+
+    const matchingVersion = await tx.execute(sql`
+      select id, version_label from app.taxonomy_version
+       where tenant_id = ${tenantId} and taxonomy_id = ${taxonomyId}
+         and status = 'PUBLISHED' and definition_hash = ${taxonomyDefinitionHashValue}
+       limit 1
+    `);
+    let taxonomyVersionsSeeded = 0;
+    let taxonomyVersionLabel =
+      (matchingVersion.rows[0] as { version_label: string } | undefined)?.version_label ?? null;
+
+    if (!taxonomyVersionLabel) {
+      const priorVersions = await tx.execute(sql`
+        select count(*)::int as n from app.taxonomy_version
+         where tenant_id = ${tenantId} and taxonomy_id = ${taxonomyId}
+      `);
+      const next = ((priorVersions.rows[0] as unknown as { n: number }).n ?? 0) + 1;
+      const taxonomyVersionId = randomUUID();
+      taxonomyVersionLabel = next === 1 ? social.version.versionLabel : `v${next}`;
+      await tx.insert(socialSchema.taxonomyVersion).values({
+        id: taxonomyVersionId,
+        tenantId,
+        projectId,
+        taxonomyId,
+        versionLabel: taxonomyVersionLabel,
+        status: "DRAFT",
+        sourceNote: social.version.sourceNote,
+        provenanceId: provenanceId("social-taxonomy-reconstructed"),
+      });
+      for (const category of social.version.categories) {
+        await tx.insert(socialSchema.taxonomyCategory).values({
+          id: randomUUID(),
+          tenantId,
+          projectId,
+          versionId: taxonomyVersionId,
+          code: category.code,
+          label: category.label,
+          description: category.description,
+          ordinal: category.ordinal,
+        });
+      }
+      // Published last, exactly as the application would: the triggers refuse category writes
+      // afterwards, so a seeder that published first would be unable to write its own categories.
+      await tx
+        .update(socialSchema.taxonomyVersion)
+        .set({
+          status: "PUBLISHED",
+          publishedAt: scenarioInstant,
+          definitionHash: taxonomyDefinitionHashValue,
+        })
+        .where(eq(socialSchema.taxonomyVersion.id, taxonomyVersionId));
+      taxonomyVersionsSeeded = 1;
+    }
+
+    // No AI classifications are seeded, here or anywhere. A proposal in the database must have
+    // come from a model that actually ran; a fabricated one would be indistinguishable from a
+    // real result and would corrupt every later comparison (Slice 4 §68).
+
     console.log(
       [
         `project "${manifest.project.slug}" seeded`,
@@ -1151,6 +1292,7 @@ try {
         `GIS ${corridor.parcels.length} parcels · alignment ${(corridor.alignmentLengthM / 1000).toFixed(2)} km · ${corridor.generatorVersion}`,
         `chainage derived for ${chainage.rowCount ?? 0} parcels (centroid_projection, alignment CRS EPSG:${analysisSrid})`,
         `field: ${assignmentsSeeded} assignments · ${submissionsSeeded} submitted · offline_mode=${field.offlineMode}`,
+        `social: taxonomy ${taxonomyVersionLabel} (${social.version.categories.length} categorías, ${taxonomyVersionsSeeded === 1 ? "nueva" : "reutilizada"}) · 0 clasificaciones sembradas`,
       ].join(" · "),
     );
   });

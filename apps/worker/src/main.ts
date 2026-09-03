@@ -1,7 +1,9 @@
-import { createPool, type Pool } from "@eia/db";
+import { createClassifier } from "@eia/application";
+import { createDatabase, createPool, type Pool } from "@eia/db";
 import { InMemoryJobQueue } from "@eia/domain";
 import pino from "pino";
 
+import { ClassificationConsumer } from "./classification-consumer";
 import { loadWorkerConfig } from "./config";
 import { WorkerProcess } from "./process";
 
@@ -23,6 +25,7 @@ try {
 }
 
 let pool: Pool | null = null;
+const poolsToClose: Pool[] = [];
 const checks = [];
 if (config.database) {
   const url = config.database.DATABASE_URL;
@@ -40,6 +43,44 @@ if (config.database) {
   });
 }
 
+/**
+ * The Social classification consumer (Slice 4), started only when this process can actually do the
+ * work: it needs a database to poll, and an available classifier to call.
+ *
+ * **A worker with no usable classifier never claims** (IG4-001). Claiming and then failing would
+ * consume the queue, mark classifications `FAILED` and leave a specialist looking at errors whose
+ * cause is a missing environment variable. Not starting the consumer leaves the work where it is,
+ * and the reason is one log line away.
+ */
+let consumer: ClassificationConsumer | null = null;
+if (config.database && config.classifier.state === "AVAILABLE") {
+  const available = config.classifier;
+  const consumerPool = createPool(config.database.DATABASE_URL, {
+    max: 4,
+    applicationName: "eia-studio-worker-social",
+  });
+  consumer = new ClassificationConsumer({
+    db: createDatabase(consumerPool),
+    classifier: createClassifier(available),
+    logger,
+  });
+  checks.push({
+    name: "social-classifier",
+    run: async () => {
+      logger.info(
+        { classifier: available.kind, model: available.model, live: available.live },
+        "social classifier configured",
+      );
+    },
+  });
+  poolsToClose.push(consumerPool);
+} else if (config.classifier.state === "UNAVAILABLE") {
+  logger.warn(
+    { reason: config.classifier.reason, detail: config.classifier.detail },
+    "social classification disabled: this worker will not claim classification work",
+  );
+}
+
 const worker = new WorkerProcess({
   logger,
   queue: new InMemoryJobQueue(),
@@ -50,9 +91,16 @@ const worker = new WorkerProcess({
   checks,
   onStop: [
     {
+      name: "social-consumer",
+      run: async () => {
+        if (consumer) await consumer.stop();
+      },
+    },
+    {
       name: "database-pool",
       run: async () => {
         if (pool) await pool.end();
+        for (const open of poolsToClose) await open.end();
       },
     },
   ],
@@ -60,6 +108,7 @@ const worker = new WorkerProcess({
 
 try {
   await worker.start();
+  consumer?.start();
 } catch (error) {
   logger.error(
     { error: error instanceof Error ? error.message : String(error) },
