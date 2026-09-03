@@ -75,6 +75,9 @@ async function resolveAssignmentForCapture(
   ctx: RequestContext,
   assignmentId: string,
 ): Promise<ResolvedAssignment> {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(assignmentId)) {
+    throw new NotFound("field assignment");
+  }
   const rows = await tx.execute(sql`
     select fa.id, fa.status, fa.assignee_user_id, fa.parcel_id,
            c.id as campaign_id, c.status as campaign_status,

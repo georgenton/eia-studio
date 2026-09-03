@@ -23,6 +23,9 @@ import { sql } from "drizzle-orm";
 import { facetsOf, loadProvenanceRecords } from "../projects/provenance";
 import { readsAllFieldResponses, withFieldContext } from "./context";
 
+/** Shape check only; whether the row exists, and whose it is, stays the database's answer. */
+const UUID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /**
  * FieldFlow read models.
  *
@@ -378,6 +381,11 @@ export async function loadAssignmentDetail(
   if (ctx.projectId === null) throw new Error("loadAssignmentDetail requires a project context");
   const projectId = ctx.projectId;
 
+  // An id from a URL is a claim about a UUID, not a UUID. Comparing a malformed one in SQL raises
+  // a driver error and the route answers 500 — which both leaks that the input was *shaped*
+  // differently from a real id, and turns a typo into an incident. It is simply not found.
+  if (!UUID_SHAPE.test(assignmentId)) throw new NotFound("field assignment");
+
   return withFieldContext(db, ctx, async (tx) => {
     const assignmentRows = await tx.execute(sql`
       select fa.id,
@@ -432,8 +440,8 @@ export async function loadAssignmentDetail(
           version_label: string;
           open_visit_id: string | null;
           visit_status: VisitStatus | null;
-          started_at: Date | null;
-          completed_at: Date | null;
+          started_at: string | Date | null;
+          completed_at: string | Date | null;
           location_outcome: LocationOutcome | null;
           latitude: number | null;
           longitude: number | null;
@@ -474,8 +482,8 @@ export async function loadAssignmentDetail(
           ? {
               id: row.open_visit_id,
               status: row.visit_status,
-              startedAt: row.started_at,
-              completedAt: row.completed_at,
+              startedAt: new Date(row.started_at),
+              completedAt: row.completed_at === null ? null : new Date(row.completed_at),
               locationOutcome: row.location_outcome ?? "not_attempted",
               latitude: row.latitude,
               longitude: row.longitude,
@@ -661,8 +669,8 @@ export async function loadParcelVisits(
       visit_id: string;
       technician_label: string;
       status: VisitStatus;
-      started_at: Date;
-      completed_at: Date | null;
+      started_at: string | Date;
+      completed_at: string | Date | null;
       location_outcome: LocationOutcome;
       provenance_id: string;
       campaign_name: string;
@@ -683,8 +691,10 @@ export async function loadParcelVisits(
         visitId: row.visit_id,
         technicianLabel: row.technician_label,
         status: row.status,
-        startedAt: row.started_at,
-        completedAt: row.completed_at,
+        // Coerced rather than cast: a raw `execute` hands timestamps back as the driver sees fit,
+        // and a string that a type says is a Date fails only when something calls a Date method.
+        startedAt: new Date(row.started_at),
+        completedAt: row.completed_at === null ? null : new Date(row.completed_at),
         locationOutcome: row.location_outcome,
         campaignName: row.campaign_name,
         surveyVersionLabel: row.version_label,
