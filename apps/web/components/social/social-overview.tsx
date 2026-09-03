@@ -34,6 +34,7 @@ export function SocialOverview({
   surveyVersionId,
   questionId,
   canRunAi,
+  aiStatus,
 }: {
   metrics: SocialWorkflowMetrics;
   distributions: SocialDistributions;
@@ -44,6 +45,11 @@ export function SocialOverview({
   surveyVersionId: string;
   questionId: string | null;
   canRunAi: boolean;
+  /**
+   * Whether this environment has a classifier at all (IG4-001). Separate from `canRunAi`, which is
+   * about the person: one is "you may not", the other is "nothing here can".
+   */
+  aiStatus: { readonly available: boolean; readonly note: string };
 }) {
   const [message, setMessage] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -69,7 +75,7 @@ export function SocialOverview({
         <PanelHeader
           label="Codificación de respuestas abiertas"
           action={
-            canRunAi && taxonomy && questionId ? (
+            aiStatus.available && canRunAi && taxonomy && questionId ? (
               <button
                 type="button"
                 className={styles.primary}
@@ -82,6 +88,11 @@ export function SocialOverview({
           }
         />
         <PanelBody>
+          {aiStatus.available ? null : (
+            <p className={styles.note} data-system-state="ai-unavailable">
+              {aiStatus.note}
+            </p>
+          )}
           <dl className={styles.kpis}>
             <Kpi label="Respuestas abiertas" value={formatCount(metrics.eligible)} />
             <Kpi label="Propuestas listas" value={formatCount(metrics.succeededAi)} />

@@ -6,8 +6,10 @@ import {
   decideReview,
   isEligibleForClassification,
   NotFound,
+  requireAvailableClassifier,
   requireCapability,
   requirePermission,
+  type ClassifierAvailability,
   type ProvenanceFacets,
   type RequestContext,
   type TaxonomyDefinition,
@@ -53,10 +55,13 @@ export interface StartedRun {
 }
 
 export interface ClassificationRunConfig {
-  /** The model this run asks for; recorded as `requested_model` and never changed mid-run. */
-  readonly model: string;
-  /** `fake` in tests and CI, `ai-gateway` in staging. Recorded so a result can be trusted. */
-  readonly classifierKind: string;
+  /**
+   * The resolved classifier for this environment (IG4-001), which carries the model the run will
+   * ask for and the adapter that will answer. Passing the availability rather than a bare model
+   * name is what makes the refusal unavoidable: there is no shape of this argument that names a
+   * model without also saying whether anything can run it.
+   */
+  readonly classifier: ClassifierAvailability;
 }
 
 /**
@@ -74,6 +79,9 @@ export async function startClassificationRun(
 ): Promise<StartedRun> {
   requireCapability(ctx, "social.ai_coding");
   requirePermission(ctx, "social.ai.run");
+  // Before anything else, including before reading a single answer: a run nothing can process is
+  // worse than no run, because the queue would show work that never moves (IG4-001).
+  const classifier = requireAvailableClassifier(config.classifier);
   // Reading the responses is a precondition for coding them: a caller who may not read an
   // individual answer may not send it to a model either.
   requirePermission(ctx, "field.responses.read");
@@ -145,7 +153,7 @@ export async function startClassificationRun(
       note:
         "Propuesta automática, provisional y sin validar. No es una conclusión del estudio: un " +
         "especialista la revisa y decide. Se produjo sobre respuestas sintéticas de demostración.",
-      method: `Clasificación automática · ${config.model} · prompt ${PROMPT_VERSION}`,
+      method: `Clasificación automática · ${classifier.model} · prompt ${PROMPT_VERSION}`,
       // The proposal is explicitly *not* validated; that is the whole distinction this slice draws.
       validationState: "PENDING",
     });
@@ -158,8 +166,8 @@ export async function startClassificationRun(
       taxonomyVersionId: parsed.taxonomyVersionId,
       sourceSurveyVersionId: parsed.surveyVersionId,
       sourceQuestionId: parsed.questionId,
-      requestedModel: config.model,
-      classifierKind: config.classifierKind,
+      requestedModel: classifier.model,
+      classifierKind: classifier.kind,
       promptVersion: PROMPT_VERSION,
       promptHash: promptHash(taxonomy),
       status: "PENDING",
@@ -190,8 +198,8 @@ export async function startClassificationRun(
         details: {
           queued: eligible.length,
           skipped: rows.length - eligible.length,
-          model: config.model,
-          classifier: config.classifierKind,
+          model: classifier.model,
+          classifier: classifier.kind,
           taxonomyVersion: taxonomy.versionLabel,
           promptVersion: PROMPT_VERSION,
         },

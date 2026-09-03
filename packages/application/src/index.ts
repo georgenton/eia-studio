@@ -129,13 +129,8 @@ export type {
   StartRunInput,
   SubmitReviewInput,
 } from "./social/use-cases";
-export {
-  AiGatewayClassifier,
-  CLASSIFIER_KINDS,
-  createClassifier,
-  FakeClassifier,
-} from "./social/classifier";
-export type { ClassifierKind, FakeScenario } from "./social/classifier";
+export { AiGatewayClassifier, createClassifier, FakeClassifier } from "./social/classifier";
+export type { FakeScenario } from "./social/classifier";
 export {
   PROMPT_VERSION,
   promptHash,

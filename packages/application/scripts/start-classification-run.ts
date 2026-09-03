@@ -5,6 +5,7 @@ import {
   runtimeDatabaseEnvSchema,
   socialEnvSchema,
 } from "@eia/contracts";
+import { resolveClassifierAvailability } from "@eia/domain";
 import { createDatabase, createPool } from "@eia/db";
 import { config as loadDotenv } from "dotenv";
 import { sql } from "drizzle-orm";
@@ -104,13 +105,20 @@ try {
       surveyVersionId: open.version_id,
       questionId: open.id,
     },
-    { model: social.SOCIAL_CLASSIFIER_MODEL, classifierKind: social.SOCIAL_CLASSIFIER },
+    {
+      classifier: resolveClassifierAvailability({
+        appEnv: app.APP_ENV,
+        classifier: social.SOCIAL_CLASSIFIER,
+        model: social.SOCIAL_CLASSIFIER_MODEL,
+        gatewayApiKeyPresent: social.AI_GATEWAY_API_KEY !== undefined,
+      }),
+    },
   );
 
   console.log(
     `social:run: run ${started.runId} created · ${started.queued} queued · ` +
       `${started.skipped} skipped · taxonomy ${version.version_label} · ` +
-      `model ${social.SOCIAL_CLASSIFIER_MODEL} · classifier ${social.SOCIAL_CLASSIFIER}`,
+      `classifier ${social.SOCIAL_CLASSIFIER ?? "(unset)"}`,
   );
 } finally {
   await pool.end();

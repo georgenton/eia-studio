@@ -44,8 +44,9 @@ AI-versus-human coincidence is labelled agreement, never accuracy.
 never content — and the worker then works inside an ordinary RLS transaction as the user who
 started the run.
 
-**Configuration, not code, names the model.** `SOCIAL_CLASSIFIER` (`fake` | `ai-gateway`) and
-`SOCIAL_CLASSIFIER_MODEL`, with no fallback in either direction: a gateway configured without a key
+**Configuration, not code, names the model — and nothing defaults.** `SOCIAL_CLASSIFIER`
+(`fake` | `ai-gateway`) and `SOCIAL_CLASSIFIER_MODEL`, with no fallback in either direction: a
+gateway configured without a key
 fails rather than fabricating codings. CI runs entirely on the deterministic fake and needs no
 credential.
 

@@ -58,6 +58,7 @@ export default async function FieldPage({
     projects: portfolio.projects,
     currentSurface: "field" as const,
     userName: sessionUser?.name ?? sessionUser?.email ?? "Usuario",
+    userEmail: sessionUser?.email ?? null,
     breadcrumb: projectBreadcrumb(
       ctx,
       portfolio.tenantName,

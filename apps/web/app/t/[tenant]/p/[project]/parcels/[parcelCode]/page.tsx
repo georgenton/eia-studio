@@ -58,6 +58,7 @@ export default async function ParcelWorkspacePage({
     projects: portfolio.projects,
     currentSurface: "gis" as const,
     userName: sessionUser?.name ?? sessionUser?.email ?? "Usuario",
+    userEmail: sessionUser?.email ?? null,
     breadcrumb: [
       ...projectBreadcrumb(ctx, portfolio.tenantName, project, "GIS & Predios", explorerPath),
       { label: parcelCode },

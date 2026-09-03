@@ -44,38 +44,41 @@ if (config.database) {
 }
 
 /**
- * The Social classification consumer (Slice 4). It starts only when this process has a database
- * connection: without one there is no queue to poll. The classifier is chosen by explicit
- * configuration and never falls back — `createClassifier` throws when the gateway is configured
- * without a key, because inventing codings would be worse than refusing to start.
+ * The Social classification consumer (Slice 4), started only when this process can actually do the
+ * work: it needs a database to poll, and an available classifier to call.
+ *
+ * **A worker with no usable classifier never claims** (IG4-001). Claiming and then failing would
+ * consume the queue, mark classifications `FAILED` and leave a specialist looking at errors whose
+ * cause is a missing environment variable. Not starting the consumer leaves the work where it is,
+ * and the reason is one log line away.
  */
 let consumer: ClassificationConsumer | null = null;
-if (config.database) {
+if (config.database && config.classifier.state === "AVAILABLE") {
+  const available = config.classifier;
   const consumerPool = createPool(config.database.DATABASE_URL, {
     max: 4,
     applicationName: "eia-studio-worker-social",
   });
   consumer = new ClassificationConsumer({
     db: createDatabase(consumerPool),
-    classifier: createClassifier({
-      kind: config.social.SOCIAL_CLASSIFIER,
-      gatewayApiKeyPresent: config.social.AI_GATEWAY_API_KEY !== undefined,
-    }),
+    classifier: createClassifier(available),
     logger,
   });
   checks.push({
     name: "social-classifier",
     run: async () => {
       logger.info(
-        {
-          classifier: config.social.SOCIAL_CLASSIFIER,
-          model: config.social.SOCIAL_CLASSIFIER_MODEL,
-        },
+        { classifier: available.kind, model: available.model, live: available.live },
         "social classifier configured",
       );
     },
   });
   poolsToClose.push(consumerPool);
+} else if (config.classifier.state === "UNAVAILABLE") {
+  logger.warn(
+    { reason: config.classifier.reason, detail: config.classifier.detail },
+    "social classification disabled: this worker will not claim classification work",
+  );
 }
 
 const worker = new WorkerProcess({

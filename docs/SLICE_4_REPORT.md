@@ -186,7 +186,8 @@ unchanged and no new SOURCE_TYPE enum was introduced; the badges remain derived 
 | Application | `packages/application/src/social/{prompt,classifier,use-cases,read-models,worker}.ts`, `scripts/drain-classifications.ts` |
 | Worker | `apps/worker/src/classification-consumer.ts` |
 | Web | `app/t/[tenant]/p/[project]/social/page.tsx`, `components/social/*`, `lib/social-actions.ts` |
-| Configuration | `packages/contracts/src/env/social.ts` (`SOCIAL_CLASSIFIER`, `SOCIAL_CLASSIFIER_MODEL`, `AI_GATEWAY_API_KEY`) |
+| Configuration | `packages/contracts/src/env/social.ts` (shape) + `packages/domain/src/social/availability.ts` (the rule) |
+| Session control | `packages/ui/src/components/app-shell.tsx` (`TopbarUser` disclosure), `apps/web/components/account-menu.tsx` |
 
 ## 12. Verification
 
@@ -199,8 +200,54 @@ unchanged and no new SOURCE_TYPE enum was introduced; the badges remain derived 
 | Seeder idempotency | stable across a second pass, taxonomy reused rather than re-created |
 | Lint, format, typecheck, build | clean |
 
-**CI makes zero live model calls.** `SOCIAL_CLASSIFIER` defaults to `fake`; no API key is required
-by any job.
+**CI makes zero live model calls.** No API key is required by any job, and since IG4-001 nothing
+defaults: `SOCIAL_CLASSIFIER=fake` is written explicitly in the Playwright web server and in the
+queue-drain child process, and nowhere else.
+
+## 12b. IG4-001 — a persistent environment never classifies with the fake
+
+The condition closed before merge. `SOCIAL_CLASSIFIER` had defaulted to `fake`, so an environment
+that simply never set it would have written keyword-matcher output into `ai_classification` — rows
+that, once stored, nobody could tell apart from a model's proposals.
+
+One domain function now decides for the web app, the worker and the operator scripts
+(`resolveClassifierAvailability`, SECURITY.md §10c.1): `local`/`test` may select the fake
+explicitly; every other environment refuses it; unset means assisted coding is unavailable, not
+defaulted; a gateway without its credential or with a model id that does not name its provider is
+`BLOCKED_EXTERNAL_CONFIG` and is never demoted to the fake. Environments nobody anticipated count as
+persistent, so a misspelt `APP_ENV` loses assisted coding rather than gaining a fake one.
+
+Two consequences are enforced rather than described:
+
+- **nothing unprocessable is written.** `startClassificationRun` refuses before it reads an answer,
+  so a run no worker could process never exists. Proved for all three reasons in
+  `social-coding.integration.test.ts`, asserting zero `classification_run` **and** zero
+  `ai_classification` rows.
+- **an unavailable worker never claims.** `apps/worker/src/main.ts` constructs the consumer only for
+  an `AVAILABLE` classifier; otherwise it logs the reason and polls nothing.
+
+No process refuses to boot over it. Deterministic tabulation is untouched, and the Social surface
+names which of the three reasons applies.
+
+**Staging today: `LIVE_AI = BLOCKED_EXTERNAL_CONFIG`.** The staging worker's variables are
+`APP_ENV`, `DATABASE_URL`, `DEMO_FIXTURES_ENABLED`, `LOG_LEVEL`, `PORT`, `PUBLIC_APP_URL`,
+`WORKER_DB_CHECK`, `WORKER_HEALTH_PORT` and Railway's own — no `SOCIAL_CLASSIFIER` and no
+`AI_GATEWAY_API_KEY`. Before this change that meant staging would have run the fake; now it means
+assisted coding is unavailable there and says so. Recorded as TD-049; the credential is an owner
+decision, not a code change.
+
+## 12c. UX-001 — signing out is findable
+
+The first manual review could not find how to sign out, and therefore could not move between the
+synthetic identities the demo roles live on. The topbar identity is now a native `<details>`
+disclosure: it opens with the keyboard, announces its state, works before hydration, and contains
+the signed-in address, the active role and one action, `Cerrar sesión`.
+
+There is deliberately **no role switcher**. A role here is a membership resolved server-side; a
+control that appeared to change one would either lie about the session or drive a privilege change
+from a browser. The menu says to sign out and sign in as someone else, which is what the demo
+actually requires. Covered by `e2e/session.spec.ts` in the project with no stored session — signing
+out revokes the session server-side, so a shared `storageState` could not host this test.
 
 ## 12a. Staging
 

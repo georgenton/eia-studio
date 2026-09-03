@@ -59,15 +59,24 @@ export function RailFooter({ children }: { children: ReactNode }) {
   return <div className={styles.railFooter}>{children}</div>;
 }
 
-export function TopbarUser({ name, role }: { name: string; role: string }) {
+/**
+ * The identity in the topbar, and — when a `menu` is given — the disclosure that reveals what you
+ * can do about it.
+ *
+ * UX-001: a reviewer could not find how to sign out, and therefore could not move between the
+ * synthetic roles the demo depends on. The control is a native `<details>`, so it opens with the
+ * keyboard, announces its expanded state and works before hydration; the menu's contents are
+ * supplied by the application, because this package knows nothing about sessions.
+ */
+export function TopbarUser({ name, role, menu }: { name: string; role: string; menu?: ReactNode }) {
   const initials = name
     .split(/\s+/)
     .filter(Boolean)
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase() ?? "")
     .join("");
-  return (
-    <div className={styles.user}>
+  const identity = (
+    <>
       <span aria-hidden="true" className={styles.avatar}>
         {initials}
       </span>
@@ -75,6 +84,22 @@ export function TopbarUser({ name, role }: { name: string; role: string }) {
         <span className={styles.userName}>{name}</span>
         <span className={styles.userRole}>{role}</span>
       </span>
-    </div>
+    </>
+  );
+
+  if (!menu) return <div className={styles.user}>{identity}</div>;
+
+  return (
+    // The label is on the <details>, which is the element that carries the group role and the
+    // open state; the <summary> is its handle.
+    <details className={styles.userMenu} aria-label={`Cuenta de ${name}`}>
+      <summary className={styles.userSummary}>
+        {identity}
+        <span aria-hidden="true" className={styles.caret}>
+          ▾
+        </span>
+      </summary>
+      <div className={styles.userPanel}>{menu}</div>
+    </details>
   );
 }

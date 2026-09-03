@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { appSchema, fieldSchema, socialSchema } from "@eia/db";
 import {
   AiProcessingNotAuthorized,
+  AiUnavailable,
   FeatureDisabled,
   PermissionDenied,
   type ClassificationInput,
@@ -44,6 +45,7 @@ import {
   processClassification,
   startClassificationRun,
   submitHumanReview,
+  type ClassificationRunConfig,
 } from "../src/index";
 
 /**
@@ -89,7 +91,10 @@ let historicalVersionId: string;
 let historicalQuestionId: string;
 let prov: string;
 
-const RUN_CONFIG = { model: "fake/deterministic", classifierKind: "fake" } as const;
+/** Explicit, as every environment must now be (IG4-001): a test selects the fake, nothing defaults. */
+const RUN_CONFIG = {
+  classifier: { state: "AVAILABLE", kind: "fake", model: "fake/deterministic", live: false },
+} as const satisfies ClassificationRunConfig;
 
 beforeAll(async () => {
   await resetDatabase(db.migrator);
@@ -379,6 +384,42 @@ describe("Slice 4 · the demo-only AI processing gate", () => {
     expect((runs.rows[0] as { n: number }).n).toBe(0);
   });
 
+  /**
+   * IG4-001. A run whose environment has no classifier can never be processed: the queue would
+   * show work that never moves, and the only way to find out why would be to read the worker's
+   * logs. So nothing is written at all — not the run, not one pending classification.
+   */
+  it.each([
+    ["nothing configured", { state: "UNAVAILABLE", reason: "NOT_CONFIGURED", detail: "d" }],
+    [
+      "the fake refused in a persistent environment",
+      { state: "UNAVAILABLE", reason: "FAKE_REFUSED_IN_PERSISTENT_ENVIRONMENT", detail: "d" },
+    ],
+    [
+      "the gateway blocked by external configuration",
+      { state: "UNAVAILABLE", reason: "BLOCKED_EXTERNAL_CONFIG", detail: "d" },
+    ],
+  ] as const)(
+    "writes no run when the classifier is unavailable: %s",
+    async (_label, classifier) => {
+      const ctx = await contextFor(specialist);
+      await expect(
+        startClassificationRun(
+          db.runtime,
+          ctx,
+          { taxonomyVersionId: taxonomy.versionId, surveyVersionId, questionId: openQuestionId },
+          { classifier },
+        ),
+      ).rejects.toBeInstanceOf(AiUnavailable);
+
+      const rows = await db.migrator.execute(sql`
+      select (select count(*)::int from app.classification_run) as runs,
+             (select count(*)::int from app.ai_classification) as classifications
+    `);
+      expect(rows.rows[0]).toEqual({ runs: 0, classifications: 0 });
+    },
+  );
+
   it("the worker refuses too, even if a pending row somehow names a non-demo answer", async () => {
     // Belt and braces: the run-level gate is not the only one. A row inserted directly — a bug, a
     // migration, a future feature — still cannot reach the model.
@@ -390,7 +431,7 @@ describe("Slice 4 · the demo-only AI processing gate", () => {
       taxonomyVersionId: taxonomy.versionId,
       sourceSurveyVersionId: surveyVersionId,
       sourceQuestionId: openQuestionId,
-      requestedModel: RUN_CONFIG.model,
+      requestedModel: RUN_CONFIG.classifier.model,
       classifierKind: "fake",
       promptVersion: "social-open-coding@1",
       promptHash: "0000000000000000",

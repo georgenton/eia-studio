@@ -1,0 +1,44 @@
+.identity {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #eef1f3;
+}
+.email {
+  font-size: 11.5px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.hint {
+  font-size: var(--eia-size-label);
+  color: var(--eia-text-muted);
+  line-height: 1.45;
+}
+.signOut {
+  appearance: none;
+  border: 1px solid #d8dde1;
+  background: #ffffff;
+  border-radius: 6px;
+  padding: 7px 10px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+}
+.signOut:hover:not(:disabled) {
+  background: #f5f7f8;
+}
+.signOut:focus-visible {
+  outline: 2px solid var(--eia-accent);
+  outline-offset: 2px;
+}
+.signOut:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+.error {
+  font-size: var(--eia-size-label);
+  color: var(--eia-danger, #b42318);
+}

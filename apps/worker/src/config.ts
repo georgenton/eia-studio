@@ -7,16 +7,20 @@ import {
   type AppEnv,
   type EnvSource,
   type RuntimeDatabaseEnv,
-  type SocialEnv,
   type WorkerEnv,
 } from "@eia/contracts";
+import { resolveClassifierAvailability, type ClassifierAvailability } from "@eia/domain";
 
 export interface WorkerConfig {
   readonly app: AppEnv;
   readonly database: RuntimeDatabaseEnv | null;
   readonly worker: WorkerEnv;
-  /** Which classifier this process runs, and which model it asks for (Slice 4 §48). */
-  readonly social: SocialEnv;
+  /**
+   * Whether this process may run assisted coding at all, resolved once from `APP_ENV` and the
+   * social variables (IG4-001). `UNAVAILABLE` is not a startup failure: the worker still runs, it
+   * simply never claims classification work.
+   */
+  readonly classifier: ClassifierAvailability;
 }
 
 /** Validated at startup; the process refuses to start with invalid configuration. */
@@ -27,5 +31,11 @@ export function loadWorkerConfig(source: EnvSource = process.env): WorkerConfig 
     ? loadEnv("database", runtimeDatabaseEnvSchema, source)
     : null;
   const social = loadEnv("social", socialEnvSchema, source);
-  return { app, worker, database, social };
+  const classifier = resolveClassifierAvailability({
+    appEnv: app.APP_ENV,
+    classifier: social.SOCIAL_CLASSIFIER,
+    model: social.SOCIAL_CLASSIFIER_MODEL,
+    gatewayApiKeyPresent: social.AI_GATEWAY_API_KEY !== undefined,
+  });
+  return { app, worker, database, classifier };
 }

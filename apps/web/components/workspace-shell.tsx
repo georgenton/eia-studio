@@ -1,6 +1,8 @@
 import { listUserTenants } from "@eia/application";
 import type { RequestContext, TenantCapabilitySettings, WorkspaceSurface } from "@eia/domain";
 import { AppShell, RailBrand, RailFooter, RailSection, TopbarUser } from "@eia/ui";
+
+import { AccountMenu } from "./account-menu";
 import {
   Breadcrumb,
   CapabilityNav,
@@ -29,6 +31,7 @@ export async function WorkspaceShell({
   currentSurface,
   breadcrumb,
   userName,
+  userEmail,
   drawer,
   children,
 }: {
@@ -38,6 +41,8 @@ export async function WorkspaceShell({
   currentSurface: WorkspaceSurface | null;
   breadcrumb: ReadonlyArray<{ label: string; href?: string }>;
   userName: string;
+  /** Shown inside the account menu so a reviewer can see which identity they are on. */
+  userEmail?: string | null;
   drawer?: ReactNode;
   children: ReactNode;
 }) {
@@ -65,6 +70,7 @@ export async function WorkspaceShell({
   );
   const portal = portalNavEntry(ctx, tenantSettings);
   const role = ctx.projectRole ?? ctx.tenantRole;
+  const roleLabel = `${ctx.tenantRole}${role === ctx.tenantRole ? "" : ` / ${role}`}`;
 
   return (
     <AppShell
@@ -120,7 +126,8 @@ export async function WorkspaceShell({
           <Breadcrumb items={[...breadcrumb]} />
           <TopbarUser
             name={userName}
-            role={`${ctx.tenantRole}${role === ctx.tenantRole ? "" : ` / ${role}`}`}
+            role={roleLabel}
+            menu={<AccountMenu email={userEmail ?? null} roleLabel={roleLabel} />}
           />
         </>
       }

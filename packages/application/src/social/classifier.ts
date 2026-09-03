@@ -1,14 +1,3 @@
-import {
-  ClassifierUnavailable,
-  validateClassifierOutput,
-  type ClassificationInput,
-  type ClassifierCallOptions,
-  type ClassifierResult,
-  type OpenTextClassifier,
-} from "@eia/domain";
-
-import { PROMPT_VERSION, renderSystemPrompt, renderUserPrompt } from "./prompt";
-
 /**
  * Adapters for the one classification port, and the rule about which one runs.
  *
@@ -17,8 +6,19 @@ import { PROMPT_VERSION, renderSystemPrompt, renderUserPrompt } from "./prompt";
  * fabricated codings that look exactly like real ones in the database. That is why there is no
  * "try live, fall back to fake" path anywhere in this file.
  */
-export const CLASSIFIER_KINDS = ["fake", "ai-gateway"] as const;
-export type ClassifierKind = (typeof CLASSIFIER_KINDS)[number];
+
+import {
+  ClassifierUnavailable,
+  requireAvailableClassifier,
+  validateClassifierOutput,
+  type ClassificationInput,
+  type ClassifierAvailability,
+  type ClassifierCallOptions,
+  type ClassifierResult,
+  type OpenTextClassifier,
+} from "@eia/domain";
+
+import { PROMPT_VERSION, renderSystemPrompt, renderUserPrompt } from "./prompt";
 
 /**
  * The deterministic classifier used by every test and by CI, which makes zero network calls.
@@ -179,24 +179,16 @@ function isRetryable(error: unknown): boolean {
 }
 
 /**
- * Build the configured classifier. Explicit, and with no fallback in either direction: asking for
- * the gateway without a key is an error, because the alternative — inventing codings — is worse
- * than stopping.
+ * Build the classifier an already-resolved availability names.
+ *
+ * Availability is decided once, in the domain, from `APP_ENV` and the two variables
+ * (`resolveClassifierAvailability`). This function only obeys it — which is why there is no
+ * fallback path here to read: an unavailable classifier throws `AiUnavailable` before any adapter
+ * is constructed, because inventing codings is worse than stopping.
  */
-export function createClassifier(config: {
-  readonly kind: ClassifierKind;
-  readonly gatewayApiKeyPresent: boolean;
-}): OpenTextClassifier {
-  if (config.kind === "fake") return new FakeClassifier();
-  if (!config.gatewayApiKeyPresent) {
-    throw new ClassifierUnavailable(
-      "SOCIAL_CLASSIFIER=ai-gateway but AI_GATEWAY_API_KEY is not set. Refusing to fall back to " +
-        "the deterministic fake: a fabricated coding is indistinguishable from a real one once it " +
-        "is in the database.",
-      false,
-    );
-  }
-  return new AiGatewayClassifier();
+export function createClassifier(availability: ClassifierAvailability): OpenTextClassifier {
+  const usable = requireAvailableClassifier(availability);
+  return usable.kind === "fake" ? new FakeClassifier() : new AiGatewayClassifier();
 }
 
 export { PROMPT_VERSION };

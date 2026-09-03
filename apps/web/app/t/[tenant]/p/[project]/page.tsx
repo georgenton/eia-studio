@@ -62,6 +62,7 @@ export default async function CommandCenterPage({
     projects: portfolio.projects,
     currentSurface: "command-center" as const,
     userName: sessionUser?.name ?? sessionUser?.email ?? "Usuario",
+    userEmail: sessionUser?.email ?? null,
   };
 
   let view;

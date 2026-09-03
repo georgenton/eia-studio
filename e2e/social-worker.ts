@@ -62,6 +62,8 @@ export function drainClassificationQueue(): string {
 
   return execFileSync("pnpm", ["-s", "social:drain", "--fake-scenarios", file], {
     encoding: "utf8",
-    env: { ...process.env, SOCIAL_CLASSIFIER: "fake" },
+    // Both pinned, and neither inherited: the fake is only permitted in a test environment, and
+    // this child must be one whatever the developer's own `.env` says (IG4-001).
+    env: { ...process.env, APP_ENV: "test", SOCIAL_CLASSIFIER: "fake" },
   });
 }

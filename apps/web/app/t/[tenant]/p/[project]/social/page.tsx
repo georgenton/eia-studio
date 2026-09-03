@@ -16,8 +16,10 @@ import { OpenResponseQueue } from "@/components/social/open-response-queue";
 import { SocialOverview } from "@/components/social/social-overview";
 import { TabulationPanel } from "@/components/social/tabulation-panel";
 import { projectBreadcrumb, WorkspaceShell } from "@/components/workspace-shell";
+import { aiStatusFor } from "@/lib/ai-status";
 import { getSessionUser } from "@/lib/context";
 import { getDb } from "@/lib/db";
+import { getEnv } from "@/lib/env";
 import { projectPath } from "@/lib/navigation";
 import { getTenantCapabilitySettings } from "@/lib/queries";
 import { accessForDomainError, resolveSurfaceAccess } from "@/lib/surface-access";
@@ -79,6 +81,7 @@ export default async function SocialPage({
     projects: portfolio.projects,
     currentSurface: "social" as const,
     userName: sessionUser?.name ?? sessionUser?.email ?? "Usuario",
+    userEmail: sessionUser?.email ?? null,
     breadcrumb: projectBreadcrumb(
       ctx,
       portfolio.tenantName,
@@ -190,6 +193,7 @@ export default async function SocialPage({
               surveyVersionId={selected.versionId}
               questionId={openQuestionId}
               canRunAi={can(ctx, "social.ai.run")}
+              aiStatus={aiStatusFor(getEnv().classifier)}
             />
             <OpenResponseQueue
               responses={coding.responses}

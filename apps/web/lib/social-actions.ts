@@ -74,10 +74,10 @@ export async function startClassificationRunAction(raw: unknown): Promise<Social
         questionId: input.questionId,
       },
       {
-        // Configuration, never the client. Recorded on the run so a proposal can be traced to the
-        // exact model and adapter that produced it.
-        model: env.social.SOCIAL_CLASSIFIER_MODEL,
-        classifierKind: env.social.SOCIAL_CLASSIFIER,
+        // Configuration, never the client. It carries whether anything can run at all, so a run is
+        // never written in an environment that could not process it (IG4-001), and it records on
+        // the run the exact model and adapter that produced each proposal.
+        classifier: env.classifier,
       },
     );
     revalidatePath(`/t/${input.tenant}/p/${input.project}/social`, "layout");

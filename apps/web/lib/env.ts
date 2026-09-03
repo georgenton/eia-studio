@@ -11,8 +11,8 @@ import {
   type AuthEnv,
   type EmailEnv,
   type RuntimeDatabaseEnv,
-  type SocialEnv,
 } from "@eia/contracts";
+import { resolveClassifierAvailability, type ClassifierAvailability } from "@eia/domain";
 
 import { resolveTrustedOrigins, vercelHosts } from "./trusted-origins";
 
@@ -21,8 +21,12 @@ interface WebEnv {
   readonly database: RuntimeDatabaseEnv;
   readonly auth: AuthEnv;
   readonly email: EmailEnv;
-  /** Which classifier a run is created for, and which model it asks for (Slice 4). */
-  readonly social: SocialEnv;
+  /**
+   * Whether assisted coding may run here at all, resolved once from `APP_ENV` and the social
+   * variables (IG4-001). `UNAVAILABLE` disables the coding half of Social Intelligence and never
+   * the deterministic tabulation, and it never falls back to the in-process fake.
+   */
+  readonly classifier: ClassifierAvailability;
   /**
    * The origins Better Auth accepts state-changing requests from, resolved once from explicit
    * configuration plus this deployment's own platform hostnames (`trusted-origins.ts`).
@@ -59,12 +63,18 @@ export function getEnv(): WebEnv {
   const source = withPlatformDefaults(process.env);
   const app = loadEnv("app", appEnvSchema, source);
   const auth = loadEnv("auth", authEnvSchema, source);
+  const social = loadEnv("social", socialEnvSchema, source);
   cached = {
     app,
     auth,
     database: loadEnv("database", runtimeDatabaseEnvSchema, source),
     email: loadEnv("email", emailEnvSchema, source),
-    social: loadEnv("social", socialEnvSchema, source),
+    classifier: resolveClassifierAvailability({
+      appEnv: app.APP_ENV,
+      classifier: social.SOCIAL_CLASSIFIER,
+      model: social.SOCIAL_CLASSIFIER_MODEL,
+      gatewayApiKeyPresent: social.AI_GATEWAY_API_KEY !== undefined,
+    }),
     trustedOrigins: resolveTrustedOrigins({
       configured: auth.AUTH_TRUSTED_ORIGINS,
       baseURL: auth.BETTER_AUTH_URL,

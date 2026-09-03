@@ -1,4 +1,5 @@
 import { appEnvSchema, loadEnv, runtimeDatabaseEnvSchema, socialEnvSchema } from "@eia/contracts";
+import { resolveClassifierAvailability } from "@eia/domain";
 import { config as loadDotenv } from "dotenv";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -16,7 +17,9 @@ import { claimNextClassification, processClassification } from "../src/social/wo
  * identical use-cases, so what it exercises is the real claim, the real RLS context and the real
  * validation, not a simulation of them.
  *
- * The classifier is whatever `SOCIAL_CLASSIFIER` says, with no fallback in either direction.
+ * The classifier is whatever `SOCIAL_CLASSIFIER` says, resolved through the same availability rule
+ * the worker and the web app use (IG4-001): unset, or the fake in a persistent environment, and
+ * this script refuses rather than draining the queue with something it should not.
  *
  * `--fake-scenarios <file>` supplies deterministic answers keyed by a substring of the response
  * text. It exists so an end-to-end suite can drive a specific state — a low-confidence proposal,
@@ -35,16 +38,23 @@ function arg(name: string): string | undefined {
   return index >= 0 ? process.argv[index + 1] : undefined;
 }
 
+const availability = resolveClassifierAvailability({
+  appEnv: app.APP_ENV,
+  classifier: social.SOCIAL_CLASSIFIER,
+  model: social.SOCIAL_CLASSIFIER_MODEL,
+  gatewayApiKeyPresent: social.AI_GATEWAY_API_KEY !== undefined,
+});
+if (availability.state !== "AVAILABLE") {
+  console.error(`drain-classifications: ${availability.reason} — ${availability.detail}`);
+  process.exit(1);
+}
+
 const scenarioFile = arg("fake-scenarios");
-if (scenarioFile && social.SOCIAL_CLASSIFIER !== "fake") {
+if (scenarioFile && availability.kind !== "fake") {
   console.error(
     "drain-classifications: --fake-scenarios requires SOCIAL_CLASSIFIER=fake. A configured " +
       "provider is never replaced by scripted answers.",
   );
-  process.exit(1);
-}
-if (social.SOCIAL_CLASSIFIER === "fake" && app.APP_ENV === "production") {
-  console.error("drain-classifications: the fake classifier never runs in production");
   process.exit(1);
 }
 
@@ -53,12 +63,7 @@ const scenarios: ReadonlyArray<[string, FakeScenario]> = scenarioFile
   : [];
 
 const classifier =
-  social.SOCIAL_CLASSIFIER === "fake"
-    ? new FakeClassifier(scenarios)
-    : createClassifier({
-        kind: social.SOCIAL_CLASSIFIER,
-        gatewayApiKeyPresent: social.AI_GATEWAY_API_KEY !== undefined,
-      });
+  availability.kind === "fake" ? new FakeClassifier(scenarios) : createClassifier(availability);
 
 const pool = createPool(database.DATABASE_URL, { max: 2, applicationName: "eia-drain" });
 const db = createDatabase(pool);

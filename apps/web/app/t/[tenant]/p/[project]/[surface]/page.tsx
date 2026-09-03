@@ -54,6 +54,7 @@ export default async function SurfacePage({
       projects={portfolio.projects}
       tenantSettings={tenantSettings}
       userName={sessionUser?.name ?? sessionUser?.email ?? "Usuario"}
+      userEmail={sessionUser?.email ?? null}
     >
       <ModuleNotImplementedState
         backHref={`/t/${tenant}/p/${project}`}

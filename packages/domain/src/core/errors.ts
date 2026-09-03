@@ -8,7 +8,8 @@ export type DomainErrorCode =
   | "NOT_FOUND"
   | "INVALID_INPUT"
   | "TENANT_CONSISTENCY_VIOLATION"
-  | "ROLE_ESCALATION";
+  | "ROLE_ESCALATION"
+  | "AI_UNAVAILABLE";
 
 export class DomainError extends Error {
   readonly code: DomainErrorCode;
@@ -68,5 +69,18 @@ export class RoleEscalation extends DomainError {
   constructor(message: string) {
     super("ROLE_ESCALATION", message);
     this.name = "RoleEscalation";
+  }
+}
+
+/**
+ * State "AI unavailable": assisted coding cannot run here, and no row is written pretending it
+ * could. `reason` is the operator-facing cause (IG4-001); the message is safe to show a user.
+ */
+export class AiUnavailable extends DomainError {
+  readonly reason: string;
+  constructor(input: { reason: string; detail: string }) {
+    super("AI_UNAVAILABLE", input.detail);
+    this.name = "AiUnavailable";
+    this.reason = input.reason;
   }
 }

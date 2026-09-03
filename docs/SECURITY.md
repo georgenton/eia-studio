@@ -209,6 +209,32 @@ deliberately about the **data**, not about the person asking.
 This restriction stands until the privacy, legal and vendor review of §10a explicitly authorises
 real data. Lifting it is a decision recorded there, not a configuration change here.
 
+### 10c.1 Which classifier runs where, and why unset is not `fake` (IG4-001)
+
+A second question sits beside "may this text leave?": **what answered?** A proposal written by a
+keyword matcher and a proposal written by a model are the same shape once they are rows, so a
+persistent environment that ran the deterministic fake would be producing an artefact nobody could
+afterwards tell apart from a real one. `SOCIAL_CLASSIFIER` therefore has **no default**, and one
+domain function (`resolveClassifierAvailability`) decides for the web app, the worker and the
+operator scripts alike.
+
+| `APP_ENV` | unset | `fake` | `ai-gateway`, no credential | `ai-gateway`, credential |
+|---|---|---|---|---|
+| `local`, `test` | unavailable | **available** | `BLOCKED_EXTERNAL_CONFIG` | available (live) |
+| anything else | unavailable | **refused** | `BLOCKED_EXTERNAL_CONFIG` | available (live) |
+
+- **Unknown environments are persistent.** The predicate names `local` and `test`; everything else,
+  including a misspelt value, is persistent. A typo loses assisted coding rather than gaining a
+  fake one.
+- **Unavailable is not an outage.** Deterministic tabulation never asks a model for a number, so it
+  keeps working; only the coding half stops, and the surface says which of the three reasons it is.
+- **Nothing unprocessable is written.** `startClassificationRun` refuses before it reads an answer,
+  so a `ClassificationRun` that no worker could ever process does not exist. A worker whose
+  classifier is unavailable never constructs the consumer, so it never claims.
+- **No process refuses to boot over it.** A missing gateway credential is a reported state, not a
+  startup failure: taking the whole deployment down over a feature it may not use would be a worse
+  outcome than losing that feature.
+
 ## 10a. Privacy by design and the compliance gate (Gate 1 D-018)
 
 Before **production ingestion of any real personal data**, the project requires a specific
