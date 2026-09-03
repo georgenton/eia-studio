@@ -10,7 +10,8 @@
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
     "seed:demo-project": "tsx scripts/seed-demo-project.ts",
-    "social:drain": "tsx scripts/drain-classifications.ts"
+    "social:drain": "tsx scripts/drain-classifications.ts",
+    "social:run": "tsx scripts/start-classification-run.ts"
   },
   "dependencies": {
     "@eia/contracts": "workspace:*",

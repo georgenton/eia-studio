@@ -33,6 +33,7 @@
     "db:reset:local": "pnpm --filter @eia/db reset:local",
     "db:seed:demo-project": "pnpm --filter @eia/application seed:demo-project --fixture zamora-puente-del-amor",
     "social:drain": "pnpm --filter @eia/application social:drain",
+    "social:run": "pnpm --filter @eia/application social:run",
     "db:check-seeder-idempotency": "pnpm --filter @eia/db check-seeder-idempotency",
     "provision:identity": "pnpm --filter @eia/web provision:identity",
     "db:up": "docker compose up -d postgres",

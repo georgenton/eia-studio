@@ -46,6 +46,19 @@ test.describe("Slice 4 screenshots", () => {
     }
   });
 
+  test("a failed classification, with the deterministic half unaffected", async ({ page }) => {
+    // Only captured when the environment actually has a failure to show — a provider outage or a
+    // misconfigured key. The image is never manufactured: if nothing failed, there is nothing to
+    // photograph, and the state is covered by the domain and integration tests instead.
+    await page.goto(`${SOCIAL}?tab=abiertas`);
+    const failed = page.getByRole("button", { name: "IA fallida" });
+    await failed.click();
+    const main = page.getByRole("main");
+    if ((await main.innerText()).includes("Clasificación fallida")) {
+      await page.screenshot({ path: `${OUT}/06-classification-failed.png` });
+    }
+  });
+
   test("validated themes beside the provisional distribution", async ({ page }) => {
     await page.goto(`${SOCIAL}?tab=abiertas`);
     await expect(page.getByRole("main")).toContainText("Temas validados");

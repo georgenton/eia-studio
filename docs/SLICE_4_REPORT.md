@@ -202,6 +202,35 @@ unchanged and no new SOURCE_TYPE enum was introduced; the badges remain derived 
 **CI makes zero live model calls.** `SOCIAL_CLASSIFIER` defaults to `fake`; no API key is required
 by any job.
 
+## 12a. Staging
+
+| Step | Result |
+|---|---|
+| Forward migrations (`0016`, `0017`) with the migrator credential | applied; the ledger went from 16 to 18 |
+| Demo taxonomy seeded | `road_social_concerns_demo` v1, 8 categories, `DEMO / RECONSTRUIDA`, **0 classifications seeded** |
+| Field baseline afterwards | unchanged: 1 campaign · 12 assignments · 4 submitted responses · 26 answers · 8 selections · 141 parcels · no dangling provenance |
+| `pnpm test:staging` (non-destructive) | **57 passed** (4 files), 14 of them the new Social checks |
+| Snapshot before vs after the suite | **identical** |
+| `postgres-gis` / `worker` | both SUCCESS, heartbeats continuous, `pending: 0` |
+
+**The live AI smoke did not run: `BLOCKED_EXTERNAL_CONFIG`.** No `AI_GATEWAY_API_KEY` is configured
+in Vercel Preview, in the Railway worker, or locally. The gateway's *catalogue* is readable without
+one (342 models, from which `anthropic/claude-haiku-4.5` was selected as the configured default for
+a short classification task), but inference is not: an attempt with an invalid key was refused by
+the provider — `Unauthenticated request to AI Gateway` — and the five classifications were recorded
+`FAILED` with that message. **No fabricated result was written**, which is the behaviour the
+no-fallback rule exists to produce, and `docs/screenshots/slice-4/06-classification-failed.png`
+shows the resulting state with the deterministic tabulation unaffected beside it.
+
+Staging also lacks the synthetic `especialista@demo.invalid` identity, whose creation needs the
+operator's `DEMO_USER_PASSWORD`; until it exists, a reviewer can see the Social surface on staging
+as the coordinator (tabulation, workflow, run history) but cannot start a run or settle a coding
+there. One command restores it, and it does not wipe anything:
+
+```bash
+DEMO_USER_PASSWORD='<chosen locally>' pnpm e2e:prepare   # pointed at staging
+```
+
 ## 13. What this slice does not do
 
 No Quality Gate · no RAG, no embeddings, no pgvector · no report generation · no agents or tool
