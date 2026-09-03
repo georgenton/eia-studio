@@ -15,7 +15,7 @@ function createAuth() {
       database: getDb(),
       baseURL: env.auth.BETTER_AUTH_URL,
       secret: env.auth.BETTER_AUTH_SECRET,
-      trustedOrigins: env.auth.AUTH_TRUSTED_ORIGINS,
+      trustedOrigins: env.trustedOrigins,
       secureCookies: env.app.APP_ENV !== "local" && env.app.APP_ENV !== "test",
     }),
   );
