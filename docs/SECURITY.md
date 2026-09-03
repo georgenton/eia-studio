@@ -162,6 +162,33 @@ Principles:
   24) runs as a per-tenant job that replaces identifiers and keeps aggregates; provenance records
   note the anonymisation run (transformation `ANONYMIZED` appended).
 
+## 10b. Field responses: row ownership inside a project (Slice 3)
+
+Individual survey responses are the first data in this product where *being on the project* is
+not enough. A `FIELD_TECHNICIAN` must be able to do their own work and must not be able to browse
+the project's households; a `GIS_SPECIALIST` may see that a parcel was visited without reading
+what was answered there.
+
+| Layer | Control |
+|---|---|
+| Permission | `field.responses.read` is separate from `field.read` (TENANCY.md §3.1) and is not held by FIELD_TECHNICIAN or GIS_SPECIALIST |
+| Application | `withFieldContext` sets `app.field_responses_access` from the resolved permission; use-cases check ownership before every mutation |
+| Row level | `field_assignment`, `field_visit`, `survey_instance` and `survey_answer` require *(this row is mine) OR `app.can_read_field_responses()`* in addition to tenant, project and project access |
+| Route | an assignment that is not the caller's own answers **404**, not a denial: a distinguishable error would confirm the row exists, which is what someone editing ids wants to learn |
+| Definition | the questionnaire itself is not an individual's data and stays readable to the project, so a technician can read the form they must fill in |
+
+`app.field_responses_access` is transaction-local and set only after `requirePermission` has
+passed; forging it would still leave every other conjunct in each policy — tenant, project,
+membership — in force, and a caller able to set session settings arbitrarily already holds the
+runtime role (§5, IG0-B01).
+
+The demo questionnaire collects **no** personal data: no names, identity numbers, phone numbers,
+email addresses, health or disability data, individual income, or precise household coordinates.
+Answers are synthetic and labelled `DEMO_SIMULATION`. A visit's location is the technician's own
+position at the time of the visit, captured only with the browser's permission and recorded as
+`denied` or `unavailable` when there is none — never fabricated, and never a household's address.
+Answer payloads are not written to logs.
+
 ## 10a. Privacy by design and the compliance gate (Gate 1 D-018)
 
 Before **production ingestion of any real personal data**, the project requires a specific

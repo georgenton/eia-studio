@@ -66,7 +66,7 @@ Derived from the README role list and the prototype matrix (PRODUCT.md §3):
 | `SOCIAL_SPECIALIST` | Especialista social | parcels.read, field.read, social.write (coding, taxonomy proposal decisions), quality.write, reports.write, pii.read, pii.export (audited) |
 | `ENVIRONMENTAL_SPECIALIST` | Especialista ambiental | parcels.read, field.read, documents.write, quality.write, reports.write |
 | `GIS_SPECIALIST` | Cartógrafo / GIS | parcels.write, geometry.import, field.read (no PII), quality.read |
-| `FIELD_TECHNICIAN` | Técnico de campo | parcels.read, field.capture (own assignments), media.upload |
+| `FIELD_TECHNICIAN` | Técnico de campo | parcels.read, field.assignments.read_own, field.capture (own assignments), media.upload |
 | `REVIEWER` | Revisor | documents.read, quality.review (decide findings), reports.review |
 | `VIEWER` | Internal read-only | *.read except pii |
 
@@ -96,7 +96,9 @@ tenant:    tenant.transfer, tenant.delete, billing.manage, members.manage, roles
            modules.manage, templates.manage, security.manage, integrations.manage,
            projects.create, projects.archive, audit.read, portfolio.read
 project:   project.configure, project.members.manage, parcels.read, parcels.write,
-           geometry.import, field.read, field.capture, field.validate, field.write,
+           geometry.import, field.read, field.campaigns.manage, field.assignments.manage,
+           field.assignments.read_own, field.responses.read,
+           field.capture, field.validate, field.write,
            media.upload, documents.read, documents.write, social.read, social.write,
            taxonomy.approve, quality.read, quality.write, quality.review,
            reports.write, reports.review, deliverables.approve, portal.publish,
@@ -110,6 +112,32 @@ Rules:
   `social.ai_coding` is disabled still cannot invoke AI coding (FEATURES.md).
 - `pii.*` permissions are additionally subject to a resource policy (the project must have PII
   enabled, the user must have accepted the confidentiality notice) and are always audited.
+
+### 3.1 Field permissions, and why reading responses is its own grant (Slice 3)
+
+`field.read` and `field.responses.read` are different permissions, and the distinction is the one
+place in the product where project access is deliberately not enough.
+
+| Key | Grants | Held by |
+|---|---|---|
+| `field.read` | the operational workflow: campaigns, their progress, assignments and per-technician counts | COORDINATOR, SOCIAL_SPECIALIST, ENVIRONMENTAL_SPECIALIST, GIS_SPECIALIST, REVIEWER, VIEWER |
+| `field.campaigns.manage` | create, activate and close campaigns | COORDINATOR |
+| `field.assignments.manage` | assign and reassign work | COORDINATOR |
+| `field.assignments.read_own` | see *my* assignments and nobody else's | FIELD_TECHNICIAN (and implied for anyone with `field.read`) |
+| `field.capture` | start a visit, save a draft, submit a response — on my own assignments | FIELD_TECHNICIAN, COORDINATOR |
+| `field.responses.read` | read an individual response and its answers, whoever captured it | COORDINATOR, SOCIAL_SPECIALIST, REVIEWER |
+
+A `FIELD_TECHNICIAN` holds neither `field.read` nor `field.responses.read`: they see their own
+work and no one else's. A `GIS_SPECIALIST` holds `field.read` but not `field.responses.read`: they
+can see that a parcel has been visited without reading what a household answered.
+
+This is enforced twice. The use-cases check the permission; and the row-level policies on
+`field_assignment`, `field_visit`, `survey_instance` and `survey_answer` add *either this row is
+the caller's own, or the caller holds `field.responses.read`* on top of project access. The second
+condition reaches the database as the transaction-local setting `app.field_responses_access`, set
+by the application layer from the resolved permission — the same shape as `app.pii_access`
+(SECURITY.md §5). A caller that forgets to set it sees only its own rows, which is the safe
+direction to fail in.
 
 ## 3a. Identity provider boundary (Gate 1 D-016, ADR-010)
 
