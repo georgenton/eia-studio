@@ -51,7 +51,8 @@ test.describe("server-side authorization", () => {
     page,
   }) => {
     // This test used to assert the inert "module not implemented" state at `/quality`. GIS was the
-    // example until Slice 2, FieldFlow until Slice 3, and the Quality Gate until Slice 5 built it.
+    // example until Slice 2, FieldFlow until Slice 3, the Quality Gate until Slice 5, and Documents
+    // until Slice 6.
     // Every remaining workspace surface is ANNOUNCED, therefore never effective, therefore 404 —
     // so the state currently has **no reachable route**, and asserting it in a browser would mean
     // inventing a capability nobody ships.
@@ -66,10 +67,11 @@ test.describe("server-side authorization", () => {
       "la implementación aún no está disponible",
     );
 
-    // …and the announced ones stay indistinguishable from a URL that means nothing.
-    for (const segment of ["documents", "reports"]) {
-      const announced = await page.goto(`/t/${TENANT}/p/${PROJECT}/${segment}`);
-      expect(announced?.status(), segment).toBe(404);
-    }
+    // Documents joined the built surfaces in Slice 6; Reports is the only ANNOUNCED one left, and
+    // it stays indistinguishable from a URL that means nothing.
+    const documents = await page.goto(`/t/${TENANT}/p/${PROJECT}/documents`);
+    expect(documents?.status()).toBe(200);
+    const announced = await page.goto(`/t/${TENANT}/p/${PROJECT}/reports`);
+    expect(announced?.status()).toBe(404);
   });
 });

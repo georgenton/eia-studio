@@ -27,7 +27,13 @@ All data is synthetic or reconstructed demo data. Nothing here is anybody's pers
    concluded study's file. Open **QG-001**: two documents of the same file, 71 predios and 70, at
    equal weight, neither called the error. Press the button again: nothing duplicates.
    _Check:_ there is no decision form. A coordinator checks; a reviewer decides.
-8. Sign out.
+8. **Documents.** Ask the expediente _predios con afectación_. The answer is passages, each quoted
+   with its document, version and page — and a line saying there is no narrative because no model is
+   configured. Read the caveat under the results: this is lexical search, not semantic.
+   _Check:_ ask something the corpus does not discuss. It says so and cites nothing.
+9. Back in **Quality Gate → QG-001**: the evidence now links to the passage it was transcribed from.
+   Follow the link — it lands on the document, at that passage. The finding was never rewritten.
+10. Sign out.
 
 ## 2 · Field technician — `tecnico@demo.invalid`, at a phone width
 

@@ -129,11 +129,32 @@ Quality rules in v0.2 are deterministic contrasts (numeric, temporal, territoria
 If a future rule uses an LLM (e.g. semantic contradiction), it must go through the same ports,
 carry the same provenance, use the permitted language, and still end in `SpecialistReview`.
 
-## 8. RAG assistant (later)
+## 8. Document assistant (Slice 6)
 
-Embedded in tasks, never a dashboard chatbot (spec §15). Retrieval scoped by tenant and project
-(SECURITY.md §8); answers cite `DocumentLocator`s; generated text is never stored as a fact
-without a provenance record marking it `DERIVED` with `validation_status = pending`.
+Embedded in the Documents surface, never a dashboard chatbot (spec §15). Retrieval is scoped by
+tenant and project before it happens (SECURITY.md §8), and answers cite document, version, page and
+passage.
+
+What Slice 6 settled, beyond the specification:
+
+- **Retrieval is PostgreSQL full-text, and says so** (ADR-021). No embedding provider is configured
+  anywhere, and a vector filled by a stand-in would be indistinguishable from a real one. The
+  surface prints the strategy in words: *these passages contain these words, not this meaning*.
+- **The citations are the answer.** Retrieval and citation need no model; only the narrative
+  paragraph does. Where no generator is configured the passages appear alone with the reason
+  stated — the useful half, and the honest one.
+- **A generated answer may cite only what was retrieved.** The generator is given numbered passages
+  and cites by index; an index it did not receive is a *failed* answer, never a dropped citation,
+  because dropping one leaves the sentence standing and looking sourced.
+- **Nothing generated is persisted.** An answer is a read. Storing generated prose as project
+  content would need a provenance record marking it `DERIVED` with `validation_status = pending`,
+  and no surface in this slice would show such a record honestly.
+- **A document flagged `contains_pii` is refused, not redacted.** The deidentification pipeline of
+  §4 does not exist; chunking an unredacted document and hoping nobody retrieves the wrong paragraph
+  is not a control.
+- **Prompt injection inside a source document grants nothing.** The passages arrive delimited, the
+  instruction says nothing inside them can change the task, and — the part that actually holds — the
+  generator has no tool, no retrieval of its own and no write path.
 
 ## 9. Evaluation and calibration (research track)
 

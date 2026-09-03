@@ -360,9 +360,11 @@ describe("5 · an assertion holds exactly one value, and never a fabricated cita
     ).toMatch(/document_assertion_date_shape/);
   });
 
-  it("claiming to come from an ingested document is refused while none can exist", async () => {
-    // Slice 5 has no document versions. An assertion labelled `DOCUMENT_VERSION` would be a
-    // citation of something that does not exist, in the one field whose purpose is verification.
+  it("claiming to come from an ingested document without naming one is refused", async () => {
+    // Slice 5 refused the claim outright, because no document version could exist. Slice 6 made one
+    // possible, so migration 0021 replaced that CHECK with the rule that now holds: the claim must
+    // name a real version. The guarantee is the same one — a citation nobody could follow is a
+    // fabrication in the field whose whole purpose is that a finding can be checked.
     expect(
       await attempt(
         db.migrator.execute(sql`
@@ -372,7 +374,7 @@ describe("5 · an assertion holds exactly one value, and never a fabricated cita
                   'DOCUMENT_VERSION', 'Informe', 1, ${prov})
         `),
       ),
-    ).toMatch(/document_assertion_source_kind_available/);
+    ).toMatch(/document_assertion_citation_is_real/);
   });
 });
 

@@ -5,12 +5,14 @@ export * as gisSchema from "./gis";
 export * as fieldSchema from "./field";
 export * as socialSchema from "./social";
 export * as qualitySchema from "./quality";
+export * as documentsSchema from "./documents";
 
 import * as appTables from "./app";
 import * as auditTables from "./audit";
 import * as authTables from "./auth";
 import * as fieldTables from "./field";
 import * as gisTables from "./gis";
+import * as documentTables from "./documents";
 import * as qualityTables from "./quality";
 import * as socialTables from "./social";
 
@@ -62,4 +64,7 @@ export const schema = {
   qualityFinding: qualityTables.qualityFinding,
   findingEvidence: qualityTables.findingEvidence,
   specialistReview: qualityTables.specialistReview,
+  sourceDocument: documentTables.sourceDocument,
+  documentVersion: documentTables.documentVersion,
+  documentChunk: documentTables.documentChunk,
 };

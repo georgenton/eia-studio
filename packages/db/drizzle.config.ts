@@ -12,6 +12,7 @@ export default defineConfig({
     "./src/schema/field.ts",
     "./src/schema/social.ts",
     "./src/schema/quality.ts",
+    "./src/schema/documents.ts",
   ],
   out: "./migrations",
   schemaFilter: ["app", "auth", "audit"],

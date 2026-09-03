@@ -241,3 +241,7 @@
   color: var(--eia-text-secondary);
   line-height: 1.45;
 }
+.documentLink {
+  color: var(--eia-accent);
+  font-weight: 600;
+}

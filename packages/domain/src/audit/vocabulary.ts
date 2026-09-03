@@ -32,6 +32,11 @@ export const AUDIT_ACTIONS = [
   // disagree.
   "quality.run.completed",
   "quality.finding.decided",
+  // Document intelligence (Slice 6). What was ingested, and that a question was asked of the
+  // project's documents. Never the document text and never the question's answer: the passages
+  // live in one place with one retention rule, and copying them here would create a second.
+  "documents.version.ingested",
+  "documents.assistant.asked",
 ] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];

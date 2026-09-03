@@ -65,7 +65,8 @@ export const CAPABILITY_CATALOG: Readonly<Record<CapabilityKey, CapabilityDefini
     key: "core.documents",
     module: "documents",
     dependsOn: ["core.projects"],
-    productStatus: "ANNOUNCED",
+    // AVAILABLE since Slice 6: the surface exists, versions are immutable and chunks are cited.
+    productStatus: "AVAILABLE",
     label: "Documents",
     description: "Repositorio y versionado documental",
     whoCanEnable: OWNER_ENABLES,
@@ -128,7 +129,11 @@ export const CAPABILITY_CATALOG: Readonly<Record<CapabilityKey, CapabilityDefini
     key: "quality.rag_assistant",
     module: "quality",
     dependsOn: ["core.documents"],
-    productStatus: "ANNOUNCED",
+    // AVAILABLE since Slice 6. What is available is *retrieval with citations*; the narrative
+    // paragraph needs a generator, and where none is configured the surface says so and shows the
+    // cited passages (ADR-021 §4). A capability is about whether the functionality exists here, not
+    // about whether an external provider happens to be reachable.
+    productStatus: "AVAILABLE",
     label: "RAG Assistant",
     description: "Consulta sobre el corpus del proyecto",
     whoCanEnable: OWNER_ENABLES,

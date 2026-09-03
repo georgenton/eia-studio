@@ -6,6 +6,8 @@ export * from "./provenance/index";
 export * from "./projects/index";
 export * from "./core/config/registry";
 export * from "./field/index";
+export * from "./ai/index";
+export * from "./documents/index";
 export * from "./social/index";
 export * from "./quality/index";
 export * from "./gis/index";

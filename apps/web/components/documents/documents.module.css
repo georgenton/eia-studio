@@ -1,0 +1,171 @@
+.surface {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 1000px;
+}
+.note {
+  margin: 0 0 12px;
+  font-size: 11.5px;
+  color: var(--eia-text-secondary);
+  line-height: 1.5;
+}
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.table th {
+  text-align: left;
+  font-size: var(--eia-size-label);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--eia-text-muted);
+  padding: 6px 10px 6px 0;
+  border-bottom: 1px solid var(--eia-hairline);
+  white-space: nowrap;
+}
+.table td {
+  padding: 9px 10px 9px 0;
+  border-bottom: 1px solid var(--eia-hairline);
+  vertical-align: top;
+}
+.code {
+  font-family: var(--eia-font-mono, ui-monospace, monospace);
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+.docLink {
+  font-weight: 600;
+  color: var(--eia-ink);
+}
+.docLink:hover {
+  color: var(--eia-accent);
+}
+
+/* --- the assistant ------------------------------------------------------------------------ */
+.ask {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+.input {
+  font: inherit;
+  font-size: 12.5px;
+  border: 1px solid #d8dde1;
+  border-radius: 5px;
+  padding: 8px 10px;
+  background: #ffffff;
+  flex: 1 1 420px;
+  min-width: 240px;
+}
+.primary {
+  appearance: none;
+  border: 1px solid var(--eia-accent);
+  background: var(--eia-accent);
+  color: #ffffff;
+  border-radius: 5px;
+  padding: 8px 14px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.primary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.narrative {
+  margin: 0 0 12px;
+  font-size: 13px;
+  line-height: 1.65;
+}
+.unavailable {
+  margin: 0 0 12px;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--eia-text-secondary);
+  border-left: 2px solid var(--eia-hairline);
+  padding-left: 10px;
+}
+.citations {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.citation {
+  border: 1px solid var(--eia-hairline);
+  border-radius: 5px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: var(--eia-surface-subtle, #fafbfc);
+}
+.citationHead {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+.citationRef {
+  font-family: var(--eia-font-mono, ui-monospace, monospace);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+.citationTitle {
+  font-size: 11.5px;
+  color: var(--eia-text-secondary);
+}
+.quote {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.55;
+  border-left: 2px solid var(--eia-accent);
+  padding-left: 10px;
+  white-space: pre-wrap;
+}
+.strategy {
+  font-size: var(--eia-size-label);
+  color: var(--eia-text-muted);
+  line-height: 1.45;
+}
+.passages {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.passage {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.passageMeta {
+  font-size: var(--eia-size-label);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--eia-text-muted);
+}
+.passageText {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+.superseded {
+  margin: 0 0 12px;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--eia-text-secondary);
+  border-left: 2px solid var(--eia-warn, #b25e09);
+  padding-left: 10px;
+}

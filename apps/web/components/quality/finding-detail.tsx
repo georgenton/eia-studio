@@ -129,11 +129,32 @@ export function FindingDetailPanel({
                 <span className={styles.sourceRole}>{ROLE_LABEL[item.role] ?? item.role}</span>
                 <span className={styles.sourceLabel}>{item.label}</span>
                 <blockquote className={styles.quote}>{item.quote}</blockquote>
-                <span className={styles.sourceRef}>
-                  {item.sourceRef
-                    ? "Extracto reconstruido del expediente. Sin número de página: todavía no hay ingesta documental."
-                    : "Valor declarado en la ficha del proyecto."}
-                </span>
+                {item.documentRef ? (
+                  <span className={styles.sourceRef}>
+                    Transcrito de{" "}
+                    <a
+                      className={styles.documentLink}
+                      href={`/t/${tenant}/p/${project}/documents/${item.documentRef.code}${
+                        item.documentRef.chunkOrdinal === null
+                          ? ""
+                          : `#p-${item.documentRef.chunkOrdinal}`
+                      }`}
+                    >
+                      {item.documentRef.code} {item.documentRef.versionLabel}
+                      {item.documentRef.page === null ? "" : ` · p. ${item.documentRef.page}`}
+                    </a>{" "}
+                    — {item.documentRef.title}.
+                    {item.documentRef.chunkOrdinal === null
+                      ? " El pasaje exacto no pudo identificarse por coincidencia literal."
+                      : ""}
+                  </span>
+                ) : (
+                  <span className={styles.sourceRef}>
+                    {item.sourceRef
+                      ? "Extracto reconstruido del expediente. Sin número de página: el documento todavía no está en el sistema."
+                      : "Valor declarado en la ficha del proyecto."}
+                  </span>
+                )}
               </div>
             ))}
           </div>

@@ -121,7 +121,11 @@ describe("staging · Quality Gate tables and their guarantees", () => {
     const names = result.rows.map((r) => (r as { name: string }).name);
     expect(names).toContain("document_assertion_single_value");
     expect(names).toContain("document_assertion_date_shape");
-    expect(names).toContain("document_assertion_source_kind_available");
+    // Slice 6 replaced `document_assertion_source_kind_available` — which forbade a
+    // `DOCUMENT_VERSION` claim outright while no document could exist — with the rule that now
+    // holds: a citation must be whole, and a claim must name what it claims (migration 0021).
+    expect(names).toContain("document_assertion_citation_is_real");
+    expect(names).not.toContain("document_assertion_source_kind_available");
   });
 });
 
@@ -234,7 +238,7 @@ describe("staging · the guarantees, probed inside a transaction that always rol
     expect(probe.error).toMatch(/document_assertion_single_value/);
   });
 
-  it("refuses an assertion claiming to come from an ingested document", async () => {
+  it("refuses an assertion claiming to come from a document it does not name", async () => {
     const probe = await rollbackProbe(db.migrator, (tx) =>
       tx.execute(sql`
         insert into app.document_assertion
@@ -245,6 +249,23 @@ describe("staging · the guarantees, probed inside a transaction that always rol
          where a.tenant_id = ${f.tenantId} and a.project_id = ${f.projectId} limit 1
       `),
     );
-    expect(probe.error).toMatch(/document_assertion_source_kind_available/);
+    expect(probe.error).toMatch(/document_assertion_citation_is_real/);
+  });
+
+  it("refuses a half citation: a passage named without its version", async () => {
+    const probe = await rollbackProbe(db.migrator, (tx) =>
+      tx.execute(sql`
+        insert into app.document_assertion
+          (id, tenant_id, project_id, key, source_kind, source_ref, value_number, chunk_id,
+           provenance_id)
+        select gen_random_uuid(), ${f.tenantId}, ${f.projectId}, 'probe.half_citation',
+               'RECONSTRUCTED_CORPUS', 'probe', 1, c.id, a.provenance_id
+          from app.document_assertion a
+          join app.document_chunk c
+            on c.tenant_id = a.tenant_id and c.project_id = a.project_id
+         where a.tenant_id = ${f.tenantId} and a.project_id = ${f.projectId} limit 1
+      `),
+    );
+    expect(probe.error).toMatch(/document_assertion_citation_is_real/);
   });
 });

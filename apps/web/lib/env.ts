@@ -6,13 +6,18 @@ import {
   emailEnvSchema,
   loadEnv,
   runtimeDatabaseEnvSchema,
+  assistantEnvSchema,
   socialEnvSchema,
   type AppEnv,
   type AuthEnv,
   type EmailEnv,
   type RuntimeDatabaseEnv,
 } from "@eia/contracts";
-import { resolveClassifierAvailability, type ClassifierAvailability } from "@eia/domain";
+import {
+  resolveAiAdapterAvailability,
+  resolveClassifierAvailability,
+  type ClassifierAvailability,
+} from "@eia/domain";
 
 import { resolveTrustedOrigins, vercelHosts } from "./trusted-origins";
 
@@ -27,6 +32,11 @@ interface WebEnv {
    * the deterministic tabulation, and it never falls back to the in-process fake.
    */
   readonly classifier: ClassifierAvailability;
+  /**
+   * Whether the document assistant may write a narrative paragraph (Slice 6). Retrieval and
+   * citation do not depend on it: `UNAVAILABLE` degrades the answer, never the surface.
+   */
+  readonly assistant: ClassifierAvailability;
   /**
    * The origins Better Auth accepts state-changing requests from, resolved once from explicit
    * configuration plus this deployment's own platform hostnames (`trusted-origins.ts`).
@@ -64,6 +74,7 @@ export function getEnv(): WebEnv {
   const app = loadEnv("app", appEnvSchema, source);
   const auth = loadEnv("auth", authEnvSchema, source);
   const social = loadEnv("social", socialEnvSchema, source);
+  const assistant = loadEnv("assistant", assistantEnvSchema, source);
   cached = {
     app,
     auth,
@@ -74,6 +85,15 @@ export function getEnv(): WebEnv {
       classifier: social.SOCIAL_CLASSIFIER,
       model: social.SOCIAL_CLASSIFIER_MODEL,
       gatewayApiKeyPresent: social.AI_GATEWAY_API_KEY !== undefined,
+    }),
+    assistant: resolveAiAdapterAvailability({
+      appEnv: app.APP_ENV,
+      variable: "ASSISTANT_GENERATOR",
+      modelVariable: "ASSISTANT_GENERATOR_MODEL",
+      feature: "la redacción asistida",
+      adapter: assistant.ASSISTANT_GENERATOR,
+      model: assistant.ASSISTANT_GENERATOR_MODEL,
+      credentialPresent: assistant.AI_GATEWAY_API_KEY !== undefined,
     }),
     trustedOrigins: resolveTrustedOrigins({
       configured: auth.AUTH_TRUSTED_ORIGINS,
