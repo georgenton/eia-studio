@@ -71,6 +71,22 @@ run([
   "--project-role",
   "FIELD_TECHNICIAN",
 ]);
+// The Social specialist: the only role that may start a model run and settle a coding.
+run([
+  "provision:identity",
+  "--email",
+  "especialista@demo.invalid",
+  "--name",
+  "Especialista social",
+  "--tenant",
+  "demo-consultancy",
+  "--tenant-role",
+  "MEMBER",
+  "--project",
+  "puente-del-amor",
+  "--project-role",
+  "SOCIAL_SPECIALIST",
+]);
 run([
   "provision:identity",
   "--email",

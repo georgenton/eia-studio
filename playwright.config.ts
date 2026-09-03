@@ -75,6 +75,18 @@ export default defineConfig({
       },
     },
     {
+      // Social Intelligence: the specialist is the only role that can start a run and settle a
+      // coding, so the journey is theirs.
+      name: "specialist",
+      testMatch: /social\.spec\.ts|social-accessibility\.spec\.ts|social-screenshots\.spec\.ts/,
+      dependencies: ["setup"],
+      use: {
+        ...devices["Desktop Chrome"],
+        viewport: { width: 1440, height: 940 },
+        storageState: "e2e/.auth/specialist.json",
+      },
+    },
+    {
       name: "anonymous",
       testMatch: /anonymous\.spec\.ts/,
       use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 940 } },

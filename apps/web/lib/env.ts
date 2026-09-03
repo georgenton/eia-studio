@@ -6,10 +6,12 @@ import {
   emailEnvSchema,
   loadEnv,
   runtimeDatabaseEnvSchema,
+  socialEnvSchema,
   type AppEnv,
   type AuthEnv,
   type EmailEnv,
   type RuntimeDatabaseEnv,
+  type SocialEnv,
 } from "@eia/contracts";
 
 interface WebEnv {
@@ -17,6 +19,8 @@ interface WebEnv {
   readonly database: RuntimeDatabaseEnv;
   readonly auth: AuthEnv;
   readonly email: EmailEnv;
+  /** Which classifier a run is created for, and which model it asks for (Slice 4). */
+  readonly social: SocialEnv;
 }
 
 let cached: WebEnv | null = null;
@@ -48,6 +52,7 @@ export function getEnv(): WebEnv {
     database: loadEnv("database", runtimeDatabaseEnvSchema, source),
     auth: loadEnv("auth", authEnvSchema, source),
     email: loadEnv("email", emailEnvSchema, source),
+    social: loadEnv("social", socialEnvSchema, source),
   };
   return cached;
 }

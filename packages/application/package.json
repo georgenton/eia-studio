@@ -9,21 +9,23 @@
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
-    "seed:demo-project": "tsx scripts/seed-demo-project.ts"
+    "seed:demo-project": "tsx scripts/seed-demo-project.ts",
+    "social:drain": "tsx scripts/drain-classifications.ts"
   },
   "dependencies": {
+    "@eia/contracts": "workspace:*",
     "@eia/db": "workspace:*",
     "@eia/domain": "workspace:*",
+    "ai": "^7.0.91",
     "drizzle-orm": "0.45.2",
-    "zod": "4.5.4",
-    "@eia/contracts": "workspace:*"
+    "zod": "4.5.4"
   },
   "devDependencies": {
     "@eia/config": "workspace:*",
     "@eia/testing": "workspace:*",
-    "typescript": "5.9.3",
-    "vitest": "4.1.11",
+    "dotenv": "17.4.2",
     "tsx": "4.23.13",
-    "dotenv": "17.4.2"
+    "typescript": "5.9.3",
+    "vitest": "4.1.11"
   }
 }

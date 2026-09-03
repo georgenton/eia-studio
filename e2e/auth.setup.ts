@@ -23,3 +23,8 @@ setup("authenticate as the second field technician", async ({ page }) => {
   await signIn(page, USERS.technicianTwo);
   await page.context().storageState({ path: USERS.technicianTwo.state });
 });
+
+setup("authenticate as the social specialist", async ({ page }) => {
+  await signIn(page, USERS.specialist);
+  await page.context().storageState({ path: USERS.specialist.state });
+});

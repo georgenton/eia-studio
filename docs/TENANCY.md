@@ -100,6 +100,7 @@ project:   project.configure, project.members.manage, parcels.read, parcels.writ
            field.assignments.read_own, field.responses.read,
            field.capture, field.validate, field.write,
            media.upload, documents.read, documents.write, social.read, social.write,
+           social.ai.run, social.coding.review,
            taxonomy.approve, quality.read, quality.write, quality.review,
            reports.write, reports.review, deliverables.approve, portal.publish,
            pii.read, pii.export, provenance.read
@@ -138,6 +139,38 @@ condition reaches the database as the transaction-local setting `app.field_respo
 by the application layer from the resolved permission — the same shape as `app.pii_access`
 (SECURITY.md §5). A caller that forgets to set it sees only its own rows, which is the safe
 direction to fail in.
+
+### 3.2 Social permissions, and the one that is reused rather than duplicated (Slice 4)
+
+Social Intelligence has three distinguishable acts, and they are not the same grant.
+
+| Key | Grants | Held by |
+|---|---|---|
+| `social.read` | the deterministic analytics: tabulation, workflow counts, validated theme distribution | COORDINATOR, SOCIAL_SPECIALIST, REVIEWER, VIEWER |
+| `social.ai.run` | start a classification run — text leaves this system for a model | SOCIAL_SPECIALIST |
+| `social.coding.review` | settle what a response means: submit the validated coding | SOCIAL_SPECIALIST, REVIEWER |
+| `field.responses.read` | **reused, not duplicated**: read the individual open response, and therefore any coding of it | COORDINATOR, SOCIAL_SPECIALIST, REVIEWER |
+
+Two decisions are worth stating rather than leaving to be inferred.
+
+**Reading an individual open response is not a new permission.** It is the same datum
+`field.responses.read` already governs (SECURITY.md §10b), so the Social surfaces require that key
+rather than minting a parallel one that could drift from it. A classification and a review are
+statements *about* that response, and their RLS policies say so with an `EXISTS` over
+`survey_answer` whose own policy has already applied.
+
+**A COORDINATOR watches; a SOCIAL_SPECIALIST decides.** The coordinator sees the analytics, the
+queue's progress and the run history, and holds neither `social.ai.run` nor
+`social.coding.review`: sending a project's responses to a model, and settling what they mean, are
+specialist acts. A REVIEWER may settle a coding — that is what the role means — but does not
+initiate model runs. A FIELD_TECHNICIAN holds none of these keys and no `field.responses.read`, so
+the Social route denies them; a GIS or environmental specialist likewise.
+
+Aggregate analytics also require `field.responses.read` today, for a reason that is a limitation
+rather than a policy: the counts are computed from response rows under RLS, so a caller who cannot
+see those rows would be shown *zeros* rather than a denial — a plausible-looking, entirely false
+tabulation. Denying is the honest outcome; a published aggregate projection that a viewer could
+read without seeing rows is recorded as TD-045.
 
 ## 3a. Identity provider boundary (Gate 1 D-016, ADR-010)
 

@@ -3,29 +3,29 @@
 EIA Studio is a multi-tenant B2B SaaS for environmental consulting firms: field capture, parcels,
 surveys, social analysis with human-in-the-loop AI, quality review and client reporting.
 
-**Current phase: SLICE 3 (FieldFlow / survey foundation) IMPLEMENTED ON
-`feat/slice-3-field-survey-foundation`, PENDING IMPLEMENTATION GATE 3.** Slice 0 (SaaS
-foundation), Slice 0.5 (staging foundation), Slice 1 (product shell, Portfolio, Command Center,
-provenance drawer) and Slice 2 (GIS / Parcel Explorer, Parcel Workspace, territorial summary) are
-merged into `main`; Implementation Gates 0, 1 and 2 and Staging Gate 0.5 are closed.
-Slice 3 makes field capture real: the coordinator's campaign overview, the technician's mobile
-My Work and capture form, versioned questionnaires, typed answers, the Parcel Workspace's Visits
-tab and the Command Center's field panel, over `project_configuration`, `survey_template`,
-`survey_version`, `survey_question`, `survey_option`, `survey_campaign`, `field_assignment`,
-`field_visit`, `survey_instance`, `survey_answer` and `survey_answer_option`. A published
-`SurveyVersion` is immutable by database trigger and a submitted response is final; correction is
-deliberately not implemented. **Individual responses are not readable by everyone with project
-access**: `field.responses.read` is a separate permission and the RLS policies enforce row
-ownership (SECURITY.md §10b, TENANCY.md §3.1). Architecture decision **D-020 is closed by
-ADR-018**: offline capture is the configuration `field.surveys.offline_mode`, not a capability, and
-`required` + the online-only web channel fails at campaign activation rather than pretending. The
-demo campaign, its questionnaire and its answers are **deterministic, synthetic and labelled
-DEMO_SIMULATION**, contain no personal data, and are never merged into the concluded study's
-historical socioeconomic aggregate. See `docs/SLICE_3_REPORT.md` (and the Slice 1 and 2 reports)
-for what was built, what was deliberately omitted and every deviation from the design bundle.
-Social Intelligence, Quality Gate, RAG, Reports and the Client Portal are **not** implemented;
-their routes exist only as capability-guarded placeholders. Staging is live for preview only; do
-not deploy production.
+**Current phase: SLICE 4 (Social Intelligence / human-in-the-loop) IMPLEMENTED ON
+`feat/slice-4-social-intelligence`, PENDING IMPLEMENTATION GATE 4.** Slice 0 (SaaS foundation),
+Slice 0.5 (staging foundation), Slice 1 (product shell, Portfolio, Command Center, provenance
+drawer), Slice 2 (GIS / Parcel Explorer, Parcel Workspace) and Slice 3 (FieldFlow, versioned
+questionnaires, typed answers) are merged into `main`; Implementation Gates 0–3 and Staging Gate
+0.5 are closed.
+Slice 4 is the first slice where a language model is part of the product, and its governing rule is
+**rules calculate, AI proposes, a human validates, and the system preserves all three** (ADR-019).
+It adds deterministic closed-question tabulation with declared denominators, a versioned and
+immutable coding taxonomy (`taxonomy`, `taxonomy_version`, `taxonomy_category`), classification runs
+and AI proposals (`classification_run`, `ai_classification`), specialist review as the validated
+result (`human_review`), and the Social Intelligence surface. A published `TaxonomyVersion` is
+immutable by database trigger; a submitted `HumanReview` is final; a correction never overwrites the
+proposal it corrects. **Only `DEMO_SIMULATION` answers may be sent to a model**: the gate is checked
+in the use-case and again in the worker, and a non-demo answer is refused with
+`ai_processing_not_authorized` whatever the caller's role (SECURITY.md §10c). The model's confidence
+is an uncalibrated heuristic and AI-vs-human coincidence is **agreement, never accuracy**;
+`HumanReview` is not a thesis gold standard (TD-044). The classifier is one narrow port with a
+deterministic fake (CI, tests) and a live AI Gateway adapter, selected by explicit configuration
+with **no fallback in either direction**. Social analytics require `field.responses.read` even for
+aggregates, because RLS would otherwise return silent zeros (TD-045). Quality Gate, RAG, Reports and
+the Client Portal are **not** implemented; their routes exist only as capability-guarded
+placeholders. Staging is live for preview only; do not deploy production.
 
 ## Read before acting
 
@@ -50,7 +50,7 @@ Also relevant by task: `docs/DATA_MODEL.md`, `docs/PROVENANCE.md`, `docs/AI_GOVE
 `docs/IMPLEMENTATION_PLAN.md`, `docs/DESIGN_BUNDLE_KNOWN_ISSUES.md`, the delivery docs
 `docs/ENGINEERING_STANDARDS.md`, `docs/RELEASE_POLICY.md`, `docs/CI.md`, `docs/DEPLOYMENT.md`,
 `docs/DEPENDENCIES.md`, `docs/TECH_DEBT.md`, the Gate record `docs/DECISIONS/GATE-1.md`, and
-the ADRs in `docs/DECISIONS/ADR-001` … `ADR-018`. Root `README.md` has the local quick start.
+the ADRs in `docs/DECISIONS/ADR-001` … `ADR-019`. Root `README.md` has the local quick start.
 
 ## Working rules for every session
 

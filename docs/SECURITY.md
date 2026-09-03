@@ -189,6 +189,26 @@ position at the time of the visit, captured only with the browser's permission a
 `denied` or `unavailable` when there is none — never fabricated, and never a household's address.
 Answer payloads are not written to logs.
 
+## 10c. Sending text to a language model (Slice 4)
+
+This is the first slice where data leaves the system for a third party, and the controls are
+deliberately about the **data**, not about the person asking.
+
+| Control | Mechanism |
+|---|---|
+| Demo-only gate | `assertAiProcessingAllowed` refuses any answer whose provenance regime is not `DEMO_SIMULATION`. Checked when a run is created *and* again in the worker at the moment the text would leave. A specialist with every permission cannot send a `HISTORICAL_OBSERVED` or `LIVE_OPERATIONAL` answer |
+| Not a hidden button | the gate is in the domain, on the path every caller takes; the integration test asserts the classifier port was **never invoked** for a refused run |
+| Data minimisation | the classifier's input type carries the response text and the taxonomy definition, and has nowhere to put a respondent, a technician, a parcel code, a coordinate, a visit or another answer |
+| Prompt injection | response text arrives inside a delimited block, the instruction says it cannot redefine the task, and the output schema admits only category codes of one published taxonomy version. An invented code is a **failed** classification, never coerced to `OTHER` |
+| No agency | the classifier has no tools, no retrieval, no browsing, no filesystem and no database. One text in, one structured answer out |
+| No reasoning stored | chain-of-thought is neither requested nor persisted; nor is the raw provider response body. A plausible machine-written rationale for a coding of what a person said is exactly the artefact that would later be quoted as evidence |
+| Vendor boundary | one narrow port (`OpenTextClassifier`); the live adapter is the AI SDK through the Vercel AI Gateway, selected by explicit configuration with **no fallback** — a misconfigured environment fails rather than fabricating codings |
+| Logs | answer text never reaches a log line; the worker logs identifiers and statuses, and a classification's stored `error` is bounded operational text |
+| Model output is a proposal | it is never the validated coding, never overwrites the answer, and never enters a validated figure without a human decision (ADR-019) |
+
+This restriction stands until the privacy, legal and vendor review of §10a explicitly authorises
+real data. Lifting it is a decision recorded there, not a configuration change here.
+
 ## 10a. Privacy by design and the compliance gate (Gate 1 D-018)
 
 Before **production ingestion of any real personal data**, the project requires a specific

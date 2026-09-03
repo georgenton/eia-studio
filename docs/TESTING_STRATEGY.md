@@ -292,3 +292,25 @@ APP_ENV=local EIA_CONFIRM_RESET=yes-delete-my-local-data pnpm db:reset:local
 ```
 
 It refuses unless `APP_ENV=local`, the database host is loopback, and the confirmation is present.
+
+
+## 16. Social Intelligence and the AI boundary (Slice 4)
+
+**CI never calls a model.** The classifier is a port with two adapters; `SOCIAL_CLASSIFIER=fake` is
+the default and the only one CI ever configures, so the whole suite — unit, integration, Playwright
+— runs with a deterministic in-process classifier and needs no credential. There is no fallback in
+either direction: an environment configured for the gateway without a key **fails**, because the
+alternative is fabricated codings that are indistinguishable from real ones once they are rows.
+
+| Layer | What it proves |
+|---|---|
+| Domain unit (`packages/domain/test/social.test.ts`) | taxonomy publishability and hashing, the demo-only gate, output validation including the injection case, confidence banding and its copy, eligibility, the ACCEPTED/CORRECTED derivation, label-set comparison, denominators, validated distribution, bounded retries |
+| Application integration (`packages/application/test/social-coding.integration.test.ts`) | the whole journey against a real database: the gate refuses a non-demo run **and the classifier is never invoked**; a run queues one pending row per eligible answer; two concurrent claims take different rows; usage and latency are stored; a specialist accepts one proposal and corrects another and the proposal survives unchanged; validated metrics count human labels; a second review is refused; a technician and a viewer are denied; `social.ai_coding` off leaves tabulation working |
+| Database isolation (`slice4-social.integration.test.ts`) | cross-tenant and no-context denial on all eight tables, ADMIN without membership, the coding tables gated by `field.responses.read` while the scheme stays project-readable, unique constraints, cross-tenant category borrowing, forced RLS |
+| Versioning regression (`slice4-taxonomy-versioning.integration.test.ts`) | v1 published → proposal and review made against it → v2 published with changed categories; v1's rows untouched, both codings still resolve to v1, a v2 category cannot be attached to a v1 coding, a published version refuses edit and delete, a submitted review is final, and a second run with a different model and prompt leaves the first run's metadata unchanged |
+| End to end (`e2e/social.spec.ts`) | the specialist's journey in a browser, with the queue drained by `pnpm social:drain` and the deterministic fake |
+| Accessibility (`e2e/social-accessibility.spec.ts`) | axe over tabulation, workflow, queue, low-confidence and the review workspace; category chips carry text, not colour alone |
+
+**Screenshots of AI states are UI evidence, not model evidence.** Every proposal in
+`docs/screenshots/slice-4/` came from the fake classifier; the report says so beside them. A live
+model result is only ever produced by an explicit operator smoke against staging.

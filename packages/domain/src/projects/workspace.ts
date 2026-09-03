@@ -66,8 +66,8 @@ export const SURFACE_DEFINITIONS: Readonly<Record<WorkspaceSurface, SurfaceDefin
     capability: "social.analytics",
     label: "Social Intelligence",
     segment: "social",
-    implemented: false,
-    plannedIn: "la fase de análisis social",
+    implemented: true,
+    plannedIn: null,
   },
   quality: {
     key: "quality",

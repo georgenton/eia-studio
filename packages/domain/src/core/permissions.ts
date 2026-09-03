@@ -42,8 +42,17 @@ export const PROJECT_PERMISSIONS = [
   "media.upload",
   "documents.read",
   "documents.write",
+  // Social permissions are split the same way the field ones are, and for the same reason.
+  // `social.read` is the deterministic, aggregated analytics — counts and distributions, nobody's
+  // words. Reading an individual open response is not a new permission: it is the same datum
+  // `field.responses.read` already governs, so the Social surfaces reuse that boundary instead of
+  // minting a second key that could drift from it (SECURITY.md §10b).
   "social.read",
   "social.write",
+  // Sending text to an external model, and settling what a response means, are separate acts from
+  // reading analytics: one leaves the system, the other becomes the validated coding.
+  "social.ai.run",
+  "social.coding.review",
   "taxonomy.approve",
   "quality.read",
   "quality.write",

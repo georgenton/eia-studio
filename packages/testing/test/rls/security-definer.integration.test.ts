@@ -21,7 +21,12 @@ import {
 const db = getTestDatabase();
 let w: TwoTenantWorld;
 
-const PRIVILEGED = [
+/**
+ * **Class 1 — membership predicates.** They answer one question about the caller, in `LANGUAGE
+ * sql`, returning a boolean and nothing else. The strictest possible shape for a privileged
+ * function: there is no row to leak, because the return type cannot carry one.
+ */
+const PRIVILEGED_PREDICATES = [
   "is_tenant_member",
   "is_tenant_admin",
   "is_tenant_owner",
@@ -31,6 +36,24 @@ const PRIVILEGED = [
   "shares_tenant_with",
   "tenant_has_no_members",
 ] as const;
+
+/**
+ * **Class 2 — the background worker's job boundary (Slice 4).**
+ *
+ * A worker process has no session and no membership, so it cannot select a queue under RLS; and it
+ * must not hold `BYPASSRLS`, which would trade a tenancy guarantee for a scheduling convenience.
+ * These two functions are the narrow alternative, and they cannot be boolean: claiming work means
+ * returning *which* work.
+ *
+ * What still holds, and is asserted below: fixed `search_path` without `public`, every object
+ * schema-qualified, no dynamic SQL, `EXECUTE` revoked from PUBLIC, and — the rule that matters
+ * most here — **every returned column is a uuid or a count**. No answer text, no category, no
+ * response content crosses this boundary; the worker takes the identifiers and then does all of
+ * its real reading inside an ordinary RLS transaction as the user who started the run.
+ */
+const PRIVILEGED_JOB_HELPERS = ["claim_classification", "release_stale_classifications"] as const;
+
+const PRIVILEGED = [...PRIVILEGED_PREDICATES, ...PRIVILEGED_JOB_HELPERS] as const;
 
 /** A login role with no grants at all: stands in for "any role that only has PUBLIC". */
 const PROBE_ROLE = "eia_probe_public";
@@ -149,15 +172,51 @@ describe("hardening contract of the privileged helpers", () => {
     expect((members.rows[0] as { n: number }).n).toBe(0);
   });
 
-  it("no helper returns anything but a boolean", async () => {
+  it("every membership predicate returns a boolean and nothing else", async () => {
     const result = await db.migrator.execute(sql`
       select p.proname as name, pg_catalog.format_type(p.prorettype, null) as rettype
       from pg_proc p join pg_namespace n on n.oid = p.pronamespace
       where n.nspname = 'app' and p.prosecdef
+        and p.proname not in (${sql.join(
+          PRIVILEGED_JOB_HELPERS.map((name) => sql`${name}`),
+          sql`, `,
+        )})
     `);
+    expect(result.rows.length).toBe(PRIVILEGED_PREDICATES.length);
     for (const row of result.rows as Array<{ name: string; rettype: string }>) {
       expect(row.rettype, row.name).toBe("boolean");
     }
+  });
+
+  it("the job helpers return identifiers and counts, never content", async () => {
+    // The boundary a background worker crosses. `claim_classification` returns four uuids;
+    // `release_stale_classifications` returns how many claims it released. A text column here
+    // would mean an answer's words could leave the tenant's RLS envelope.
+    // A RETURNS TABLE function keeps its output columns in proargnames/proargmodes ('t' = table
+    // column), not in a composite type, so that is what this reads.
+    const claim = await db.migrator.execute(sql`
+      select arg.name as column, pg_catalog.format_type(arg.type, null) as type
+        from pg_proc p,
+             lateral unnest(p.proargnames, p.proallargtypes, p.proargmodes)
+               with ordinality as arg(name, type, mode, ord)
+       where p.proname = 'claim_classification' and arg.mode = 't'
+       order by arg.ord
+    `);
+    const columns = claim.rows as Array<{ column: string; type: string }>;
+    expect(columns.map((c) => c.column)).toEqual([
+      "classification_id",
+      "tenant_id",
+      "project_id",
+      "initiated_by_user_id",
+    ]);
+    for (const column of columns) expect(column.type, column.column).toBe("uuid");
+
+    const release = await db.migrator.execute(sql`
+      select pg_catalog.format_type(p.prorettype, null) as rettype
+        from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+       where n.nspname = 'app' and p.proname = 'release_stale_classifications'
+    `);
+    expect((release.rows[0] as { rettype: string }).rettype).toBe("integer");
   });
 
   it("no helper body uses dynamic SQL", async () => {
@@ -168,8 +227,16 @@ describe("hardening contract of the privileged helpers", () => {
       where n.nspname = 'app' and p.prosecdef
     `);
     for (const row of result.rows as Array<{ name: string; src: string; lang: string }>) {
-      expect(row.lang, row.name).toBe("sql");
-      expect(row.src.toLowerCase(), row.name).not.toMatch(/\bexecute\b|format\s*\(|quote_ident/);
+      // Membership predicates are plain SQL; the job helpers need control flow, so they are
+      // plpgsql. Both are held to the rules that actually protect the boundary: no dynamic SQL,
+      // no identifier interpolation, every relation schema-qualified.
+      const isJobHelper = (PRIVILEGED_JOB_HELPERS as ReadonlyArray<string>).includes(row.name);
+      expect(row.lang, row.name).toBe(isJobHelper ? "plpgsql" : "sql");
+      // `EXECUTE` as a plpgsql statement is dynamic SQL; `FOR UPDATE ... ` is not. The job helpers
+      // must not contain the former.
+      expect(row.src.toLowerCase(), row.name).not.toMatch(
+        /\bexecute\s+(?:'|format|quote)|format\s*\(|quote_ident/,
+      );
       // every application relation reference is schema-qualified
       expect(row.src, row.name).not.toMatch(/\bfrom\s+(?!app\.)[a-z_]+\s/i);
     }

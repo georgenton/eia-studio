@@ -1,7 +1,9 @@
-import { createPool, type Pool } from "@eia/db";
+import { createClassifier } from "@eia/application";
+import { createDatabase, createPool, type Pool } from "@eia/db";
 import { InMemoryJobQueue } from "@eia/domain";
 import pino from "pino";
 
+import { ClassificationConsumer } from "./classification-consumer";
 import { loadWorkerConfig } from "./config";
 import { WorkerProcess } from "./process";
 
@@ -23,6 +25,7 @@ try {
 }
 
 let pool: Pool | null = null;
+const poolsToClose: Pool[] = [];
 const checks = [];
 if (config.database) {
   const url = config.database.DATABASE_URL;
@@ -40,6 +43,41 @@ if (config.database) {
   });
 }
 
+/**
+ * The Social classification consumer (Slice 4). It starts only when this process has a database
+ * connection: without one there is no queue to poll. The classifier is chosen by explicit
+ * configuration and never falls back — `createClassifier` throws when the gateway is configured
+ * without a key, because inventing codings would be worse than refusing to start.
+ */
+let consumer: ClassificationConsumer | null = null;
+if (config.database) {
+  const consumerPool = createPool(config.database.DATABASE_URL, {
+    max: 4,
+    applicationName: "eia-studio-worker-social",
+  });
+  consumer = new ClassificationConsumer({
+    db: createDatabase(consumerPool),
+    classifier: createClassifier({
+      kind: config.social.SOCIAL_CLASSIFIER,
+      gatewayApiKeyPresent: config.social.AI_GATEWAY_API_KEY !== undefined,
+    }),
+    logger,
+  });
+  checks.push({
+    name: "social-classifier",
+    run: async () => {
+      logger.info(
+        {
+          classifier: config.social.SOCIAL_CLASSIFIER,
+          model: config.social.SOCIAL_CLASSIFIER_MODEL,
+        },
+        "social classifier configured",
+      );
+    },
+  });
+  poolsToClose.push(consumerPool);
+}
+
 const worker = new WorkerProcess({
   logger,
   queue: new InMemoryJobQueue(),
@@ -50,9 +88,16 @@ const worker = new WorkerProcess({
   checks,
   onStop: [
     {
+      name: "social-consumer",
+      run: async () => {
+        if (consumer) await consumer.stop();
+      },
+    },
+    {
       name: "database-pool",
       run: async () => {
         if (pool) await pool.end();
+        for (const open of poolsToClose) await open.end();
       },
     },
   ],
@@ -60,6 +105,7 @@ const worker = new WorkerProcess({
 
 try {
   await worker.start();
+  consumer?.start();
 } catch (error) {
   logger.error(
     { error: error instanceof Error ? error.message : String(error) },
