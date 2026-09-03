@@ -74,8 +74,8 @@ export const SURFACE_DEFINITIONS: Readonly<Record<WorkspaceSurface, SurfaceDefin
     capability: "quality.document_gate",
     label: "Quality Gate",
     segment: "quality",
-    implemented: false,
-    plannedIn: "la fase de revisión de calidad",
+    implemented: true,
+    plannedIn: null,
   },
   documents: {
     key: "documents",

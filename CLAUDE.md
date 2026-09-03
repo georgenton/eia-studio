@@ -30,8 +30,22 @@ is written when nothing can process it, and a worker with no usable classifier n
 The model's confidence is an uncalibrated heuristic and AI-vs-human coincidence is **agreement,
 never accuracy**; `HumanReview` is not a thesis gold standard (TD-044). Social analytics require
 `field.responses.read` even for aggregates, because RLS would otherwise return silent zeros
-(TD-045). Quality Gate, RAG, Reports and the Client Portal are **not** implemented; their routes
-exist only as capability-guarded placeholders until their slices land.
+(TD-045).
+
+**Slice 5 (Quality Gate)** turns known document inconsistencies into a traceable specialist review.
+Five deterministic rules compare two sources and say they disagree; none says which is right and
+none declares compliance (invariant 11, enforced by a vocabulary test over the catalogue, over every
+generated finding and over what is stored). The rule catalogue is **versioned code, not a table**
+(ADR-020, amending ADR-008 §1); a finding stores `requirement_key` + `requirement_version` as text.
+`specialist_review` is append-only — `REVOKE UPDATE, DELETE` *and* triggers — with a mandatory
+justification; a change of mind is a second row. A re-run reconciles on a fingerprint, so a decided
+finding stays decided and only changed evidence reopens it. Evidence is a `document_assertion` read
+by hand from the corpus with **no page number**, because document ingestion does not exist yet and a
+citation nobody can check is a fabrication. Checking (`quality.write`) and deciding
+(`quality.review`) are different grants: a specialist runs, a reviewer settles.
+
+RAG, Reports and the Client Portal are **not** implemented; their routes exist only as
+capability-guarded placeholders until their slices land.
 
 ## Read before acting
 

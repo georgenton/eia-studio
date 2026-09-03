@@ -4,12 +4,14 @@ export * as auditSchema from "./audit";
 export * as gisSchema from "./gis";
 export * as fieldSchema from "./field";
 export * as socialSchema from "./social";
+export * as qualitySchema from "./quality";
 
 import * as appTables from "./app";
 import * as auditTables from "./audit";
 import * as authTables from "./auth";
 import * as fieldTables from "./field";
 import * as gisTables from "./gis";
+import * as qualityTables from "./quality";
 import * as socialTables from "./social";
 
 /** Flat schema object for the drizzle client (unique keys across schemas). */
@@ -55,4 +57,9 @@ export const schema = {
   aiClassificationCategory: socialTables.aiClassificationCategory,
   humanReview: socialTables.humanReview,
   humanReviewCategory: socialTables.humanReviewCategory,
+  documentAssertion: qualityTables.documentAssertion,
+  qualityRun: qualityTables.qualityRun,
+  qualityFinding: qualityTables.qualityFinding,
+  findingEvidence: qualityTables.findingEvidence,
+  specialistReview: qualityTables.specialistReview,
 };

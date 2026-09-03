@@ -51,6 +51,11 @@ const ID_QUERIES = {
   classificationRuns: `select id || ':' || status || ':' || requested_model as v from app.classification_run order by id`,
   aiClassifications: `select id || ':' || status as v from app.ai_classification order by id`,
   humanReviews: `select id || ':' || decision as v from app.human_review order by id`,
+  // Quality Gate (Slice 5): an assertion whose id moved would orphan the evidence citing it, and a
+  // specialist decision that vanished would take a permanent record with it.
+  documentAssertions: `select id || ':' || key || ':' || source_ref as v from app.document_assertion order by id`,
+  qualityFindings: `select id || ':' || finding_code || ':' || state as v from app.quality_finding order by id`,
+  specialistReviews: `select id || ':' || decision as v from app.specialist_review order by id`,
 };
 
 const COUNT_QUERY = `
@@ -79,6 +84,11 @@ const COUNT_QUERY = `
     (select count(*) from app.classification_run) as classification_runs,
     (select count(*) from app.ai_classification)  as ai_classifications,
     (select count(*) from app.human_review)       as human_reviews,
+    (select count(*) from app.document_assertion) as document_assertions,
+    (select count(*) from app.quality_run)        as quality_runs,
+    (select count(*) from app.quality_finding)    as quality_findings,
+    (select count(*) from app.finding_evidence)   as finding_evidence,
+    (select count(*) from app.specialist_review)  as specialist_reviews,
     (select count(*) from app.provenance_record)  as provenance,
     (select count(*) from app.metric_snapshot)    as metrics
 `;
@@ -99,6 +109,9 @@ const DANGLING_TABLES = [
   "classification_run",
   "ai_classification",
   "human_review",
+  "document_assertion",
+  "quality_run",
+  "quality_finding",
 ];
 
 try {

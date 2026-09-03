@@ -28,3 +28,8 @@ setup("authenticate as the social specialist", async ({ page }) => {
   await signIn(page, USERS.specialist);
   await page.context().storageState({ path: USERS.specialist.state });
 });
+
+setup("authenticate as the quality reviewer", async ({ page }) => {
+  await signIn(page, USERS.reviewer);
+  await page.context().storageState({ path: USERS.reviewer.state });
+});

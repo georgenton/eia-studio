@@ -12,4 +12,5 @@ export {
   gisSchema,
   schema,
   socialSchema,
+  qualitySchema,
 } from "./schema/index";

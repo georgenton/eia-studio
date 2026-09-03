@@ -10,6 +10,7 @@ import {
   createPool,
   fieldSchema,
   gisSchema,
+  qualitySchema,
   socialSchema,
 } from "@eia/db";
 import {
@@ -242,6 +243,46 @@ const manifestSchema = z
      * categories a study codes against are project data, and this one is explicitly a
      * reconstruction rather than a scheme the consultancy handed over.
      */
+    /**
+     * Values read by hand out of the concluded study's corpus (Slice 5, ADR-020 §5).
+     *
+     * They live in the fixture rather than in code because they are one project's documents, and
+     * they carry **no page number**: no document has been ingested, so a page would be a
+     * fabricated citation in the one field whose purpose is that a finding can be checked.
+     */
+    quality: z
+      .object({
+        $comment: z.string(),
+        assertions: z
+          .array(
+            z
+              .object({
+                key: z.string().min(3),
+                sourceRef: z.string().min(3),
+                valueText: z.string().min(1).optional(),
+                valueNumber: z.number().optional(),
+                valueDate: z
+                  .string()
+                  .regex(/^\d{4}-\d{2}-\d{2}$/)
+                  .optional(),
+                valueBoolean: z.boolean().optional(),
+                quote: z.string().min(1).optional(),
+                qualifier: z.string().min(1).optional(),
+              })
+              .strict()
+              // Exactly one value, matching the CHECK in migration 0019: a row carrying two lets a
+              // rule silently read the wrong one and raise a finding about nothing.
+              .refine(
+                (a) =>
+                  [a.valueText, a.valueNumber, a.valueDate, a.valueBoolean].filter(
+                    (v) => v !== undefined,
+                  ).length === 1,
+                { message: "an assertion holds exactly one value" },
+              ),
+          )
+          .min(1),
+      })
+      .strict(),
     social: z
       .object({
         $comment: z.string(),
@@ -408,6 +449,10 @@ try {
          and not exists (select 1 from app.classification_run cr where cr.provenance_id = pr.id)
          and not exists (select 1 from app.ai_classification ac where ac.provenance_id = pr.id)
          and not exists (select 1 from app.human_review hr where hr.provenance_id = pr.id)
+         -- Quality Gate (Slice 5), same discipline.
+         and not exists (select 1 from app.document_assertion da where da.provenance_id = pr.id)
+         and not exists (select 1 from app.quality_run qr where qr.provenance_id = pr.id)
+         and not exists (select 1 from app.quality_finding qf where qf.provenance_id = pr.id)
     `);
     /*
      * Provenance ids are **derived from the fixture key**, not random.
@@ -1277,6 +1322,56 @@ try {
       taxonomyVersionsSeeded = 1;
     }
 
+    /**
+     * The corpus assertions (Slice 5).
+     *
+     * **Upserted on (key, source), never deleted and re-inserted.** A finding's evidence cites an
+     * assertion by id; recreating the rows on every seed would leave every existing finding
+     * pointing at an id that no longer exists. The taxonomy learned the same lesson one slice ago.
+     *
+     * **Findings, runs and specialist decisions are left entirely alone.** They are not demo state
+     * this seeder owns: a finding must be the output of a rule that actually ran, and a decision is
+     * a permanent record with somebody's name on it. Re-seeding a demo environment is not a reason
+     * to erase either. `pnpm quality:run` — or the button on the surface — produces the findings.
+     */
+    let assertionsSeeded = 0;
+    for (const assertion of manifest.quality.assertions) {
+      await tx
+        .insert(qualitySchema.documentAssertion)
+        .values({
+          id: randomUUID(),
+          tenantId,
+          projectId,
+          key: assertion.key,
+          sourceKind: "RECONSTRUCTED_CORPUS",
+          sourceRef: assertion.sourceRef,
+          valueText: assertion.valueText ?? null,
+          valueNumber: assertion.valueNumber === undefined ? null : String(assertion.valueNumber),
+          valueDate: assertion.valueDate ?? null,
+          valueBoolean: assertion.valueBoolean ?? null,
+          quote: assertion.quote ?? null,
+          qualifier: assertion.qualifier ?? null,
+          provenanceId: provenanceId("quality-corpus-assertions"),
+        })
+        .onConflictDoUpdate({
+          target: [
+            qualitySchema.documentAssertion.tenantId,
+            qualitySchema.documentAssertion.projectId,
+            qualitySchema.documentAssertion.key,
+            qualitySchema.documentAssertion.sourceRef,
+          ],
+          set: {
+            valueText: assertion.valueText ?? null,
+            valueNumber: assertion.valueNumber === undefined ? null : String(assertion.valueNumber),
+            valueDate: assertion.valueDate ?? null,
+            valueBoolean: assertion.valueBoolean ?? null,
+            quote: assertion.quote ?? null,
+            qualifier: assertion.qualifier ?? null,
+          },
+        });
+      assertionsSeeded += 1;
+    }
+
     // No AI classifications are seeded, here or anywhere. A proposal in the database must have
     // come from a model that actually ran; a fabricated one would be indistinguishable from a
     // real result and would corrupt every later comparison (Slice 4 §68).
@@ -1292,6 +1387,7 @@ try {
         `GIS ${corridor.parcels.length} parcels · alignment ${(corridor.alignmentLengthM / 1000).toFixed(2)} km · ${corridor.generatorVersion}`,
         `chainage derived for ${chainage.rowCount ?? 0} parcels (centroid_projection, alignment CRS EPSG:${analysisSrid})`,
         `field: ${assignmentsSeeded} assignments · ${submissionsSeeded} submitted · offline_mode=${field.offlineMode}`,
+        `quality: ${assertionsSeeded} afirmaciones del corpus · 0 hallazgos sembrados`,
         `social: taxonomy ${taxonomyVersionLabel} (${social.version.categories.length} categorías, ${taxonomyVersionsSeeded === 1 ? "nueva" : "reutilizada"}) · 0 clasificaciones sembradas`,
       ].join(" · "),
     );

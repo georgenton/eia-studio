@@ -21,6 +21,7 @@ no personal data: the names are job titles.
 | `especialista@demo.invalid` | Especialista social       | `MEMBER`    | `SOCIAL_SPECIALIST`     |
 | `tecnico@demo.invalid`      | Técnico de campo 1        | `MEMBER`    | `FIELD_TECHNICIAN`      |
 | `tecnico2@demo.invalid`     | Técnico de campo 2        | `MEMBER`    | `FIELD_TECHNICIAN`      |
+| `revisor@demo.invalid`      | Revisora de calidad       | `MEMBER`    | `REVIEWER`              |
 
 The tenant is `demo-consultancy`; the project is `puente-del-amor`. Every internal URL is
 `/t/demo-consultancy/p/puente-del-amor/…`.
@@ -31,17 +32,20 @@ codings. Opening a project surface as the admin shows a denial, and that denial 
 
 ## What each role sees
 
-| Surface                                   | Coordinator     | Social specialist | Field technician     | Tenant admin                    |
-| ----------------------------------------- | --------------- | ----------------- | -------------------- | ------------------------------- |
-| Portfolio                                 | ✅ own projects | ✅ own projects   | ✅ own projects      | ✅ all (names, state, progress) |
-| Command Center                            | ✅              | ✅                | —                    | denied                          |
-| GIS / Parcel Explorer                     | ✅              | ✅ read           | ✅ read              | denied                          |
-| FieldFlow (campaigns, assignments, inbox) | ✅ manage       | ✅ read           | own assignments only | denied                          |
-| An individual response's answers          | ✅              | ✅                | own captures only    | denied                          |
-| Social Intelligence — Tabulación          | ✅              | ✅                | denied               | denied                          |
-| Social Intelligence — start a run         | —               | ✅                | denied               | denied                          |
-| Social Intelligence — settle a coding     | —               | ✅                | denied               | denied                          |
-| Tenant Settings                           | —               | —                 | —                    | ✅                              |
+| Surface                                   | Coordinator     | Social specialist | Reviewer        | Field technician     | Tenant admin                    |
+| ----------------------------------------- | --------------- | ----------------- | --------------- | -------------------- | ------------------------------- |
+| Portfolio                                 | ✅ own projects | ✅ own projects   | ✅ own projects | ✅ own projects      | ✅ all (names, state, progress) |
+| Command Center                            | ✅              | ✅                | ✅              | —                    | denied                          |
+| GIS / Parcel Explorer                     | ✅              | ✅ read           | ✅ read         | ✅ read              | denied                          |
+| FieldFlow (campaigns, assignments, inbox) | ✅ manage       | ✅ read           | ✅ read         | own assignments only | denied                          |
+| An individual response's answers          | ✅              | ✅                | ✅              | own captures only    | denied                          |
+| Social Intelligence — Tabulación          | ✅              | ✅                | ✅              | denied               | denied                          |
+| Social Intelligence — start a run         | —               | ✅                | —               | denied               | denied                          |
+| Social Intelligence — settle a coding     | —               | ✅                | ✅              | denied               | denied                          |
+| Quality Gate — read findings              | ✅              | ✅                | ✅              | denied               | denied                          |
+| Quality Gate — run the check              | ✅              | ✅                | —               | denied               | denied                          |
+| Quality Gate — settle a finding           | —               | —                 | ✅              | denied               | denied                          |
+| Tenant Settings                           | —               | —                 | —               | —                    | ✅                              |
 
 Two boundaries are worth exercising deliberately, because they are the ones most often assumed
 rather than enforced:

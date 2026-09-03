@@ -47,15 +47,29 @@ test.describe("server-side authorization", () => {
     expect(await enabled.json()).toMatchObject({ state: "ok", capability: "core.projects" });
   });
 
-  test("an enabled but unbuilt surface states so plainly, and is not a 404", async ({ page }) => {
-    // `quality.document_gate` is effective for the pilot profile but the Quality Gate is not
-    // built. (GIS was this example until Slice 2 built it; FieldFlow until Slice 3 did.)
-    const response = await page.goto(`/t/${TENANT}/p/${PROJECT}/quality`);
-    expect(response?.status()).toBe(200);
-    const main = page.getByRole("main");
-    await expect(main).toContainText("la implementación aún no está disponible");
-    await expect(main).toContainText("El módulo está habilitado para este proyecto");
-    // Inert: it offers no module data and no module action beyond going back.
-    await expect(main.getByRole("link")).toHaveCount(1);
+  test("the last enabled-but-unbuilt surface is now built, and the state has no route left", async ({
+    page,
+  }) => {
+    // This test used to assert the inert "module not implemented" state at `/quality`. GIS was the
+    // example until Slice 2, FieldFlow until Slice 3, and the Quality Gate until Slice 5 built it.
+    // Every remaining workspace surface is ANNOUNCED, therefore never effective, therefore 404 —
+    // so the state currently has **no reachable route**, and asserting it in a browser would mean
+    // inventing a capability nobody ships.
+    //
+    // The policy itself is still covered where it is decided: `packages/domain/test/workspace.test.ts`
+    // asserts that an effective capability whose surface is unbuilt yields `not-implemented`, and
+    // `apps/web/lib/surface-access.ts` is the one place that maps it. Recorded as TD-055.
+    const built = await page.goto(`/t/${TENANT}/p/${PROJECT}/quality`);
+    expect(built?.status()).toBe(200);
+    await expect(page.getByRole("main")).toContainText("Quality Gate");
+    await expect(page.getByRole("main")).not.toContainText(
+      "la implementación aún no está disponible",
+    );
+
+    // …and the announced ones stay indistinguishable from a URL that means nothing.
+    for (const segment of ["documents", "reports"]) {
+      const announced = await page.goto(`/t/${TENANT}/p/${PROJECT}/${segment}`);
+      expect(announced?.status(), segment).toBe(404);
+    }
   });
 });

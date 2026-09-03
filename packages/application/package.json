@@ -11,7 +11,8 @@
     "typecheck": "tsc -p tsconfig.json",
     "seed:demo-project": "tsx scripts/seed-demo-project.ts",
     "social:drain": "tsx scripts/drain-classifications.ts",
-    "social:run": "tsx scripts/start-classification-run.ts"
+    "social:run": "tsx scripts/start-classification-run.ts",
+    "quality:run": "tsx scripts/run-quality-check.ts"
   },
   "dependencies": {
     "@eia/contracts": "workspace:*",

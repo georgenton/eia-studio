@@ -2,7 +2,14 @@ import { randomUUID } from "node:crypto";
 
 import { and, eq, sql } from "drizzle-orm";
 
-import { appSchema, fieldSchema, gisSchema, socialSchema, type Database } from "@eia/db";
+import {
+  appSchema,
+  fieldSchema,
+  gisSchema,
+  qualitySchema,
+  socialSchema,
+  type Database,
+} from "@eia/db";
 
 /**
  * Generic factories (TESTING_STRATEGY.md §1): tenant A / tenant B, projects X / Y / Z, users
@@ -851,6 +858,158 @@ export async function createHumanReview(
         categoryId,
       });
     }
+  });
+  return { id };
+}
+
+// ---------------------------------------------------------------------------------------------
+// Quality Gate (Slice 5)
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * One extracted statement from a project's corpus.
+ *
+ * The default is a number because most rules compare counts; exactly one value must be set, which
+ * the CHECK in migration 0019 enforces and this factory respects rather than works around.
+ */
+export async function createDocumentAssertion(
+  db: Database,
+  input: {
+    tenantId: string;
+    projectId: string;
+    provenanceId: string;
+    key?: string;
+    sourceRef?: string;
+    valueText?: string;
+    valueNumber?: number;
+    valueDate?: string;
+    valueBoolean?: boolean;
+    quote?: string;
+    qualifier?: string;
+  },
+): Promise<{ id: string }> {
+  const id = randomUUID();
+  const hasValue =
+    input.valueText !== undefined ||
+    input.valueNumber !== undefined ||
+    input.valueDate !== undefined ||
+    input.valueBoolean !== undefined;
+  await db.insert(qualitySchema.documentAssertion).values({
+    id,
+    tenantId: input.tenantId,
+    projectId: input.projectId,
+    key: input.key ?? `fixture.value_${next()}`,
+    sourceKind: "RECONSTRUCTED_CORPUS",
+    sourceRef: input.sourceRef ?? `Documento ${next()}`,
+    valueText: input.valueText ?? null,
+    valueNumber:
+      input.valueNumber !== undefined ? String(input.valueNumber) : hasValue ? null : "1",
+    valueDate: input.valueDate ?? null,
+    valueBoolean: input.valueBoolean ?? null,
+    quote: input.quote ?? null,
+    qualifier: input.qualifier ?? null,
+    provenanceId: input.provenanceId,
+  });
+  return { id };
+}
+
+/**
+ * A finding with its two sources, written in **one transaction**.
+ *
+ * The deferred constraint trigger checks the pair at commit, so a factory that wrote the finding
+ * and its evidence separately would be refused — correctly. The same lesson `createHumanReview`
+ * learned one slice ago.
+ */
+export async function createQualityFinding(
+  db: Database,
+  input: {
+    tenantId: string;
+    projectId: string;
+    provenanceId: string;
+    userId: string;
+    findingCode?: string;
+    fingerprint?: string;
+    requirementKey?: string;
+    requirementVersion?: string;
+    severity?: "high" | "medium" | "low";
+    state?: "OPEN" | "UNDER_REVIEW" | "ACCEPTED" | "DISMISSED" | "RESOLVED";
+  },
+): Promise<{ id: string; runId: string; findingCode: string }> {
+  const runId = randomUUID();
+  const findingId = randomUUID();
+  const findingCode = input.findingCode ?? `QG-${String(next()).padStart(3, "0")}`;
+  await db.transaction(async (tx) => {
+    await tx.insert(qualitySchema.qualityRun).values({
+      id: runId,
+      tenantId: input.tenantId,
+      projectId: input.projectId,
+      trigger: "MANUAL",
+      requirements: [`${input.requirementKey ?? "rule.affectation_count"}@1`],
+      status: "COMPLETED",
+      initiatedByUserId: input.userId,
+      provenanceId: input.provenanceId,
+    });
+    await tx.insert(qualitySchema.qualityFinding).values({
+      id: findingId,
+      tenantId: input.tenantId,
+      projectId: input.projectId,
+      findingCode,
+      fingerprint: input.fingerprint ?? `fixture|${findingId}`,
+      firstRunId: runId,
+      lastRunId: runId,
+      requirementKey: input.requirementKey ?? "rule.affectation_count",
+      requirementVersion: input.requirementVersion ?? "1",
+      type: "NUMERICAL_MISMATCH",
+      severity: input.severity ?? "high",
+      state: input.state ?? "OPEN",
+      title: "Posible inconsistencia entre dos fuentes",
+      explanation: "Dos documentos declaran cifras distintas para el mismo universo.",
+      whyFlagged: "Ambas cifras quedan en duda mientras no se determine cuál rige.",
+      suggestedAction: "Contrastar las dos fuentes y dejar constancia del criterio.",
+      provenanceId: input.provenanceId,
+    });
+    for (const [ordinal, role] of (["SOURCE_A", "SOURCE_B"] as const).entries()) {
+      await tx.insert(qualitySchema.findingEvidence).values({
+        id: randomUUID(),
+        tenantId: input.tenantId,
+        projectId: input.projectId,
+        findingId,
+        role,
+        locator: { kind: "project", field: "locationLabel" },
+        label: `Fuente ${role === "SOURCE_A" ? "A" : "B"}`,
+        quote: role === "SOURCE_A" ? "71" : "70",
+        ordinal,
+      });
+    }
+  });
+  return { id: findingId, runId, findingCode };
+}
+
+export async function createSpecialistReview(
+  db: Database,
+  input: {
+    tenantId: string;
+    projectId: string;
+    findingId: string;
+    reviewerUserId: string;
+    decision?:
+      "START_REVIEW" | "ACCEPT" | "DISMISS" | "RESOLVE" | "REQUEST_INTERDISCIPLINARY" | "REOPEN";
+    fromState?: "OPEN" | "UNDER_REVIEW" | "ACCEPTED" | "DISMISSED" | "RESOLVED";
+    toState?: "OPEN" | "UNDER_REVIEW" | "ACCEPTED" | "DISMISSED" | "RESOLVED";
+    justification?: string;
+  },
+): Promise<{ id: string }> {
+  const id = randomUUID();
+  await db.insert(qualitySchema.specialistReview).values({
+    id,
+    tenantId: input.tenantId,
+    projectId: input.projectId,
+    findingId: input.findingId,
+    decision: input.decision ?? "DISMISS",
+    fromState: input.fromState ?? "OPEN",
+    toState: input.toState ?? "DISMISSED",
+    justification: input.justification ?? "Contrastado con la fuente vigente del expediente.",
+    reviewerUserId: input.reviewerUserId,
   });
   return { id };
 }

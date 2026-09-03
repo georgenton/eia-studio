@@ -23,7 +23,7 @@
 | | |
 |---|---|
 | Branch / PR | `feat/slice-4-social-intelligence` · [#7](https://github.com/georgenton/eia-studio/pull/7) |
-| Merge SHA | *(recorded below at merge)* |
+| Merge SHA | `7072e88` |
 | Migrations | `0016_social_intelligence_tables.sql`, `0017_social_rls_and_invariants.sql` — forward only, already applied to staging before this wave began |
 | Tests | unit **215**, integration **243**, Playwright **98**, staging (non-destructive) **57** |
 | Staging | healthy; field baseline unchanged; snapshot identical before and after the verification suite |
@@ -56,3 +56,37 @@ entry (Playwright 96 → 98 with the new session spec; unit 201 → 215; integra
 
 **Debt recorded.** TD-049 (no AI Gateway credential in any environment; owner decision). TD-041,
 TD-042, TD-043, TD-044, TD-045, TD-046, TD-047, TD-048 remain open from the slice itself.
+
+### Slice 5 — Quality Gate
+
+| | |
+|---|---|
+| Branch / PR | `feat/slice-5-quality-gate` · (recorded at merge) |
+| Merge SHA | *(recorded at merge)* |
+| Migrations | `0018_quality_gate_tables.sql` (5 tables), `0019_quality_rls_and_invariants.sql` (grants, RLS, CHECKs, append-only and two-source triggers) — forward only, additive, no backfill |
+| Tests | unit **243**, integration **285**, Playwright **118**, staging (non-destructive) **70** |
+| Staging | migrations 18 → 20 applied forward; 8 corpus assertions and 1 provenance record added; **every pre-existing id identical**; field baseline unchanged; verification suite 70 passed |
+| External configuration | unchanged — this slice calls no model at all |
+
+**Scope delivered.** Five deterministic rules over the concluded study's corpus; findings with two
+sources of equal weight; a reviewer's decision with a mandatory justification, append-only; the
+Quality Gate surface and the finding detail; an operator command (`pnpm quality:run`); manual page
+07 and the walkthrough's reviewer leg.
+
+**Meaningful decisions.** ADR-020: the rule catalogue is versioned code rather than a
+`RequirementVersion` table with a `definition jsonb`, which amends ADR-008 §1. Two rules were
+implemented differently from the brief's literal description, both for reasons of truthfulness:
+QG-001 compares two documents rather than a document against the synthetic parcel layer, and QG-004
+compares two documents rather than a legal conclusion against survey records — the latter would have
+required special-category personal data the demo questionnaire is built not to collect.
+
+**A defect found in our own posture.** The append-only grant on `specialist_review` was silently
+absent: migration 0002's `ALTER DEFAULT PRIVILEGES` grants full DML on every new `app` table, so a
+narrower `GRANT` beside it changes nothing. The isolation test caught it by asserting an error and
+getting a successful no-op. Fixed with an explicit `REVOKE`, and staging now asserts the privilege
+bits directly.
+
+**Deviations.** Recorded in `docs/SLICE_5_REPORT.md` §9. Nothing outside the approved scope.
+
+**Debt recorded.** TD-050 … TD-054.
+

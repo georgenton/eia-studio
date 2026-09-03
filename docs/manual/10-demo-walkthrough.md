@@ -23,7 +23,11 @@ All data is synthetic or reconstructed demo data. Nothing here is anybody's pers
    multi-choice one says its shares can exceed 100 %.
    _Check:_ the Respuestas abiertas tab offers you no run button. A coordinator watches; a
    specialist decides.
-7. Sign out.
+7. **Quality Gate.** Press _Ejecutar revisión_. Four findings appear — real inconsistencies in the
+   concluded study's file. Open **QG-001**: two documents of the same file, 71 predios and 70, at
+   equal weight, neither called the error. Press the button again: nothing duplicates.
+   _Check:_ there is no decision form. A coordinator checks; a reviewer decides.
+8. Sign out.
 
 ## 2 · Field technician — `tecnico@demo.invalid`, at a phone width
 
@@ -48,7 +52,18 @@ All data is synthetic or reconstructed demo data. Nothing here is anybody's pers
    the agreement figure says it is concordance rather than accuracy.
 6. Sign out.
 
-## 4 · Tenant admin — `admin@demo.invalid`
+## 4 · Quality reviewer — `revisor@demo.invalid`
+
+1. Sign in, open **Quality Gate → QG-003** (the consultation dates).
+2. _Check:_ the submit button stays disabled until the justification is long enough. A token word is
+   not a reason.
+3. Dismiss it with a real reason. Reload: the decision, your name and your words are in the history.
+4. _Check:_ _Marcar como resuelto_ is no longer offered — the state machine forbids it from
+   `DISMISSED`, and the server refuses it too.
+5. Reopen it with a different reason. **Both decisions are on the page.** The first was not edited.
+6. Sign out.
+
+## 5 · Tenant admin — `admin@demo.invalid`
 
 1. Sign in. The Portfolio lists every project — names, state, progress.
 2. _Check:_ open a project surface. You are **denied**. An `ADMIN` administers the tenant and needs
@@ -58,7 +73,6 @@ All data is synthetic or reconstructed demo data. Nothing here is anybody's pers
 
 | Not there                         | Why                                                                              |
 | --------------------------------- | -------------------------------------------------------------------------------- |
-| Quality Gate                      | not built (Slice 5) — the route shows an inert enabled-but-unbuilt state         |
 | Documents, RAG assistant, Reports | ANNOUNCED, therefore disabled: their routes answer 404                           |
 | Client Portal                     | a separate surface, not built                                                    |
 | A role switcher                   | a role is a server-side membership; changing it means signing in as someone else |
