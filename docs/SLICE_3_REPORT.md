@@ -233,6 +233,34 @@ surface" example moved from FieldFlow to the Quality Gate, and the Parcel Worksp
 now asserts visit history where it previously asserted the empty state. Both were true when
 written and became false because this slice built the thing they pointed at.
 
+## 11a. Staging verification
+
+Applied and exercised on the real staging environment (Railway `eia-studio-staging` / `staging`),
+with the **migrator** credential — never the runtime one — over the TCP proxy and TLS:
+
+| Step | Result |
+|---|---|
+| `pnpm db:migrate` | `migrations applied`; the ledger went from 13 to 16 rows (0013, 0014, 0015) |
+| Schema check | all eleven field tables present, each with `rowsecurity = t` and its two policies |
+| Integration suite against staging (`EIA_TEST_MIGRATOR_URL` + `EIA_TEST_RUNTIME_URL`) | **188 passed (15 files)** — the same result as the local Testcontainers run, on the provider, through the proxy, under TLS |
+| Demo seed, then a second pass | `db:check-seeder-idempotency`: 141 parcels, 1 survey version, 1 campaign, 10 provenance records, **none re-created** |
+| `postgres-gis` | latest deployment SUCCESS; served the migration, the suite and two seeds without a restart |
+| `worker` | latest deployment SUCCESS; heartbeats continuous, `pending: 0`, ~21 h uptime, no error line through any of the above |
+
+Two things to know about the state this left staging in. The integration suite truncates tenant
+and identity rows by design (that is how each file starts from a known world), so the demo project
+was re-seeded afterwards and staging now holds exactly one tenant and one project again. The
+**synthetic identities are gone with them**, and the campaign therefore seeded with zero
+assignments — the seeder says so rather than inventing a technician. Restoring them is one command
+with a password of the operator's choosing:
+
+```bash
+DEMO_USER_PASSWORD='<chosen locally>' pnpm e2e:prepare
+```
+
+Nothing was deployed. Staging still runs the `main` build (Slice 2); these migrations are
+additive, so that build is unaffected by them. Production was not touched.
+
 ## 12. What this slice does not do
 
 Named plainly, so nothing here reads as an oversight:
