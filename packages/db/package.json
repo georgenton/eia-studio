@@ -14,6 +14,7 @@
     "migrate": "tsx scripts/migrate.ts",
     "provision-runtime-role": "tsx scripts/provision-runtime-role.ts",
     "seed:dev": "tsx scripts/seed-dev.ts",
+    "check-seeder-idempotency": "node scripts/check-seeder-idempotency.mjs",
     "probe": "node scripts/capability-probe.mjs"
   },
   "dependencies": {

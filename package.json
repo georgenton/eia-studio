@@ -29,6 +29,7 @@
     "db:probe": "pnpm --filter @eia/db probe",
     "db:seed:dev": "pnpm --filter @eia/db seed:dev",
     "db:seed:demo-project": "pnpm --filter @eia/application seed:demo-project --fixture zamora-puente-del-amor",
+    "db:check-seeder-idempotency": "pnpm --filter @eia/db check-seeder-idempotency",
     "provision:identity": "pnpm --filter @eia/web provision:identity",
     "db:up": "docker compose up -d postgres",
     "db:down": "docker compose down",

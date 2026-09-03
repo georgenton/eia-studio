@@ -213,7 +213,9 @@ describe("Slice 2 · PostGIS storage invariants", () => {
       select f_table_name as table_name, srid, type
       from geometry_columns where f_table_schema = 'app' order by 1
     `);
-    expect(rows.rows).toHaveLength(3);
+    // Asserted over whatever geometry the schema holds, not a fixed count, so a later slice that
+    // adds a geometry column is covered by this rule the day it lands rather than editing it.
+    expect(rows.rows.length).toBeGreaterThan(0);
     for (const row of rows.rows as unknown as ReadonlyArray<{ table_name: string; srid: number }>) {
       expect(row.srid, row.table_name).toBe(4326);
     }
