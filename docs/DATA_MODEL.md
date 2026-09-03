@@ -349,6 +349,52 @@ recorded with provenance (ADR-006).
 Instrument state semantics (spec §06): only `validated` feeds analytics and reports; `complete`
 means filled, not reviewed.
 
+#### 3.4a As built in Slice 3
+
+The specification above is the target shape for the whole Field module. Slice 3 implemented the
+part FieldFlow needs, with these differences — each a deliberate narrowing, not a drift:
+
+```
+ProjectConfiguration { tenant_id, project_id, key, value jsonb, version }        -- offline_mode lives here (ADR-018)
+SurveyTemplate  { id, tenant_id, project_id, key, name, description }
+SurveyVersion   { id, ..., template_id, version_label, status DRAFT|PUBLISHED|RETIRED,
+                  published_at, definition_hash, provenance_id }
+SurveyQuestion  { id, ..., version_id, code, ordinal, type, prompt, help_text, required, sensitivity }
+SurveyOption    { id, ..., question_id, code, label, ordinal }
+SurveyCampaign  { id, ..., name, survey_version_id, status DRAFT|ACTIVE|CLOSED,
+                  capture_channel, offline_mode_at_activation, activated_at, closed_at, provenance_id }
+FieldAssignment { id, ..., campaign_id, parcel_id, assignee_membership_id, assignee_user_id,
+                  status PENDING|IN_PROGRESS|COMPLETED|CANCELLED, assigned_at, completed_at, provenance_id }
+FieldVisit      { id, ..., assignment_id, technician_user_id, status IN_PROGRESS|COMPLETED,
+                  started_at, completed_at, location geometry(Point,4326), location_accuracy_m,
+                  location_captured_at, location_outcome, provenance_id }
+SurveyInstance  { id, ..., assignment_id, visit_id, survey_version_id, respondent_user_id,
+                  status IN_PROGRESS|SUBMITTED, started_at, submitted_at, provenance_id }
+SurveyAnswer    { id, ..., instance_id, question_id, text_value | number_value | boolean_value |
+                  date_value | option_id }                       -- exactly one, enforced
+SurveyAnswerOption { id, ..., answer_id, option_id }              -- multi-choice selections
+```
+
+| Difference from §3.4 | Why |
+|---|---|
+| `SurveyCampaign` is new; `Assignment` hangs off it and targets one `parcel_id` | A campaign is what a coordinator opens, closes and measures. An assignment with an array of parcels has no state of its own and no progress to count. |
+| Answers use **typed columns**, not `value jsonb` | A blob cannot be constrained, cannot be indexed usefully, and lets a v2 option code stand where a v1 option belongs. The exclusivity, the type match and the option's membership of the same version are constraint triggers (migration 0014). |
+| `question.sensitivity` (NON_PERSONAL / PERSONAL / SENSITIVE) replaces `pii: bool` | Three values the retention and export policies can act on; still a classification, never an authorization. |
+| `assignee_user_id` and `technician_user_id` are denormalised beside the membership id | So the RLS policies compare two columns instead of joining `project_membership` from inside a policy that would itself be evaluated against a policied table. |
+| `Device`, `Media`, `pii.Respondent`, `QuestionMapping` are not implemented | No offline channel (ADR-018), no media capture and no identified respondents in this slice. Their absence is the honest state, not an omission to backfill quietly. |
+| Question types are the eight in `QUESTION_TYPES` | No matrices, repeating groups, signatures, skip-logic expressions or calculation language: each is a small language, and none is needed by the demo questionnaire. |
+
+Immutability, enforced by database triggers rather than by application code alone:
+
+- a `PUBLISHED` or `RETIRED` `SurveyVersion` cannot be edited or deleted; its questions and
+  options cannot be added to, edited or removed. Editing means publishing a new version.
+- a `SurveyInstance` may only be created against a `PUBLISHED` version, and once `SUBMITTED`
+  nothing about it moves — including its `survey_version_id`.
+- answers of a submitted response cannot be inserted, updated or deleted.
+
+Correction of a submitted response is deliberately **not** implemented. When it exists it will be
+a reviewed workflow that records who changed what and why, not a row edit.
+
 ### 3.5 Social intelligence
 
 ```

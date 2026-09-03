@@ -2,10 +2,12 @@ export * as appSchema from "./app";
 export * as authSchema from "./auth";
 export * as auditSchema from "./audit";
 export * as gisSchema from "./gis";
+export * as fieldSchema from "./field";
 
 import * as appTables from "./app";
 import * as auditTables from "./audit";
 import * as authTables from "./auth";
+import * as fieldTables from "./field";
 import * as gisTables from "./gis";
 
 /** Flat schema object for the drizzle client (unique keys across schemas). */
@@ -32,4 +34,15 @@ export const schema = {
   parcel: gisTables.parcel,
   parcelGeometry: gisTables.parcelGeometry,
   affectation: gisTables.affectation,
+  projectConfiguration: fieldTables.projectConfiguration,
+  surveyTemplate: fieldTables.surveyTemplate,
+  surveyVersion: fieldTables.surveyVersion,
+  surveyQuestion: fieldTables.surveyQuestion,
+  surveyOption: fieldTables.surveyOption,
+  surveyCampaign: fieldTables.surveyCampaign,
+  fieldAssignment: fieldTables.fieldAssignment,
+  fieldVisit: fieldTables.fieldVisit,
+  surveyInstance: fieldTables.surveyInstance,
+  surveyAnswer: fieldTables.surveyAnswer,
+  surveyAnswerOption: fieldTables.surveyAnswerOption,
 };

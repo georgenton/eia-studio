@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { and, eq, sql } from "drizzle-orm";
 
-import { appSchema, gisSchema, type Database } from "@eia/db";
+import { appSchema, fieldSchema, gisSchema, type Database } from "@eia/db";
 
 /**
  * Generic factories (TESTING_STRATEGY.md §1): tenant A / tenant B, projects X / Y / Z, users
@@ -372,4 +372,282 @@ export async function createParcelWithGeometry(
     )
   `);
   return { parcelId, geometryId };
+}
+
+/* ---------------------------------------------------------------------------------------------
+ * Slice 3 factories: campaigns, assignments, visits and responses.
+ * ------------------------------------------------------------------------------------------- */
+
+export interface SeededQuestionnaire {
+  readonly templateId: string;
+  readonly versionId: string;
+  readonly questionIds: Readonly<Record<string, string>>;
+  readonly optionIds: Readonly<Record<string, string>>;
+}
+
+/**
+ * A tiny published questionnaire: one single-choice question and one required boolean.
+ *
+ * Published through the same path the application uses — insert as DRAFT, write questions, then
+ * flip to PUBLISHED — because the immutability triggers refuse edits afterwards and a factory that
+ * bypassed them would be testing a database nobody runs.
+ */
+export async function createPublishedSurvey(
+  db: Database,
+  input: {
+    tenantId: string;
+    projectId: string;
+    provenanceId: string;
+    templateId?: string;
+    versionLabel?: string;
+    /** Option codes of the single-choice question; lets a v2 differ from a v1. */
+    optionCodes?: ReadonlyArray<string>;
+    questionCode?: string;
+  },
+): Promise<SeededQuestionnaire> {
+  const templateId = input.templateId ?? randomUUID();
+  if (!input.templateId) {
+    await db.insert(fieldSchema.surveyTemplate).values({
+      id: templateId,
+      tenantId: input.tenantId,
+      projectId: input.projectId,
+      key: `tmpl_${next()}`,
+      name: `Cuestionario ${next()}`,
+      description: null,
+    });
+  }
+
+  const versionId = randomUUID();
+  await db.insert(fieldSchema.surveyVersion).values({
+    id: versionId,
+    tenantId: input.tenantId,
+    projectId: input.projectId,
+    templateId,
+    versionLabel: input.versionLabel ?? `v${next()}`,
+    status: "DRAFT",
+    provenanceId: input.provenanceId,
+  });
+
+  const questionCode = input.questionCode ?? "tenure_category";
+  const choiceId = randomUUID();
+  await db.insert(fieldSchema.surveyQuestion).values({
+    id: choiceId,
+    tenantId: input.tenantId,
+    projectId: input.projectId,
+    versionId,
+    code: questionCode,
+    ordinal: 0,
+    type: "SINGLE_CHOICE",
+    prompt: "¿Relación con el predio?",
+    helpText: null,
+    required: false,
+    sensitivity: "NON_PERSONAL",
+  });
+
+  const optionIds: Record<string, string> = {};
+  const codes = input.optionCodes ?? ["owner_occupier", "tenant"];
+  for (const [ordinal, code] of codes.entries()) {
+    const optionId = randomUUID();
+    optionIds[code] = optionId;
+    await db.insert(fieldSchema.surveyOption).values({
+      id: optionId,
+      tenantId: input.tenantId,
+      projectId: input.projectId,
+      questionId: choiceId,
+      code,
+      label: code,
+      ordinal,
+    });
+  }
+
+  const requiredId = randomUUID();
+  await db.insert(fieldSchema.surveyQuestion).values({
+    id: requiredId,
+    tenantId: input.tenantId,
+    projectId: input.projectId,
+    versionId,
+    code: "has_concern",
+    ordinal: 1,
+    type: "BOOLEAN",
+    prompt: "¿Tiene alguna preocupación?",
+    helpText: null,
+    required: true,
+    sensitivity: "NON_PERSONAL",
+  });
+
+  // A multi-choice question too, so `survey_answer_option` — the eleventh Slice 3 table, whose
+  // rows carry a selection and therefore inherit an individual's visibility — has something for
+  // the isolation suite to try to read across a boundary.
+  const multiId = randomUUID();
+  await db.insert(fieldSchema.surveyQuestion).values({
+    id: multiId,
+    tenantId: input.tenantId,
+    projectId: input.projectId,
+    versionId,
+    code: "services_present",
+    ordinal: 2,
+    type: "MULTI_CHOICE",
+    prompt: "¿Qué servicios hay en el sector?",
+    helpText: null,
+    required: false,
+    sensitivity: "NON_PERSONAL",
+  });
+  for (const [ordinal, code] of ["water", "power"].entries()) {
+    const optionId = randomUUID();
+    optionIds[`services_${code}`] = optionId;
+    await db.insert(fieldSchema.surveyOption).values({
+      id: optionId,
+      tenantId: input.tenantId,
+      projectId: input.projectId,
+      questionId: multiId,
+      code,
+      label: code,
+      ordinal,
+    });
+  }
+
+  await db
+    .update(fieldSchema.surveyVersion)
+    .set({ status: "PUBLISHED", publishedAt: new Date(), definitionHash: `hash_${next()}` })
+    .where(eq(fieldSchema.surveyVersion.id, versionId));
+
+  return {
+    templateId,
+    versionId,
+    questionIds: { [questionCode]: choiceId, has_concern: requiredId, services_present: multiId },
+    optionIds,
+  };
+}
+
+/**
+ * A multi-choice answer and its selections, written the way the model requires: the
+ * `survey_answer` row carries no typed value at all, and each choice is a `survey_answer_option`.
+ */
+export async function createMultiChoiceAnswer(
+  db: Database,
+  input: {
+    tenantId: string;
+    projectId: string;
+    instanceId: string;
+    questionId: string;
+    optionIds: ReadonlyArray<string>;
+  },
+): Promise<{ answerId: string }> {
+  const answerId = randomUUID();
+  await db.insert(fieldSchema.surveyAnswer).values({
+    id: answerId,
+    tenantId: input.tenantId,
+    projectId: input.projectId,
+    instanceId: input.instanceId,
+    questionId: input.questionId,
+  });
+  for (const optionId of input.optionIds) {
+    await db.insert(fieldSchema.surveyAnswerOption).values({
+      id: randomUUID(),
+      tenantId: input.tenantId,
+      projectId: input.projectId,
+      answerId,
+      optionId,
+    });
+  }
+  return { answerId };
+}
+
+export async function createCampaign(
+  db: Database,
+  input: {
+    tenantId: string;
+    projectId: string;
+    provenanceId: string;
+    surveyVersionId: string;
+    status?: "DRAFT" | "ACTIVE" | "CLOSED";
+    name?: string;
+  },
+): Promise<{ id: string }> {
+  const id = randomUUID();
+  const status = input.status ?? "ACTIVE";
+  await db.insert(fieldSchema.surveyCampaign).values({
+    id,
+    tenantId: input.tenantId,
+    projectId: input.projectId,
+    name: input.name ?? `Campaña ${next()}`,
+    surveyVersionId: input.surveyVersionId,
+    status,
+    captureChannel: "NATIVE_WEB",
+    offlineModeAtActivation: status === "DRAFT" ? null : "disabled",
+    activatedAt: status === "DRAFT" ? null : new Date(),
+    provenanceId: input.provenanceId,
+  });
+  return { id };
+}
+
+export async function createAssignment(
+  db: Database,
+  input: {
+    tenantId: string;
+    projectId: string;
+    provenanceId: string;
+    campaignId: string;
+    parcelId: string;
+    assigneeMembershipId: string;
+    assigneeUserId: string;
+    status?: "PENDING" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
+  },
+): Promise<{ id: string }> {
+  const id = randomUUID();
+  await db.insert(fieldSchema.fieldAssignment).values({
+    id,
+    tenantId: input.tenantId,
+    projectId: input.projectId,
+    campaignId: input.campaignId,
+    parcelId: input.parcelId,
+    assigneeMembershipId: input.assigneeMembershipId,
+    assigneeUserId: input.assigneeUserId,
+    status: input.status ?? "PENDING",
+    provenanceId: input.provenanceId,
+  });
+  return { id };
+}
+
+export async function createVisitWithInstance(
+  db: Database,
+  input: {
+    tenantId: string;
+    projectId: string;
+    provenanceId: string;
+    assignmentId: string;
+    technicianUserId: string;
+    surveyVersionId: string;
+    submitted?: boolean;
+  },
+): Promise<{ visitId: string; instanceId: string }> {
+  const visitId = randomUUID();
+  await db.execute(sql`
+    insert into app.field_visit
+      (id, tenant_id, project_id, assignment_id, technician_user_id, status, started_at,
+       completed_at, location_outcome, provenance_id)
+    values (${visitId}, ${input.tenantId}, ${input.projectId}, ${input.assignmentId},
+            ${input.technicianUserId}, 'COMPLETED', now(), now(), 'not_attempted',
+            ${input.provenanceId})
+  `);
+
+  const instanceId = randomUUID();
+  await db.insert(fieldSchema.surveyInstance).values({
+    id: instanceId,
+    tenantId: input.tenantId,
+    projectId: input.projectId,
+    assignmentId: input.assignmentId,
+    visitId,
+    surveyVersionId: input.surveyVersionId,
+    respondentUserId: input.technicianUserId,
+    status: "IN_PROGRESS",
+    provenanceId: input.provenanceId,
+  });
+  if (input.submitted) {
+    await db
+      .update(fieldSchema.surveyInstance)
+      .set({ status: "SUBMITTED", submittedAt: new Date() })
+      .where(eq(fieldSchema.surveyInstance.id, instanceId));
+  }
+  return { visitId, instanceId };
 }

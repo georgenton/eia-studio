@@ -3,20 +3,29 @@
 EIA Studio is a multi-tenant B2B SaaS for environmental consulting firms: field capture, parcels,
 surveys, social analysis with human-in-the-loop AI, quality review and client reporting.
 
-**Current phase: SLICE 2 (GIS / Parcel Explorer and Parcel Workspace) IMPLEMENTED ON
-`feat/slice-2-gis-parcel-workspace`, PENDING IMPLEMENTATION GATE 2.** Slice 0 (SaaS foundation),
-Slice 0.5 (staging foundation) and Slice 1 (product shell, Portfolio, Command Center, provenance
-drawer) are merged into `main`; Implementation Gates 0 and 1 and Staging Gate 0.5 are closed.
-Slice 2 makes GIS a real surface: the Parcel Explorer (map and table sharing one selection, faceted
-filters, layer-provenance legend), the Parcel Workspace, the Command Center's territorial summary,
-and their persistence (`spatial_dataset`, `spatial_dataset_version`, `alignment`, `parcel`,
-`parcel_geometry`, `affectation`) with PostGIS geometry stored in a metric CRS. The corridor and
-its 141 parcels are **deterministically generated and labelled SYNTHETIC**; the official GIS
-package has not been received and its import is specified in `docs/GIS_IMPORT_CONTRACT.md`, not
-built. See `docs/SLICE_2_REPORT.md` (and `docs/SLICE_1_REPORT.md`) for what was built, what was
-deliberately omitted and every deviation from the design bundle. FieldFlow, Social Intelligence,
-Quality Gate, RAG, Reports and the Client Portal are **not** implemented; their routes exist only
-as capability-guarded placeholders. Staging is live for preview only; do not deploy production.
+**Current phase: SLICE 3 (FieldFlow / survey foundation) IMPLEMENTED ON
+`feat/slice-3-field-survey-foundation`, PENDING IMPLEMENTATION GATE 3.** Slice 0 (SaaS
+foundation), Slice 0.5 (staging foundation), Slice 1 (product shell, Portfolio, Command Center,
+provenance drawer) and Slice 2 (GIS / Parcel Explorer, Parcel Workspace, territorial summary) are
+merged into `main`; Implementation Gates 0, 1 and 2 and Staging Gate 0.5 are closed.
+Slice 3 makes field capture real: the coordinator's campaign overview, the technician's mobile
+My Work and capture form, versioned questionnaires, typed answers, the Parcel Workspace's Visits
+tab and the Command Center's field panel, over `project_configuration`, `survey_template`,
+`survey_version`, `survey_question`, `survey_option`, `survey_campaign`, `field_assignment`,
+`field_visit`, `survey_instance`, `survey_answer` and `survey_answer_option`. A published
+`SurveyVersion` is immutable by database trigger and a submitted response is final; correction is
+deliberately not implemented. **Individual responses are not readable by everyone with project
+access**: `field.responses.read` is a separate permission and the RLS policies enforce row
+ownership (SECURITY.md §10b, TENANCY.md §3.1). Architecture decision **D-020 is closed by
+ADR-018**: offline capture is the configuration `field.surveys.offline_mode`, not a capability, and
+`required` + the online-only web channel fails at campaign activation rather than pretending. The
+demo campaign, its questionnaire and its answers are **deterministic, synthetic and labelled
+DEMO_SIMULATION**, contain no personal data, and are never merged into the concluded study's
+historical socioeconomic aggregate. See `docs/SLICE_3_REPORT.md` (and the Slice 1 and 2 reports)
+for what was built, what was deliberately omitted and every deviation from the design bundle.
+Social Intelligence, Quality Gate, RAG, Reports and the Client Portal are **not** implemented;
+their routes exist only as capability-guarded placeholders. Staging is live for preview only; do
+not deploy production.
 
 ## Read before acting
 
@@ -37,11 +46,11 @@ Architecture documentation:
 
 Also relevant by task: `docs/DATA_MODEL.md`, `docs/PROVENANCE.md`, `docs/AI_GOVERNANCE.md`,
 `docs/DEMO_ZAMORA.md`, `docs/DESIGN_SYSTEM.md`, `docs/TESTING_STRATEGY.md`,
-`docs/GIS_IMPORT_CONTRACT.md`,
+`docs/GIS_IMPORT_CONTRACT.md`, `docs/FIELD_CAPTURE_ADAPTER_CONTRACT.md`,
 `docs/IMPLEMENTATION_PLAN.md`, `docs/DESIGN_BUNDLE_KNOWN_ISSUES.md`, the delivery docs
 `docs/ENGINEERING_STANDARDS.md`, `docs/RELEASE_POLICY.md`, `docs/CI.md`, `docs/DEPLOYMENT.md`,
 `docs/DEPENDENCIES.md`, `docs/TECH_DEBT.md`, the Gate record `docs/DECISIONS/GATE-1.md`, and
-the ADRs in `docs/DECISIONS/ADR-001` … `ADR-014`. Root `README.md` has the local quick start.
+the ADRs in `docs/DECISIONS/ADR-001` … `ADR-018`. Root `README.md` has the local quick start.
 
 ## Working rules for every session
 

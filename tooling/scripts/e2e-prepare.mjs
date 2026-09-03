@@ -21,6 +21,8 @@ const run = (args) => {
 run(["db:migrate"]);
 run(["db:provision-runtime-role"]);
 run(["db:seed:dev"]);
+
+// The demo project must exist before identities can be given a membership in it…
 run(["db:seed:demo-project"]);
 run([
   "provision:identity",
@@ -37,6 +39,38 @@ run([
   "--project-role",
   "COORDINATOR",
 ]);
+// Field technicians. Two of them, so "another technician's work is invisible" is something the
+// suite can actually assert rather than assume.
+run([
+  "provision:identity",
+  "--email",
+  "tecnico@demo.invalid",
+  "--name",
+  "Técnico de campo 1",
+  "--tenant",
+  "demo-consultancy",
+  "--tenant-role",
+  "MEMBER",
+  "--project",
+  "puente-del-amor",
+  "--project-role",
+  "FIELD_TECHNICIAN",
+]);
+run([
+  "provision:identity",
+  "--email",
+  "tecnico2@demo.invalid",
+  "--name",
+  "Técnico de campo 2",
+  "--tenant",
+  "demo-consultancy",
+  "--tenant-role",
+  "MEMBER",
+  "--project",
+  "puente-del-amor",
+  "--project-role",
+  "FIELD_TECHNICIAN",
+]);
 run([
   "provision:identity",
   "--email",
@@ -48,4 +82,10 @@ run([
   "--tenant-role",
   "ADMIN",
 ]);
+
+// …and the field campaign assigns work to the synthetic technicians, so it can only be filled in
+// once they are project members. The seeder is idempotent — it replaces what it owns — so running
+// it at both ends of the identity step costs a second pass and breaks the circular dependency
+// without a partial-seed mode nobody else would use.
+run(["db:seed:demo-project"]);
 console.log("e2e environment ready");

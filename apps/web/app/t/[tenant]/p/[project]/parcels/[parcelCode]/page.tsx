@@ -1,4 +1,5 @@
-import { loadParcelWorkspace, loadPortfolio } from "@eia/application";
+import { loadParcelVisits, loadParcelWorkspace, loadPortfolio } from "@eia/application";
+import { can } from "@eia/domain";
 import { notFound, redirect } from "next/navigation";
 
 import { isParcelTab, ParcelWorkspace } from "@/components/gis/parcel-workspace";
@@ -83,6 +84,11 @@ export default async function ParcelWorkspacePage({
     throw error;
   }
 
+  // The Visits tab is a *field* read model, gated by its own capability and permission: opening a
+  // parcel does not entitle anyone to the field work recorded against it.
+  const seesField = ctx.capabilities["field.surveys"] === true && can(ctx, "parcels.read");
+  const visits = seesField ? await loadParcelVisits(getDb(), ctx, view.parcel.id) : null;
+
   return (
     <WorkspaceShell
       {...shell}
@@ -92,7 +98,14 @@ export default async function ParcelWorkspacePage({
         ) : undefined
       }
     >
-      <ParcelWorkspace basePath={basePath} explorerPath={explorerPath} tab={tab} view={view} />
+      <ParcelWorkspace
+        basePath={basePath}
+        canReadResponses={can(ctx, "field.responses.read")}
+        explorerPath={explorerPath}
+        tab={tab}
+        view={view}
+        visits={visits}
+      />
     </WorkspaceShell>
   );
 }

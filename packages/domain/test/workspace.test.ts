@@ -36,9 +36,9 @@ describe("workspace surface registry", () => {
     expect(isWorkspaceSurface("nope")).toBe(false);
   });
 
-  it("only the Command Center and GIS are implemented in this slice", () => {
+  it("the Command Center, GIS and FieldFlow are implemented", () => {
     const implemented = WORKSPACE_SURFACES.filter((k) => SURFACE_DEFINITIONS[k].implemented);
-    expect(implemented).toEqual(["command-center", "gis"]);
+    expect(implemented).toEqual(["command-center", "gis", "field"]);
   });
 
   it("an unbuilt surface names the phase it is coming in; a built one names none", () => {
@@ -79,7 +79,8 @@ describe("capability route policy", () => {
     }
     expect(outcome(true, "command-center")).toBe("ok");
     expect(outcome(true, "gis")).toBe("ok");
-    expect(outcome(true, "field")).toBe("not-implemented");
+    expect(outcome(true, "field")).toBe("ok");
+    expect(outcome(true, "social")).toBe("not-implemented");
   });
 
   it("presentation cannot widen the policy: ANNOUNCED resolves as disabled", () => {

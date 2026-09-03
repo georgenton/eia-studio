@@ -162,6 +162,33 @@ Principles:
   24) runs as a per-tenant job that replaces identifiers and keeps aggregates; provenance records
   note the anonymisation run (transformation `ANONYMIZED` appended).
 
+## 10b. Field responses: row ownership inside a project (Slice 3)
+
+Individual survey responses are the first data in this product where *being on the project* is
+not enough. A `FIELD_TECHNICIAN` must be able to do their own work and must not be able to browse
+the project's households; a `GIS_SPECIALIST` may see that a parcel was visited without reading
+what was answered there.
+
+| Layer | Control |
+|---|---|
+| Permission | `field.responses.read` is separate from `field.read` (TENANCY.md §3.1) and is not held by FIELD_TECHNICIAN or GIS_SPECIALIST |
+| Application | `withFieldContext` sets `app.field_responses_access` from the resolved permission; use-cases check ownership before every mutation |
+| Row level | `field_assignment`, `field_visit`, `survey_instance` and `survey_answer` require *(this row is mine) OR `app.can_read_field_responses()`* in addition to tenant, project and project access |
+| Route | an assignment that is not the caller's own answers **404**, not a denial: a distinguishable error would confirm the row exists, which is what someone editing ids wants to learn |
+| Definition | the questionnaire itself is not an individual's data and stays readable to the project, so a technician can read the form they must fill in |
+
+`app.field_responses_access` is transaction-local and set only after `requirePermission` has
+passed; forging it would still leave every other conjunct in each policy — tenant, project,
+membership — in force, and a caller able to set session settings arbitrarily already holds the
+runtime role (§5, IG0-B01).
+
+The demo questionnaire collects **no** personal data: no names, identity numbers, phone numbers,
+email addresses, health or disability data, individual income, or precise household coordinates.
+Answers are synthetic and labelled `DEMO_SIMULATION`. A visit's location is the technician's own
+position at the time of the visit, captured only with the browser's permission and recorded as
+`denied` or `unavailable` when there is none — never fabricated, and never a household's address.
+Answer payloads are not written to logs.
+
 ## 10a. Privacy by design and the compliance gate (Gate 1 D-018)
 
 Before **production ingestion of any real personal data**, the project requires a specific
@@ -212,6 +239,30 @@ See TENANCY.md §6. Additional technical controls: CSRF protection on server act
 same-site cookies, rate limits, dependency audit in CI, secrets never in the repo, presigned URL
 TTL ≤ 15 minutes, admin actions require recent re-authentication (step-up) for ownership transfer
 and PII export.
+
+## 12a. Test tooling must not be able to destroy a real environment (IG3-001)
+
+Isolation controls protect tenants from each other. This one protects an environment from our own
+tooling, and it belongs here because the failure mode is the same shape: a helper that operates on
+whatever database it is handed, trusted to be pointed at the right one.
+
+The integration suite truncates tenant and identity tables between files. Pointed at persistent
+staging it removed the synthetic identities the demo campaign assigns work to, and the campaign
+re-seeded with zero assignments. Nothing crossed a tenant boundary and no data of consequence was
+lost — staging holds only synthetic, PII-free demo data — but an environment that a reviewer is
+expected to log in to stopped working, and the remedy on offer was "re-provision afterwards",
+which is not a contract.
+
+| Control | Mechanism |
+|---|---|
+| Destructive helpers refuse unknown databases | `assertEphemeralTestDatabase` verifies a marker table whose token is generated per run by the Testcontainers setup; every other outcome refuses (fail closed) |
+| Identification is positive, not heuristic | not hostname, database name, `NODE_ENV` or a "not production" flag — a stamp written by the process that created the throwaway container |
+| No override | no flag, argument or environment variable makes the check pass; the external-database mode that allowed it (`EIA_TEST_MIGRATOR_URL`) is removed and now fails the run |
+| Separate command and config | `pnpm test:staging` with its own vitest config, so `pnpm test` cannot reach a persistent environment |
+| Staging writes | only inside transactions that always `ROLLBACK`; no truncate, no drop, no seed, no fixture repair |
+| Both sides asserted | the staging suite fails if the environment carries the ephemeral marker; the integration suite fails if it does not |
+| Local development | `pnpm e2e:prepare` reconciles identities (including the credential) and never wipes; emptying a local database is the separate, guarded `pnpm db:reset:local` |
+| Credentials | the synthetic demo password is supplied through `DEMO_USER_PASSWORD` in the environment only — never committed, never printed, never written to a log or to documentation |
 
 ## 13. Security tests (acceptance)
 

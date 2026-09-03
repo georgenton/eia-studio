@@ -40,9 +40,12 @@ route or a nav item; a capability never carries a numeric parameter.
 | `audit.environmental` | (ext) | `core.projects` | EXTENSION | HIDDEN | none in workspace |
 
 The catalogue is exactly the 14 approved keys. `field.offline_sync` (proposed in the phase
-brief) is **not** added (Gate 1 D-020): whether offline behaviour is a capability or a
-configuration such as `field.surveys.offline_mode = disabled | optional | required` is an open
-decision for the Field slice, not Slice 0.
+brief) is **not** added, now or later. Gate 1 (D-020) left the question open for the Field slice;
+Slice 3 closed it (**ADR-018**): offline capture is the project configuration key
+`field.surveys.offline_mode = disabled | optional | required`, under the existing `field.surveys`
+capability. A project with offline disabled still has FieldFlow, the same routes and the same
+surfaces — only the channel it may capture through differs — which is a configuration question by
+the definition in §1.
 
 Each catalogue entry also declares: `label`, `description` (Spanish copy from Tenant Settings),
 `enforcementPoints` (route prefixes, action names, job names), `whoCanEnable` (used by the
@@ -156,7 +159,8 @@ Initial configuration keys (examples, not exhaustive):
 | `project.locale` | locale | `es-EC` | formatting |
 | `field.surveys.require_gps` | boolean | true | instrument validation |
 | `field.surveys.gps_max_distance_m` | number | 100 | inbox state `GPS ALEJADO` |
-| `field.surveys.offline_mode` (candidate, undecided — D-020) | enum disabled/optional/required | — | to be decided in the Field slice; may instead become a capability |
+| `field.surveys.offline_mode` | enum disabled/optional/required | `disabled` | campaign activation (ADR-018): `required` refuses a capture channel that declares no offline support, and the native web channel declares none |
+| `field.campaign.capture_channel` | enum (`NATIVE_WEB`) | `NATIVE_WEB` | recorded per campaign at activation, together with the offline mode then in force |
 | `gis.abscissa_tolerance_m` | number | 30 | rule `rule.geo_abscissa_tolerance` (prototype: "Tolerancia configurada: 30 m") |
 | `social.ai_coding.score_thresholds` | {high, medium} | {0.75, 0.60} | confidence labels (spec: adjustable per project) |
 | `social.ai_coding.batch_size` | number | 100 | batch mode |

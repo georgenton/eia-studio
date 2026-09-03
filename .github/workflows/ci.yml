@@ -176,6 +176,10 @@ jobs:
           DEMO_FIXTURES_ENABLED: "true"
           DEMO_USER_PASSWORD: ${{ secrets.E2E_USER_PASSWORD || 'ci-only-demo-password' }}
 
+      - name: Demo seeder is idempotent (re-seed changes nothing that exists)
+        run: pnpm db:check-seeder-idempotency
+        env: *e2e_env
+
       - name: Build the web application
         run: pnpm --filter @eia/web build
         env: *e2e_env

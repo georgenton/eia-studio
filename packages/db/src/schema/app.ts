@@ -131,6 +131,9 @@ export const projectMembership = app.table(
   },
   (t) => [
     unique("project_membership_project_member_key").on(t.projectId, t.tenantMembershipId),
+    // The composite key every tenant-scoped child FK references, so a row cannot point at a
+    // membership of another tenant even if application code is wrong (ARCHITECTURE.md §5).
+    unique("project_membership_tenant_id_id_key").on(t.tenantId, t.id),
     foreignKey({
       name: "project_membership_project_fk",
       columns: [t.tenantId, t.projectId],

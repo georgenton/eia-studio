@@ -123,9 +123,9 @@ climate.analytics (ext) compliance.pma (ext) audit.environmental (ext)
 ```
 
 Note: the phase brief also named `field.offline_sync`. Gate 1 (D-020) kept the approved
-14-capability catalogue; whether offline behaviour is a capability or a configuration
-(`field.surveys.offline_mode = disabled | optional | required`) is an open decision for the Field
-slice. Capability resolution is boolean; navigation presentation (ACTIVE / ANNOUNCED / HIDDEN) is
+14-capability catalogue and deferred the question; Slice 3 settled it in ADR-018. Offline capture
+is the configuration `field.surveys.offline_mode = disabled | optional | required` under
+`field.surveys`, and the catalogue stays at fourteen keys. Capability resolution is boolean; navigation presentation (ACTIVE / ANNOUNCED / HIDDEN) is
 separate (D-014): Reports is ANNOUNCED, the three extensions are HIDDEN.
 
 ## 7. Out of scope for the approved design (v0.2)
