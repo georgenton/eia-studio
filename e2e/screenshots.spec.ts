@@ -11,6 +11,7 @@ import { PROJECT, TENANT, test } from "./fixtures";
  */
 const OUT = "docs/screenshots/slice-1";
 const OUT2 = "docs/screenshots/slice-2";
+const OUT3 = "docs/screenshots/slice-3";
 
 test.describe("implementation screenshots", () => {
   test("portfolio", async ({ page }) => {
@@ -33,9 +34,10 @@ test.describe("implementation screenshots", () => {
   });
 
   test("module enabled but not implemented", async ({ page }) => {
-    // A capability the project *is* entitled to whose surface this slice has not built. A
-    // capability it is not entitled to answers 404 and has nothing to capture (ADR-016).
-    await page.goto(`/t/${TENANT}/p/${PROJECT}/field`);
+    // A capability the project *is* entitled to whose surface no slice has built yet. A capability
+    // it is not entitled to answers 404 and has nothing to capture (ADR-016). This used to point
+    // at FieldFlow; Slice 3 built it, so the example moved to the Quality Gate.
+    await page.goto(`/t/${TENANT}/p/${PROJECT}/quality`);
     await page.waitForLoadState("networkidle");
     await page.screenshot({ path: `${OUT}/04-module-not-implemented.png` });
   });
@@ -65,5 +67,18 @@ test.describe("implementation screenshots", () => {
     await page.getByRole("heading", { name: "PRED-ZAM-004", level: 1 }).waitFor();
     await page.waitForTimeout(1200);
     await page.screenshot({ path: `${OUT2}/03-parcel-workspace.png`, fullPage: true });
+  });
+
+  test("field surveys — coordinator", async ({ page }) => {
+    await page.goto(`/t/${TENANT}/p/${PROJECT}/field`);
+    await page.waitForLoadState("networkidle");
+    await page.screenshot({ path: `${OUT3}/05-field-coordinator.png`, fullPage: true });
+  });
+
+  test("parcel workspace — visits", async ({ page }) => {
+    await page.goto(`/t/${TENANT}/p/${PROJECT}/parcels/PRED-ZAM-001?tab=visitas`);
+    await page.getByRole("heading", { name: "PRED-ZAM-001", level: 1 }).waitFor();
+    await page.waitForTimeout(600);
+    await page.screenshot({ path: `${OUT3}/06-parcel-visits.png`, fullPage: true });
   });
 });

@@ -125,10 +125,14 @@ test.describe("GIS reviewer journey", () => {
     await expect(main).toContainText("Proyección del centroide sobre el eje");
     await expect(main.getByText("SYNTHETIC").first()).toBeVisible();
 
-    // 13 · tabs whose modules do not exist say so instead of inventing content
+    // 13 · the Visits tab is field work, and since Slice 3 it has some: state, questionnaire
+    // version and provenance, never the answers themselves.
     await page.getByRole("link", { name: "Visitas" }).click();
-    await expect(main).toContainText("Visitas: aún sin datos");
-    await expect(main).toContainText("field.surveys");
+    await expect(main).toContainText("Visitas de campo");
+
+    // 14 · tabs whose modules do not exist still say so instead of inventing content
+    await page.getByRole("link", { name: "Instrumentos" }).click();
+    await expect(main).toContainText("Instrumentos: aún sin datos");
   });
 
   test("parcel provenance opens the same one drawer", async ({ page }) => {

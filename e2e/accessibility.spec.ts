@@ -60,6 +60,18 @@ test.describe("accessibility smoke", () => {
     await scan(page);
   });
 
+  test("field surveys", async ({ page }) => {
+    await page.goto(`/t/${TENANT}/p/${PROJECT}/field`);
+    await page.waitForLoadState("networkidle");
+    await scan(page);
+  });
+
+  test("parcel workspace visits", async ({ page }) => {
+    await page.goto(`/t/${TENANT}/p/${PROJECT}/parcels/PRED-ZAM-001?tab=visitas`);
+    await expect(page.getByRole("heading", { name: "PRED-ZAM-001", level: 1 })).toBeVisible();
+    await scan(page);
+  });
+
   test("provenance drawer open", async ({ page }) => {
     await page.goto(`/t/${TENANT}/p/${PROJECT}`);
     await page.getByRole("link", { name: "Ver origen" }).first().click();
