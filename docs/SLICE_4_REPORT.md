@@ -192,9 +192,9 @@ unchanged and no new SOURCE_TYPE enum was introduced; the badges remain derived 
 
 | Suite | Result |
 |---|---|
-| Unit and domain | **185 passed** — 31 of them the new social suite |
+| Unit and domain | **201 passed** — 31 of them the new social suite, 16 from the Vercel-origin hotfix this branch has since merged from `main` |
 | Integration (Testcontainers, RLS) | **240 passed** (18 files), including the taxonomy versioning regression, the AI-gate regression and the worker concurrency test |
-| End to end (Playwright) | **105 passed** across coordinator, admin, technician, second technician, specialist and anonymous projects |
+| End to end (Playwright) | **96 passed** (91 specs + 5 sign-in setups, nothing skipped) across coordinator, admin, technician, second technician, specialist and anonymous projects — 20 of them the specialist's |
 | Accessibility (axe) | 16 scans, no serious or critical violations (5 of them new Social states) |
 | Seeder idempotency | stable across a second pass, taxonomy reused rather than re-created |
 | Lint, format, typecheck, build | clean |
