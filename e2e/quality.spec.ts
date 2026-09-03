@@ -65,12 +65,18 @@ test.describe("Quality Gate · the coordinator's journey", () => {
     }
   });
 
-  test("the evidence says it is reconstructed, and carries no page number", async ({ page }) => {
+  test("the evidence links to the ingested passage it was transcribed from", async ({ page }) => {
+    // Slice 6 enrichment (ADR-020 §6): the finding was raised before the documents existed and was
+    // never rewritten. The reference resolves through the assertion at read time, so it appeared
+    // the moment the excerpt was ingested.
     await page.goto(`/t/${TENANT}/p/${PROJECT}/quality/QG-002`);
     const main = page.getByRole("main");
-    await expect(main).toContainText("Extracto reconstruido del expediente");
-    await expect(main).toContainText("Sin número de página");
-    await expect(main).not.toContainText(/p[áa]g\.?\s*\d+/i);
+    await expect(main).toContainText("Transcrito de");
+    const link = main.getByRole("link", { name: /DOC-\d+ v\d/ }).first();
+    await expect(link).toBeVisible();
+    await link.click();
+    await expect(page).toHaveURL(/\/documents\/DOC-/);
+    await expect(page.getByRole("main")).toContainText("Pasaje");
   });
 
   test("the interdisciplinary finding says so, and the temporal one is not called a fault", async ({

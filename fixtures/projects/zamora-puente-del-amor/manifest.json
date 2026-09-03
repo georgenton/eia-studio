@@ -14,7 +14,7 @@
       "parcel codes"
     ],
     "reviewedBy": "architecture",
-    "note": "Aggregate figures come from a concluded, publicly reported study. Everything describing day-to-day operations is a demo simulation and is labelled DEMO_SIMULATION in provenance. Quality Gate assertions are values reconstructed by hand from the concluded study's corpus; they carry a human-readable source reference and no page number, because no document has been ingested. They contain no personal data: the vulnerability figures are aggregates the study itself published."
+    "note": "Aggregate figures come from a concluded, publicly reported study. Everything describing day-to-day operations is a demo simulation and is labelled DEMO_SIMULATION in provenance. Quality Gate assertions are values reconstructed by hand from the concluded study's corpus; they carry a human-readable source reference and no page number, because no document has been ingested. They contain no personal data: the vulnerability figures are aggregates the study itself published. Document excerpts are short passages transcribed by hand from the concluded study's file; the original PDFs are external source material and are not in this repository or in the system. They contain no personal data — the figures are aggregates the study itself published — and every version is labelled RECONSTRUCTED_EXCERPT on screen."
   },
   "tenantSlug": "demo-consultancy",
   "project": {
@@ -772,6 +772,107 @@
         "sourceRef": "Ficha técnica del proyecto",
         "valueText": "Zamora Chinchipe, Ecuador",
         "quote": "Provincia de Zamora Chinchipe, Ecuador"
+      }
+    ]
+  },
+  "documents": {
+    "$comment": "Extractos RECONSTRUIDOS del expediente del estudio concluido, transcritos a mano. Los PDF originales son material fuente externo y NO están en este repositorio ni en el sistema: por eso cada versión se etiqueta RECONSTRUCTED_EXCERPT y su procedencia dice de dónde viene. Son fragmentos cortos, suficientes para que la recuperación y las citas sean reales, y no contienen datos personales: las cifras son agregados que el propio estudio publicó. `assertionKeys` vincula cada documento con las afirmaciones del Quality Gate que se leyeron de él, para que un hallazgo pueda citar el pasaje y no sólo la referencia escrita a mano.",
+    "items": [
+      {
+        "code": "DOC-001",
+        "title": "Anexo de afectaciones prediales",
+        "kind": "annex",
+        "versionLabel": "v1",
+        "sourceNote": "Extracto transcrito del anexo de afectaciones del expediente. El documento original no está en el sistema.",
+        "pages": [
+          {
+            "number": 1,
+            "text": "ANEXO DE AFECTACIONES PREDIALES\n\nEl presente anexo consolida los predios frentistas identificados a lo largo del corredor vial y su condición respecto del derecho de vía. El levantamiento se realizó sobre la cartografía disponible y las fichas de campo entregadas por el equipo territorial.\n\nDel total de predios inventariados en el corredor, se identifican 71 predios con afectación por el trazado propuesto. La afectación se expresa en superficie estimada y no constituye por sí misma una determinación de indemnización.\n\nLas superficies afectadas se calcularon a partir de la geometría predial disponible al momento del levantamiento. Cualquier ajuste posterior del trazado modifica el conteo y obliga a rehacer el anexo."
+          }
+        ],
+        "assertionKeys": ["parcels.affected_count"]
+      },
+      {
+        "code": "DOC-002",
+        "title": "Informe social — capítulo de afectaciones y población",
+        "kind": "report",
+        "versionLabel": "v1",
+        "sourceNote": "Extracto transcrito del informe social del expediente. El documento original no está en el sistema.",
+        "pages": [
+          {
+            "number": 1,
+            "text": "INFORME SOCIAL — CAPÍTULO DE AFECTACIONES\n\nEl área de influencia directa comprende los predios frentistas al corredor. Se registran 70 predios afectados por el trazado, sobre los cuales se aplicó la ficha socioeconómica.\n\nLa caracterización de la población se realizó mediante entrevistas en predio y asambleas informativas. La participación fue registrada en actas suscritas por los asistentes."
+          },
+          {
+            "number": 2,
+            "text": "CARACTERIZACIÓN DE LA POBLACIÓN\n\nDel universo levantado, cuatro hogares en condición de vulnerabilidad según los criterios del estudio requieren atención diferenciada en el plan de reasentamiento. Los criterios aplicados consideran dependencia del predio como única fuente de ingreso y jefatura de hogar en situación de dependencia.\n\nSe recomienda que el plan de manejo incorpore medidas específicas para estos casos y que su seguimiento quede a cargo del componente social."
+          },
+          {
+            "number": 3,
+            "text": "MARCO INSTITUCIONAL\n\nLa coordinación interinstitucional del proyecto se realiza con el gobierno autónomo descentralizado provincial y con las juntas parroquiales del área de influencia. En coordinación con la PREFECTURA DE PICHINCHA se establecieron los mecanismos de socialización y el cronograma de asambleas.\n\nLas competencias sobre la vía y sobre el uso del suelo corresponden a los niveles de gobierno señalados en la normativa vigente."
+          }
+        ],
+        "assertionKeys": [
+          "parcels.affected_count",
+          "social.vulnerable_cases_reported",
+          "document.institution_mentioned"
+        ]
+      },
+      {
+        "code": "DOC-003",
+        "title": "Plan de participación social",
+        "kind": "plan",
+        "versionLabel": "v1",
+        "sourceNote": "Extracto transcrito del plan de participación del expediente. El documento original no está en el sistema.",
+        "pages": [
+          {
+            "number": 1,
+            "text": "PLAN DE PARTICIPACIÓN SOCIAL\n\nEl proceso de participación contempla asambleas informativas en el área de influencia directa, con convocatoria pública y registro de asistencia.\n\nAsamblea de consulta prevista para el 25 de octubre de 2025 en la cabecera parroquial. La convocatoria se difundirá con al menos siete días de anticipación por los medios locales y mediante carteles en los sitios de mayor concurrencia.\n\nLos resultados de la asamblea se incorporan al expediente mediante acta suscrita."
+          }
+        ],
+        "assertionKeys": ["consultation.planned_date"]
+      },
+      {
+        "code": "DOC-004",
+        "title": "Acta de la asamblea de consulta",
+        "kind": "minutes",
+        "versionLabel": "v1",
+        "sourceNote": "Extracto transcrito del acta de asamblea del expediente. El documento original no está en el sistema.",
+        "pages": [
+          {
+            "number": 1,
+            "text": "ACTA DE LA ASAMBLEA DE CONSULTA\n\nActa de la asamblea celebrada el 22 de octubre de 2025 en la cabecera parroquial, con la participación de habitantes del área de influencia directa y representantes del equipo consultor.\n\nSe presentó el alcance del proyecto, el trazado propuesto y el cronograma previsto. Las intervenciones de los asistentes se recogieron en el registro anexo y se clasificaron por tema para su tratamiento en el plan de manejo.\n\nLa asamblea concluyó con la lectura del acta y la suscripción del registro de asistencia."
+          }
+        ],
+        "assertionKeys": ["consultation.actual_date"]
+      },
+      {
+        "code": "DOC-005",
+        "title": "Componente legal — conclusiones",
+        "kind": "legal",
+        "versionLabel": "v1",
+        "sourceNote": "Extracto transcrito del componente legal del expediente. El documento original no está en el sistema.",
+        "pages": [
+          {
+            "number": 1,
+            "text": "COMPONENTE LEGAL — CONCLUSIONES\n\nDel análisis del marco normativo aplicable y de la información levantada en el área de influencia se desprende que el proyecto se ajusta a los procedimientos de participación previstos.\n\nNo se identificaron grupos en situación de vulnerabilidad en el área de influencia que requieran un tratamiento diferenciado bajo la normativa citada.\n\nSe recomienda mantener el registro documental de las actuaciones y actualizar el expediente ante cualquier modificación del trazado."
+          }
+        ],
+        "assertionKeys": ["social.no_vulnerable_groups"]
+      },
+      {
+        "code": "DOC-006",
+        "title": "Ficha técnica del proyecto",
+        "kind": "report",
+        "versionLabel": "v1",
+        "sourceNote": "Extracto transcrito de la ficha técnica del expediente. El documento original no está en el sistema.",
+        "pages": [
+          {
+            "number": 1,
+            "text": "FICHA TÉCNICA DEL PROYECTO\n\nProvincia de Zamora Chinchipe, Ecuador. El proyecto corresponde a la rehabilitación de un corredor vial existente y su área de influencia directa comprende los predios frentistas al derecho de vía.\n\nLa longitud del eje y el número de predios frentistas constan en los anexos cartográficos. El estudio se desarrolló conforme a los términos de referencia aprobados."
+          }
+        ],
+        "assertionKeys": ["project.location_label"]
       }
     ]
   }

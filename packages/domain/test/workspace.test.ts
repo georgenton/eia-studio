@@ -38,7 +38,14 @@ describe("workspace surface registry", () => {
 
   it("every surface a slice has built is marked implemented, and no other", () => {
     const implemented = WORKSPACE_SURFACES.filter((k) => SURFACE_DEFINITIONS[k].implemented);
-    expect(implemented).toEqual(["command-center", "gis", "field", "social", "quality"]);
+    expect(implemented).toEqual([
+      "command-center",
+      "gis",
+      "field",
+      "social",
+      "quality",
+      "documents",
+    ]);
   });
 
   it("an unbuilt surface names the phase it is coming in; a built one names none", () => {
@@ -82,9 +89,13 @@ describe("capability route policy", () => {
     expect(outcome(true, "field")).toBe("ok");
     expect(outcome(true, "social")).toBe("ok");
     expect(outcome(true, "quality")).toBe("ok");
-    // Documents is the current example of "the capability could be on, the surface is not built".
-    // (Quality Gate was it until Slice 5; GIS until Slice 2; FieldFlow until Slice 3.)
-    expect(outcome(true, "documents")).toBe("not-implemented");
+    expect(outcome(true, "documents")).toBe("ok");
+    // Reports is the only remaining unbuilt surface, and its capability is ANNOUNCED — so the
+    // "module not implemented" state still has no reachable route (TD-055). GIS was the live
+    // example until Slice 2, FieldFlow until Slice 3, Quality Gate until Slice 5, Documents
+    // until Slice 6.
+    expect(outcome(true, "reports")).toBe("not-implemented");
+    expect(outcome(false, "reports")).toBe("not-found");
   });
 
   it("presentation cannot widen the policy: ANNOUNCED resolves as disabled", () => {

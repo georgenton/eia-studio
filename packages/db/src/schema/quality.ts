@@ -116,6 +116,13 @@ export const documentAssertion = app.table(
     quote: text("quote"),
     /** Free qualifier a rule may compare against, e.g. an institution's jurisdiction. */
     qualifier: text("qualifier"),
+    /**
+     * Where this value was actually read, once the document exists in the system (Slice 6).
+     * Null while the assertion is a hand-transcribed excerpt, which is what `source_kind` says.
+     * A CHECK ties the two together: claiming `DOCUMENT_VERSION` requires naming a version.
+     */
+    documentVersionId: uuid("document_version_id"),
+    chunkId: uuid("chunk_id"),
     provenanceId: uuid("provenance_id").notNull(),
     createdAt: createdAt(),
   },

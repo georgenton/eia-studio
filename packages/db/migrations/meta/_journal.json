@@ -141,6 +141,20 @@
       "when": 1788470805134,
       "tag": "0019_quality_rls_and_invariants",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1788476782305,
+      "tag": "0020_document_intelligence_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1788476783305,
+      "tag": "0021_document_rls_and_retrieval",
+      "breakpoints": true
     }
   ]
 }

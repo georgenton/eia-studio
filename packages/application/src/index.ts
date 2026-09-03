@@ -158,3 +158,20 @@ export type {
   FindingSummary,
   QualityOverview,
 } from "./quality/read-models";
+
+// Document intelligence (Slice 6). Retrieval is full-text; there is no embedding path (ADR-021).
+export { ingestDocumentVersion } from "./documents/ingest";
+export type { IngestedVersion } from "./documents/ingest";
+export { FullTextRetriever } from "./documents/retriever";
+export { askDocuments } from "./documents/assistant";
+export type { AssistantAsk, AssistantConfig, AssistantResponse } from "./documents/assistant";
+export {
+  AiGatewayAssistantGenerator,
+  createAssistantGenerator,
+  FakeAssistantGenerator,
+  renderAssistantSystemPrompt,
+  renderAssistantUserPrompt,
+} from "./documents/generator";
+export type { FakeGeneratorScenario } from "./documents/generator";
+export { loadDocuments, loadDocumentVersion } from "./documents/read-models";
+export type { DocumentSummary, DocumentVersionDetail } from "./documents/read-models";

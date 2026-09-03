@@ -61,8 +61,8 @@ TD-042, TD-043, TD-044, TD-045, TD-046, TD-047, TD-048 remain open from the slic
 
 | | |
 |---|---|
-| Branch / PR | `feat/slice-5-quality-gate` · (recorded at merge) |
-| Merge SHA | *(recorded at merge)* |
+| Branch / PR | `feat/slice-5-quality-gate` · [#9](https://github.com/georgenton/eia-studio/pull/9) |
+| Merge SHA | `7a4012a` |
 | Migrations | `0018_quality_gate_tables.sql` (5 tables), `0019_quality_rls_and_invariants.sql` (grants, RLS, CHECKs, append-only and two-source triggers) — forward only, additive, no backfill |
 | Tests | unit **243**, integration **285**, Playwright **118**, staging (non-destructive) **70** |
 | Staging | migrations 18 → 20 applied forward; 8 corpus assertions and 1 provenance record added; **every pre-existing id identical**; field baseline unchanged; verification suite 70 passed |
@@ -89,4 +89,31 @@ bits directly.
 **Deviations.** Recorded in `docs/SLICE_5_REPORT.md` §9. Nothing outside the approved scope.
 
 **Debt recorded.** TD-050 … TD-054.
+
+### Slice 6 — Document intelligence and the scoped assistant
+
+| | |
+|---|---|
+| Branch / PR | `feat/slice-6-document-intelligence` · (recorded at merge) |
+| Merge SHA | *(recorded at merge)* |
+| Migrations | `0020_document_intelligence_tables.sql` (3 tables, 2 enums, 2 columns on `document_assertion`), `0021_document_rls_and_retrieval.sql` (grants + REVOKE, RLS, immutability triggers, generated `tsvector` + GIN index, replaced CHECK) — forward only, additive |
+| Tests | unit **265**, integration **320**, Playwright **130**, staging **81** |
+| Staging | migrations 20 → 22 applied forward; 6 documents / 9 passages / 6 provenance records added; every pre-existing id identical; **the four Quality Gate findings and their decisions untouched**; verification suite 81 passed |
+| External configuration | unchanged — retrieval needs no credential; the narrative generator reports `NOT_CONFIGURED` and the assistant still answers |
+
+**Scope delivered.** Immutable document versions and deterministic chunking; full-text retrieval
+behind a port; an assistant that cites document, version, page and passage; the Documents surface
+and a version's passages; the Quality Gate's evidence linked to the passage it was transcribed from;
+manual page 08 and the walkthrough's document leg.
+
+**Meaningful decisions.** ADR-021: one retrieval stack, PostgreSQL full-text, with **no pgvector and
+no fake embedder** — the only resolution consistent with the brief's three constraints, and the same
+principle as IG4-001 applied to a column instead of a table. The assistant separates finding
+evidence from writing prose, so the useful half works with no provider at all. The shared
+availability rule moved to `domain/ai/` and gained a general form rather than being copied.
+
+**Deviations.** Recorded in `docs/SLICE_6_REPORT.md` §9. One Slice 5 test was updated rather than
+loosened: migration 0021 replaces the CHECK it asserted, and it now asserts the successor.
+
+**Debt recorded.** TD-056 … TD-059.
 

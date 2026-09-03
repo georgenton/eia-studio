@@ -1,7 +1,11 @@
 import { AiUnavailable } from "../core/errors";
 
 /**
- * Whether assisted coding may run at all, and why not when it may not (IG4-001).
+ * Whether an AI-backed feature may run at all, and why not when it may not (IG4-001).
+ *
+ * It lives in `ai/` rather than `social/` because it now governs two adapters — the classifier and
+ * the assistant's narrative generator — and the point of the rule is that there is exactly one of
+ * it. A copy per feature is a predicate that can drift, and the predicate is the whole guarantee.
  *
  * ## The failure this closes
  *
@@ -78,27 +82,61 @@ export function isPersistentEnvironment(appEnv: string): boolean {
 export function resolveClassifierAvailability(
   input: ClassifierAvailabilityInput,
 ): ClassifierAvailability {
+  return resolveAiAdapterAvailability({
+    appEnv: input.appEnv,
+    variable: "SOCIAL_CLASSIFIER",
+    modelVariable: "SOCIAL_CLASSIFIER_MODEL",
+    feature: "assisted coding",
+    adapter: input.classifier,
+    model: input.model,
+    credentialPresent: input.gatewayApiKeyPresent,
+  });
+}
+
+/**
+ * The same rule, for any adapter that may or may not have a live provider behind it.
+ *
+ * Slice 6 added a second one (the assistant's narrative generator), and the choice was between
+ * copying thirty lines of policy or naming the variables. Copying would have meant two places to
+ * change the day the environment predicate changes, and the predicate is the part that must not
+ * drift: it is what keeps a persistent environment from silently running a stand-in.
+ */
+export interface AiAdapterAvailabilityInput {
+  readonly appEnv: string;
+  /** The environment variable that selects the adapter, named in the operator-facing detail. */
+  readonly variable: string;
+  readonly modelVariable: string;
+  /** What is lost when it is unavailable, in the detail text: "assisted coding", "the assistant". */
+  readonly feature: string;
+  readonly adapter: ClassifierKind | undefined;
+  readonly model: string | undefined;
+  readonly credentialPresent: boolean;
+}
+
+export function resolveAiAdapterAvailability(
+  input: AiAdapterAvailabilityInput,
+): ClassifierAvailability {
   const persistent = isPersistentEnvironment(input.appEnv);
 
-  if (input.classifier === undefined) {
+  if (input.adapter === undefined) {
     return {
       state: "UNAVAILABLE",
       reason: "NOT_CONFIGURED",
       detail:
-        "SOCIAL_CLASSIFIER is not set, so assisted coding is unavailable here. Deterministic " +
-        "social analytics do not depend on it and remain available.",
+        `${input.variable} is not set, so ${input.feature} is unavailable here. Everything that ` +
+        "does not depend on a model keeps working.",
     };
   }
 
-  if (input.classifier === "fake") {
+  if (input.adapter === "fake") {
     if (persistent) {
       return {
         state: "UNAVAILABLE",
         reason: "FAKE_REFUSED_IN_PERSISTENT_ENVIRONMENT",
         detail:
-          `SOCIAL_CLASSIFIER=fake is refused in APP_ENV=${input.appEnv}. The deterministic ` +
-          "classifier exists for automated tests; its output stored in a persistent environment " +
-          "would be indistinguishable from a real model's proposal.",
+          `${input.variable}=fake is refused in APP_ENV=${input.appEnv}. The deterministic ` +
+          "adapter exists for automated tests; its output stored in a persistent environment " +
+          "would be indistinguishable from a real model's.",
       };
     }
     return {
@@ -109,13 +147,13 @@ export function resolveClassifierAvailability(
     };
   }
 
-  if (!input.gatewayApiKeyPresent) {
+  if (!input.credentialPresent) {
     return {
       state: "UNAVAILABLE",
       reason: "BLOCKED_EXTERNAL_CONFIG",
       detail:
-        "SOCIAL_CLASSIFIER=ai-gateway but AI_GATEWAY_API_KEY is not set. Refusing to fall back " +
-        "to the deterministic fake: a fabricated coding is indistinguishable from a real one " +
+        `${input.variable}=ai-gateway but AI_GATEWAY_API_KEY is not set. Refusing to fall back ` +
+        "to the deterministic fake: a fabricated result is indistinguishable from a real one " +
         "once it is a row in a table.",
     };
   }
@@ -127,7 +165,7 @@ export function resolveClassifierAvailability(
       state: "UNAVAILABLE",
       reason: "BLOCKED_EXTERNAL_CONFIG",
       detail:
-        "SOCIAL_CLASSIFIER_MODEL must be a provider-qualified gateway model id, e.g. " +
+        `${input.modelVariable} must be a provider-qualified gateway model id, e.g. ` +
         "anthropic/claude-sonnet-4.5.",
     };
   }

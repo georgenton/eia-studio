@@ -161,10 +161,21 @@ describe("product status and presentation", () => {
   it("ANNOUNCED and EXTENSION never resolve to enabled", () => {
     const set = resolveCapabilities({ tenant: tenantAll(ALL_KEYS) });
     expect(set["core.projects"]).toBe(true);
-    expect(set["core.documents"]).toBe(false);
-    expect(set["quality.rag_assistant"]).toBe(false);
+    // Slice 6 moved `core.documents` and `quality.rag_assistant` to AVAILABLE; Reports is the
+    // remaining ANNOUNCED one, and the three extensions remain EXTENSION.
+    expect(set["core.documents"]).toBe(true);
+    expect(set["quality.rag_assistant"]).toBe(true);
     expect(set["reports.social_generator"]).toBe(false);
     expect(set["climate.analytics"]).toBe(false);
+  });
+
+  it("a capability is about whether the functionality exists, not whether a provider answers", () => {
+    // `quality.rag_assistant` is AVAILABLE even with no model configured anywhere: retrieval with
+    // citations is the functionality, and the narrative paragraph is the part that degrades
+    // (ADR-021 §4). Tying a capability to an external credential would make the rail flicker with
+    // somebody else's outage.
+    const set = resolveCapabilities({ tenant: tenantAll(ALL_KEYS) });
+    expect(set["quality.rag_assistant"]).toBe(true);
   });
 
   it("navigation presentation is separate from authorization", () => {

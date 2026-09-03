@@ -44,8 +44,20 @@ by hand from the corpus with **no page number**, because document ingestion does
 citation nobody can check is a fabrication. Checking (`quality.write`) and deciding
 (`quality.review`) are different grants: a specialist runs, a reviewer settles.
 
-RAG, Reports and the Client Portal are **not** implemented; their routes exist only as
-capability-guarded placeholders until their slices land.
+**Slice 6 (document intelligence)** adds the evidence layer and a scoped assistant. `SourceDocument`
+→ immutable `DocumentVersion` → immutable `DocumentChunk`; a citation names a **version**, and a
+corrected file is a new version whose predecessor keeps its words (`document_chunk` refuses UPDATE
+and DELETE by grant *and* trigger). **Retrieval is PostgreSQL full-text and says so on screen**
+(ADR-021, amending ARCHITECTURE §5/§9 and AI_GOVERNANCE §8): there is no pgvector, no `vec` schema,
+no embedding column and no fake embedder, because a stand-in vector is indistinguishable from a real
+one. The citations are the answer — retrieval needs no model, only the narrative paragraph does, and
+a generated answer may cite **only** what was retrieved (an invented index fails the answer rather
+than being dropped). Nothing generated is persisted. A document flagged `contains_pii` is refused,
+not redacted. The Quality Gate's evidence gained a passage link resolved at read time, so no Slice 5
+finding was rewritten. `core.documents` and `quality.rag_assistant` are now AVAILABLE.
+
+Reports and the Client Portal are **not** implemented; their routes exist only as capability-guarded
+placeholders until their slices land.
 
 ## Read before acting
 

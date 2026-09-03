@@ -34,3 +34,25 @@ export const socialEnvSchema = z
   .strict();
 
 export type SocialEnv = z.infer<typeof socialEnvSchema>;
+
+/**
+ * The document assistant's narrative generator (Slice 6).
+ *
+ * Same shape and the same rule as `SOCIAL_CLASSIFIER`, decided by the same domain function
+ * (`resolveAiAdapterAvailability`): **no default**, the deterministic fake only in `local` and
+ * `test`, and a gateway without its credential reports `BLOCKED_EXTERNAL_CONFIG` rather than
+ * quietly writing something a person would read as a model's words.
+ *
+ * Unset does not disable the assistant. Retrieval with citations is the feature; the paragraph is
+ * the part that degrades, and the surface says which (ADR-021 §4).
+ */
+export const assistantEnvSchema = z
+  .object({
+    ASSISTANT_GENERATOR: z.enum(SOCIAL_CLASSIFIERS).optional(),
+    ASSISTANT_GENERATOR_MODEL: z.string().min(3).optional(),
+    /** Presence only. The same credential the classifier uses; read by the AI SDK, never by us. */
+    AI_GATEWAY_API_KEY: z.string().min(1).optional(),
+  })
+  .strict();
+
+export type AssistantEnv = z.infer<typeof assistantEnvSchema>;

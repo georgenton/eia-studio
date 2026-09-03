@@ -19,6 +19,6 @@ Rules for these pages:
 | [05 · FieldFlow for a technician](05-fieldflow-technician.md)   | capturing a visit and a response on a phone                              | current   |
 | [06 · Social Intelligence](06-social-intelligence.md)           | tabulation, assisted coding, specialist validation                       | current   |
 | [07 · Quality Gate](07-quality-gate.md)                         | findings, evidence, specialist review                                    | current   |
-| [08 · Document assistant](08-document-assistant.md)             | project documents, evidence retrieval, cited answers                     | not built |
+| [08 · Document assistant](08-document-assistant.md)             | project documents, evidence retrieval, cited answers                     | current   |
 | [09 · Report generation](09-report-generation.md)               | the social chapter draft and its traceability                            | not built |
 | [10 · Demo walkthrough](10-demo-walkthrough.md)                 | one end-to-end path through everything above                             | current   |

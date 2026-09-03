@@ -82,8 +82,8 @@ export const SURFACE_DEFINITIONS: Readonly<Record<WorkspaceSurface, SurfaceDefin
     capability: "core.documents",
     label: "Documents",
     segment: "documents",
-    implemented: false,
-    plannedIn: "una fase posterior",
+    implemented: true,
+    plannedIn: null,
   },
   reports: {
     key: "reports",

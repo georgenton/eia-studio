@@ -343,3 +343,25 @@ to a finding somebody already decided, and what changed evidence does to a settl
 statements the corpus itself makes, and nothing in this module calls a model. Semantic proposal by
 a model remains a later slice, and when it arrives it proposes a finding for a specialist to
 validate — it never settles one.
+
+## 18. Document intelligence (Slice 6)
+
+**Cross-tenant retrieval leakage is the critical test.** A retriever takes free text and returns
+document content, so a lost scope hands one consultancy another's study. It is checked with the
+*same full-text query the retriever runs*, executed under tenant A's context using tenant B's own
+distinctive term — and again with a forged scope naming tenant B, which the policy refuses rather
+than the predicate.
+
+| Layer | What it proves |
+|---|---|
+| Domain unit (`packages/domain/test/documents.test.ts`) | chunking is deterministic and its strategy is versioned; chunk hashes are of their own words; a paragraph too long to quote is split at sentence ends and a short tail joins its neighbour rather than becoming a passage nobody would cite; a document flagged `contains_pii` is refused with the reason; codes and version labels follow the product's one convention; a citation names its version always and its page only when the passage sits on one; **an answer may cite only what was retrieved** — an invented index fails the answer rather than being dropped; the strategy's own description does not claim to be semantic |
+| Application integration (`packages/application/test/documents.integration.test.ts`) | ingestion writes a version, chunks it and records the strategy; **re-ingesting identical text writes nothing**; corrected text is a new version and the old one keeps its words and its chunk ids; a PII-flagged document is refused before a single row; a technician holds neither read nor write; the capability gates the module and takes the assistant with it; retrieval searches only the current version, so a corrected figure is not re-quoted; no evidence says so and cites nothing; without a generator the passages still answer; an invented citation fails the answer; **hostile text inside a source document is retrieved as ordinary content and grants nothing**; the audit log records the act and never the content |
+| Database isolation (`packages/testing/test/rls/slice6-documents.integration.test.ts`) | cross-tenant retrieval leakage, three ways; project scope inside one tenant; no-context retrieval; forged `tenant_id` on insert; a chunk refused for UPDATE and DELETE by the runtime role **and** by the owning role, with the version cascade as the one legitimate route; per-project code uniqueness; forced RLS; **no embedding column and no `vec` schema**, asserted so that adding pgvector is a deliberate act; and the four shapes of a half-formed citation the CHECK refuses |
+| End to end (`e2e/documents*.spec.ts`) | the corpus lists and says what kind of text it is; a document shows its passages and states that they do not move; a question returns cited passages naming document, version and passage; no evidence is said plainly; with no generator the passages stand alone with the reason; an unknown code answers 404 |
+| Accessibility (axe) | the corpus list with its search form, an answer rendered without a navigation, and a document's passages |
+| Staging (non-destructive) | the tables, policies, triggers and index exist; `eia_app` genuinely lacks UPDATE and DELETE on `document_chunk`; every version is `RECONSTRUCTED_EXCERPT` with a null importer; no chunk is orphaned; full-text retrieval finds the corpus and finds none of it outside the project; the Quality Gate's assertions carry their passage links; and two rollback probes attempt what the triggers forbid |
+
+**CI calls no model.** Retrieval needs no credential at all, and the generator is a deterministic
+in-process fake selected explicitly (`ASSISTANT_GENERATOR=fake`) by the same no-default rule as the
+Social classifier.
+

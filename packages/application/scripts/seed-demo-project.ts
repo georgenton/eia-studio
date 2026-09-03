@@ -41,6 +41,7 @@ import {
 import { config as loadDotenv } from "dotenv";
 
 import { assertAnalysisSridUsable } from "../src/gis/analysis-crs";
+import { ingestDocumentVersionInTx } from "../src/documents/ingest";
 import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 
@@ -250,6 +251,40 @@ const manifestSchema = z
      * they carry **no page number**: no document has been ingested, so a page would be a
      * fabricated citation in the one field whose purpose is that a finding can be checked.
      */
+    /**
+     * Short excerpts transcribed by hand from the concluded study's file (Slice 6).
+     *
+     * They live in the fixture because they are one project's documents, and they are labelled
+     * `RECONSTRUCTED_EXCERPT`: the original PDFs are external source material and are not in this
+     * system. `assertionKeys` links a document to the Quality Gate assertions that were read from
+     * it, so a finding can cite the passage rather than only a reference typed by hand.
+     */
+    documents: z
+      .object({
+        $comment: z.string(),
+        items: z
+          .array(
+            z
+              .object({
+                code: z.string().regex(/^DOC-\d{3,}$/),
+                title: z.string().min(3),
+                kind: z.enum(["report", "annex", "minutes", "plan", "legal", "other"]),
+                versionLabel: z.string().min(1),
+                sourceNote: z.string().min(3),
+                pages: z
+                  .array(
+                    z
+                      .object({ number: z.number().int().positive(), text: z.string().min(1) })
+                      .strict(),
+                  )
+                  .min(1),
+                assertionKeys: z.array(z.string().min(3)),
+              })
+              .strict(),
+          )
+          .min(1),
+      })
+      .strict(),
     quality: z
       .object({
         $comment: z.string(),
@@ -453,6 +488,8 @@ try {
          and not exists (select 1 from app.document_assertion da where da.provenance_id = pr.id)
          and not exists (select 1 from app.quality_run qr where qr.provenance_id = pr.id)
          and not exists (select 1 from app.quality_finding qf where qf.provenance_id = pr.id)
+         -- Documents (Slice 6).
+         and not exists (select 1 from app.document_version dv where dv.provenance_id = pr.id)
     `);
     /*
      * Provenance ids are **derived from the fixture key**, not random.
@@ -1323,6 +1360,45 @@ try {
     }
 
     /**
+     * The document excerpts (Slice 6), ingested through the real use-case.
+     *
+     * Not written directly: `ingestDocumentVersion` chunks deterministically, records the strategy
+     * on the version and writes the provenance, and a seeder that bypassed it would produce rows
+     * the product could not have produced. It is idempotent by content hash — identical text on a
+     * re-seed changes nothing, so citations keep resolving.
+     *
+     * The seeder runs as the migrator, outside a request context, so it builds the minimal context
+     * the use-case requires rather than pretending to be a session.
+     */
+    // No actor: the fixture is not a person, and the version records that honestly.
+    const seedScope = { tenantId, projectId, userId: null };
+    const documentVersionByAssertionKey = new Map<
+      string,
+      { versionId: string; chunkId: string | null }
+    >();
+    let documentsSeeded = 0;
+    let documentChunks = 0;
+    for (const item of manifest.documents.items) {
+      const ingested = await ingestDocumentVersionInTx(tx, seedScope, {
+        code: item.code,
+        title: item.title,
+        kind: item.kind,
+        versionLabel: item.versionLabel,
+        textSource: "RECONSTRUCTED_EXCERPT",
+        containsPii: false,
+        pages: item.pages,
+        sourceNote: item.sourceNote,
+      });
+      documentsSeeded += 1;
+      documentChunks += ingested.chunkCount;
+      for (const key of item.assertionKeys) {
+        if (!documentVersionByAssertionKey.has(key)) {
+          documentVersionByAssertionKey.set(key, { versionId: ingested.versionId, chunkId: null });
+        }
+      }
+    }
+
+    /**
      * The corpus assertions (Slice 5).
      *
      * **Upserted on (key, source), never deleted and re-inserted.** A finding's evidence cites an
@@ -1372,6 +1448,43 @@ try {
       assertionsSeeded += 1;
     }
 
+    /**
+     * Link each assertion to the excerpt it was transcribed from (Slice 6, ADR-020 §6).
+     *
+     * **Enrichment, never revision.** The assertion stays `RECONSTRUCTED_CORPUS` — it *is* a hand
+     * transcription — and gains a pointer to the version now in the system, plus the chunk whose
+     * text actually contains its quote. The chunk link is established by the words matching, not by
+     * proximity or guesswork: if the quote appears in exactly one chunk, that chunk is the passage;
+     * otherwise the link stays null rather than becoming a citation nobody could check.
+     *
+     * Findings already raised are untouched. Their evidence resolves the document reference through
+     * the assertion at read time, so an old finding gains a link without being rewritten.
+     */
+    let assertionsLinked = 0;
+    for (const [key, ref] of documentVersionByAssertionKey) {
+      const rows = await tx.execute(sql`
+        select id, quote from app.document_assertion
+         where tenant_id = ${tenantId} and project_id = ${projectId} and key = ${key}
+      `);
+      for (const row of rows.rows as Array<{ id: string; quote: string | null }>) {
+        let chunkId: string | null = ref.chunkId;
+        if (row.quote) {
+          const matches = await tx.execute(sql`
+            select id from app.document_chunk
+             where tenant_id = ${tenantId} and version_id = ${ref.versionId}
+               and position(${row.quote} in text) > 0
+          `);
+          chunkId = matches.rows.length === 1 ? (matches.rows[0] as { id: string }).id : null;
+        }
+        await tx.execute(sql`
+          update app.document_assertion
+             set document_version_id = ${ref.versionId}, chunk_id = ${chunkId}
+           where tenant_id = ${tenantId} and id = ${row.id}
+        `);
+        assertionsLinked += 1;
+      }
+    }
+
     // No AI classifications are seeded, here or anywhere. A proposal in the database must have
     // come from a model that actually ran; a fabricated one would be indistinguishable from a
     // real result and would corrupt every later comparison (Slice 4 §68).
@@ -1387,7 +1500,8 @@ try {
         `GIS ${corridor.parcels.length} parcels · alignment ${(corridor.alignmentLengthM / 1000).toFixed(2)} km · ${corridor.generatorVersion}`,
         `chainage derived for ${chainage.rowCount ?? 0} parcels (centroid_projection, alignment CRS EPSG:${analysisSrid})`,
         `field: ${assignmentsSeeded} assignments · ${submissionsSeeded} submitted · offline_mode=${field.offlineMode}`,
-        `quality: ${assertionsSeeded} afirmaciones del corpus · 0 hallazgos sembrados`,
+        `documentos: ${documentsSeeded} · ${documentChunks} pasajes`,
+        `quality: ${assertionsSeeded} afirmaciones del corpus (${assertionsLinked} con pasaje) · 0 hallazgos sembrados`,
         `social: taxonomy ${taxonomyVersionLabel} (${social.version.categories.length} categorías, ${taxonomyVersionsSeeded === 1 ? "nueva" : "reutilizada"}) · 0 clasificaciones sembradas`,
       ].join(" · "),
     );

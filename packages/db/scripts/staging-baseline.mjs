@@ -56,6 +56,9 @@ const ID_QUERIES = {
   documentAssertions: `select id || ':' || key || ':' || source_ref as v from app.document_assertion order by id`,
   qualityFindings: `select id || ':' || finding_code || ':' || state as v from app.quality_finding order by id`,
   specialistReviews: `select id || ':' || decision as v from app.specialist_review order by id`,
+  // Documents (Slice 6): a chunk whose id moved would break every citation pointing at it.
+  documentVersions: `select id || ':' || version_label || ':' || content_hash as v from app.document_version order by id`,
+  documentChunks: `select id || ':' || content_hash as v from app.document_chunk order by id`,
 };
 
 const COUNT_QUERY = `
@@ -89,6 +92,9 @@ const COUNT_QUERY = `
     (select count(*) from app.quality_finding)    as quality_findings,
     (select count(*) from app.finding_evidence)   as finding_evidence,
     (select count(*) from app.specialist_review)  as specialist_reviews,
+    (select count(*) from app.source_document)    as source_documents,
+    (select count(*) from app.document_version)   as document_versions,
+    (select count(*) from app.document_chunk)     as document_chunks,
     (select count(*) from app.provenance_record)  as provenance,
     (select count(*) from app.metric_snapshot)    as metrics
 `;
@@ -112,6 +118,7 @@ const DANGLING_TABLES = [
   "document_assertion",
   "quality_run",
   "quality_finding",
+  "document_version",
 ];
 
 try {

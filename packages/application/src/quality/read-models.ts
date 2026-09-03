@@ -51,6 +51,21 @@ export interface FindingEvidenceItem {
   readonly locator: EvidenceLocator | null;
   /** The human-readable source, when the locator names one. Shown under the quote. */
   readonly sourceRef: string | null;
+  /**
+   * The ingested passage this evidence was transcribed from, once the document exists in the
+   * system (Slice 6).
+   *
+   * **Resolved at read time, through the assertion.** A finding raised before ingestion gains a
+   * document link the moment its assertion acquires one, without a single row of that finding being
+   * rewritten — which is what ADR-020 §6 promised: enrichment, not revision.
+   */
+  readonly documentRef: {
+    readonly code: string;
+    readonly title: string;
+    readonly versionLabel: string;
+    readonly chunkOrdinal: number | null;
+    readonly page: number | null;
+  } | null;
 }
 
 export interface FindingReviewEntry {
@@ -243,11 +258,22 @@ async function loadEvidence(
   tenantId: string,
   findingId: string,
 ): Promise<ReadonlyArray<FindingEvidenceItem>> {
+  // The join is left-outer all the way down: an assertion with no ingested document, or a locator
+  // that is not an assertion, yields a null reference and a perfectly readable finding.
   const result = await tx.execute(sql`
-    select role::text as role, label, quote, locator
-      from app.finding_evidence
-     where tenant_id = ${tenantId} and finding_id = ${findingId}
-     order by case role when 'SOURCE_A' then 0 when 'SOURCE_B' then 1 else 2 end, ordinal
+    select e.role::text as role, e.label, e.quote, e.locator,
+           d.code as document_code, d.title as document_title,
+           v.version_label, c.ordinal as chunk_ordinal, c.page_from, c.page_to
+      from app.finding_evidence e
+      left join app.document_assertion a
+        on a.tenant_id = e.tenant_id
+       and e.locator->>'kind' = 'assertion'
+       and a.id = (e.locator->>'assertionId')::uuid
+      left join app.document_version v on v.tenant_id = a.tenant_id and v.id = a.document_version_id
+      left join app.source_document d on d.tenant_id = v.tenant_id and d.id = v.document_id
+      left join app.document_chunk c on c.tenant_id = a.tenant_id and c.id = a.chunk_id
+     where e.tenant_id = ${tenantId} and e.finding_id = ${findingId}
+     order by case e.role when 'SOURCE_A' then 0 when 'SOURCE_B' then 1 else 2 end, e.ordinal
   `);
   return (
     result.rows as unknown as Array<{
@@ -255,6 +281,12 @@ async function loadEvidence(
       label: string;
       quote: string;
       locator: unknown;
+      document_code: string | null;
+      document_title: string | null;
+      version_label: string | null;
+      chunk_ordinal: number | null;
+      page_from: number | null;
+      page_to: number | null;
     }>
   ).map((row) => {
     const parsed = evidenceLocatorSchema.safeParse(row.locator);
@@ -265,6 +297,20 @@ async function loadEvidence(
       quote: row.quote,
       locator,
       sourceRef: locator && locator.kind === "assertion" ? locator.sourceRef : null,
+      documentRef:
+        row.document_code && row.version_label
+          ? {
+              code: row.document_code,
+              title: row.document_title ?? row.document_code,
+              versionLabel: row.version_label,
+              chunkOrdinal: row.chunk_ordinal === null ? null : Number(row.chunk_ordinal),
+              // A passage spanning two pages cannot honestly name one, so it names none.
+              page:
+                row.page_from !== null && row.page_from === row.page_to
+                  ? Number(row.page_from)
+                  : null,
+            }
+          : null,
     };
   });
 }
