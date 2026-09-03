@@ -12,11 +12,18 @@ import {
   type RuntimeDatabaseEnv,
 } from "@eia/contracts";
 
+import { resolveTrustedOrigins, vercelHosts } from "./trusted-origins";
+
 interface WebEnv {
   readonly app: AppEnv;
   readonly database: RuntimeDatabaseEnv;
   readonly auth: AuthEnv;
   readonly email: EmailEnv;
+  /**
+   * The origins Better Auth accepts state-changing requests from, resolved once from explicit
+   * configuration plus this deployment's own platform hostnames (`trusted-origins.ts`).
+   */
+  readonly trustedOrigins: readonly string[];
 }
 
 let cached: WebEnv | null = null;
@@ -27,6 +34,9 @@ let cached: WebEnv | null = null;
  * `BETTER_AUTH_URL` are not set explicitly, they are derived from Vercel's own variables so that
  * Better Auth's base URL matches the origin actually serving the request. Explicit values always
  * win, which is how staging and production are pinned to their real hostnames.
+ *
+ * The base URL can only be *one* of a deployment's two hostnames, and a reviewer may arrive on
+ * either; trusting both is `resolveTrustedOrigins`' job, not this function's.
  */
 function withPlatformDefaults(source: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   const host = source.VERCEL_BRANCH_URL ?? source.VERCEL_URL;
@@ -43,11 +53,20 @@ function withPlatformDefaults(source: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
 export function getEnv(): WebEnv {
   if (cached) return cached;
   const source = withPlatformDefaults(process.env);
+  const app = loadEnv("app", appEnvSchema, source);
+  const auth = loadEnv("auth", authEnvSchema, source);
   cached = {
-    app: loadEnv("app", appEnvSchema, source),
+    app,
+    auth,
     database: loadEnv("database", runtimeDatabaseEnvSchema, source),
-    auth: loadEnv("auth", authEnvSchema, source),
     email: loadEnv("email", emailEnvSchema, source),
+    trustedOrigins: resolveTrustedOrigins({
+      configured: auth.AUTH_TRUSTED_ORIGINS,
+      baseURL: auth.BETTER_AUTH_URL,
+      publicAppUrl: app.PUBLIC_APP_URL,
+      vercel: vercelHosts(source),
+      appEnv: app.APP_ENV,
+    }),
   };
   return cached;
 }
