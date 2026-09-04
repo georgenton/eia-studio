@@ -1,7 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
 
-import { expect, PROJECT, TENANT, test } from "./fixtures";
+import { PARCELS, expect, PROJECT, TENANT, test } from "./fixtures";
 
 /**
  * Accessibility smoke suite (IG1-005). Four representative states, checked with axe against the
@@ -55,8 +55,8 @@ test.describe("accessibility smoke", () => {
   });
 
   test("parcel workspace", async ({ page }) => {
-    await page.goto(`/t/${TENANT}/p/${PROJECT}/parcels/PRED-ZAM-004`);
-    await expect(page.getByRole("heading", { name: "PRED-ZAM-004", level: 1 })).toBeVisible();
+    await page.goto(`/t/${TENANT}/p/${PROJECT}/parcels/${PARCELS.a}`);
+    await expect(page.getByRole("heading", { name: PARCELS.a, level: 1 })).toBeVisible();
     await scan(page);
   });
 
@@ -67,8 +67,8 @@ test.describe("accessibility smoke", () => {
   });
 
   test("parcel workspace visits", async ({ page }) => {
-    await page.goto(`/t/${TENANT}/p/${PROJECT}/parcels/PRED-ZAM-001?tab=visitas`);
-    await expect(page.getByRole("heading", { name: "PRED-ZAM-001", level: 1 })).toBeVisible();
+    await page.goto(`/t/${TENANT}/p/${PROJECT}/parcels/${PARCELS.first}?tab=visitas`);
+    await expect(page.getByRole("heading", { name: PARCELS.first, level: 1 })).toBeVisible();
     await scan(page);
   });
 

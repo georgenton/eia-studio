@@ -15,10 +15,7 @@ import {
 } from "@eia/db";
 import {
   calculateForecast,
-  CORRIDOR_GENERATOR_VERSION,
-  corridorGeneratorInputSchema,
   FORECAST_ALGORITHM_VERSION,
-  generateCorridor,
   GRANULARITIES,
   METRIC_KEYS,
   assertSurveyVersionPublishable,
@@ -122,6 +119,9 @@ const manifestSchema = z
         slug: z.string().regex(/^[a-z0-9-]{3,40}$/),
         name: z.string().min(1),
         locationLabel: z.string().min(1),
+        /** The study's own cover title and the programme it belongs to (both optional). */
+        officialTitle: z.string().min(1).optional(),
+        programmeReference: z.string().min(1).optional(),
         profileKey: z.string().min(1),
         profileVersion: z.string().min(1),
         lifecycle: z.enum(["planning", "field", "analysis", "review", "delivered", "closed"]),
@@ -169,16 +169,48 @@ const manifestSchema = z
         })
         .strict(),
     ),
-    /** Deterministic GIS generation inputs; the geometry itself is never stored in the fixture. */
+    /**
+     * The project's cartography, as delivered by the consultancy.
+     *
+     * Until the package arrived this held the corridor generator's inputs and the geometry was
+     * produced deterministically. It now names sanitized GeoJSON files extracted from the real
+     * File Geodatabase (ADR-023): the geometry *is* in the fixture, because it is a fact of the
+     * study rather than something an algorithm can reproduce. The generator and its schema remain
+     * in the codebase for a project that has no package yet.
+     */
     gis: z
       .object({
         $comment: z.string(),
-        generator: z.literal(CORRIDOR_GENERATOR_VERSION),
         /** Projected CRS this project's lengths and areas are measured in (ADR-017). */
         analysisSrid: sridSchema,
         crsBasis: z.enum(["DEMO_ASSUMPTION", "SOURCE_DECLARED"]),
         alignmentLabel: z.string().min(1),
-        input: corridorGeneratorInputSchema,
+        /** What was received, so a figure on screen can be traced back to a file and a hash. */
+        source: z
+          .object({
+            archive: z.string().min(1),
+            sha256: z.string().regex(/^[0-9a-f]{64}$/),
+            receivedAt: z.string().min(1),
+            dataset: z.string().min(1),
+            sourceSrid: sridSchema,
+            sanitization: z.string().min(1),
+          })
+          .strict(),
+        /**
+         * Declares that this project's existing parcels are placeholders for the incoming package
+         * and may be renamed to its codes, in order along the corridor. A one-time transition,
+         * written down rather than inferred (ADR-023); absent, an unmatched code creates a parcel.
+         */
+        placeholderRemap: z.literal("ordinal_along_corridor").optional(),
+        files: z
+          .object({
+            alignment: z.string().min(1),
+            parcels: z.string().min(1),
+            affectations: z.string().min(1),
+            chainage: z.string().min(1),
+            influenceAreas: z.string().min(1),
+          })
+          .strict(),
       })
       .strict(),
     /** FieldFlow demonstration: questionnaire, campaign, technicians, synthetic location. */
@@ -433,6 +465,8 @@ try {
         profileVersion: manifest.project.profileVersion,
         lifecycle: manifest.project.lifecycle,
         locationLabel: manifest.project.locationLabel,
+        officialTitle: manifest.project.officialTitle ?? null,
+        programmeReference: manifest.project.programmeReference ?? null,
       })
       .onConflictDoUpdate({
         target: [appSchema.project.tenantId, appSchema.project.slug],
@@ -440,6 +474,8 @@ try {
           name: manifest.project.name,
           lifecycle: manifest.project.lifecycle,
           locationLabel: manifest.project.locationLabel,
+          officialTitle: manifest.project.officialTitle ?? null,
+          programmeReference: manifest.project.programmeReference ?? null,
           profileVersion: manifest.project.profileVersion,
         },
       })
@@ -651,71 +687,116 @@ try {
       });
     }
 
+    /** Counts of what the import actually did, printed at the end so a re-seed is auditable. */
+    let gisImportReport: {
+      parcelsMatched: number;
+      parcelsCreated: number;
+      parcelsUnmatched: number;
+      affectations: number;
+      orphanAffectations: number;
+      influenceAreas: number;
+      chainageDeclared: number;
+      chainageUnmatched: number;
+      sideDerived: number;
+    } | null = null;
+
     /* ------------------------------------------------------------------------------------
-     * GIS: a reconstructed alignment and synthetic parcels, produced by the deterministic
-     * generator rather than checked in as geometry, so the same seed always yields the same
-     * corridor and every polygon is traceable to the code that made it.
+     * GIS: the real cartography of the study, imported from the consultancy's package.
      *
-     * Geometry is persisted in the canonical CRS (EPSG:4326) exactly as the generator emits it.
-     * Metres come from PostGIS transforming that geometry into the dataset's analysis CRS, which
-     * is fixture configuration, not a constant of the product (ADR-017).
+     * Until this package arrived the corridor was produced by a deterministic generator, because
+     * inventing a plausible corridor was more honest than pretending to have the real one. The
+     * package is here now, so the geometry in `gis/*.geojson` is the study's own: the surveyed
+     * centreline, the 141 fronting parcels with the codes the field sheet uses, the 71 affectation
+     * polygons and the four influence areas the study delimited.
+     *
+     * **This is a supersede, not a rebuild** — the shape `docs/GIS_IMPORT_CONTRACT.md` §1
+     * described before there was anything to import. A parcel keeps its UUID; its old boundary is
+     * deactivated and a new one written against the new dataset version; the synthetic versions
+     * stay, inactive, named by `supersedes_version_id`. Nothing is deleted, which is what lets this
+     * run against persistent staging: an assignment, a visit, a response, a coding and a
+     * specialist's decision all still point at the parcel they always did.
+     *
+     * Three things this import deliberately does **not** do (ADR-023):
+     *
+     *   - it carries **no owner-bearing attribute**. Names, deeds, compensation agreements,
+     *     surveyor names, photographs and field notes were stripped before anything reached this
+     *     repository, under an allowlist that denies by default. The compliance gate of
+     *     SECURITY.md §10a is unopened and this import does not lean on it;
+     *   - it **repairs nothing**. Code `090` still has an affectation and no parcel, `091` still
+     *     has no declared chainage, `042a` is still a second spelling of `042A`. Those are the
+     *     package's own inconsistencies and the Quality Gate's business, not an importer's;
+     *   - it **measures nothing itself**. Lengths and areas come from PostGIS transforming the
+     *     stored geometry into the dataset's analysis CRS, exactly as they did for the generator.
      * ---------------------------------------------------------------------------------- */
-    const corridor = generateCorridor(manifest.gis.input);
+    const gisDir = resolve(root, "fixtures/projects", fixtureDir);
+    const readLayer = <T>(file: string): T =>
+      JSON.parse(readFileSync(resolve(gisDir, file), "utf8")) as T;
+
+    interface Feature<P> {
+      readonly properties: P;
+      readonly geometry: unknown;
+    }
+    interface Collection<P> {
+      readonly features: ReadonlyArray<Feature<P>>;
+    }
+
+    const alignmentLayer = readLayer<Collection<{ label: string | null }>>(
+      manifest.gis.files.alignment,
+    );
+    const parcelLayer = readLayer<
+      Collection<{
+        code: string;
+        areaM2: number | null;
+        side: "left" | "right";
+        sideSource: string;
+        surveyState: string | null;
+        affectedFlag: string | null;
+        landUse: string | null;
+      }>
+    >(manifest.gis.files.parcels);
+    const affectationLayer = readLayer<Collection<{ code: string; areaM2: number | null }>>(
+      manifest.gis.files.affectations,
+    );
+    const influenceLayer = readLayer<
+      Collection<{
+        kind: "direct" | "indirect" | "direct_social" | "indirect_social";
+        label: string;
+      }>
+    >(manifest.gis.files.influenceAreas);
+    const chainageRuns = readLayer<
+      Array<{
+        code: string;
+        startM: number | null;
+        endM: number | null;
+        side: "left" | "right" | null;
+      }>
+    >(manifest.gis.files.chainage);
+    const chainageByCode = new Map(chainageRuns.map((run) => [run.code, run]));
 
     /*
-     * Reuse an identical corridor rather than rebuilding it.
-     *
-     * A parcel's UUID is its identity (ADR-017, GIS_IMPORT_CONTRACT), and field assignments now
-     * reference it. Deleting and recreating parcels on every seed would reissue those ids — the
-     * exact thing an official import is forbidden to do — and the foreign key says so. So the
-     * generator's output is compared against what is already stored, and only a genuinely
-     * different corridor is rebuilt.
+     * Has this exact delivery already been imported? Compared by the archive's hash, which is what
+     * actually identifies a package — a re-run with the same file does nothing at all.
      */
-    const existingCorridor = await tx.execute(sql`
-      select v.generator_version, v.feature_count,
-             (select count(*)::int from app.parcel p
-               where p.tenant_id = v.tenant_id and p.project_id = v.project_id) as parcel_count
-      from app.spatial_dataset_version v
-      join app.spatial_dataset d on d.tenant_id = v.tenant_id and d.id = v.dataset_id
-      where v.tenant_id = ${tenantId} and v.project_id = ${projectId}
-        and d.kind = 'parcels' and v.is_active
-      limit 1
+    const activeParcelVersion = await tx.execute(sql`
+      select v.id, v.note
+        from app.spatial_dataset_version v
+        join app.spatial_dataset d on d.tenant_id = v.tenant_id and d.id = v.dataset_id
+       where v.tenant_id = ${tenantId} and v.project_id = ${projectId}
+         and d.kind = 'parcels' and v.is_active
+       limit 1
     `);
-    const storedCorridor = existingCorridor.rows[0] as unknown as
-      { generator_version: string | null; feature_count: number; parcel_count: number } | undefined;
-    const corridorMatches =
-      storedCorridor !== undefined &&
-      storedCorridor.generator_version === corridor.generatorVersion &&
-      storedCorridor.feature_count === corridor.parcels.length &&
-      storedCorridor.parcel_count === corridor.parcels.length;
-
-    if (!corridorMatches) {
-      await tx.delete(gisSchema.affectation).where(eq(gisSchema.affectation.projectId, projectId));
-      await tx
-        .delete(gisSchema.parcelGeometry)
-        .where(eq(gisSchema.parcelGeometry.projectId, projectId));
-      await tx.delete(gisSchema.parcel).where(eq(gisSchema.parcel.projectId, projectId));
-      await tx.delete(gisSchema.alignment).where(eq(gisSchema.alignment.projectId, projectId));
-      await tx
-        .delete(gisSchema.spatialDatasetVersion)
-        .where(eq(gisSchema.spatialDatasetVersion.projectId, projectId));
-      await tx
-        .delete(gisSchema.spatialDataset)
-        .where(eq(gisSchema.spatialDataset.projectId, projectId));
-    }
+    const currentParcelVersion = activeParcelVersion.rows[0] as
+      { id: string; note: string | null } | undefined;
+    const alreadyImported = currentParcelVersion?.note === manifest.gis.source.sha256;
 
     /*
      * The analysis CRS is checked against `spatial_ref_sys` before anything is written: it must be
      * registered, projected, metre-based and usable by ST_Transform. The check reads the CRS
-     * definition, never the SRID number (IG2-009). It runs whether or not the corridor is rebuilt,
-     * because the chainage derivation below measures in it either way.
+     * definition, never the SRID number (IG2-009).
      */
     const analysisSrid = await assertAnalysisSridUsable(tx, manifest.gis.analysisSrid);
 
-    if (!corridorMatches) {
-      const lineWkt = `LINESTRING(${corridor.alignment.map(([x, y]) => `${x} ${y}`).join(",")})`;
-      const ringWkt = (ring: ReadonlyArray<readonly [number, number]>) =>
-        `POLYGON((${ring.map(([x, y]) => `${x} ${y}`).join(",")}))`;
+    if (!alreadyImported) {
       /**
        * The SRIDs are inlined with `sql.raw` because a bound parameter arrives as text and PostGIS
        * then reads "4326" as a proj string. `CANONICAL_SRID` is a compile-time constant, and
@@ -724,158 +805,361 @@ try {
        */
       const canonical = sql.raw(String(CANONICAL_SRID));
       const analysis = sql.raw(String(analysisSrid));
-      /** WKT → canonical geometry, stored as the generator emitted it. */
-      const toCanonical = (wkt: string) => sql`ST_GeomFromText(${wkt}, ${canonical})`;
       /**
-       * Canonical geometry → an analysis CRS, where metres mean metres.
+       * GeoJSON → canonical geometry, forced multi-part.
        *
-       * Which analysis CRS is a property of the **dataset whose measurement it is** (IG2-009). In
-       * this fixture all three layers share one, so the parameter looks redundant; it is not. An
-       * official import can bring parcels in one CRS and an alignment in another, and then a
-       * parcel's area must come from the parcels dataset while the corridor's length and every
-       * chainage along it must come from the alignment dataset. Passing it explicitly is what stops
-       * a future import from measuring a road with a parcel layer's CRS.
+       * `ST_Multi` because 20 of the 141 real parcels are two polygons and one affectation is
+       * eight — a plot split by the road, or with a detached portion. The columns are multi-part
+       * for that reason (ADR-023), and a single-part feature becomes a multi of one, losing
+       * nothing. The package's coordinates are stored exactly as delivered.
        */
-      const forMetrics = (wkt: string, srid = analysis) =>
-        sql`ST_Transform(${toCanonical(wkt)}, ${srid})`;
+      const toCanonical = (geometry: unknown) =>
+        sql`ST_Multi(ST_SetSRID(ST_GeomFromGeoJSON(${JSON.stringify(geometry)}), ${canonical}))`;
+      /** Canonical geometry → the analysis CRS, where metres mean metres. */
+      const forMetrics = (geometry: unknown) =>
+        sql`ST_Transform(${toCanonical(geometry)}, ${analysis})`;
 
-      const datasets = {
-        alignment: { id: randomUUID(), versionId: randomUUID() },
-        parcels: { id: randomUUID(), versionId: randomUUID() },
-        affectations: { id: randomUUID(), versionId: randomUUID() },
-      } as const;
+      /** Every dataset of this project, by kind, whether or not it exists yet. */
+      const datasetIdByKind = new Map<string, string>(
+        (
+          (
+            await tx.execute(sql`
+              select kind, id from app.spatial_dataset
+               where tenant_id = ${tenantId} and project_id = ${projectId}
+            `)
+          ).rows as unknown as ReadonlyArray<{ kind: string; id: string }>
+        ).map((row) => [row.kind, row.id]),
+      );
+      const activeVersionByKind = new Map<string, string>(
+        (
+          (
+            await tx.execute(sql`
+              select d.kind, v.id from app.spatial_dataset_version v
+                join app.spatial_dataset d on d.tenant_id = v.tenant_id and d.id = v.dataset_id
+               where v.tenant_id = ${tenantId} and v.project_id = ${projectId} and v.is_active
+            `)
+          ).rows as unknown as ReadonlyArray<{ kind: string; id: string }>
+        ).map((row) => [row.kind, row.id]),
+      );
 
       const datasetSpec = [
         {
-          kind: "alignment" as const,
+          kind: "alignment",
           label: manifest.gis.alignmentLabel,
-          ids: datasets.alignment,
-          versionLabel: "alignment_v1",
-          featureCount: 1,
-          provenance: "alignment-reconstructed",
+          count: alignmentLayer.features.length,
+          provenance: "alignment-imported",
         },
         {
-          kind: "parcels" as const,
+          kind: "parcels",
           label: "Predios frentistas",
-          ids: datasets.parcels,
-          versionLabel: "parcels_v1",
-          featureCount: corridor.parcels.length,
-          provenance: "parcels-synthetic",
+          count: parcelLayer.features.length,
+          provenance: "parcels-imported",
         },
         {
-          kind: "affectations" as const,
-          label: "Afectación por derecho de vía",
-          ids: datasets.affectations,
-          versionLabel: "affectations_v1",
-          featureCount: corridor.parcels.filter((p) => p.affectationRing).length,
-          provenance: "affectations-synthetic",
+          kind: "affectations",
+          label: "Áreas afectadas",
+          count: affectationLayer.features.length,
+          provenance: "affectations-imported",
         },
-      ];
+        {
+          kind: "influence_areas",
+          label: "Áreas de influencia",
+          count: influenceLayer.features.length,
+          provenance: "influence-areas-imported",
+        },
+      ] as const;
 
+      /** How many versions each dataset already has, so a re-import numbers itself. */
+      const versionCountByKind = new Map<string, number>(
+        (
+          (
+            await tx.execute(sql`
+              select d.kind, count(*)::int as n from app.spatial_dataset_version v
+                join app.spatial_dataset d on d.tenant_id = v.tenant_id and d.id = v.dataset_id
+               where v.tenant_id = ${tenantId} and v.project_id = ${projectId}
+               group by d.kind
+            `)
+          ).rows as unknown as ReadonlyArray<{ kind: string; n: number }>
+        ).map((row) => [row.kind, row.n]),
+      );
+
+      const newVersionByKind = new Map<string, string>();
       for (const spec of datasetSpec) {
-        await tx.insert(gisSchema.spatialDataset).values({
-          id: spec.ids.id,
-          tenantId,
-          projectId,
-          kind: spec.kind,
-          label: spec.label,
-        });
+        let datasetId = datasetIdByKind.get(spec.kind);
+        if (!datasetId) {
+          datasetId = randomUUID();
+          await tx.insert(gisSchema.spatialDataset).values({
+            id: datasetId,
+            tenantId,
+            projectId,
+            kind: spec.kind,
+            label: spec.label,
+          });
+        }
+        const supersedes = activeVersionByKind.get(spec.kind) ?? null;
+        if (supersedes) {
+          // Exactly one active version per dataset, enforced by a unique partial index: the old
+          // one steps down in the same transaction as the new one steps up.
+          await tx.execute(sql`
+            update app.spatial_dataset_version set is_active = false
+             where tenant_id = ${tenantId} and id = ${supersedes}
+          `);
+        }
+        const versionId = randomUUID();
+        newVersionByKind.set(spec.kind, versionId);
         await tx.insert(gisSchema.spatialDatasetVersion).values({
-          id: spec.ids.versionId,
+          id: versionId,
           tenantId,
           projectId,
-          datasetId: spec.ids.id,
-          versionLabel: spec.versionLabel,
-          origin: "generated",
-          // The generator works in a local metric frame and emits lon/lat, so canonical storage is
-          // also what it produced; the analysis CRS is where this project's metres are measured.
-          sourceSrid: CANONICAL_SRID,
-          analysisSrid: analysisSrid,
-          generatorVersion: corridor.generatorVersion,
-          featureCount: spec.featureCount,
+          datasetId,
+          versionLabel: `${spec.kind}_v${(versionCountByKind.get(spec.kind) ?? 0) + 1}`,
+          origin: "imported",
+          // What the package declared, before the transform to canonical storage. The influence
+          // areas arrived in a different UTM zone and were reprojected on extraction; the version
+          // records what the layer came in as, not one project-wide CRS.
+          sourceSrid: manifest.gis.source.sourceSrid,
+          analysisSrid,
+          generatorVersion: null,
+          featureCount: spec.count,
           isActive: true,
-          supersedesVersionId: null,
+          supersedesVersionId: supersedes,
+          // The delivery's hash identifies this version's content; a re-seed compares it.
+          note: manifest.gis.source.sha256,
           producedAt: scenarioInstant,
-          note: manifest.gis.$comment,
           provenanceId: provenanceId(spec.provenance),
         });
       }
 
+      // ── alignment ──────────────────────────────────────────────────────────────────────────
+      const axis = alignmentLayer.features[0]!;
+      await tx.delete(gisSchema.alignment).where(eq(gisSchema.alignment.projectId, projectId));
       await tx.insert(gisSchema.alignment).values({
         id: randomUUID(),
         tenantId,
         projectId,
-        datasetVersionId: datasets.alignment.versionId,
-        label: manifest.gis.alignmentLabel,
-        geom: toCanonical(lineWkt) as unknown as string,
-        // Measured by PostGIS in the analysis CRS, never taken from the generator's own arithmetic.
-        lengthM: sql`ST_Length(${forMetrics(lineWkt)})` as unknown as string,
-        provenanceId: provenanceId("alignment-reconstructed"),
+        datasetVersionId: newVersionByKind.get("alignment")!,
+        label: axis.properties.label ?? manifest.gis.alignmentLabel,
+        geom: toCanonical(axis.geometry) as unknown as string,
+        // Measured by PostGIS in the analysis CRS, never taken from the package's own arithmetic.
+        lengthM: sql`ST_Length(${forMetrics(axis.geometry)})` as unknown as string,
+        provenanceId: provenanceId("alignment-imported"),
       });
 
-      for (const generated of corridor.parcels) {
-        const parcelId = randomUUID();
-        await tx.insert(gisSchema.parcel).values({
-          id: parcelId,
-          tenantId,
-          projectId,
-          parcelCode: generated.parcelCode,
-          sectorLabel: generated.sectorLabel,
-          side: generated.side,
-          status: generated.status,
-          // Chainage is derived from geometry after the parcels are in place (see below), not
-          // carried over from the generator: two numbers for one fact drift.
-          chainageM: null,
-          chainageMethod: null,
-          frontageM: String(generated.frontageM),
-          provenanceId: provenanceId("parcels-synthetic"),
-        });
-        const polygon = ringWkt(generated.ring as ReadonlyArray<readonly [number, number]>);
+      /*
+       * ── parcels ───────────────────────────────────────────────────────────────────────────
+       *
+       * Matching, in the order `docs/GIS_IMPORT_CONTRACT.md` §3 sets out: by `parcel_code` first.
+       * A code the package brings and we already have keeps its UUID and every row that points at
+       * it.
+       *
+       * Then the case the contract could not anticipate. The corridor this project was seeded with
+       * was **a placeholder for this exact package** — 141 generated polygons standing in for 141
+       * real ones, with invented codes because the real ones were unknown. None of those codes
+       * matches, so a code-only import would create 141 new parcels beside 141 orphans and double
+       * a figure the study published. When the manifest declares `placeholderRemap`, an unmatched
+       * placeholder is instead **renamed** to the incoming code, in order along the corridor: both
+       * sets are ordered by chainage, and the *n*th placeholder becomes the *n*th real parcel.
+       *
+       * That is a declared, one-time transition, not a matching rule. It is recorded in the
+       * manifest so nobody has to infer it, and it applies only to parcels whose code the package
+       * does not know — a real code is never reassigned.
+       */
+      const existingParcels = (
+        await tx.execute(sql`
+          select id, parcel_code, chainage_m from app.parcel
+           where tenant_id = ${tenantId} and project_id = ${projectId}
+           order by chainage_m nulls last, parcel_code
+        `)
+      ).rows as unknown as ReadonlyArray<{
+        id: string;
+        parcel_code: string;
+        chainage_m: string | null;
+      }>;
+      const existingByCode = new Map(existingParcels.map((row) => [row.parcel_code, row]));
+      const incoming = [...parcelLayer.features].sort((a, b) => {
+        const at = chainageByCode.get(a.properties.code)?.startM ?? Number.MAX_SAFE_INTEGER;
+        const bt = chainageByCode.get(b.properties.code)?.startM ?? Number.MAX_SAFE_INTEGER;
+        return at - bt || a.properties.code.localeCompare(b.properties.code);
+      });
+      const incomingCodes = new Set(incoming.map((f) => f.properties.code));
+      const placeholders = manifest.gis.placeholderRemap
+        ? existingParcels.filter((row) => !incomingCodes.has(row.parcel_code))
+        : [];
+      let nextPlaceholder = 0;
+
+      let parcelsMatched = 0;
+      let parcelsCreated = 0;
+      const parcelIdByCode = new Map<string, string>();
+      const parcelVersionId = newVersionByKind.get("parcels")!;
+
+      for (const feature of incoming) {
+        const code = feature.properties.code;
+        const run = chainageByCode.get(code);
+        const reuse = existingByCode.get(code) ?? placeholders[nextPlaceholder];
+        if (!existingByCode.has(code) && reuse) nextPlaceholder += 1;
+
+        /*
+         * The package's own `ESTADO` decides the status, rather than every parcel being declared
+         * confirmed. It says `COMPLETO` for 119 of the 141, `INCOMPLETO` for 20 and `COMPLETA`
+         * for 2 — the last a spelling variant, mapped the same way as `COMPLETO` here and
+         * reported as an inconsistency rather than corrected in the fixture. An incomplete survey
+         * is `estimated`: the boundary exists, the field work behind it does not yet.
+         */
+        const surveyState = (feature.properties.surveyState ?? "").toUpperCase();
+        const values = {
+          parcelCode: code,
+          side: feature.properties.side,
+          status: surveyState.startsWith("COMPLET")
+            ? ("confirmed" as const)
+            : ("estimated" as const),
+          /*
+           * Declared, not derived. The package states a start and an end abscissa per parcel;
+           * `chainage_m` keeps its meaning as the single point the corridor orders by and takes
+           * the start of the range (ADR-023). Where the package declares no range — code `091`
+           * has no row at all — all three stay null and the reconciliation below derives the
+           * single point from geometry, recording `centroid_projection`, so the two methods are
+           * never confused on screen.
+           */
+          chainageM: run?.startM != null ? String(run.startM) : null,
+          chainageStartM: run?.startM != null ? String(run.startM) : null,
+          chainageEndM: run?.endM != null ? String(run.endM) : null,
+          chainageMethod: run?.startM != null ? ("declared" as const) : null,
+        };
+
+        let parcelId: string;
+        if (reuse) {
+          parcelId = reuse.id;
+          parcelsMatched += 1;
+          await tx.execute(sql`
+            update app.parcel
+               set parcel_code = ${values.parcelCode},
+                   -- The placeholder's sector label was the generator's invention; the package
+                   -- states none, so the parcel stops claiming one.
+                   sector_label = null,
+                   side = ${values.side}::app.parcel_side,
+                   status = ${values.status}::app.parcel_status,
+                   chainage_m = ${values.chainageM},
+                   chainage_start_m = ${values.chainageStartM},
+                   chainage_end_m = ${values.chainageEndM},
+                   chainage_method = ${values.chainageMethod}::app.chainage_method,
+                   frontage_m = null,
+                   provenance_id = ${provenanceId("parcels-imported")}
+             where tenant_id = ${tenantId} and id = ${parcelId}
+          `);
+          // The old boundary is deactivated, never deleted: a figure produced from it stays
+          // explainable, which is the whole point of versioning geometry (import contract §1).
+          await tx.execute(sql`
+            update app.parcel_geometry set is_active = false
+             where tenant_id = ${tenantId} and parcel_id = ${parcelId} and is_active
+          `);
+        } else {
+          parcelId = randomUUID();
+          parcelsCreated += 1;
+          await tx.insert(gisSchema.parcel).values({
+            id: parcelId,
+            tenantId,
+            projectId,
+            sectorLabel: null,
+            frontageM: null,
+            provenanceId: provenanceId("parcels-imported"),
+            ...values,
+          });
+        }
+        parcelIdByCode.set(code, parcelId);
+
         await tx.insert(gisSchema.parcelGeometry).values({
           id: randomUUID(),
           tenantId,
           projectId,
           parcelId,
-          datasetVersionId: datasets.parcels.versionId,
-          geom: toCanonical(polygon) as unknown as string,
-          // Area is computed by PostGIS in the analysis CRS, never in the generator.
-          areaM2: sql`ST_Area(${forMetrics(polygon)})` as unknown as string,
+          datasetVersionId: parcelVersionId,
+          geom: toCanonical(feature.geometry) as unknown as string,
+          // Area is computed by PostGIS in the analysis CRS, never read from the package's own
+          // `AREA` column: two numbers for one fact drift, and only one is reproducible.
+          areaM2: sql`ST_Area(${forMetrics(feature.geometry)})` as unknown as string,
           isActive: true,
-          provenanceId: provenanceId("parcels-synthetic"),
+          provenanceId: provenanceId("parcels-imported"),
         });
-        if (generated.affectationRing) {
-          const strip = ringWkt(
-            generated.affectationRing as ReadonlyArray<readonly [number, number]>,
-          );
-          await tx.insert(gisSchema.affectation).values({
-            id: randomUUID(),
-            tenantId,
-            projectId,
-            parcelId,
-            datasetVersionId: datasets.affectations.versionId,
-            category: "right_of_way",
-            geom: toCanonical(strip) as unknown as string,
-            affectedAreaM2: sql`ST_Area(${forMetrics(strip)})` as unknown as string,
-            provenanceId: provenanceId("affectations-synthetic"),
-          });
-        }
       }
+
+      /*
+       * Affectations, matched to a parcel by the code the package uses.
+       *
+       * One does not match: the package carries an affected area for code `090` and no parcel of
+       * that code. It is **not** imported and **not** invented as a parcel — the study's universe
+       * is the 141 `PREDIOS`, and adding a 142nd from an affectation would contradict the figure
+       * the study published. The orphan is counted and reported, which is where an inconsistency
+       * belongs.
+       */
+      await tx.delete(gisSchema.affectation).where(eq(gisSchema.affectation.projectId, projectId));
+      let orphanAffectations = 0;
+      for (const feature of affectationLayer.features) {
+        const parcelId = parcelIdByCode.get(feature.properties.code);
+        if (!parcelId) {
+          orphanAffectations += 1;
+          continue;
+        }
+        await tx.insert(gisSchema.affectation).values({
+          id: randomUUID(),
+          tenantId,
+          projectId,
+          parcelId,
+          datasetVersionId: newVersionByKind.get("affectations")!,
+          category: "right_of_way",
+          geom: toCanonical(feature.geometry) as unknown as string,
+          affectedAreaM2: sql`ST_Area(${forMetrics(feature.geometry)})` as unknown as string,
+          provenanceId: provenanceId("affectations-imported"),
+        });
+      }
+
+      await tx
+        .delete(gisSchema.influenceArea)
+        .where(eq(gisSchema.influenceArea.projectId, projectId));
+      for (const feature of influenceLayer.features) {
+        await tx.insert(gisSchema.influenceArea).values({
+          id: randomUUID(),
+          tenantId,
+          projectId,
+          datasetVersionId: newVersionByKind.get("influence_areas")!,
+          kind: feature.properties.kind,
+          label: feature.properties.label,
+          geom: toCanonical(feature.geometry) as unknown as string,
+          areaM2: sql`ST_Area(${forMetrics(feature.geometry)})` as unknown as string,
+          provenanceId: provenanceId("influence-areas-imported"),
+        });
+      }
+
+      gisImportReport = {
+        parcelsMatched,
+        parcelsCreated,
+        parcelsUnmatched: Math.max(0, placeholders.length - nextPlaceholder),
+        affectations: affectationLayer.features.length - orphanAffectations,
+        orphanAffectations,
+        influenceAreas: influenceLayer.features.length,
+        chainageDeclared: incoming.filter(
+          (f) => chainageByCode.get(f.properties.code)?.startM != null,
+        ).length,
+        chainageUnmatched: chainageRuns.filter((r) => !parcelIdByCode.has(r.code)).length,
+        sideDerived: incoming.filter((f) => f.properties.sideSource !== "declared").length,
+      };
     }
 
     /*
-     * Chainage, derived (IG2-003). One deterministic method, computed by PostGIS from the
-     * geometry that is actually stored:
+     * Chainage reconciliation.
+     *
+     * The package declares a start and an end abscissa for 140 of the 141 parcels, so the import
+     * above wrote them and marked the method `declared`. One parcel — code `091` — has no row in
+     * `ABSCISA_PREDIO` at all. Rather than leave it without a position on the corridor, its single
+     * reference point is derived here the way every parcel's was before the package arrived:
      *
      *   parcel centroid → ST_LineLocatePoint on the active alignment → fraction along the line
      *   → × the alignment's length measured in the analysis CRS → metres.
      *
-     * It is `centroid_projection` and not `frontage_midpoint` because a frontage midpoint would
-     * claim we know where each parcel meets the road, and for synthetic polygons we do not: the
-     * centroid is a fact of the geometry we have. Deriving it here rather than carrying the
-     * generator's own number means there is one chainage, not two that can disagree.
-     *
-     * Chainage is a reference along the corridor. It is never identity: the parcel's UUID and its
-     * business code are unaffected by it.
+     * The `WHERE chainage_m IS NULL` is the load-bearing part. A derivation that overwrote a
+     * declared abscissa would replace what the consultancy measured on the ground with what a
+     * centroid implies, and the two would be indistinguishable afterwards because
+     * `chainage_method` would say `centroid_projection` for both. It runs only where nothing was
+     * declared, and it never writes a range: a derived point is a point.
      */
     const chainage = await tx.execute(sql`
       with axis as (
@@ -893,7 +1177,7 @@ try {
       update app.parcel p
          set chainage_m = round((
                ST_LineLocatePoint(
-                 axis.geom,
+                 ST_LineMerge(axis.geom),
                  -- The parcel centroid is projected into the *alignment's* CRS, so both sides of
                  -- the measurement live in one coordinate system.
                  ST_Centroid(ST_Transform(g.geom, axis.srid))
@@ -903,6 +1187,7 @@ try {
         from app.parcel_geometry g, axis
        where g.tenant_id = p.tenant_id and g.parcel_id = p.id and g.is_active
          and p.tenant_id = ${tenantId} and p.project_id = ${projectId}
+         and p.chainage_m is null
       returning p.id
     `);
 
@@ -1499,8 +1784,16 @@ try {
         `forecast ${result.projectedCloseDate} (delay ${result.delayDays}d, rate ${result.movingAveragePerDay}/día)`,
         `${manifest.attention.length} attention items`,
         `${manifest.activity.length} activity events`,
-        `GIS ${corridor.parcels.length} parcels · alignment ${(corridor.alignmentLengthM / 1000).toFixed(2)} km · ${corridor.generatorVersion}`,
-        `chainage derived for ${chainage.rowCount ?? 0} parcels (centroid_projection, alignment CRS EPSG:${analysisSrid})`,
+        gisImportReport
+          ? `GIS importado: ${gisImportReport.parcelsMatched} predios reutilizados, ` +
+            `${gisImportReport.parcelsCreated} nuevos, ${gisImportReport.parcelsUnmatched} sin correspondencia · ` +
+            `${gisImportReport.affectations} afectaciones (${gisImportReport.orphanAffectations} sin predio) · ` +
+            `${gisImportReport.influenceAreas} áreas de influencia · ` +
+            `abscisa declarada en ${gisImportReport.chainageDeclared}, ` +
+            `${gisImportReport.chainageUnmatched} filas de abscisa sin predio · ` +
+            `lado derivado en ${gisImportReport.sideDerived}`
+          : "GIS: el paquete ya estaba importado, sin cambios",
+        `abscisa derivada para ${chainage.rowCount ?? 0} predio(s) sin declaración (centroid_projection, CRS EPSG:${analysisSrid})`,
         `field: ${assignmentsSeeded} assignments · ${submissionsSeeded} submitted · offline_mode=${field.offlineMode}`,
         `documentos: ${documentsSeeded} · ${documentChunks} pasajes`,
         `quality: ${assertionsSeeded} afirmaciones del corpus (${assertionsLinked} con pasaje) · 0 hallazgos sembrados`,

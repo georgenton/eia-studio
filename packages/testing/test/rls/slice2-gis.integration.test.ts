@@ -245,7 +245,9 @@ describe("Slice 2 · PostGIS storage invariants", () => {
       source_srid: number;
     };
     expect(row.srid).toBe(4326);
-    expect(row.type).toBe("POLYGON");
+    // Multi-part since ADR-023: 20 of the 141 real parcels are two polygons, so the column holds
+    // `MultiPolygon` and a single-part boundary is stored as a multi of one part.
+    expect(row.type).toBe("MULTIPOLYGON");
     expect(row.analysis_srid).toBe(32717);
     expect(row.source_srid).toBe(4326);
     // The whole point of the analysis CRS: the same polygon is ~4,9 ha in metres and a
@@ -327,7 +329,7 @@ describe("Slice 2 · PostGIS storage invariants", () => {
           (id, tenant_id, project_id, parcel_id, dataset_version_id, geom, area_m2, is_active,
            provenance_id)
         values (${randomUUID()}, ${w.tenantA.id}, ${w.projectX.id}, ${parcelX},
-                ${versionX}, ST_GeomFromText(${wkt}, 32717), 1, false, ${provX})
+                ${versionX}, ST_Multi(ST_GeomFromText(${wkt}, 32717)), 1, false, ${provX})
       `),
     );
     expect(error).toMatch(/srid|geometry/i);
@@ -343,7 +345,7 @@ describe("Slice 2 · PostGIS storage invariants", () => {
           (id, tenant_id, project_id, parcel_id, dataset_version_id, geom, area_m2, is_active,
            provenance_id)
         values (${randomUUID()}, ${w.tenantA.id}, ${w.projectX.id}, ${parcelX},
-                ${versionX}, ST_GeomFromText(${bowTie}, 4326), 1, false,
+                ${versionX}, ST_Multi(ST_GeomFromText(${bowTie}, 4326)), 1, false,
                 ${provX})
       `),
     );

@@ -8,6 +8,33 @@ import { expect, test, type Page } from "@playwright/test";
 export const TENANT = "demo-consultancy";
 export const PROJECT = "puente-del-amor";
 
+/**
+ * Parcel codes from the real cartographic package (ADR-023), not invented ones.
+ *
+ * `A` and `B` are the first two along the corridor and both carry field work; `NO_FIELD_WORK` is
+ * a real parcel at the far end that the demonstration campaign never reaches; `ABSENT` is a code
+ * the package does not contain. They are three digits because that is what the consultancy's own
+ * field sheet says — see `fixtures/projects/zamora-puente-del-amor/gis/parcels.geojson`.
+ */
+export const PARCELS = {
+  a: "004",
+  b: "005",
+  first: "001",
+  noFieldWork: "141",
+  absent: "999",
+} as const;
+
+/**
+ * What a parcel code from this package looks like: three digits, optionally with a letter suffix
+ * for a subdivision (`032A`, and — a real defect the Quality Gate reports — `042a` beside `042A`).
+ * Specs that need *some* parcel rather than a named one match on this.
+ *
+ * Anchored at the start but not the end, because it is matched against whole elements as well as
+ * bare cells: an assignment card's text begins with the code and continues with its state. The
+ * negative lookahead keeps it from matching the first three digits of a longer number.
+ */
+export const PARCEL_CODE_PATTERN = /^\d{3}[A-Za-z]?(?!\d)/;
+
 export const USERS = {
   coordinator: {
     email: "coordinadora@demo.invalid",

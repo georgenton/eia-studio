@@ -196,13 +196,32 @@ export function ParcelMap({
     if (!selectedParcelId) return;
     const feature = view.features.find((f) => f.id === selectedParcelId);
     if (!feature) return;
-    const coordinates = (feature.geometry as { coordinates: number[][][] }).coordinates.flat();
+    /*
+     * Positions, however deeply the geometry nests them.
+     *
+     * A `Polygon` nests coordinates three deep and a `MultiPolygon` four, and 20 of the 141 real
+     * parcels are multi-part (ADR-023). Flattening by a fixed one level worked for the generated
+     * single-part polygons and, on the real ones, handed a *ring* to a destructuring meant for a
+     * position: the centre became `NaN`, MapLibre threw, and the whole page fell over on the first
+     * click. Recursing to the numbers is the only version that cannot care which type it is given.
+     */
+    const positions: Array<readonly [number, number]> = [];
+    const collect = (node: unknown): void => {
+      if (!Array.isArray(node)) return;
+      if (typeof node[0] === "number" && typeof node[1] === "number") {
+        positions.push([node[0], node[1]]);
+        return;
+      }
+      for (const child of node) collect(child);
+    };
+    collect((feature.geometry as { coordinates: unknown }).coordinates);
+    if (positions.length === 0) return;
+
     let west = Infinity;
     let south = Infinity;
     let east = -Infinity;
     let north = -Infinity;
-    for (const [x, y] of coordinates) {
-      if (x === undefined || y === undefined) continue;
+    for (const [x, y] of positions) {
       west = Math.min(west, x);
       east = Math.max(east, x);
       south = Math.min(south, y);

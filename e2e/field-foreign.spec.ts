@@ -1,4 +1,4 @@
-import { expect, PROJECT, TENANT, test } from "./fixtures";
+import { PARCEL_CODE_PATTERN, expect, PROJECT, TENANT, test } from "./fixtures";
 
 /**
  * The other technician's browser.
@@ -19,7 +19,7 @@ test.describe("FieldFlow · a second technician", () => {
     await page.goto(FIELD);
     await expect(page.getByRole("heading", { name: "Mi trabajo", level: 1 })).toBeVisible();
 
-    const cards = page.getByRole("link").filter({ hasText: /PRED-/ });
+    const cards = page.getByRole("link").filter({ hasText: PARCEL_CODE_PATTERN });
     const count = await cards.count();
     // The fixture gives this technician every third assignment of a twelve-parcel campaign.
     expect(count).toBeGreaterThan(0);
@@ -35,10 +35,7 @@ test.describe("FieldFlow · a second technician", () => {
     await page.goto(`/t/${TENANT}/p/${PROJECT}/gis`);
     await expect(page.getByRole("table")).toBeVisible();
     const codes = (
-      await page
-        .getByRole("cell")
-        .filter({ hasText: /^PRED-/ })
-        .allInnerTexts()
+      await page.getByRole("cell").filter({ hasText: PARCEL_CODE_PATTERN }).allInnerTexts()
     )
       .map((text) => text.trim())
       .slice(0, 6);

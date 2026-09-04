@@ -32,8 +32,13 @@ import { app, project, provenanceRecord } from "./app";
  * WKT in `text` — would give up spatial indexes, the SRID constraint and every spatial function.
  * The TypeScript type is `string` because every read goes through `ST_AsGeoJSON` and every write
  * through `ST_GeomFromGeoJSON`; nothing in the application handles raw WKB.
+ *
+ * Only multi-part types are offered, because real cadastral data is multi-part: 20 of the 141
+ * parcels in the delivered package are two polygons and one affectation is eight (ADR-023). A
+ * single polygon is a valid multipolygon of one part, so nothing is lost by the wider type and a
+ * plot split by the road is no longer unrepresentable.
  */
-const geometryColumn = (geometryType: "LineString" | "Polygon" | "MultiPolygon", srid: number) =>
+const geometryColumn = (geometryType: "MultiLineString" | "MultiPolygon", srid: number) =>
   customType<{ data: string; driverData: string }>({
     dataType: () => `geometry(${geometryType},${srid})`,
   });
@@ -48,6 +53,18 @@ export const spatialDatasetKind = app.enum("spatial_dataset_kind", [
   "alignment",
   "parcels",
   "affectations",
+  "influence_areas",
+]);
+/**
+ * The four influence areas an Ecuadorian environmental study delimits, as the delivered package
+ * itself distinguishes them: physical direct and indirect (AID / AII) and social direct and
+ * indirect (AISD / AISI).
+ */
+export const influenceAreaKind = app.enum("influence_area_kind", [
+  "direct",
+  "indirect",
+  "direct_social",
+  "indirect_social",
 ]);
 export const spatialDatasetOrigin = app.enum("spatial_dataset_origin", [
   "generated",
@@ -170,7 +187,7 @@ export const alignment = app.table(
     projectId: uuid("project_id").notNull(),
     datasetVersionId: uuid("dataset_version_id").notNull(),
     label: text("label").notNull(),
-    geom: geometryColumn("LineString", CANONICAL_SRID)("geom").notNull(),
+    geom: geometryColumn("MultiLineString", CANONICAL_SRID)("geom").notNull(),
     lengthM: numeric("length_m", { precision: 12, scale: 2 }).notNull(),
     provenanceId: uuid("provenance_id").notNull(),
     createdAt: createdAt(),
@@ -211,8 +228,16 @@ export const parcel = app.table(
     sectorLabel: text("sector_label"),
     side: parcelSide("side").notNull(),
     status: parcelStatus("status").notNull().default("estimated"),
-    /** Reference along the corridor, in metres. Never an identifier. */
+    /**
+     * Reference along the corridor, in metres. Never an identifier.
+     *
+     * `chainage_m` is the single point the corridor orders parcels by; where the source states a
+     * frontage as a range — which is how the delivered package states it — `chainage_start_m` and
+     * `chainage_end_m` carry it and `chainage_m` holds the start (ADR-023).
+     */
     chainageM: numeric("chainage_m", { precision: 10, scale: 1 }),
+    chainageStartM: numeric("chainage_start_m", { precision: 10, scale: 1 }),
+    chainageEndM: numeric("chainage_end_m", { precision: 10, scale: 1 }),
     chainageMethod: chainageMethod("chainage_method"),
     frontageM: numeric("frontage_m", { precision: 8, scale: 1 }),
     provenanceId: uuid("provenance_id").notNull(),
@@ -247,7 +272,7 @@ export const parcelGeometry = app.table(
     projectId: uuid("project_id").notNull(),
     parcelId: uuid("parcel_id").notNull(),
     datasetVersionId: uuid("dataset_version_id").notNull(),
-    geom: geometryColumn("Polygon", CANONICAL_SRID)("geom").notNull(),
+    geom: geometryColumn("MultiPolygon", CANONICAL_SRID)("geom").notNull(),
     areaM2: numeric("area_m2", { precision: 14, scale: 2 }).notNull(),
     isActive: boolean("is_active").notNull().default(true),
     supersededByGeometryId: uuid("superseded_by_geometry_id"),
@@ -292,7 +317,7 @@ export const affectation = app.table(
     parcelId: uuid("parcel_id").notNull(),
     datasetVersionId: uuid("dataset_version_id").notNull(),
     category: affectationCategory("category").notNull(),
-    geom: geometryColumn("Polygon", CANONICAL_SRID)("geom").notNull(),
+    geom: geometryColumn("MultiPolygon", CANONICAL_SRID)("geom").notNull(),
     affectedAreaM2: numeric("affected_area_m2", { precision: 14, scale: 2 }).notNull(),
     provenanceId: uuid("provenance_id").notNull(),
     createdAt: createdAt(),
@@ -325,6 +350,50 @@ export const affectation = app.table(
       foreignColumns: [provenanceRecord.tenantId, provenanceRecord.id],
     }),
     index("affectation_geom_idx").using("gist", t.geom),
+  ],
+);
+
+/**
+ * An area of influence delimited by the study: AID, AII, AISD, AISI (ADR-023).
+ *
+ * Versioned by `spatial_dataset_version` exactly as parcels are, so a redelimitation is a new
+ * version and the map can still explain a figure produced under the old one. Deliberately its own
+ * table rather than a parcel with a category: an influence area has no code, no owner and no field
+ * sheet — it is a boundary the study drew, and the PGAS's *lugar de aplicación* points at it.
+ */
+export const influenceArea = app.table(
+  "influence_area",
+  {
+    id: uuid("id").primaryKey(),
+    tenantId: uuid("tenant_id").notNull(),
+    projectId: uuid("project_id").notNull(),
+    datasetVersionId: uuid("dataset_version_id").notNull(),
+    kind: influenceAreaKind("kind").notNull(),
+    label: text("label").notNull(),
+    geom: geometryColumn("MultiPolygon", CANONICAL_SRID)("geom").notNull(),
+    areaM2: numeric("area_m2", { precision: 16, scale: 2 }).notNull(),
+    provenanceId: uuid("provenance_id").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    unique("influence_area_version_kind_key").on(t.tenantId, t.datasetVersionId, t.kind),
+    unique("influence_area_tenant_id_id_key").on(t.tenantId, t.id),
+    foreignKey({
+      name: "influence_area_version_fk",
+      columns: [t.tenantId, t.datasetVersionId],
+      foreignColumns: [spatialDatasetVersion.tenantId, spatialDatasetVersion.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "influence_area_project_fk",
+      columns: [t.tenantId, t.projectId],
+      foreignColumns: [project.tenantId, project.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "influence_area_provenance_fk",
+      columns: [t.tenantId, t.provenanceId],
+      foreignColumns: [provenanceRecord.tenantId, provenanceRecord.id],
+    }),
+    index("influence_area_geom_idx").using("gist", t.geom),
   ],
 );
 

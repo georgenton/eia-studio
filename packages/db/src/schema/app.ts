@@ -107,6 +107,14 @@ export const project = app.table(
     lifecycle: projectLifecycle("lifecycle").notNull().default("planning"),
     /** Free-text location line shown under the project title, e.g. "Provincia, País". */
     locationLabel: text("location_label"),
+    /**
+     * The study's own title, as it appears on the cover of the report, and the programme it belongs
+     * to. `name` is the short form a person navigates by; these two are what make a screen
+     * recognisable as a real study to the consultant who wrote it, and they are shown in the
+     * project's detail rather than in the shell.
+     */
+    officialTitle: text("official_title"),
+    programmeReference: text("programme_reference"),
     createdAt: createdAt(),
   },
   (t) => [

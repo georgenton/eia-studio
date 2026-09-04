@@ -169,6 +169,27 @@
       "when": 1788479431573,
       "tag": "0023_report_rls_and_immutability",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1788543039045,
+      "tag": "0024_real_geometry_and_influence_areas",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1788543039046,
+      "tag": "0025_influence_area_rls",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1788544142583,
+      "tag": "0026_project_official_title",
+      "breakpoints": true
     }
   ]
 }

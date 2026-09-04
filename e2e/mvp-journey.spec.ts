@@ -1,4 +1,4 @@
-import { expect, PROJECT, TENANT, test } from "./fixtures";
+import { PARCELS, expect, PROJECT, TENANT, test } from "./fixtures";
 import { ensureFindings } from "./quality-runner";
 
 /**
@@ -54,15 +54,17 @@ test.describe("MVP · the coordinator's walkthrough, end to end", () => {
   test("Command Center → GIS → a parcel: the selection is one selection", async ({ page }) => {
     await page.goto(`${HOME}/gis`);
     const table = page.getByRole("table", { name: /Predios/ });
-    const row = table.getByRole("row").filter({ hasText: "PRED-ZAM-004" });
+    const row = table
+      .getByRole("row")
+      .filter({ has: page.getByRole("link", { name: `Abrir ${PARCELS.a}`, exact: true }) });
     await row.getByRole("button", { name: /Seleccionar/ }).click();
 
     // Invariant 6: map, table and panel share one selection — the panel is the observable half.
-    await expect(page.getByRole("complementary")).toContainText("PRED-ZAM-004");
+    await expect(page.getByRole("complementary")).toContainText(PARCELS.a);
 
     await page.getByRole("complementary").getByRole("link", { name: /Abrir/ }).first().click();
-    await expect(page).toHaveURL(/\/parcels\/PRED-ZAM-004/);
-    await expect(page.getByRole("main")).toContainText("PRED-ZAM-004");
+    await expect(page).toHaveURL(new RegExp(`/parcels/${PARCELS.a}`));
+    await expect(page.getByRole("main")).toContainText(PARCELS.a);
   });
 
   test("FieldFlow shows what arrived, and offers no way to change it", async ({ page }) => {

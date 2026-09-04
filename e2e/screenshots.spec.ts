@@ -1,4 +1,4 @@
-import { PROJECT, TENANT, test } from "./fixtures";
+import { PARCELS, PROJECT, TENANT, test } from "./fixtures";
 
 /**
  * Implementation screenshots at the golden references' viewport (1440 px wide).
@@ -55,7 +55,7 @@ test.describe("implementation screenshots", () => {
     await page.waitForTimeout(1200);
     await page
       .getByRole("row")
-      .filter({ hasText: "PRED-ZAM-004" })
+      .filter({ has: page.getByRole("link", { name: `Abrir ${PARCELS.a}`, exact: true }) })
       .getByRole("button", { name: /Seleccionar/ })
       .click();
     await page.waitForTimeout(600);
@@ -63,8 +63,8 @@ test.describe("implementation screenshots", () => {
   });
 
   test("parcel workspace summary", async ({ page }) => {
-    await page.goto(`/t/${TENANT}/p/${PROJECT}/parcels/PRED-ZAM-004`);
-    await page.getByRole("heading", { name: "PRED-ZAM-004", level: 1 }).waitFor();
+    await page.goto(`/t/${TENANT}/p/${PROJECT}/parcels/${PARCELS.a}`);
+    await page.getByRole("heading", { name: PARCELS.a, level: 1 }).waitFor();
     await page.waitForTimeout(1200);
     await page.screenshot({ path: `${OUT2}/03-parcel-workspace.png`, fullPage: true });
   });
@@ -76,8 +76,8 @@ test.describe("implementation screenshots", () => {
   });
 
   test("parcel workspace — visits", async ({ page }) => {
-    await page.goto(`/t/${TENANT}/p/${PROJECT}/parcels/PRED-ZAM-001?tab=visitas`);
-    await page.getByRole("heading", { name: "PRED-ZAM-001", level: 1 }).waitFor();
+    await page.goto(`/t/${TENANT}/p/${PROJECT}/parcels/${PARCELS.first}?tab=visitas`);
+    await page.getByRole("heading", { name: PARCELS.first, level: 1 }).waitFor();
     await page.waitForTimeout(600);
     await page.screenshot({ path: `${OUT3}/06-parcel-visits.png`, fullPage: true });
   });

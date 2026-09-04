@@ -6,6 +6,7 @@ import {
   CORRIDOR_GENERATOR_VERSION,
   corridorGeneratorInputSchema,
   deriveLayerLegend,
+  LAYER_LEGEND_COPY,
   DESIGN_SURVEY_STATES_PENDING_FIELD,
   formatChainage,
   generateCorridor,
@@ -125,6 +126,49 @@ describe("layer provenance legend", () => {
     expect(deriveLayerLegend("parcels", facets({ origin: "IMPORTED_DATASET" }))).toBe(
       "SYNTHETIC_PARCELS",
     );
+  });
+
+  it("does not call a consultancy's own survey layer official cadastre", () => {
+    /*
+     * The distinction is the `ANONYMIZED` facet, and it is not a technicality. A layer whose
+     * attributes had to be stripped before it could be stored carried owner names, deeds and field
+     * notes — a registry extract does not hand those out, a surveyor's working file does. Calling
+     * it "official cadastre" would put a registry's authority behind a sketch (ADR-023).
+     */
+    expect(
+      deriveLayerLegend(
+        "parcels",
+        facets({
+          regime: "HISTORICAL_OBSERVED",
+          origin: "IMPORTED_DATASET",
+          transformations: ["ORIGINAL", "ANONYMIZED"],
+        }),
+      ),
+    ).toBe("IMPORTED_STUDY_LAYER");
+  });
+
+  it("an influence area is what the study drew, whatever its regime or origin", () => {
+    for (const f of [
+      facets(),
+      facets({ regime: "HISTORICAL_OBSERVED", origin: "IMPORTED_DATASET" }),
+      facets({ regime: "LIVE_OPERATIONAL", origin: "FIELD_CAPTURE" }),
+    ]) {
+      expect(deriveLayerLegend("influence_areas", f)).toBe("STUDY_DELIMITED_AREA");
+    }
+  });
+
+  it("every legend key the derivation can return has copy", () => {
+    // A key without copy renders as an empty badge on a map that is required to carry one
+    // (invariant 13), and the omission is invisible until a reviewer looks at the legend.
+    for (const key of Object.keys(LAYER_LEGEND_COPY)) {
+      expect(LAYER_LEGEND_COPY[key as keyof typeof LAYER_LEGEND_COPY].label.length).toBeGreaterThan(
+        0,
+      );
+      expect(LAYER_LEGEND_COPY[key as keyof typeof LAYER_LEGEND_COPY].note.length).toBeGreaterThan(
+        0,
+      );
+    }
+    expect(Object.keys(LAYER_LEGEND_COPY)).toHaveLength(8);
   });
 });
 

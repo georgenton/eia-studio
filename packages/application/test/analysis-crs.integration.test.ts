@@ -261,7 +261,7 @@ describe("which CRS owns which measurement", () => {
         (id, tenant_id, project_id, dataset_version_id, label, geom, length_m, provenance_id)
       select gen_random_uuid(), ${w.tenantB.id}, ${w.projectZ.id}, ${alignmentVersion.id},
              'Eje con CRS propio',
-             ST_GeomFromText(${line}, 4326),
+             ST_Multi(ST_GeomFromText(${line}, 4326)),
              ST_Length(ST_Transform(ST_GeomFromText(${line}, 4326), v.analysis_srid)),
              v.provenance_id
       from app.spatial_dataset_version v where v.id = ${alignmentVersion.id}
@@ -297,7 +297,7 @@ describe("which CRS owns which measurement", () => {
       )
       update app.parcel p
          set chainage_m = round((
-               ST_LineLocatePoint(axis.geom, ST_Centroid(ST_Transform(g.geom, axis.srid)))
+               ST_LineLocatePoint(ST_LineMerge(axis.geom), ST_Centroid(ST_Transform(g.geom, axis.srid)))
                * axis.length_m
              )::numeric, 1),
              chainage_method = 'centroid_projection'

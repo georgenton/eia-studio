@@ -1,10 +1,12 @@
-# Official GIS import contract (preparation only)
+# Official GIS import contract
 
-> **Nothing here is implemented.** Slice 2 generates the corridor and its parcels
-> deterministically because the official GIS package has not been received. This document states
-> what the importer will need, so that the synthetic layers can be replaced without a schema
-> change and without any parcel losing its identity. Read with `docs/DATA_MODEL.md` §3.3,
-> `docs/PROVENANCE.md` and ADR-005.
+> **The package arrived on 2 September 2026 and is imported.** This document was written before it
+> existed, to say what an importer would need; it is kept, and **amended where the real delivery
+> proved it wrong** (ADR-023). What actually happened is in `docs/REAL_DATA_INTAKE.md`. Read with
+> `docs/DATA_MODEL.md` §3.3, `docs/PROVENANCE.md` and ADR-005.
+>
+> Two amendments, both marked below: multi-part geometry is **stored**, not rejected (§2), and a
+> declared placeholder remap joins the three matching cases (§3).
 
 ## 1. What replacement means
 
@@ -31,7 +33,7 @@ Consequences the importer must honour:
 | Field | Why it is required |
 |---|---|
 | CRS (EPSG code) | our storage CRS is a demo assumption; the import declares the real one and geometry is transformed to the project's configured CRS |
-| Geometry type per layer | `Polygon` for parcels and affectations, `LineString` for the alignment; multi-part geometry is rejected rather than silently flattened |
+| Geometry type per layer | ~~`Polygon` for parcels and affectations, `LineString` for the alignment; multi-part geometry is rejected rather than silently flattened~~ **Amended (ADR-023):** multi-part geometry is *stored as it arrived*. 20 of the 141 delivered parcels are two polygons and one affectation is eight — a plot split by the road, or with a detached portion. Rejecting them would drop 14 % of a real study's parcels and flattening would lose land a right of way pays for. The columns are `MultiPolygon` and `MultiLineString`; what must never happen silently is discarding parts to fit a narrower type |
 | Feature count | reconciled against rows written; a mismatch fails the run |
 | Parcel identifier | the business code the package uses, mapped to `parcel_code`; if the package uses cadastral keys of identified persons, they are **not** stored as the code (SECURITY.md §10) |
 | Source and date | who produced it and when, recorded on the provenance record |
@@ -46,6 +48,7 @@ Three cases, none of which may be resolved silently:
 | A code in the package matches an existing parcel | new geometry version, same `Parcel.id` |
 | A code exists only in the package | new parcel, `status = estimated`, flagged for review |
 | A code exists only in our data | parcel kept, geometry deactivated, `status` unchanged, listed in the run report as unmatched |
+| **Amended (ADR-023).** Every code exists only in our data, because ours were placeholders | when the manifest declares `placeholderRemap: "ordinal_along_corridor"`, an unmatched *placeholder* is **renamed** to the incoming code, in order along the corridor, keeping its UUID and everything that points at it. A one-time, declared transition — not a matching rule — and it never reassigns a code the package knows. Without the declaration, an unmatched incoming code creates a parcel, as above |
 
 An import run reports these three counts before anything is activated. Activation is a separate,
 audited decision.
