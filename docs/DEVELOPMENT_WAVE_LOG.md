@@ -122,8 +122,8 @@ loosened: migration 0021 replaces the CHECK it asserted, and it now asserts the 
 
 | | |
 |---|---|
-| Branch / PR | `feat/slice-7-report-generation` · *(recorded at merge)* |
-| Merge SHA | *(recorded at merge)* |
+| Branch / PR | `feat/slice-7-report-generation` · [#11](https://github.com/georgenton/eia-studio/pull/11) |
+| Merge SHA | `b8e9fc0` |
 | Migrations | `0022_report_generation_tables.sql` (4 tables, 1 enum), `0023_report_rls_and_immutability.sql` (grants + REVOKE, RLS, immutability triggers, uniqueness) — forward only, additive |
 | Tests | unit **283**, integration **350**, Playwright **141**, staging **90** |
 | Staging | migrations 22 → 24 applied forward; the baseline diff before and after shows **only the migration count**, no row added, changed or removed; verification suite **90 passed** (+9) and the baseline is byte-identical after it; no chapter exists there — a version is produced through the surface, never seeded |

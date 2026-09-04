@@ -23,6 +23,7 @@
     "e2e": "playwright test",
     "e2e:screenshots": "playwright test e2e/screenshots.spec.ts",
     "e2e:prepare": "node tooling/scripts/e2e-prepare.mjs",
+    "perf:baseline": "node tooling/scripts/perf-baseline.mjs",
     "build": "turbo run build",
     "db:generate": "pnpm --filter @eia/db generate",
     "db:check": "pnpm --filter @eia/db check",
