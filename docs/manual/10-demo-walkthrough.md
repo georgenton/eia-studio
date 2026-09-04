@@ -33,7 +33,12 @@ All data is synthetic or reconstructed demo data. Nothing here is anybody's pers
    _Check:_ ask something the corpus does not discuss. It says so and cites nothing.
 9. Back in **Quality Gate → QG-001**: the evidence now links to the passage it was transcribed from.
    Follow the link — it lands on the document, at that passage. The finding was never rewritten.
-10. Sign out.
+10. **Reports.** Press _Generar versión_. Open it: every figure carries the source it came from, and
+    the themes section says nothing has been validated yet — it will not count AI proposals.
+    Download the .docx and open it: _BORRADOR_ on the first page and in every footer.
+    _Check:_ generate again. A new version appears and the first one is still there, marked as an
+    earlier version, still saying what it said.
+11. Sign out.
 
 ## 2 · Field technician — `tecnico@demo.invalid`, at a phone width
 

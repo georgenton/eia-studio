@@ -142,7 +142,9 @@ export const CAPABILITY_CATALOG: Readonly<Record<CapabilityKey, CapabilityDefini
     key: "reports.social_generator",
     module: "reports",
     dependsOn: ["social.analytics", "core.documents"],
-    productStatus: "ANNOUNCED",
+    // AVAILABLE since Slice 7. What is available is a traceable *draft*: a deterministic snapshot,
+    // versioned and downloadable, whose prose is optional (ADR-022). Approval is not built.
+    productStatus: "AVAILABLE",
     label: "Report Generation",
     description: "Borradores con trazabilidad de datos",
     whoCanEnable: OWNER_ENABLES,

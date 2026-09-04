@@ -97,7 +97,7 @@ describe("capability truth table (IG0-H02)", () => {
     ]);
     const set = resolveCapabilities({ tenant: tenantAll([DEP]), project: { overrides } });
     expect(set["climate.analytics"]).toBe(false); // product status EXTENSION
-    expect(set["reports.social_generator"]).toBe(false); // product status ANNOUNCED
+    expect(set["reports.social_generator"]).toBe(false); // tenant not entitled
     expect(set["gis.maps"]).toBe(false); // tenant not entitled
   });
 
@@ -158,15 +158,30 @@ describe("profile defaults", () => {
 });
 
 describe("product status and presentation", () => {
-  it("ANNOUNCED and EXTENSION never resolve to enabled", () => {
+  it("an EXTENSION never resolves to enabled, however the tenant is configured", () => {
     const set = resolveCapabilities({ tenant: tenantAll(ALL_KEYS) });
     expect(set["core.projects"]).toBe(true);
-    // Slice 6 moved `core.documents` and `quality.rag_assistant` to AVAILABLE; Reports is the
-    // remaining ANNOUNCED one, and the three extensions remain EXTENSION.
-    expect(set["core.documents"]).toBe(true);
-    expect(set["quality.rag_assistant"]).toBe(true);
-    expect(set["reports.social_generator"]).toBe(false);
-    expect(set["climate.analytics"]).toBe(false);
+    // Slice 6 moved `core.documents` and `quality.rag_assistant` to AVAILABLE, Slice 7 moved
+    // `reports.social_generator`. The eleven pilot keys are all shipped; the three extensions are
+    // the only ones the product status still refuses.
+    for (const key of [
+      "core.documents",
+      "quality.rag_assistant",
+      "reports.social_generator",
+    ] as const) {
+      expect(set[key], key).toBe(true);
+    }
+    for (const key of ["climate.analytics", "compliance.pma", "audit.environmental"] as const) {
+      expect(set[key], key).toBe(false);
+    }
+  });
+
+  it("no ANNOUNCED capability remains, so the rail has no placeholder left to show", () => {
+    // The eleven keys of the pilot profile are all built. `ANNOUNCED` is still a product status the
+    // catalogue can carry and `navigationPresentation` still handles it — the branch is asserted
+    // below against a constructed state — but nothing ships in it today (TD-055).
+    const announced = ALL_KEYS.filter((k) => CAPABILITY_CATALOG[k].productStatus === "ANNOUNCED");
+    expect(announced).toEqual([]);
   });
 
   it("a capability is about whether the functionality exists, not whether a provider answers", () => {
@@ -179,10 +194,11 @@ describe("product status and presentation", () => {
   });
 
   it("navigation presentation is separate from authorization", () => {
-    const tenant = tenantAll(["core.projects", "reports.social_generator", "social.analytics"]);
+    // An EXTENSION the tenant is entitled to and has enabled: effective is still false, and the
+    // rail hides it. Presentation never widens the policy.
+    const tenant = tenantAll(["core.projects", "climate.analytics", "social.analytics"]);
     const set = resolveCapabilities({ tenant });
-    expect(set["reports.social_generator"]).toBe(false);
-    expect(navigationPresentation("reports.social_generator", set, tenant)).toBe("ANNOUNCED");
+    expect(set["climate.analytics"]).toBe(false);
     expect(navigationPresentation("climate.analytics", set, tenant)).toBe("HIDDEN");
     expect(navigationPresentation("core.projects", set, tenant)).toBe("ACTIVE");
     expect(() => requireCapability({ capabilities: set }, "reports.social_generator")).toThrowError(

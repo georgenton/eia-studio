@@ -175,3 +175,24 @@ export {
 export type { FakeGeneratorScenario } from "./documents/generator";
 export { loadDocuments, loadDocumentVersion } from "./documents/read-models";
 export type { DocumentSummary, DocumentVersionDetail } from "./documents/read-models";
+
+// Report generation (Slice 7). The snapshot is the deliverable; prose renders it (ADR-022).
+export { generateSocialChapter } from "./reports/generate";
+export type { GeneratedReportVersion, ReportGeneratorConfig } from "./reports/generate";
+export { buildSocialSnapshot } from "./reports/snapshot";
+export {
+  AiGatewayNarrativeGenerator,
+  createNarrativeGenerator,
+  FakeNarrativeGenerator,
+  renderChapterSystemPrompt,
+  renderChapterUserPrompt,
+} from "./reports/generator";
+export type { FakeNarrativeScenario } from "./reports/generator";
+export { renderChapterDocx } from "./reports/docx";
+export type { RenderedDocx } from "./reports/docx";
+export { loadReportOverview, loadReportVersion } from "./reports/read-models";
+export type {
+  ReportOverview,
+  ReportVersionDetail,
+  ReportVersionSummary,
+} from "./reports/read-models";

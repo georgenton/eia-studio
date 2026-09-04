@@ -90,8 +90,8 @@ export const SURFACE_DEFINITIONS: Readonly<Record<WorkspaceSurface, SurfaceDefin
     capability: "reports.social_generator",
     label: "Reports",
     segment: "reports",
-    implemented: false,
-    plannedIn: "la fase 3",
+    implemented: true,
+    plannedIn: null,
   },
 };
 

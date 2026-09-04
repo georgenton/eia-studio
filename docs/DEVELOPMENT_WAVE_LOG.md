@@ -94,8 +94,8 @@ bits directly.
 
 | | |
 |---|---|
-| Branch / PR | `feat/slice-6-document-intelligence` · (recorded at merge) |
-| Merge SHA | *(recorded at merge)* |
+| Branch / PR | `feat/slice-6-document-intelligence` · [#10](https://github.com/georgenton/eia-studio/pull/10) |
+| Merge SHA | `4daf9eb` |
 | Migrations | `0020_document_intelligence_tables.sql` (3 tables, 2 enums, 2 columns on `document_assertion`), `0021_document_rls_and_retrieval.sql` (grants + REVOKE, RLS, immutability triggers, generated `tsvector` + GIN index, replaced CHECK) — forward only, additive |
 | Tests | unit **265**, integration **320**, Playwright **130**, staging **81** |
 | Staging | migrations 20 → 22 applied forward; 6 documents / 9 passages / 6 provenance records added; every pre-existing id identical; **the four Quality Gate findings and their decisions untouched**; verification suite 81 passed |
@@ -117,3 +117,35 @@ loosened: migration 0021 replaces the CHECK it asserted, and it now asserts the 
 
 **Debt recorded.** TD-056 … TD-059.
 
+
+### Slice 7 — Assisted report generation
+
+| | |
+|---|---|
+| Branch / PR | `feat/slice-7-report-generation` · *(recorded at merge)* |
+| Merge SHA | *(recorded at merge)* |
+| Migrations | `0022_report_generation_tables.sql` (4 tables, 1 enum), `0023_report_rls_and_immutability.sql` (grants + REVOKE, RLS, immutability triggers, uniqueness) — forward only, additive |
+| Tests | unit **283**, integration **350**, Playwright **141**, staging **90** |
+| Staging | migrations 22 → 24 applied forward; the baseline diff before and after shows **only the migration count**, no row added, changed or removed; verification suite **90 passed** (+9) and the baseline is byte-identical after it; no chapter exists there — a version is produced through the surface, never seeded |
+| External configuration | unchanged — `LIVE_AI = BLOCKED_EXTERNAL_CONFIG` (TD-049); the narrative generator reports `NOT_CONFIGURED` and every version is generated complete without prose |
+
+**Scope delivered.** The social chapter as a versioned artefact: a validated JSON snapshot of five
+sections in which every fact carries a typed source; deterministic generation with optional prose;
+immutable versions; the Reports surface with a version's detail; a .docx that says BORRADOR on its
+face and prints the source under every figure; manual page 09.
+
+**Meaningful decisions.** ADR-022: the snapshot is the deliverable and prose is a rendering of it,
+which is what makes a version generated with no provider a *complete* draft rather than a degraded
+one. Prose is generated from the snapshot rather than the database, and a paragraph stating a figure
+its section did not compute fails the generation instead of being trimmed. The append-only shape now
+used for the third time (`human_review`, `specialist_review`, `report_version`) was written with the
+REVOKE first, because migration 0002's `ALTER DEFAULT PRIVILEGES` makes a GRANT-only append-only
+table silently mutable — the defect Slice 5 found.
+
+**Deviations.** Recorded in `docs/SLICE_7_REPORT.md` §8. Three e2e assertions and one integration
+assertion were updated rather than loosened: they asserted that Reports was ANNOUNCED and therefore
+404, which Slice 7 makes false, so they now assert the successor facts. The demo seeder's provenance
+cleanup gained `report_version`.
+
+**Debt recorded.** TD-060 (no approval workflow), TD-061 (grounding is arithmetic, not semantic),
+TD-062 (one chapter shape), TD-063 (the .docx is rendered per download, not stored).

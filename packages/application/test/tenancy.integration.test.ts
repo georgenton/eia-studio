@@ -161,7 +161,9 @@ describe("tenant and project use-cases through the runtime role", () => {
     });
     expect(ctx.tenantRole).toBe("OWNER");
     expect(ctx.capabilities["core.projects"]).toBe(true);
-    expect(ctx.capabilities["reports.social_generator"]).toBe(false);
+    // Slice 7 shipped the generator, so a founded tenant has it: AVAILABLE, entitled by the
+    // plan, no project layer yet. The nav placeholder it used to be is gone (TD-055).
+    expect(ctx.capabilities["reports.social_generator"]).toBe(true);
     expect(ctx.capabilities["climate.analytics"]).toBe(false);
     const settings = await withDbContext(
       db.runtime,
@@ -169,7 +171,7 @@ describe("tenant and project use-cases through the runtime role", () => {
       (tx) => loadTenantCapabilitySettings(tx, tenantId),
     );
     expect(navigationPresentation("reports.social_generator", ctx.capabilities, settings)).toBe(
-      "ANNOUNCED",
+      "ACTIVE",
     );
     expect(navigationPresentation("climate.analytics", ctx.capabilities, settings)).toBe("HIDDEN");
 
@@ -186,9 +188,7 @@ describe("tenant and project use-cases through the runtime role", () => {
     expect(projectCtx.projectId).toBe(projectId);
     expect(projectCtx.capabilities["gis.parcels"]).toBe(true);
     expect(() => requireCapability(projectCtx, "climate.analytics")).toThrowError(FeatureDisabled);
-    expect(() => requireCapability(projectCtx, "reports.social_generator")).toThrowError(
-      FeatureDisabled,
-    );
+    expect(() => requireCapability(projectCtx, "reports.social_generator")).not.toThrow();
     expect(() => requireCapability(projectCtx, "core.projects")).not.toThrow();
     const portfolio = await listPortfolio(db.runtime, ctx);
     expect(portfolio.map((p) => p.slug)).toEqual(["first-project"]);

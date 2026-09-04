@@ -38,6 +38,8 @@ describe("workspace surface registry", () => {
 
   it("every surface a slice has built is marked implemented, and no other", () => {
     const implemented = WORKSPACE_SURFACES.filter((k) => SURFACE_DEFINITIONS[k].implemented);
+    // Slice 7 built the last one. Every workspace surface the catalogue ships is implemented, and
+    // the registry says so — a surface added later starts false and this assertion notices.
     expect(implemented).toEqual([
       "command-center",
       "gis",
@@ -45,6 +47,7 @@ describe("workspace surface registry", () => {
       "social",
       "quality",
       "documents",
+      "reports",
     ]);
   });
 
@@ -90,24 +93,31 @@ describe("capability route policy", () => {
     expect(outcome(true, "social")).toBe("ok");
     expect(outcome(true, "quality")).toBe("ok");
     expect(outcome(true, "documents")).toBe("ok");
-    // Reports is the only remaining unbuilt surface, and its capability is ANNOUNCED — so the
-    // "module not implemented" state still has no reachable route (TD-055). GIS was the live
-    // example until Slice 2, FieldFlow until Slice 3, Quality Gate until Slice 5, Documents
-    // until Slice 6.
-    expect(outcome(true, "reports")).toBe("not-implemented");
-    expect(outcome(false, "reports")).toBe("not-found");
+    expect(outcome(true, "reports")).toBe("ok");
+
+    // The "module not implemented" state now has **no** reachable route: every workspace surface is
+    // built (TD-055). The policy that produces it is still asserted here, against a constructed
+    // registry entry rather than a real one, because manufacturing a route for it would mean
+    // shipping a capability nobody implements purely so a test could visit it. GIS was the live
+    // example until Slice 2, FieldFlow until Slice 3, Quality Gate until Slice 5, Documents until
+    // Slice 6, Reports until Slice 7.
+    const unbuilt = { ...SURFACE_DEFINITIONS.reports, implemented: false };
+    const outcomeFor = (effective: boolean, surface: { implemented: boolean }) =>
+      !effective ? "not-found" : surface.implemented ? "ok" : "not-implemented";
+    expect(outcomeFor(true, unbuilt)).toBe("not-implemented");
+    expect(outcomeFor(false, unbuilt)).toBe("not-found");
   });
 
-  it("presentation cannot widen the policy: ANNOUNCED resolves as disabled", () => {
-    // Reports is ANNOUNCED in the catalogue, so it can never be effective, so its route is 404
-    // however the rail chooses to show it.
-    expect(CAPABILITY_CATALOG[SURFACE_DEFINITIONS.reports.capability].productStatus).toBe(
-      "ANNOUNCED",
-    );
-    const capabilities = emptyCapabilitySet();
-    expect(capabilities[SURFACE_DEFINITIONS.reports.capability]).toBe(false);
-    expect(() =>
-      requireCapability({ capabilities }, SURFACE_DEFINITIONS.reports.capability),
-    ).toThrow(FeatureDisabled);
+  it("presentation cannot widen the policy: a capability the tenant lacks is refused", () => {
+    // Every workspace capability now ships (`AVAILABLE`), so the example is a tenant that has not
+    // enabled one rather than a product status that forbids it. The rule is unchanged: whatever the
+    // rail shows, `requireCapability` reads the effective boolean and nothing else.
+    for (const surface of ["reports", "documents", "quality"] as const) {
+      const key = SURFACE_DEFINITIONS[surface].capability;
+      expect(CAPABILITY_CATALOG[key].productStatus).toBe("AVAILABLE");
+      const capabilities = emptyCapabilitySet();
+      expect(capabilities[key]).toBe(false);
+      expect(() => requireCapability({ capabilities }, key)).toThrow(FeatureDisabled);
+    }
   });
 });

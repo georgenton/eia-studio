@@ -365,3 +365,23 @@ than the predicate.
 in-process fake selected explicitly (`ASSISTANT_GENERATOR=fake`) by the same no-default rule as the
 Social classifier.
 
+## 19. Report generation (Slice 7)
+
+**The test that decides whether a chapter can be believed** is that a provisional AI classification
+never becomes a figure in it. Asserted directly against a database holding a proposal and no review:
+the themes section says nothing has been validated, and the proposal is verified to exist, so the
+result is a refusal to count it rather than an absence of anything to count.
+
+| Layer | What it proves |
+|---|---|
+| Domain unit (`packages/domain/test/reports.test.ts`) | a fact cannot exist without a source, and an undeclared source kind is refused; a theme figure claiming a count from zero validated codings is refused while the honest empty case is accepted; a snapshot whose fact carries an undeclared regime is refused, so a chapter built partly on simulated data says so at the top; the digest identifies content and not the instant, and survives key reordering; a paragraph may state only figures its section computed, and one that does not fails rather than being corrected |
+| Application integration (`packages/application/test/reports.integration.test.ts`) | the whole journey against a real database: a proposal with no review yields "—"; validating it makes the figure appear with its review count; **the earlier version keeps the empty section**; the database refuses to edit or delete a version or a section; regenerating unchanged data produces a new version and reports it as identical; every fact carries a source and the sources are queryable rows as well as snapshot fields; the narrative is attached only when a generator ran, and an ungrounded paragraph fails the generation; a technician may neither read nor generate; the capability gates the module; the .docx is a real Word file named for its version; the audit log records the act and never the chapter's text; every version's provenance is `DERIVED` / `PENDING` |
+| Database isolation (`packages/testing/test/rls/slice7-reports.integration.test.ts`) | cross-tenant invisibility on all four tables, including a query against the other tenant's snapshot by project name; forged `tenant_id`; no-context; membership gating; UPDATE and DELETE refused for the runtime role **and** the owning role on versions, sections and sources, with the report cascade as the one legitimate route; one chapter per kind per project; forced RLS |
+| End to end (`e2e/reports*.spec.ts`) | the surface states what a version is before one exists and never declares compliance; generating produces one; every figure names its source on screen; the themes section says nothing was validated; regenerating adds a version and keeps every earlier one, with the first marked superseded; the .docx downloads as a real Word file marked a draft; an unknown version label answers 404 and so does its download |
+| Accessibility (axe) | the version list and a version's nested figures with their source lines |
+| Staging (non-destructive) | the four tables exist on the persistent environment with RLS enabled, forced and policied; the runtime role holds SELECT and INSERT and neither UPDATE nor DELETE; the six immutability triggers are installed and owned by `eia_policy`; a version created inside a rolled-back transaction cannot be amended or deleted even by the owning role, while the cascade from its report is allowed; no chapter exists there, and the inputs one would read do |
+
+**CI calls no model.** The snapshot is arithmetic and SQL; the narrative generator is a deterministic
+in-process fake selected explicitly, and the versions CI produces have no prose at all — which is
+the shipped behaviour everywhere, since no provider is configured (TD-049).
+
