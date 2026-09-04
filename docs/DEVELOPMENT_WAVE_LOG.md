@@ -349,11 +349,11 @@ credential. §8 argued the count should come down before geography is spent on i
 
 | | |
 |---|---|
-| Branch / PR | `feat/zamora-realistic-workspace` · PR pending |
-| Merge SHA | pending |
+| Branch / PR | `feat/zamora-realistic-workspace` · [#18](https://github.com/georgenton/eia-studio/pull/18) · follow-up [#19](https://github.com/georgenton/eia-studio/pull/19) |
+| Merge SHA | `ac574d5` · `956406a` |
 | Migrations | **none** |
 | Tests | unit **300**, integration **386**, Playwright **168** (+1) |
-| Staging | untouched by this branch — no migration, no write. The seeder change takes effect the next time staging is seeded, and supersedes nothing |
+| Staging | migrated to 0028 and re-seeded after the merge: the PGAS chapter is there and `compliance.pma` is entitled. The baseline diff shows **additions only** — 2 migrations, 1 provenance record, and 10 assignments the campaign gained because the earlier twelve were kept rather than moved (see the follow-up below and §20 of the handoff) |
 
 **Scope delivered.** The Command Center names the study as its terms of reference do, with the
 programme reference beside it — the project record has carried both since Wave B and nothing showed
@@ -375,3 +375,13 @@ makes, not a plan the code has assumed.
 **Deviations.** None.
 
 **Debt recorded.** None new. TD-071 closed.
+
+### Closing the wave
+
+| | |
+|---|---|
+| Handoff | `docs/REAL_DATA_WAVE_HANDOFF.md`, answering the brief's twenty-one questions |
+| Merged | PRs [#14](https://github.com/georgenton/eia-studio/pull/14) … [#19](https://github.com/georgenton/eia-studio/pull/19); `main` at `956406a` |
+| Tests | unit **300**, integration **386**, Playwright **168**, staging **88 of 90** |
+| Staging | migrated to 0028, re-seeded, verified. The two staging failures are one fact: its demo campaign holds 22 assignments where the fixture declares 12, because a re-seed after the target parcels moved added the new ones beside the old. Removing them is a delete against a persistent environment and waits on the owner |
+| Not done, deliberately | no production deployment, no real personal data, no Climate Intelligence, no audit/compliance implementation, no region move |
