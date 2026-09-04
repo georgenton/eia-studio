@@ -154,11 +154,11 @@ TD-062 (one chapter shape), TD-063 (the .docx is rendered per download, not stor
 
 | | |
 |---|---|
-| Branch / PR | `feat/mvp-integration-demo-hardening` · *(recorded at merge)* |
-| Merge SHA | *(recorded at merge)* |
+| Branch / PR | `feat/mvp-integration-demo-hardening` · [#12](https://github.com/georgenton/eia-studio/pull/12) |
+| Merge SHA | `2bc58b5` |
 | Migrations | **none** |
 | Tests | unit **283**, integration **353** (+3), Playwright **150** (+9), staging **90** |
-| Staging | untouched by this branch — no migration, no seed, no write. The verification of Slice 7 stands as the last measurement |
+| Staging | untouched by this branch — no migration, no seed, no write. Re-verified after the merge all the same: **90 passed**, and the baseline captured before and after the run is byte-identical |
 | External configuration | unchanged — `LIVE_AI = BLOCKED_EXTERNAL_CONFIG` (TD-049) |
 
 **Scope delivered.** The walkthrough as a test (`e2e/mvp-journey.spec.ts`), which asserts the seams
