@@ -7,7 +7,6 @@ import { projectBreadcrumb, projectLabel, WorkspaceShell } from "@/components/wo
 import { getSessionUser } from "@/lib/context";
 import { getDb } from "@/lib/db";
 import { projectPath } from "@/lib/navigation";
-import { getTenantCapabilitySettings } from "@/lib/queries";
 import { accessForDomainError, resolveSurfaceAccess } from "@/lib/surface-access";
 import { PermissionDeniedState } from "@/lib/system-state";
 
@@ -47,9 +46,8 @@ export default async function DocumentPage({
     );
   }
 
-  const { ctx } = access;
+  const { ctx, tenantSettings } = access;
   const sessionUser = await getSessionUser();
-  const tenantSettings = await getTenantCapabilitySettings(ctx);
   const portfolio = await loadPortfolio(getDb(), ctx);
 
   const shell = {

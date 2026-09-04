@@ -9,6 +9,7 @@ import {
   requireCapability,
   type RequestContext,
   type SurfaceDefinition,
+  type TenantCapabilitySettings,
   type WorkspaceSurface,
 } from "@eia/domain";
 
@@ -41,11 +42,18 @@ export type SurfaceAccess =
       readonly kind: "not-implemented";
       readonly ctx: RequestContext;
       readonly surface: SurfaceDefinition;
+      readonly tenantSettings: TenantCapabilitySettings;
     }
   | {
       readonly kind: "ok";
       readonly ctx: RequestContext;
       readonly surface: SurfaceDefinition;
+      /**
+       * The tenant's capability rows, read while the caller was being resolved. The shell needs
+       * them to decide navigation presentation; asking again would be a second transaction for
+       * rows this request has already read (TD-064).
+       */
+      readonly tenantSettings: TenantCapabilitySettings;
     };
 
 async function accessFor(
@@ -58,7 +66,7 @@ async function accessFor(
   if (result.kind === "denied") {
     return { kind: "denied", role: result.role, restrictedData: result.restrictedData };
   }
-  const { ctx } = result;
+  const { ctx, tenantSettings } = result;
   try {
     requireCapability(ctx, surface.capability);
   } catch (error) {
@@ -66,8 +74,8 @@ async function accessFor(
     throw error;
   }
   return surface.implemented
-    ? { kind: "ok", ctx, surface }
-    : { kind: "not-implemented", ctx, surface };
+    ? { kind: "ok", ctx, surface, tenantSettings }
+    : { kind: "not-implemented", ctx, surface, tenantSettings };
 }
 
 /** Resolve a known surface by key (used by the routes this slice implements). */

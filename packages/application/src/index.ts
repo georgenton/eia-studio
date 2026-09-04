@@ -1,7 +1,13 @@
 // Application layer: authorization-aware orchestration over persistence (ADR-015).
 // Depends on @eia/domain (rules) and @eia/db (adapters); never the reverse.
 export { recordAudit } from "./audit/record";
-export { buildRequestContext, ensureUser, listUserTenants } from "./tenancy/request-context";
+export {
+  buildRequestContext,
+  ensureUser,
+  listUserTenants,
+  resolveAccessContext,
+} from "./tenancy/request-context";
+export type { AccessContext } from "./tenancy/request-context";
 export type { BuildRequestContextInput } from "./tenancy/request-context";
 export {
   addTenantMembership,
