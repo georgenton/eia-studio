@@ -4,7 +4,7 @@ import { notFound, redirect } from "next/navigation";
 
 import { ParcelExplorer } from "@/components/gis/parcel-explorer";
 import { ProvenancePanel } from "@/components/provenance-panel";
-import { projectBreadcrumb, WorkspaceShell } from "@/components/workspace-shell";
+import { projectBreadcrumb, projectLabel, WorkspaceShell } from "@/components/workspace-shell";
 import { getSessionUser } from "@/lib/context";
 import { getDb } from "@/lib/db";
 import { projectPath } from "@/lib/navigation";
@@ -61,7 +61,7 @@ export default async function GisPage({
     breadcrumb: projectBreadcrumb(
       ctx,
       portfolio.tenantName,
-      project,
+      projectLabel(portfolio.projects, project),
       SURFACE_DEFINITIONS.gis.label,
     ),
   };

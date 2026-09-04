@@ -34,13 +34,20 @@ test.describe("MVP · the coordinator's walkthrough, end to end", () => {
       "Documents",
       "Reports",
     ];
+    const crumbs = page.getByRole("navigation", { name: "Ruta de navegación" });
+    // The Command Center's breadcrumb names the project the way a person would.
+    await expect(crumbs).toContainText("Vía Puente del Amor");
+
     for (const name of destinations) {
       await rail.getByRole("link", { name }).click();
       // Invariant 1: the tenant and the project are in the URL and on the screen, everywhere.
       await expect(page).toHaveURL(new RegExp(`/t/${TENANT}/p/${PROJECT}/`));
       await expect(page.getByLabel("Organización")).toHaveValue(TENANT);
       await expect(page.getByLabel("Proyecto activo")).toHaveValue(PROJECT);
-      await expect(page.getByRole("navigation", { name: "Ruta de navegación" })).toBeVisible();
+      // …and it names it the *same* way on every surface. Six of them used to show the URL slug
+      // instead, which reads as a different project on every screen but one.
+      await expect(crumbs, name).toContainText("Vía Puente del Amor");
+      await expect(crumbs, name).not.toContainText(PROJECT);
     }
   });
 

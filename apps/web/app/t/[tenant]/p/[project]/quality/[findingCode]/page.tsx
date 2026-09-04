@@ -3,7 +3,7 @@ import { can, SURFACE_DEFINITIONS } from "@eia/domain";
 import { notFound, redirect } from "next/navigation";
 
 import { FindingDetailPanel } from "@/components/quality/finding-detail";
-import { projectBreadcrumb, WorkspaceShell } from "@/components/workspace-shell";
+import { projectBreadcrumb, projectLabel, WorkspaceShell } from "@/components/workspace-shell";
 import { getSessionUser } from "@/lib/context";
 import { getDb } from "@/lib/db";
 import { projectPath } from "@/lib/navigation";
@@ -59,7 +59,7 @@ export default async function FindingPage({
     breadcrumb: projectBreadcrumb(
       ctx,
       portfolio.tenantName,
-      project,
+      projectLabel(portfolio.projects, project),
       `${SURFACE_DEFINITIONS.quality.label} · ${findingCode}`,
       projectPath(ctx.tenantSlug, project, "quality"),
     ),

@@ -5,7 +5,7 @@ import { notFound, redirect } from "next/navigation";
 import { FieldOverviewSurface } from "@/components/field/field-overview";
 import { MyWork } from "@/components/field/my-work";
 import { ProvenancePanel } from "@/components/provenance-panel";
-import { projectBreadcrumb, WorkspaceShell } from "@/components/workspace-shell";
+import { projectBreadcrumb, projectLabel, WorkspaceShell } from "@/components/workspace-shell";
 import { getSessionUser } from "@/lib/context";
 import { getDb } from "@/lib/db";
 import { projectPath } from "@/lib/navigation";
@@ -62,7 +62,7 @@ export default async function FieldPage({
     breadcrumb: projectBreadcrumb(
       ctx,
       portfolio.tenantName,
-      project,
+      projectLabel(portfolio.projects, project),
       SURFACE_DEFINITIONS.field.label,
     ),
     drawer: prov ? (

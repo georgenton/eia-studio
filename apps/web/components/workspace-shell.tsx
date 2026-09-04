@@ -141,6 +141,21 @@ export function tenantBreadcrumb(tenantName: string): Array<{ label: string; hre
   return [{ label: tenantName }, { label: "Portfolio" }];
 }
 
+/**
+ * The project's display name, from the portfolio the page already loaded.
+ *
+ * Every workspace page has `portfolio.projects` in hand, and passing the URL slug to the
+ * breadcrumb instead reads as a different project on every surface but one — which is exactly what
+ * happened until this existed. Falls back to the slug rather than to nothing: a breadcrumb that
+ * silently loses its middle rung is worse than one showing an identifier.
+ */
+export function projectLabel(
+  projects: ReadonlyArray<{ slug: string; name: string }>,
+  slug: string,
+): string {
+  return projects.find((project) => project.slug === slug)?.name ?? slug;
+}
+
 export function projectBreadcrumb(
   ctx: RequestContext,
   tenantName: string,

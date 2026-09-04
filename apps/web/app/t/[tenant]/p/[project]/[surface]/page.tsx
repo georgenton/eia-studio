@@ -1,7 +1,7 @@
 import { loadPortfolio } from "@eia/application";
 import { notFound, redirect } from "next/navigation";
 
-import { projectBreadcrumb, WorkspaceShell } from "@/components/workspace-shell";
+import { projectBreadcrumb, projectLabel, WorkspaceShell } from "@/components/workspace-shell";
 import { getSessionUser } from "@/lib/context";
 import { getDb } from "@/lib/db";
 import { getTenantCapabilitySettings } from "@/lib/queries";
@@ -48,7 +48,12 @@ export default async function SurfacePage({
 
   return (
     <WorkspaceShell
-      breadcrumb={projectBreadcrumb(ctx, portfolio.tenantName, project, definition.label)}
+      breadcrumb={projectBreadcrumb(
+        ctx,
+        portfolio.tenantName,
+        projectLabel(portfolio.projects, project),
+        definition.label,
+      )}
       ctx={ctx}
       currentSurface={definition.key}
       projects={portfolio.projects}

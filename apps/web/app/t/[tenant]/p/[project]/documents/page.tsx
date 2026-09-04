@@ -5,7 +5,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
 import { DocumentAssistant } from "@/components/documents/document-assistant";
-import { projectBreadcrumb, WorkspaceShell } from "@/components/workspace-shell";
+import { projectBreadcrumb, projectLabel, WorkspaceShell } from "@/components/workspace-shell";
 import { getSessionUser } from "@/lib/context";
 import { getDb } from "@/lib/db";
 import { projectPath } from "@/lib/navigation";
@@ -61,7 +61,7 @@ export default async function DocumentsPage({
     breadcrumb: projectBreadcrumb(
       ctx,
       portfolio.tenantName,
-      project,
+      projectLabel(portfolio.projects, project),
       SURFACE_DEFINITIONS.documents.label,
     ),
   };

@@ -15,7 +15,7 @@ import { notFound, redirect } from "next/navigation";
 import { OpenResponseQueue } from "@/components/social/open-response-queue";
 import { SocialOverview } from "@/components/social/social-overview";
 import { TabulationPanel } from "@/components/social/tabulation-panel";
-import { projectBreadcrumb, WorkspaceShell } from "@/components/workspace-shell";
+import { projectBreadcrumb, projectLabel, WorkspaceShell } from "@/components/workspace-shell";
 import { aiStatusFor } from "@/lib/ai-status";
 import { getSessionUser } from "@/lib/context";
 import { getDb } from "@/lib/db";
@@ -85,7 +85,7 @@ export default async function SocialPage({
     breadcrumb: projectBreadcrumb(
       ctx,
       portfolio.tenantName,
-      project,
+      projectLabel(portfolio.projects, project),
       SURFACE_DEFINITIONS.social.label,
     ),
   };
