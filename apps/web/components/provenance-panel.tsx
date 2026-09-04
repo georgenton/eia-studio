@@ -4,11 +4,19 @@ import {
   NotFound,
   ORIGIN_LABEL,
   REGIME_LABEL,
+  SOURCE_TYPE_NOTE,
   TRANSFORMATION_LABEL,
   VALIDATION_STATE_LABEL,
   type RequestContext,
 } from "@eia/domain";
-import { Chip, formatDateTime, ProvenanceBadge, ProvenanceField, ProvenanceSection } from "@eia/ui";
+import {
+  Chip,
+  deriveSourceTypeLabel,
+  formatDateTime,
+  ProvenanceBadge,
+  ProvenanceField,
+  ProvenanceSection,
+} from "@eia/ui";
 
 import { RouteDrawer } from "@/components/navigation";
 
@@ -49,6 +57,7 @@ export async function ProvenancePanel({
   }
 
   const { facets } = view;
+  const sourceType = deriveSourceTypeLabel(facets);
   const transformations = facets.transformations.map((t) => TRANSFORMATION_LABEL[t]).join(" → ");
 
   return (
@@ -56,9 +65,17 @@ export async function ProvenancePanel({
       <ProvenanceSection>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <ProvenanceBadge facets={facets} />
-          <span style={{ fontSize: 10, letterSpacing: "0.08em", color: "var(--eia-text-muted)" }}>
-            ETIQUETA DERIVADA DE LAS FACETAS
-          </span>
+          {/*
+            The badge is a summary of the four fields below it, and this line says what it means
+            here rather than shouting that it was derived. A reader opens this drawer to decide
+            whether they may quote a figure; «Cifra verificable del expediente» answers that, and
+            «ETIQUETA DERIVADA DE LAS FACETAS» answered a question nobody asked (ADR-025).
+          */}
+          {sourceType ? (
+            <span style={{ fontSize: 11, color: "var(--eia-text-muted)" }}>
+              {SOURCE_TYPE_NOTE[sourceType]}
+            </span>
+          ) : null}
         </div>
         <p
           style={{
@@ -113,7 +130,7 @@ export async function ProvenancePanel({
       <ProvenanceField label="Registrado en EIA Studio">
         {formatDateTime(view.recordedAt)}
       </ProvenanceField>
-      <ProvenanceField label="Human validation">
+      <ProvenanceField label="Validación humana">
         <span style={{ display: "inline-flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <Chip tone={view.validationState === "VALIDATED" ? "ok" : "warn"}>
             {VALIDATION_STATE_LABEL[view.validationState]}

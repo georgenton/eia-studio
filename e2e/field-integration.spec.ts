@@ -58,7 +58,7 @@ test.describe("FieldFlow · what a submitted survey changes elsewhere", () => {
     // record came from. Not the answers: those are Social Intelligence's surface, later.
     await expect(table).toContainText("Técnico de campo");
     await expect(table).toContainText("v1");
-    await expect(page.getByRole("main").getByText("SYNTHETIC").first()).toBeVisible();
+    await expect(page.getByRole("main").getByText("Simulación operativa").first()).toBeVisible();
 
     // A visit's location outcome is stated, never inferred.
     await expect(table).toContainText(
@@ -101,12 +101,12 @@ test.describe("FieldFlow · what a submitted survey changes elsewhere", () => {
     const main = page.getByRole("main");
 
     const strip = main.getByRole("group", { name: "Control de ejecución" });
-    await expect(strip).toContainText("REAL_AGGREGATE");
+    await expect(strip).toContainText("Dato histórico");
 
     const panel = main.locator("section", { hasText: "Campaña de campo en curso" }).first();
-    await expect(panel).toContainText("SYNTHETIC");
+    await expect(panel).toContainText("Simulación operativa");
     await expect(panel).toContainText("No forma parte de las encuestas socioeconómicas");
-    await expect(panel).not.toContainText("REAL_AGGREGATE");
+    await expect(panel).not.toContainText("Dato histórico");
 
     // Each figure carries its own provenance, reachable from where it is shown.
     await expect(panel.getByRole("link", { name: /Ver origen/ })).toBeVisible();

@@ -86,7 +86,7 @@ export function QualityOverviewPanel({
     <>
       <Panel>
         <PanelHeader
-          label="Quality Gate"
+          label="Control de calidad"
           note={
             overview.lastRun?.finishedAt
               ? `Última revisión: ${dateTime(overview.lastRun.finishedAt)}`
@@ -102,9 +102,10 @@ export function QualityOverviewPanel({
         />
         <PanelBody>
           <p className={styles.note}>
-            El Quality Gate señala <strong>discrepancias entre dos fuentes</strong> del expediente.
-            No determina cuál de las dos es correcta, ni declara conformidad: esa decisión, con su
-            justificación, es de un especialista y queda registrada de forma permanente.
+            El control de calidad señala <strong>discrepancias entre dos fuentes</strong> del
+            expediente. No determina cuál de las dos es correcta, ni declara conformidad: esa
+            decisión, con su justificación, es de un especialista y queda registrada de forma
+            permanente.
           </p>
           <dl className={styles.kpis}>
             <Kpi label="Abiertos" value={overview.counts.open} />

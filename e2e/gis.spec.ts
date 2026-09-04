@@ -11,14 +11,14 @@ test.describe("GIS reviewer journey", () => {
     // 1 · the rail now offers GIS as a real destination, not a placeholder
     await page.goto(`/t/${TENANT}/p/${PROJECT}`);
     const rail = page.getByRole("navigation", { name: "Navegación principal" });
-    await rail.getByRole("link", { name: "GIS & Predios" }).click();
+    await rail.getByRole("link", { name: "Cartografía y predios" }).click();
     await expect(page).toHaveURL(new RegExp(`${GIS}$`));
 
     // 2 · tenant and project context survive the navigation (invariant 1)
     await expect(page.getByLabel("Organización")).toHaveValue(TENANT);
     await expect(page.getByLabel("Proyecto activo")).toHaveValue(PROJECT);
     await expect(page.getByRole("navigation", { name: "Ruta de navegación" })).toContainText(
-      "GIS & Predios",
+      "Cartografía y predios",
     );
 
     // 3 · the count states the whole set and the filtered subset
@@ -40,12 +40,12 @@ test.describe("GIS reviewer journey", () => {
 
     const strip = main.getByRole("group", { name: "Control de ejecución" });
     await expect(strip).toContainText("Universo estimado");
-    await expect(strip).toContainText("REAL_AGGREGATE");
+    await expect(strip).toContainText("Dato histórico");
 
     const territory = main.locator("section", { hasText: "Resumen territorial" }).first();
     await expect(territory).toContainText("141");
     // The layer is the study's own survey, and says so rather than claiming to be a registry.
-    await expect(territory).not.toContainText("REAL_AGGREGATE");
+    await expect(territory).not.toContainText("Dato histórico");
   });
 
   test("map and table are one selection", async ({ page }) => {
@@ -111,9 +111,9 @@ test.describe("GIS reviewer journey", () => {
     const main = page.getByRole("main");
     // The alignment now comes from the official package, so the legend says so — and the
     // reconstructed-axis caveat is gone because there is nothing left to caveat.
-    await expect(main).toContainText("OFFICIAL IMPORTED ALIGNMENT");
-    await expect(main).not.toContainText("RECONSTRUCTED ALIGNMENT");
-    await expect(main).not.toContainText("SYNTHETIC PARCELS");
+    await expect(main).toContainText("Eje vial del estudio");
+    await expect(main).not.toContainText("Eje reconstruido");
+    await expect(main).not.toContainText("Predios simulados");
 
     /*
      * The parcels are real, and the legend still refuses to call them cadastre: they are the
@@ -121,12 +121,12 @@ test.describe("GIS reviewer journey", () => {
      * layer could be stored at all. "Official cadastre" would lend a registry's authority to a
      * surveyor's file (ADR-023).
      */
-    await expect(main).toContainText("IMPORTED STUDY LAYER");
+    await expect(main).toContainText("Capa del estudio");
     await expect(main).toContainText("no es catastro oficial");
-    await expect(main).not.toContainText("OFFICIAL CADASTRE");
+    await expect(main).not.toContainText("Catastro oficial");
 
     // The influence areas the study delimited are a layer of their own, labelled as such.
-    await expect(main).toContainText("STUDY DELIMITED AREA");
+    await expect(main).toContainText("Área delimitada por el estudio");
 
     // The base map we do not have is still not claimed.
     await expect(main).not.toContainText("REAL BASE MAP");
@@ -152,7 +152,7 @@ test.describe("GIS reviewer journey", () => {
     // inferred from a centroid. The distinction is on screen because the method is (ADR-023).
     await expect(main).toContainText("Declarada en ficha de campo");
     await expect(main).not.toContainText("Proyección del centroide sobre el eje");
-    await expect(main).not.toContainText("SYNTHETIC");
+    await expect(main).not.toContainText("Simulación operativa");
 
     // 13 · the Visits tab is field work, and since Slice 3 it has some: state, questionnaire
     // version and provenance, never the answers themselves.

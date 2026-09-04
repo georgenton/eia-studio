@@ -14,7 +14,7 @@ test.describe("FieldFlow · coordinator", () => {
   test("the rail offers FieldFlow as a real destination", async ({ page }) => {
     await page.goto(`/t/${TENANT}/p/${PROJECT}`);
     const rail = page.getByRole("navigation", { name: "Navegación principal" });
-    await rail.getByRole("link", { name: "Field Surveys" }).click();
+    await rail.getByRole("link", { name: "Trabajo de campo" }).click();
     await expect(page).toHaveURL(new RegExp(`${FIELD}$`));
     await expect(page.getByLabel("Organización")).toHaveValue(TENANT);
     await expect(page.getByLabel("Proyecto activo")).toHaveValue(PROJECT);
@@ -27,7 +27,7 @@ test.describe("FieldFlow · coordinator", () => {
     await expect(main).toContainText("Campaña de campo — demostración");
     // The version label is what a response resolves against, so it is on screen for traceability.
     await expect(main).toContainText("v1");
-    await expect(main.getByText("SYNTHETIC").first()).toBeVisible();
+    await expect(main.getByText("Simulación operativa").first()).toBeVisible();
 
     const counts = async (label: string) => {
       const item = main
@@ -73,16 +73,16 @@ test.describe("FieldFlow · coordinator", () => {
     await page.goto(`/t/${TENANT}/p/${PROJECT}`);
     const main = page.getByRole("main");
 
-    // The concluded study's aggregate, in the KPI strip, badged REAL_AGGREGATE.
+    // The concluded study's aggregate, in the KPI strip, badged as historical.
     const strip = main.getByRole("group", { name: "Control de ejecución" });
     await expect(strip.getByText("119", { exact: true })).toBeVisible();
-    await expect(strip).toContainText("REAL_AGGREGATE");
+    await expect(strip).toContainText("Dato histórico");
 
-    // The running operation, in its own panel, badged SYNTHETIC and saying so in words.
+    // The running operation, in its own panel, badged as a simulation and saying so in words.
     const field = main.locator("section", { hasText: "Campaña de campo en curso" }).first();
     await expect(field).toContainText("fichas enviadas");
-    await expect(field).toContainText("SYNTHETIC");
+    await expect(field).toContainText("Simulación operativa");
     await expect(field).toContainText("No forma parte de las encuestas socioeconómicas");
-    await expect(field).not.toContainText("REAL_AGGREGATE");
+    await expect(field).not.toContainText("Dato histórico");
   });
 });

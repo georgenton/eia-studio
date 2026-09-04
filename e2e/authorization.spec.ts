@@ -64,7 +64,7 @@ test.describe("server-side authorization", () => {
     // `apps/web/lib/surface-access.ts` is the one place that maps it. Recorded as TD-055.
     const built = await page.goto(`/t/${TENANT}/p/${PROJECT}/quality`);
     expect(built?.status()).toBe(200);
-    await expect(page.getByRole("main")).toContainText("Quality Gate");
+    await expect(page.getByRole("main")).toContainText("Control de calidad");
     await expect(page.getByRole("main")).not.toContainText(
       "la implementación aún no está disponible",
     );

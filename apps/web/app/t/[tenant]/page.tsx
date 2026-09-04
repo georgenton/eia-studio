@@ -207,7 +207,7 @@ export default async function PortfolioPage({
 
                   <div className={styles.cardActions}>
                     <ButtonLink href={`${basePath}/p/${project.slug}`} variant="primary">
-                      Abrir Command Center
+                      Abrir el centro de control
                     </ButtonLink>
                   </div>
                 </PanelBody>
@@ -228,9 +228,7 @@ export default async function PortfolioPage({
             <Panel>
               <PanelHeader
                 label="Atención requerida"
-                badge={
-                  <DemoBadge facets={portfolio.attention.map((a) => a.provenance)} label="DEMO" />
-                }
+                badge={<DemoBadge facets={portfolio.attention.map((a) => a.provenance)} />}
               />
               <AttentionList>
                 {portfolio.attention.map((item) => (
@@ -251,9 +249,7 @@ export default async function PortfolioPage({
             <Panel>
               <PanelHeader
                 label="Actividad reciente"
-                badge={
-                  <DemoBadge facets={portfolio.activity.map((a) => a.provenance)} label="DEMO" />
-                }
+                badge={<DemoBadge facets={portfolio.activity.map((a) => a.provenance)} />}
               />
               <ActivityTable
                 caption="Actividad reciente del tenant"
