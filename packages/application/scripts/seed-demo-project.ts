@@ -1430,12 +1430,32 @@ try {
           "assignments. Run `pnpm e2e:prepare` to provision the synthetic technicians.",
       );
     } else {
-      // A small slice of the corridor, taken deterministically so re-seeding is reproducible.
+      /*
+       * A sample **spread along the corridor**, taken deterministically so re-seeding is
+       * reproducible.
+       *
+       * It used to be the first *n* parcels by chainage. That was invisible while the corridor was
+       * synthetic and evenly spaced; with the study's real chainages it put every simulated visit
+       * in the first few hundred metres, so the map showed a demonstration that had apparently
+       * worked one end of the road and stopped (TD-071). Field work does not look like that, and a
+       * workspace meant to feel like the real project should not either.
+       *
+       * Every *total ÷ count*-th parcel in chainage order: the same parcels on every run, from
+       * abscissa 0 to the end of the alignment.
+       */
       const targetParcels = await tx.execute(sql`
-        select id, parcel_code from app.parcel
-        where tenant_id = ${tenantId} and project_id = ${projectId}
-        order by chainage_m nulls last, parcel_code
-        limit ${field.campaign.assignmentCount}
+        with ordered as (
+          select id, parcel_code,
+                 row_number() over (order by chainage_m nulls last, parcel_code) as rn,
+                 count(*) over () as total
+            from app.parcel
+           where tenant_id = ${tenantId} and project_id = ${projectId}
+        )
+        select o.id, o.parcel_code
+          from ordered o
+          join generate_series(0, ${field.campaign.assignmentCount} - 1) g
+            on o.rn = floor(g * o.total / ${field.campaign.assignmentCount})::int + 1
+         order by o.rn
       `);
       const parcels = targetParcels.rows as unknown as ReadonlyArray<{
         id: string;

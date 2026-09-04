@@ -27,6 +27,15 @@ export interface ProjectHeader {
   readonly lifecycle: string;
   /** Free-text location line of the project, e.g. "Provincia, País". */
   readonly locationLabel: string | null;
+  /**
+   * The study's own title, as the terms of reference write it, and the programme it belongs to.
+   *
+   * Both are nullable because most projects will not have them: they are what a real consultancy
+   * file carries and a working title is not. Where they exist the surface shows them, because the
+   * short name a team uses in conversation is not the name the deliverable will be filed under.
+   */
+  readonly officialTitle: string | null;
+  readonly programmeReference: string | null;
 }
 
 /** The forecast plus the provenance it was recorded under, so a demo can be named as one. */
@@ -72,6 +81,8 @@ export async function loadCommandCenter(
         profileVersion: appSchema.project.profileVersion,
         lifecycle: appSchema.project.lifecycle,
         locationLabel: appSchema.project.locationLabel,
+        officialTitle: appSchema.project.officialTitle,
+        programmeReference: appSchema.project.programmeReference,
       })
       .from(appSchema.project)
       .where(
@@ -212,6 +223,8 @@ export async function loadCommandCenter(
         profileVersion: projectRow.profileVersion,
         lifecycle: projectRow.lifecycle,
         locationLabel: projectRow.locationLabel,
+        officialTitle: projectRow.officialTitle,
+        programmeReference: projectRow.programmeReference,
       },
       metrics,
       forecast,

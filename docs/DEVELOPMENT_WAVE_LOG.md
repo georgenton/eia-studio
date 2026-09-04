@@ -318,8 +318,8 @@ hit twice during this wave and worked around with `pnpm db:reset:local`; it is s
 
 | | |
 |---|---|
-| Branch / PR | `feat/request-context-performance` · PR pending |
-| Merge SHA | pending |
+| Branch / PR | `feat/request-context-performance` · [#17](https://github.com/georgenton/eia-studio/pull/17) |
+| Merge SHA | `f957e5c` |
 | Migrations | **none** |
 | Tests | unit **300**, integration **386** (+8), Playwright **167** |
 | Staging | untouched by this branch — no migration, no seed, no write |
@@ -344,3 +344,34 @@ Preview answers 302 before a request reaches the application and signing in need
 credential. §8 argued the count should come down before geography is spent on it, and it has.
 
 **Debt recorded.** None new. TD-064 closed; TD-066 narrowed to what remains true.
+
+### Wave F — the workspace as the real project
+
+| | |
+|---|---|
+| Branch / PR | `feat/zamora-realistic-workspace` · PR pending |
+| Merge SHA | pending |
+| Migrations | **none** |
+| Tests | unit **300**, integration **386**, Playwright **168** (+1) |
+| Staging | untouched by this branch — no migration, no write. The seeder change takes effect the next time staging is seeded, and supersedes nothing |
+
+**Scope delivered.** The Command Center names the study as its terms of reference do, with the
+programme reference beside it — the project record has carried both since Wave B and nothing showed
+them. The demonstration campaign's twelve assignments are spread along the corridor by chainage
+instead of clustering in its first few hundred metres (TD-071). `docs/ZAMORA_WORKSPACE.md` says,
+surface by surface, which numbers are the study's and which are ours;
+`docs/PRODUCT_VALUE_AND_DIRECTION.md` says what the product does for a consultancy today and what it
+deliberately does not; `docs/DEMO_ZAMORA.md` §1 is brought back into step with what the workspace
+now holds, and the walkthrough gains the management plan and the Spanish rail.
+
+**Meaningful decisions.** The four things the delivery gets wrong are still not repaired, and
+`docs/ZAMORA_WORKSPACE.md` gives them a table of their own rather than a footnote: `042a` beside
+`042A`, the reversed chainage ranges, the affected area whose parcel does not exist, and the
+chapter's spelling. A workspace that quietly fixed its source would stop being able to tell anyone
+what the source said. `docs/PRODUCT_VALUE_AND_DIRECTION.md` ends by naming what would make it
+dishonest — a roadmap with dates — because the ordering in it is evidence for a decision the owner
+makes, not a plan the code has assumed.
+
+**Deviations.** None.
+
+**Debt recorded.** None new. TD-071 closed.
