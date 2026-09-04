@@ -60,7 +60,7 @@ jobs:
         run: |
           set -euo pipefail
           types='feat|fix|docs|chore|refactor|test|perf|build|ci|revert'
-          scopes='core|projects|gis|field|social|quality|documents|reports|portal|ai|provenance|audit|tenancy|db|ui|web|worker|fixtures|docs|contracts|config|testing|deps|release'
+          scopes='core|projects|gis|field|social|quality|documents|pgas|reports|portal|ai|provenance|audit|tenancy|db|ui|web|worker|fixtures|docs|contracts|config|testing|deps|release'
           if [[ "$PR_TITLE" =~ ^($types)(\(($scopes)\))?!?:\ [^[:space:]].{0,71}$ ]]; then
             echo "PR title OK: $PR_TITLE"
           else
