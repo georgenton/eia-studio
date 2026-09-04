@@ -118,6 +118,21 @@ export function CommandCenter({
                 />
               ) : null}
             </div>
+            {view.project.officialTitle ? (
+              /*
+               * The name on the terms of reference, not the one the team says out loud. A
+               * workspace for a real study should say which study it is, in the words the
+               * deliverable will be filed under.
+               */
+              <p className={styles.officialTitle}>
+                {view.project.officialTitle}
+                {view.project.programmeReference ? (
+                  <Chip mono tone="neutral">
+                    {view.project.programmeReference}
+                  </Chip>
+                ) : null}
+              </p>
+            ) : null}
             <p className={styles.subtitle}>
               {view.project.locationLabel ? <span>{view.project.locationLabel}</span> : null}
               {length && length.numericValue !== null ? (

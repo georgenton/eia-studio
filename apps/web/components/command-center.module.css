@@ -23,6 +23,22 @@
   letter-spacing: -0.015em;
   margin: 0;
 }
+/*
+ * The study's own title, under the short name the team uses.
+ *
+ * Small and quiet on purpose: it is long, it is read once to confirm which file this is, and it
+ * must not compete with the operational figures the surface exists for.
+ */
+.officialTitle {
+  margin: 6px 0 0;
+  font-size: 12.5px;
+  line-height: 18px;
+  color: var(--eia-text-secondary);
+  max-width: 68ch;
+}
+.programme {
+  margin-left: 8px;
+}
 .subtitle {
   margin: 6px 0 0;
   font-size: 12.5px;

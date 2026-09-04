@@ -6,31 +6,42 @@
 
 ## 1. What is real, what is not
 
-Provenance facets per PROVENANCE.md §2 (D-013); the last column is the derived v0.2 badge.
+> **Superseded in part by the real-data wave (4 September 2026).** The cartography, the chainages
+> and the management plan now come from the consultancy's own delivery (ADR-023, ADR-024), so the
+> rows that described generated geometry are no longer true. The current, surface-by-surface
+> version of this table is **`docs/ZAMORA_WORKSPACE.md`**; what follows is kept in step with it and
+> the two must not disagree.
 
-| Item shown in the prototype | Nature | Regime | Origin | Transformation | Granularity | Derived badge |
+Provenance facets per PROVENANCE.md §2 (D-013); the last column is the derived v0.2 badge, whose
+Spanish wording is in `docs/PRODUCT_LANGUAGE_ES.md` (ADR-025).
+
+| Item shown in the workspace | Nature | Regime | Origin | Transformation | Granularity | Derived badge |
 |---|---|---|---|---|---|---|
-| Road length, roadside parcel count, socioeconomic survey count, consultation participants | Real aggregate figures from the finished study | HISTORICAL_OBSERVED | IMPORTED_DOCUMENT | [ORIGINAL] | AGGREGATE | REAL_AGGREGATE |
+| Road length, roadside parcel count, socioeconomic survey count, consultation participants | Real aggregate figures from the finished study | HISTORICAL_OBSERVED | IMPORTED_DOCUMENT | [ORIGINAL] | AGGREGATE | Dato histórico |
+| Official study title and programme reference | As written on the terms of reference | HISTORICAL_OBSERVED | IMPORTED_DOCUMENT | [ORIGINAL] | (n/a) | none (project record) |
 | Consultation assemblies (four minutes, attendance) | Real documents of the study | HISTORICAL_OBSERVED | IMPORTED_DOCUMENT | [ORIGINAL] | (n/a) | none (document) |
 | Base map (hydrography, towns, general location) | **Not implemented.** No base map has been received, so none is drawn and the legend does not claim one (TD-029) | — | — | — | — | legend `REAL_BASE_MAP` reserved, unused |
-| Corridor alignment (dashed line) | Approximate reconstruction until the official GIS arrives; drawn from control points, never surveyed | HISTORICAL_OBSERVED | IMPORTED_DATASET | [RECONSTRUCTED] | (n/a) | RECONSTRUCTED / legend `RECONSTRUCTED_ALIGNMENT` |
-| Parcel polygons on the map (141 as seeded in Slice 2; the prototype drew 24) | Generated deterministically by `corridor-generator@1`; not cadastre | DEMO_SIMULATION | SYSTEM_GENERATED | [ORIGINAL] | INDIVIDUAL | SYNTHETIC / legend `SYNTHETIC_PARCELS` |
-| Parcel statuses (138 confirmed · 2 in verification · 1 not located) | Simulation: no field work has confirmed any parcel | DEMO_SIMULATION | SYSTEM_GENERATED | [ORIGINAL] | INDIVIDUAL | SYNTHETIC |
-| Parcel areas, frontages, chainages and affectation areas | Measured by PostGIS over the generated geometry | DEMO_SIMULATION | SYSTEM_GENERATED | [DERIVED] | INDIVIDUAL | SYNTHETIC |
-| Geometry storage CRS (`EPSG:32717`) | A defensible assumption for the region, not the project's declared CRS (TD-028) | DEMO_SIMULATION | SYSTEM_GENERATED | [RECONSTRUCTED] | (n/a) | n/a |
-| Parcel sheet (area, front, use, owner anonymised) | Demo sheet with synthetic values | DEMO_SIMULATION | SYSTEM_GENERATED | [ORIGINAL] | INDIVIDUAL | SYNTHETIC (badge `DEMO · ANONIMIZADO`) |
-| Visited, revisits, pending, productivity, projected close, activity feed, field inbox | Operational simulation to demonstrate the workflow | DEMO_SIMULATION | SYSTEM_GENERATED | [ORIGINAL] or [DERIVED] | AGGREGATE | SYNTHETIC |
-| Operational forecast | Deterministic calculation over simulated inputs | DEMO_SIMULATION | SYSTEM_GENERATED | [DERIVED] | AGGREGATE | SYNTHETIC (never published to the portal, D-019) |
-| Closed-variable frequencies (e.g. main income source) | Aggregates over anonymised individual records | HISTORICAL_OBSERVED | SYSTEM_GENERATED | [ANONYMIZED, DERIVED] | AGGREGATE | ANONYMIZED |
-| Open answers in the coding queue | Anonymised original texts | HISTORICAL_OBSERVED | IMPORTED_DATASET | [ANONYMIZED] | INDIVIDUAL | ANONYMIZED |
-| Quality Gate findings (four expedient cases + three field cases) | Contrasts drawn from real documents; some field cases simulated | HISTORICAL_OBSERVED or DEMO_SIMULATION per finding | SYSTEM_GENERATED | [DERIVED] | (n/a) | RECONSTRUCTED or SYNTHETIC |
-| Membership table in Tenant Settings | Example memberships (badge DEMO) | DEMO_SIMULATION | SYSTEM_GENERATED | [ORIGINAL] | INDIVIDUAL | n/a |
+| Corridor alignment | **The study's own centreline**, imported from the consultancy's geodatabase (`EJE_VIAL`); 7 361,3 m measured by PostGIS against the ~7,4 km the study publishes | HISTORICAL_OBSERVED | IMPORTED_DATASET | [ORIGINAL, ANONYMIZED] | (n/a) | Dato histórico / legend `OFFICIAL_IMPORTED_ALIGNMENT` |
+| Parcel polygons (141) | **The study's own survey** (`PREDIOS`), with 18 personal attributes removed before the file entered the repository. Not official cadastre | HISTORICAL_OBSERVED | IMPORTED_DATASET | [ORIGINAL, ANONYMIZED] | INDIVIDUAL | Agregado sin datos personales / legend `IMPORTED_STUDY_LAYER` |
+| Affected areas (70 of 71; one names a parcel that does not exist) | The study's delimitation (`AREAS_AFECTADAS`), 19 personal attributes removed | HISTORICAL_OBSERVED | IMPORTED_DATASET | [ORIGINAL, ANONYMIZED] | INDIVIDUAL | Agregado sin datos personales |
+| Areas of influence (AID, AII, AISD, AISI) | Delimited by the study; declared in EPSG:32718 and reprojected without altering a coordinate | HISTORICAL_OBSERVED | IMPORTED_DATASET | [ORIGINAL] | AGGREGATE | Dato histórico / legend `STUDY_DELIMITED_AREA` |
+| Chainages | The package's own table where it declares one (139 parcels); projected onto the centreline for the 2 it does not | HISTORICAL_OBSERVED | IMPORTED_DATASET | [ORIGINAL] or [DERIVED] | INDIVIDUAL | Dato histórico or Dato calculado |
+| Parcel areas and affected shares | Measured by PostGIS over the imported geometry, in the dataset's analysis CRS | HISTORICAL_OBSERVED | IMPORTED_DATASET | [DERIVED] | INDIVIDUAL | Dato calculado |
+| Parcel statuses (confirmed / in verification) | **The package's own `ESTADO` column**, not a claim this product makes | HISTORICAL_OBSERVED | IMPORTED_DATASET | [ORIGINAL] | INDIVIDUAL | Dato histórico |
+| Management plan: 9 plans, 22 programmes, 86 measures | Cap 11 of the study, read from the delivered `.docx` and stored as written (ADR-024) | HISTORICAL_OBSERVED | IMPORTED_DOCUMENT | [ORIGINAL] | INDIVIDUAL | Dato histórico |
+| Visited, revisits, pending, productivity, projected close, activity feed, field inbox | Operational simulation to demonstrate the workflow | DEMO_SIMULATION | SYSTEM_GENERATED | [ORIGINAL] or [DERIVED] | AGGREGATE | Simulación operativa |
+| Operational forecast | Deterministic calculation over simulated inputs | DEMO_SIMULATION | SYSTEM_GENERATED | [DERIVED] | AGGREGATE | Simulación operativa (never published to the portal, D-019) |
+| The demonstration questionnaire and its answers | Reconstructed for the demonstration; the study's own socioeconomic sheet has not been delivered | DEMO_SIMULATION | SYSTEM_GENERATED | [RECONSTRUCTED] | INDIVIDUAL | Simulación operativa |
+| The coding taxonomy | Reconstructed; the consultancy delivered none | DEMO_SIMULATION | SYSTEM_GENERATED | [RECONSTRUCTED] | (n/a) | Simulación operativa |
+| Document excerpts in the corpus | Short passages transcribed by hand from the study; the PDFs are not in this repository | HISTORICAL_OBSERVED | IMPORTED_DOCUMENT | [RECONSTRUCTED] | (n/a) | Dato calculado |
+| Quality Gate findings | Contrasts between two sources of the study, read by hand from the corpus | HISTORICAL_OBSERVED | SYSTEM_GENERATED | [DERIVED] | (n/a) | Dato calculado |
+| Membership table in Tenant Settings | Synthetic identities on a reserved invalid domain | DEMO_SIMULATION | SYSTEM_GENERATED | [ORIGINAL] | INDIVIDUAL | n/a |
 
-The four expedient demonstration cases for Quality Gate:
+The four expedient demonstration cases for the Quality Gate:
 
 1. numerical: 70 vs 71 affected parcels between the social report and the affectation annex;
 2. cross-document: an inherited reference to another jurisdiction (Pichincha) in the legal
-   framework of a Zamora Chinchipe project;
+   framework of a project in another province;
 3. temporal: planned time vs executed time of a consultation assembly (possible undocumented
    rescheduling);
 4. interdisciplinary: legal conclusion vs social data on vulnerable population

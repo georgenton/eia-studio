@@ -52,6 +52,16 @@ test.describe("MVP · the coordinator's walkthrough, end to end", () => {
     }
   });
 
+  test("the workspace says which study it is, in the words of the file", async ({ page }) => {
+    await page.goto(HOME);
+    const main = page.getByRole("main");
+    // The study's own title and the programme it belongs to, from the project record — not the
+    // short name the team uses in conversation, and not a string in a component.
+    await expect(main).toContainText("Actualización de Estudios Socioambientales");
+    await expect(main).toContainText("Puente del Amor");
+    await expect(main).toContainText("EC-L1289");
+  });
+
   test("Command Center → GIS → a parcel: the selection is one selection", async ({ page }) => {
     await page.goto(`${HOME}/gis`);
     const table = page.getByRole("table", { name: /Predios/ });

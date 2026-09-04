@@ -11,13 +11,15 @@ export const PROJECT = "puente-del-amor";
 /**
  * Parcel codes from the real cartographic package (ADR-023), not invented ones.
  *
- * `A` and `B` are the first two along the corridor and both carry field work; `NO_FIELD_WORK` is
- * a real parcel at the far end that the demonstration campaign never reaches; `ABSENT` is a code
- * the package does not contain. They are three digits because that is what the consultancy's own
- * field sheet says — see `fixtures/projects/zamora-puente-del-amor/gis/parcels.geojson`.
+ * `first` and `a` carry field work: the demonstration campaign takes every *n*-th parcel in
+ * chainage order, so its assignments run the length of the corridor rather than clustering at
+ * abscissa 0. `b` is a neighbour used only to prove that selecting a second row moves the map.
+ * `noFieldWork` is a real parcel the campaign never reaches, and `absent` is a code the package
+ * does not contain. They are three digits because that is what the consultancy's own field sheet
+ * says — see `fixtures/projects/zamora-puente-del-amor/gis/parcels.geojson`.
  */
 export const PARCELS = {
-  a: "004",
+  a: "013",
   b: "005",
   first: "001",
   noFieldWork: "141",
