@@ -106,7 +106,15 @@ export function ProvenanceDrawer({
             ×
           </button>
         </div>
-        <div className={styles.body}>{children}</div>
+        {/*
+          The body scrolls once a record carries enough fields, and a scrollable region that
+          nothing inside can take focus is unreachable by keyboard (axe `scrollable-region-focusable`).
+          `tabIndex={0}` makes the region itself a tab stop, so the arrow keys reach the rest of the
+          record; the focus trap above already treats `[tabindex]` as focusable, so it stays inside.
+        */}
+        <div className={styles.body} tabIndex={0}>
+          {children}
+        </div>
       </div>
     </div>
   );
