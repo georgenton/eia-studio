@@ -547,6 +547,42 @@ Invariants enforced in the database (migration 0023):
 | A version's label is unique within its report | unique `(tenant_id, report_id, version_label)` |
 | A version carries provenance | FK to `provenance_record`, written `DERIVED` / `PENDING` — a chapter never records itself as validated |
 
+### 3.6b The management plan (ADR-024)
+
+```
+PgasImportRun { id, tenant_id, project_id, source_file, source_sha256, plan_count, measure_count,
+                imported_at, is_active, supersedes_run_id?, provenance_id }
+   -- partial unique (tenant_id, project_id) WHERE is_active: one active plan per project
+PgasPlan { id, ..., import_run_id, ordinal, code?, title, objective?, place?,
+           column_headings text[] }        -- the names *this* plan gave its columns
+PgasMeasure { id, ..., plan_id, ordinal, measure_code, stated_number?,
+              programme_title?, programme_ordinal,
+              aspect?, impact?, measure?, indicator?, verification?, responsible?,
+              frequency?, deadline? }      -- the nine columns, stored as the document writes them
+```
+
+Three tables for a document with three levels. **A programme is a banner row, not an entity**: it
+has a title and nothing else, so it is two columns on the measure and the read groups by them —
+a table would force the two plans whose measures carry no programme to hold a synthetic one.
+`code` is nullable because the delivered chapter has nine plans and eight codes, and
+`stated_number` is text because the document's `N°` repeats, skips and is sometimes blank.
+
+`measure_code` is the identifier **this product mints** (`PPMI-01.02.04`), deterministic so a link
+survives a re-import, and displayed beside the document's own number rather than instead of it.
+
+Invariants enforced in the database (migration 0028):
+
+| Guarantee | Mechanism |
+|---|---|
+| One active import per project | partial unique index `pgas_import_run_one_active`; a revision supersedes and the old rows stay queryable |
+| A delivery is identified by its file | CHECK that `source_sha256` is 64 hex characters; re-importing the same hash writes nothing |
+| A plan has a title and this matrix's shape | CHECK on `title`, CHECK `cardinality(column_headings) >= 8` — the *code* may be absent, because that is a finding to report, not a row to refuse |
+| Our identifier is unique and looks like ours | CHECK on the shape of `measure_code` + unique `(tenant_id, plan_id, measure_code)` |
+| A row that states nothing is a parsing failure | CHECK that at least one of aspect, impact or measure is non-blank; every other emptiness is allowed and counted on the surface |
+| Nothing can record execution | no compliance state, no evidence, no obligation — asserted over `information_schema` by the integration suite (ADR-024 §7) |
+
+Full model in `docs/PGAS_MODEL.md`.
+
 ### 3.7 Client portal
 
 ```

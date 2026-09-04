@@ -246,6 +246,23 @@
       "method": "Importación directa de las cuatro capas; la superficie la calcula PostGIS en el CRS de análisis del proyecto.",
       "validationState": "PARTIAL",
       "validationNote": "Declaradas en una zona UTM distinta al resto del paquete; reproyectadas, coinciden con el corredor"
+    },
+    "pgasChapter": {
+      "key": "pgas-chapter",
+      "regime": "HISTORICAL_OBSERVED",
+      "origin": "IMPORTED_DOCUMENT",
+      "transformations": ["ORIGINAL"],
+      "granularity": "INDIVIDUAL",
+      "title": "Plan de Gestión Ambiental y Social del estudio",
+      "note": "Capítulo 11 del estudio, tal como lo entregó la consultora: nueve planes, veintidós programas y ochenta y seis medidas en una matriz de nueve columnas. Se importó sin normalizar — se conservan la ortografía del documento, sus variantes de encabezado y la numeración que repite —, porque esas discrepancias son hallazgos, no defectos de carga. Es el plan que el estudio PROPONE: no registra ejecución ni cumplimiento.",
+      "sourceLabel": "Cap 11 Plan de Gestion Ambiental y Social.docx",
+      "sourceReference": "sha256:7470faa9c2340db61b408d9c7d9ef146deb64ced6845ce77b50f0744637031ee",
+      "sourceVersion": "PGAS EDITABLE · 2026-09-02",
+      "method": "Extracción determinista de las tablas del .docx: se reconoce la fila de encabezado, se mapean las variantes de nombre de columna a los nueve conceptos y se conserva cada celda tal cual. El código de medida lo genera EIA Studio; el N° del documento se guarda aparte.",
+      "capturedAt": null,
+      "$capturedAtFromScenario": true,
+      "validationState": "PARTIAL",
+      "validationNote": "86 medidas completas en las nueve columnas; el cronograma valorado se anuncia y no existe"
     }
   },
   "metrics": [
@@ -870,5 +887,9 @@
         "assertionKeys": ["project.location_label"]
       }
     ]
+  },
+  "pgas": {
+    "$comment": "Capítulo 11 del estudio — Plan de Gestión Ambiental y Social — extraído del .docx que entregó la consultora, sin normalizar. Las medidas nombran instituciones y roles; no contienen datos de personas.",
+    "file": "pgas/chapter-11.json"
   }
 }

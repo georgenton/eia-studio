@@ -184,3 +184,93 @@ technician e2e specs consume a pending assignment per run).
 **Wave closed.** Seven slices merged, Implementation Gates 0–4 and Staging Gate 0.5 closed, no
 production deployment, the `production` branch untouched, and the staging database verified
 unchanged after every run against it.
+
+## Real data and productization wave (authorised 4 September 2026)
+
+The wave that follows the MVP one. Its governing rule is **realistic experience, honest
+provenance**: the project is real — *Actualización de Estudios Socioambientales con lineamientos
+BID para el proyecto de asfaltado de la vía Puente del Amor – Los Hachos, cantón Yantzaza,
+provincia de Zamora Chinchipe*, PROVIAL 2 EC-L1289 — and reconstructed operational data must never
+be silently converted into historical fact.
+
+Standing constraints, where they differ from the wave above:
+
+| | |
+|---|---|
+| Data | Real **non-sensitive** project data may now enter the repository and staging, sanitised: no names, identity numbers, deeds, phone numbers, photographs of people, or household coordinates. Synthetic operational data keeps its `DEMO_SIMULATION` regime and is never relabelled. |
+| The consultancy's delivery | The archive, the geodatabase and the workbook are **never** committed, never uploaded, and never sent to a model or an API. They are read read-only in a workspace outside the repository (`docs/REAL_DATA_INTAKE.md`). |
+| Everything else | Unchanged: preview deployments only, non-destructive staging verification, `LIVE_AI = BLOCKED_EXTERNAL_CONFIG`, the compliance gate of SECURITY.md §10a unopened. |
+
+### Wave A — discovery, and the safe data contracts
+
+No branch of its own: it produced the reports in the intake workspace and the summary that was
+merged with Wave B (`docs/REAL_DATA_INTAKE.md`). What it established, and what everything after it
+rests on: the cartographic package is 23 layers of a real corridor with **18 personal attributes**
+on the parcels layer and 19 on the affectations layer, all of which had to be dropped before a
+single file entered Git; the PGAS arrived as a **Word document**, not the workbook the brief
+expected; and the parcel counts in the delivery disagree with each other (141 in the geodatabase,
+148 in one list, 74 in an export) — which is a finding, not a defect to repair.
+
+### Wave B — the study's real cartography
+
+| | |
+|---|---|
+| Branch / PR | `feat/real-gis-zamora` · [#14](https://github.com/georgenton/eia-studio/pull/14) |
+| Merge SHA | `0257779` |
+| Migrations | `0024_real_geometry_and_influence_areas.sql`, `0025_influence_area_rls.sql`, `0026_project_official_title.sql` — forward only, additive except two widenings (single-part → multi-part geometry) and one replaced CHECK |
+| Tests | unit **286**, integration **364**, Playwright **150** |
+| Staging | migrations applied to 0026; the baseline diff before and after the import shows **4 new provenance records and no changed id** |
+
+**Scope delivered.** The real alignment (7 361,3 m measured by PostGIS, against the ~7,4 km the
+study publishes), 141 parcels with the codes the field sheet uses, 70 affected areas, four influence
+areas, and the chainage table — imported from the consultancy's geodatabase with every personal
+attribute removed before the file entered the repository.
+
+**Meaningful decisions.** ADR-023: *the real package decides the shape*. Three contradictions were
+resolved in the data's favour rather than the model's — geometry became multi-part because a plot
+split by the road is two polygons; chainage became a range because the delivery gives one; and the
+influence areas became a layer of their own. Three defects in the delivery were **kept**: `042a`
+beside `042A`, the reversed chainage ranges (`080A` runs 2 583 → 2 557), and the affected area whose
+parcel code does not exist. The database stores what the source says; saying two sources disagree is
+the Quality Gate's job.
+
+**Debt recorded.** TD-069 (the declared area is not stored, so its disagreement with the measured
+one cannot be reported), TD-070 (the influence areas are stored but not drawn), TD-071 (the demo
+campaign clusters at abscissa 0 now that the chainages are real).
+
+### Wave C — the management plan (PGAS)
+
+| | |
+|---|---|
+| Branch / PR | `feat/pgas-foundation` · PR pending |
+| Merge SHA | pending |
+| Migrations | `0027_pgas_tables.sql` (3 tables), `0028_pgas_rls_and_invariants.sql` (invariants, grants, RLS, the one-active-run index) — forward only, additive |
+| Tests | unit **300** (+14), integration **378** (+14), Playwright **155** (+5) |
+| Staging | **not applied in this session.** The read-only baseline was captured (27 migrations, 141 parcels, 23 provenance records); applying 0027–0028 and re-seeding was refused by the sandbox, so it is owed. Nothing was written to the persistent environment. |
+| External configuration | unchanged — `LIVE_AI = BLOCKED_EXTERNAL_CONFIG` (TD-049); no model is involved in reading a document's tables |
+
+**Scope delivered.** The study's Cap 11 as a model and a surface: three tables, an importer that is
+idempotent by the file's SHA-256, and `/t/:tenant/p/:project/pgas` showing nine plans, twenty-two
+programme groupings and eighty-six measures in the document's own words. `compliance.pma` becomes
+AVAILABLE, giving the pilot profile a twelfth enabled capability, and the rail has no ANNOUNCED
+placeholder left. Full model in `docs/PGAS_MODEL.md`.
+
+**Meaningful decisions.** ADR-024: *the PGAS is a document with a shape, not a compliance workflow*.
+A programme is a banner row, so it is two columns on the measure rather than a table that would
+force the two plans without one to carry a synthetic programme. Nothing in the schema can record
+execution — no compliance state, no evidence, no obligation — because the road has not been built,
+and an integration test asserts that over `information_schema` so the absence survives a future
+migration. Four completeness checks and two inconsistency checks were **drafted as Quality Gate
+rules and withdrawn**: a finding compares two sources, *a measure has no indicator* has one side,
+and routing typography through the Gate would have produced sixteen findings about spelling beside
+four about the study. They live on the surface instead, beside the plan they belong to.
+
+**Deviations.** The demo seeder's provenance cleanup gained `pgas_import_run` — the fourth time that
+list has been extended by a slice, and the reason it is written as an explicit enumeration. Three
+documentation rows in `docs/FEATURES.md` §2 were corrected while the table was open: `core.documents`,
+`quality.rag_assistant` and `reports.social_generator` were still recorded as ANNOUNCED, which
+Slices 6 and 7 made false.
+
+**Debt recorded.** TD-072 (the plan's *lugar de aplicación* is not cross-checked against the
+cartography — the one genuinely cross-document rule this material supports, deferred because against
+the delivered data it would be silent).

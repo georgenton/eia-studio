@@ -177,6 +177,10 @@ export { loadDocuments, loadDocumentVersion } from "./documents/read-models";
 export type { DocumentSummary, DocumentVersionDetail } from "./documents/read-models";
 
 // Report generation (Slice 7). The snapshot is the deliverable; prose renders it (ADR-022).
+export { importPgasChapter, clearPgas } from "./pgas/import";
+export type { PgasImportResult } from "./pgas/import";
+export { loadPgasPlan } from "./pgas/read-models";
+export type { PgasPlanView, PgasPlanSummary } from "./pgas/read-models";
 export { generateSocialChapter } from "./reports/generate";
 export type { GeneratedReportVersion, ReportGeneratorConfig } from "./reports/generate";
 export { buildSocialSnapshot } from "./reports/snapshot";

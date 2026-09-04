@@ -23,7 +23,7 @@ export const ROAD_EIA_SOCIAL_PROFILE: ProjectProfile = {
   version: 1,
   label: "EIA social vial",
   description:
-    "Corredor vial con predios frentistas, abscisado, ficha socioeconómica por predio, consulta significativa y generación de capítulo social.",
+    "Corredor vial con predios frentistas, abscisado, ficha socioeconómica por predio, consulta significativa, plan de manejo ambiental y social, y generación de capítulo social.",
   territorialModel: { unitKind: "linear_corridor" },
   capabilities: {
     enabled: [
@@ -37,9 +37,13 @@ export const ROAD_EIA_SOCIAL_PROFILE: ProjectProfile = {
       "quality.document_gate",
       "quality.rag_assistant",
       "reports.social_generator",
+      // The plan the study proposes, not its execution (ADR-024 §6). A road EIA in Ecuador always
+      // carries a Plan de Manejo Ambiental y Social; following whether its measures are carried
+      // out belongs to `audit.environmental`, which this profile leaves disabled.
+      "compliance.pma",
       "client.portal",
     ],
-    disabled: ["climate.analytics", "compliance.pma", "audit.environmental"],
+    disabled: ["climate.analytics", "audit.environmental"],
   },
 };
 

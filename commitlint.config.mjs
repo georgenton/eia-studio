@@ -18,6 +18,7 @@ export default {
         "social",
         "quality",
         "documents",
+        "pgas",
         "reports",
         "portal",
         "ai",

@@ -1,0 +1,92 @@
+.surface {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 1180px;
+}
+.intro {
+  margin: 0 0 10px;
+  font-size: 12.5px;
+  color: var(--eia-text-primary);
+  line-height: 1.55;
+  max-width: 78ch;
+}
+.source,
+.note {
+  margin: 0 0 10px;
+  font-size: 11.5px;
+  color: var(--eia-text-secondary);
+  line-height: 1.5;
+}
+/* An observation about the document, not a verdict on it: same weight as ordinary prose. */
+.observation {
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--eia-text-secondary);
+  background: var(--eia-surface-sunken, rgba(0, 0, 0, 0.02));
+  border-left: 2px solid var(--eia-hairline);
+  max-width: 90ch;
+}
+.objective,
+.place {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: var(--eia-text-secondary);
+  line-height: 1.5;
+  max-width: 88ch;
+}
+.complete {
+  margin: 0 0 12px;
+  font-size: 11.5px;
+  color: var(--eia-text-muted);
+}
+.gaps {
+  margin: 0 0 12px;
+  padding-left: 18px;
+  font-size: 11.5px;
+  color: var(--eia-text-secondary);
+  line-height: 1.6;
+}
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11.5px;
+  table-layout: fixed;
+}
+.table th {
+  text-align: left;
+  font-size: var(--eia-size-label);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--eia-text-muted);
+  padding: 6px 8px 6px 0;
+  border-bottom: 1px solid var(--eia-hairline);
+}
+.table td {
+  padding: 9px 8px 9px 0;
+  border-bottom: 1px solid var(--eia-hairline);
+  vertical-align: top;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.stated,
+.code {
+  font-family: var(--eia-font-mono, ui-monospace, monospace);
+  font-size: 11px;
+  white-space: nowrap;
+  color: var(--eia-text-secondary);
+}
+/* The measure is the substance of the row, so it gets the room. */
+.measure {
+  width: 26%;
+}
+.footnote {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: var(--eia-text-muted);
+  line-height: 1.5;
+  max-width: 90ch;
+}

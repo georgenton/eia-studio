@@ -38,6 +38,7 @@ import {
 import { config as loadDotenv } from "dotenv";
 
 import { assertAnalysisSridUsable } from "../src/gis/analysis-crs";
+import { importPgasChapter } from "../src/pgas/import";
 import { ingestDocumentVersionInTx } from "../src/documents/ingest";
 import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
@@ -213,6 +214,14 @@ const manifestSchema = z
           .strict(),
       })
       .strict(),
+    /** The management plan chapter as the consultancy delivered it (ADR-024). */
+    pgas: z
+      .object({
+        $comment: z.string(),
+        file: z.string().min(1),
+      })
+      .strict()
+      .optional(),
     /** FieldFlow demonstration: questionnaire, campaign, technicians, synthetic location. */
     field: z
       .object({
@@ -528,6 +537,9 @@ try {
          and not exists (select 1 from app.document_version dv where dv.provenance_id = pr.id)
          -- Reports (Slice 7): a generated version records how it was produced.
          and not exists (select 1 from app.report_version rv where rv.provenance_id = pr.id)
+         -- The management plan (ADR-024): a superseded import run keeps its provenance, because
+         -- a figure quoted from last month's plan must still be explainable.
+         and not exists (select 1 from app.pgas_import_run ir where ir.provenance_id = pr.id)
     `);
     /*
      * Provenance ids are **derived from the fixture key**, not random.
@@ -1192,6 +1204,34 @@ try {
     `);
 
     /* ------------------------------------------------------------------------------------
+     * PGAS: the management plan chapter, imported from the delivered document (ADR-024).
+     *
+     * Idempotent by the document's SHA-256: re-running with the same chapter writes nothing. A
+     * revised chapter becomes a new run whose plans supersede the previous run's, which stay
+     * queryable — the same shape as a spatial dataset version, for the same reason.
+     *
+     * The measures name institutions and roles, never individuals; the screen that established
+     * that is in the intake workspace and is summarised in `docs/REAL_DATA_INTAKE.md`.
+     * ---------------------------------------------------------------------------------- */
+    let pgasReport = "PGAS: no declarado en el manifiesto";
+    if (manifest.pgas) {
+      const chapter = JSON.parse(
+        readFileSync(resolve(root, "fixtures/projects", fixtureDir, manifest.pgas.file), "utf8"),
+      ) as unknown;
+      const result = await importPgasChapter(tx, {
+        tenantId,
+        projectId,
+        provenanceId: provenanceId("pgas-chapter"),
+        importedAt: scenarioInstant,
+        chapter,
+      });
+      pgasReport = result.unchanged
+        ? "PGAS: el capítulo ya estaba importado, sin cambios"
+        : `PGAS importado: ${result.plans} planes · ${result.measures} medidas` +
+          (result.supersededRunId ? " (supersede la importación anterior)" : "");
+    }
+
+    /* ------------------------------------------------------------------------------------
      * FieldFlow: a reconstructed questionnaire and a small demonstration campaign.
      *
      * Deliberately *not* the study's 119 socioeconomic surveys. That figure is a historical
@@ -1796,6 +1836,7 @@ try {
         `abscisa derivada para ${chainage.rowCount ?? 0} predio(s) sin declaración (centroid_projection, CRS EPSG:${analysisSrid})`,
         `field: ${assignmentsSeeded} assignments · ${submissionsSeeded} submitted · offline_mode=${field.offlineMode}`,
         `documentos: ${documentsSeeded} · ${documentChunks} pasajes`,
+        pgasReport,
         `quality: ${assertionsSeeded} afirmaciones del corpus (${assertionsLinked} con pasaje) · 0 hallazgos sembrados`,
         `social: taxonomy ${taxonomyVersionLabel} (${social.version.categories.length} categorías, ${taxonomyVersionsSeeded === 1 ? "nueva" : "reutilizada"}) · 0 clasificaciones sembradas`,
       ].join(" · "),

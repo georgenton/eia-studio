@@ -14,6 +14,7 @@
       "social.ai_coding",
       "quality.document_gate",
       "quality.rag_assistant",
+      "compliance.pma",
       "reports.social_generator",
       "client.portal"
     ],
@@ -27,6 +28,7 @@
       "social.ai_coding",
       "quality.document_gate",
       "quality.rag_assistant",
+      "compliance.pma",
       "reports.social_generator",
       "client.portal"
     ]

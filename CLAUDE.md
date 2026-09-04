@@ -3,14 +3,23 @@
 EIA Studio is a multi-tenant B2B SaaS for environmental consulting firms: field capture, parcels,
 surveys, social analysis with human-in-the-loop AI, quality review and client reporting.
 
-**Current phase: SUSTAINED MVP DEVELOPMENT WAVE (authorised 3 Sep 2026).** Slice 0 (SaaS
+**Current phase: REAL DATA + PRODUCTIZATION WAVE (authorised 4 Sep 2026).** The sustained MVP
+development wave that preceded it (authorised 3 Sep 2026) delivered Slice 0 (SaaS
 foundation), Slice 0.5 (staging foundation), Slice 1 (product shell, Portfolio, Command Center,
 provenance drawer), Slice 2 (GIS / Parcel Explorer, Parcel Workspace), Slice 3 (FieldFlow, versioned
 questionnaires, typed answers), Slice 4 (Social Intelligence / human-in-the-loop), Slice 5 (Quality
 Gate), Slice 6 (document intelligence + RAG) and **Slice 7 (assisted report generation)** are merged
-into `main`; Implementation Gates 0–4 and Staging Gate 0.5 are closed. The wave continues with MVP
-integration and demo hardening, self-gated before each merge and logged in
-`docs/DEVELOPMENT_WAVE_LOG.md`.
+into `main`; Implementation Gates 0–4 and Staging Gate 0.5 are closed, and the MVP integration and
+demo hardening slice closed that wave.
+
+This wave is self-gated before each merge and logged in `docs/DEVELOPMENT_WAVE_LOG.md`. Its
+governing rule is **realistic experience, honest provenance**: the project is real — *Actualización de Estudios Socioambientales con
+lineamientos BID … Puente del Amor – Los Hachos, cantón Yantzaza, provincia de Zamora Chinchipe*,
+PROVIAL 2 EC-L1289 — and reconstructed operational data must never be silently converted into
+historical fact. Wave A read the consultancy's delivery outside the repository and produced
+`docs/REAL_DATA_INTAKE.md`; Wave B imported the cartography with the personal attributes removed
+(ADR-023); Wave C imported the management plan chapter (ADR-024). The raw archive and workbook are
+never committed, never uploaded and never sent to a model.
 Staging is live for preview only; **do not deploy production** and never touch the `production`
 branch.
 
@@ -72,6 +81,19 @@ zero validated codings is refused; every regime a fact carries must be declared 
 and nothing in the system can say otherwise. `reports.social_generator` is now AVAILABLE — the last
 one, so the rail has no ANNOUNCED placeholder left.
 
+**Wave C (the management plan)** reads the study's PGAS chapter and shows what the plan
+**proposes**, in the document's own words (ADR-024). Three tables — `pgas_import_run` →
+`pgas_plan` → `pgas_measure` — because the document has three levels; a *programme* is a banner row
+with a title and nothing else, so it is two columns on the measure rather than an entity the source
+does not contain. The delivered spelling survives the import (`FRENCUENCIA`, `RESPONSAB LE`, six
+columns named more than one way, a plan with no code, a `N°` that repeats and skips), because those
+are findings to report and not defects to repair. This product mints `measure_code` because the
+document has no stable reference, and the surface says whose identifier it is. An import is a
+version, idempotent by the file's SHA-256, and a revision supersedes rather than overwrites.
+**Nothing records execution**: no compliance state, no evidence, no obligation — the road has not
+been built, and `audit.environmental` keeps that lifecycle (ADR-024 §7). `compliance.pma` is
+therefore AVAILABLE with a narrowed meaning, and the catalogue still holds exactly 14 keys.
+
 The Client Portal is **not** implemented; its route exists only as a capability-guarded placeholder
 until its slice lands.
 
@@ -94,11 +116,12 @@ Architecture documentation:
 
 Also relevant by task: `docs/DATA_MODEL.md`, `docs/PROVENANCE.md`, `docs/AI_GOVERNANCE.md`,
 `docs/DEMO_ZAMORA.md`, `docs/DESIGN_SYSTEM.md`, `docs/TESTING_STRATEGY.md`,
-`docs/GIS_IMPORT_CONTRACT.md`, `docs/FIELD_CAPTURE_ADAPTER_CONTRACT.md`,
+`docs/GIS_IMPORT_CONTRACT.md`, `docs/FIELD_CAPTURE_ADAPTER_CONTRACT.md`, `docs/PGAS_MODEL.md`,
+`docs/REAL_DATA_INTAKE.md`,
 `docs/IMPLEMENTATION_PLAN.md`, `docs/DESIGN_BUNDLE_KNOWN_ISSUES.md`, the delivery docs
 `docs/ENGINEERING_STANDARDS.md`, `docs/RELEASE_POLICY.md`, `docs/CI.md`, `docs/DEPLOYMENT.md`,
 `docs/DEPENDENCIES.md`, `docs/TECH_DEBT.md`, the Gate record `docs/DECISIONS/GATE-1.md`, and
-the ADRs in `docs/DECISIONS/ADR-001` … `ADR-019`. Root `README.md` has the local quick start.
+the ADRs in `docs/DECISIONS/ADR-001` … `ADR-024`. Root `README.md` has the local quick start.
 
 ## Working rules for every session
 

@@ -25,18 +25,18 @@ route or a nav item; a capability never carries a numeric parameter.
 | Key | Module | Depends on | Product status (v0.2) | Pilot navigation presentation | Surfaces |
 |---|---|---|---|---|---|
 | `core.projects` | projects | — | AVAILABLE | ACTIVE | Portfolio, Command Center |
-| `core.documents` | documents | `core.projects` | ANNOUNCED (rail item, no surface) | ANNOUNCED | Documents |
+| `core.documents` | documents | `core.projects` | AVAILABLE (Slice 6) | ACTIVE | Documents |
 | `gis.maps` | gis | `core.projects` | AVAILABLE | ACTIVE | GIS / Parcel Explorer (map) |
 | `gis.parcels` | gis | `gis.maps` | AVAILABLE | ACTIVE | Parcel Explorer table/panel, Parcel Workspace |
 | `field.surveys` | field | `gis.parcels` | AVAILABLE (inbox only; FieldFlow mobile later) | ACTIVE | Field Surveys inbox |
 | `social.analytics` | social | `field.surveys` | AVAILABLE | ACTIVE | Social Intelligence: closed variables |
 | `social.ai_coding` | social | `social.analytics` | AVAILABLE | ACTIVE | Social Intelligence: open answers queue, taxonomy proposals |
 | `quality.document_gate` | quality | `core.projects` | AVAILABLE | ACTIVE | Quality Gate |
-| `quality.rag_assistant` | documents/ai | `core.documents` | ANNOUNCED | ANNOUNCED | RAG Assistant (embedded in tasks) |
-| `reports.social_generator` | reports | `social.analytics`, `core.documents` | ANNOUNCED | ANNOUNCED ("FASE 3" in the rail) | Reports |
+| `quality.rag_assistant` | quality | `core.documents` | AVAILABLE (Slice 6) | ACTIVE | RAG Assistant (embedded in Documents) |
+| `reports.social_generator` | reports | `social.analytics`, `core.documents` | AVAILABLE (Slice 7) | ACTIVE | Reports |
 | `client.portal` | client-portal | `core.projects` | AVAILABLE | ACTIVE | Client Portal, "Client Portal" rail link |
 | `climate.analytics` | (ext) | `core.projects` | EXTENSION | HIDDEN | none in workspace |
-| `compliance.pma` | (ext) | `core.projects` | EXTENSION | HIDDEN | none in workspace |
+| `compliance.pma` | pgas | `core.documents` | AVAILABLE (ADR-024) | ACTIVE | Plan de Manejo |
 | `audit.environmental` | (ext) | `core.projects` | EXTENSION | HIDDEN | none in workspace |
 
 The catalogue is exactly the 14 approved keys. `field.offline_sync` (proposed in the phase
@@ -102,8 +102,15 @@ throws `FeatureDisabled` for it exactly as for a HIDDEN one. The presentation va
 `requireCapability`, route guards, handlers, jobs or the command palette's executable actions
 (the palette may list an ANNOUNCED destination only as a disabled row, never as a command).
 
-Pilot: Reports is navigation ANNOUNCED (and disabled); Climate Analytics, PMA Compliance and
-Environmental Audit are navigation HIDDEN (and disabled).
+Pilot: every AVAILABLE key above is ACTIVE, including `compliance.pma` since ADR-024; Climate
+Analytics and Environmental Audit are navigation HIDDEN (and disabled). No pilot capability is
+ANNOUNCED any more — the rail has no placeholder left.
+
+`compliance.pma` is the one key whose **meaning** was narrowed rather than its status merely
+raised (ADR-024 §6). It governs the plan the study *proposes* — its plans, programmes and
+measures, and what each one states or leaves blank. Following whether those measures are carried
+out is `audit.environmental`, which stays an extension: the two are different products, and §7 of
+that ADR says why they must not share a table.
 
 Invariants:
 
@@ -194,8 +201,8 @@ ProjectProfile {
 
 | | |
 |---|---|
-| Enabled | core.projects, core.documents, gis.maps, gis.parcels, field.surveys, social.analytics, social.ai_coding, quality.document_gate, quality.rag_assistant, reports.social_generator, client.portal |
-| Disabled | climate.analytics, compliance.pma, audit.environmental |
+| Enabled | core.projects, core.documents, gis.maps, gis.parcels, field.surveys, social.analytics, social.ai_coding, quality.document_gate, quality.rag_assistant, reports.social_generator, compliance.pma, client.portal |
+| Disabled | climate.analytics, audit.environmental |
 | Territorial model | linear corridor: `Road` alignment, `ProjectUnit` of kind `road_segment` (tramos with abscissa ranges), `Parcel` with `LinearReference` (abscissa, side) and `Affectation` |
 | Instruments | socioeconomic sheet (main), ecosystem services, parcel affectation, attendance register |
 | Quality rules | numeric cross-document, territorial reference, temporal plan vs report, legal vs social contrast, media completeness, document completeness, geo abscissa tolerance |

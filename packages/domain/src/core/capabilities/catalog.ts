@@ -32,6 +32,7 @@ export type DomainModule =
   | "social"
   | "quality"
   | "reports"
+  | "pgas"
   | "client-portal"
   | "extension";
 
@@ -169,12 +170,19 @@ export const CAPABILITY_CATALOG: Readonly<Record<CapabilityKey, CapabilityDefini
   },
   "compliance.pma": {
     key: "compliance.pma",
-    module: "extension",
-    dependsOn: ["core.projects"],
-    productStatus: "EXTENSION",
-    label: "PMA Compliance",
-    description: "Seguimiento del plan de manejo ambiental",
-    whoCanEnable: EXTENSION_COPY,
+    module: "pgas",
+    dependsOn: ["core.documents"],
+    productStatus: "AVAILABLE",
+    label: "Plan de Manejo",
+    /*
+     * Narrowed deliberately (ADR-024 §6). What is built is the *design* half: the plan the study
+     * proposes, its measures, and what each one states or leaves blank. Following whether the
+     * measures are being carried out is `audit.environmental`, which is still an extension and
+     * still hidden — and the description says so, because a capability named "compliance" that
+     * showed a checklist would be read as one.
+     */
+    description: "Plan de Manejo Ambiental y Social del estudio: programas, medidas y su detalle",
+    whoCanEnable: OWNER_ENABLES,
   },
   "audit.environmental": {
     key: "audit.environmental",
