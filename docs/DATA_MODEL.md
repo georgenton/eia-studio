@@ -485,6 +485,35 @@ stateDiagram-v2
   resolved --> open: reopen (evidence changed)
 ```
 
+### 3.6a Report generation (Slice 7, ADR-022)
+
+```
+GeneratedReport { id, tenant_id, project_id, kind: social_chapter, title, current_version_id }
+   -- unique (tenant_id, project_id, kind): a chapter is a thing a study has; its history is its versions
+ReportVersion { id, ..., report_id, version_label ('v3'), status: DRAFT,
+                snapshot jsonb (validated by ReportSnapshotSchema — the deterministic substance),
+                snapshot_digest (content identity, excluding the instant it was computed),
+                survey_version_label, narrative_model?, narrative_prompt_version?,
+                generated_by_user_id, generated_at, provenance_id }   -- immutable
+ReportSection { id, ..., version_id, key, title, ordinal, summary, narrative? }   -- immutable
+ReportSectionSource { id, ..., section_id, kind, fact_key, locator jsonb, ordinal }   -- immutable
+```
+
+**The snapshot is the deliverable** (ADR-022). Every figure it holds is computed from validated data
+and carries a typed source — `metric` (with its method in words), `human_review` (a validated
+coding, never a proposal), `quality_finding`, `document_chunk`, or `provenance` (with its facets).
+A fact with no source is unrepresentable: the type has no shape for one. Prose is optional and is a
+rendering of the snapshot, so a version with no narrative is a complete report draft.
+
+Invariants enforced in the database (migration 0023):
+
+| Guarantee | Mechanism |
+|---|---|
+| A version, its sections and their sources are written once | `REVOKE UPDATE, DELETE` from `eia_app` **and** BEFORE UPDATE/DELETE triggers, so the owning role cannot either; the cascade from the report is the one legitimate deletion |
+| A project has one chapter of each kind | unique `(tenant_id, project_id, kind)` |
+| A version's label is unique within its report | unique `(tenant_id, report_id, version_label)` |
+| A version carries provenance | FK to `provenance_record`, written `DERIVED` / `PENDING` — a chapter never records itself as validated |
+
 ### 3.7 Client portal
 
 ```

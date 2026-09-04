@@ -410,6 +410,12 @@ export async function createPublishedSurvey(
     /** Option codes of the single-choice question; lets a v2 differ from a v1. */
     optionCodes?: ReadonlyArray<string>;
     questionCode?: string;
+    /**
+     * Add a `LONG_TEXT` question before publishing. It has to happen before, not after: a published
+     * version is immutable and the trigger refuses the edit, which is exactly the guarantee a
+     * factory must not work around.
+     */
+    openTextCode?: string;
   },
 ): Promise<SeededQuestionnaire> {
   const templateId = input.templateId ?? randomUUID();
@@ -513,6 +519,15 @@ export async function createPublishedSurvey(
     });
   }
 
+  const openText = input.openTextCode
+    ? await addOpenTextQuestion(db, {
+        tenantId: input.tenantId,
+        projectId: input.projectId,
+        versionId,
+        code: input.openTextCode,
+      })
+    : null;
+
   await db
     .update(fieldSchema.surveyVersion)
     .set({ status: "PUBLISHED", publishedAt: new Date(), definitionHash: `hash_${next()}` })
@@ -521,9 +536,68 @@ export async function createPublishedSurvey(
   return {
     templateId,
     versionId,
-    questionIds: { [questionCode]: choiceId, has_concern: requiredId, services_present: multiId },
+    questionIds: {
+      [questionCode]: choiceId,
+      has_concern: requiredId,
+      services_present: multiId,
+      ...(openText && input.openTextCode ? { [input.openTextCode]: openText.questionId } : {}),
+    },
     optionIds,
   };
+}
+
+/**
+ * One open-text answer on an existing instance, plus the question it answers.
+ *
+ * The stock questionnaire has no open-text question — Slice 3 did not need one — so this adds a
+ * `LONG_TEXT` question to a *draft* version and returns both ids. Publishing is the caller's job,
+ * because a published version is immutable and the order matters.
+ */
+export async function addOpenTextQuestion(
+  db: Database,
+  input: { tenantId: string; projectId: string; versionId: string; code?: string },
+): Promise<{ questionId: string }> {
+  const questionId = randomUUID();
+  const ordinal = await db.execute(sql`
+    select coalesce(max(ordinal), -1) + 1 as next from app.survey_question
+     where tenant_id = ${input.tenantId} and version_id = ${input.versionId}
+  `);
+  await db.insert(fieldSchema.surveyQuestion).values({
+    id: questionId,
+    tenantId: input.tenantId,
+    projectId: input.projectId,
+    versionId: input.versionId,
+    code: input.code ?? `open_${next()}`,
+    prompt: "Describa su preocupación en sus propias palabras",
+    type: "LONG_TEXT",
+    required: false,
+    sensitivity: "NON_PERSONAL",
+    ordinal: Number((ordinal.rows[0] as { next: number }).next),
+  });
+  return { questionId };
+}
+
+/** One answer carrying text. The shape a classification and a review are made about. */
+export async function createTextAnswer(
+  db: Database,
+  input: {
+    tenantId: string;
+    projectId: string;
+    instanceId: string;
+    questionId: string;
+    text: string;
+  },
+): Promise<{ answerId: string }> {
+  const answerId = randomUUID();
+  await db.insert(fieldSchema.surveyAnswer).values({
+    id: answerId,
+    tenantId: input.tenantId,
+    projectId: input.projectId,
+    instanceId: input.instanceId,
+    questionId: input.questionId,
+    textValue: input.text,
+  });
+  return { answerId };
 }
 
 /**

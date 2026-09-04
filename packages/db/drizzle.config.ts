@@ -13,6 +13,7 @@ export default defineConfig({
     "./src/schema/social.ts",
     "./src/schema/quality.ts",
     "./src/schema/documents.ts",
+    "./src/schema/reports.ts",
   ],
   out: "./migrations",
   schemaFilter: ["app", "auth", "audit"],

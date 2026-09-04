@@ -6,6 +6,7 @@ export * as fieldSchema from "./field";
 export * as socialSchema from "./social";
 export * as qualitySchema from "./quality";
 export * as documentsSchema from "./documents";
+export * as reportsSchema from "./reports";
 
 import * as appTables from "./app";
 import * as auditTables from "./audit";
@@ -13,6 +14,7 @@ import * as authTables from "./auth";
 import * as fieldTables from "./field";
 import * as gisTables from "./gis";
 import * as documentTables from "./documents";
+import * as reportTables from "./reports";
 import * as qualityTables from "./quality";
 import * as socialTables from "./social";
 
@@ -67,4 +69,8 @@ export const schema = {
   sourceDocument: documentTables.sourceDocument,
   documentVersion: documentTables.documentVersion,
   documentChunk: documentTables.documentChunk,
+  generatedReport: reportTables.generatedReport,
+  reportVersion: reportTables.reportVersion,
+  reportSection: reportTables.reportSection,
+  reportSectionSource: reportTables.reportSectionSource,
 };

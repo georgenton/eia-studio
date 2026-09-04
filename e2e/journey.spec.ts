@@ -28,9 +28,8 @@ test.describe("reviewer journey", () => {
     const rail = page.getByRole("navigation", { name: "Navegación principal" });
     await expect(rail.getByRole("link", { name: "Command Center" })).toBeVisible();
     await expect(rail.getByRole("link", { name: "GIS & Predios" })).toBeVisible();
-    // Reports is ANNOUNCED: shown as a placeholder, never as a link.
-    await expect(rail.getByRole("link", { name: "Reports" })).toHaveCount(0);
-    await expect(rail).toContainText("Reports");
+    // Reports became a real destination in Slice 7; the rail has no placeholder row left.
+    await expect(rail.getByRole("link", { name: "Reports" })).toBeVisible();
 
     // 6 · the four approved historical aggregate facts, read from the KPI strip. The strip is
     // scoped explicitly because 141 also appears in the territorial summary, where it is a

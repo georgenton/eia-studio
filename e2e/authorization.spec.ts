@@ -20,25 +20,28 @@ test.describe("server-side authorization", () => {
   test("a disabled capability answers 404, exactly like a URL that means nothing", async ({
     page,
   }) => {
-    // reports.social_generator is ANNOUNCED, therefore never effective (D-014). Under ADR-016 the
-    // route must not disclose the capability key or who could enable it.
-    const disabled = await page.goto(`/t/${TENANT}/p/${PROJECT}/reports`);
-    expect(disabled?.status()).toBe(404);
+    // Slice 7 built Reports, so every *workspace* surface of the pilot profile is now effective and
+    // no rail destination is left to demonstrate this in a browser. The three catalogue extensions
+    // are still disabled, and they have no route at all — which is the same observable outcome, and
+    // the one this test can still assert honestly: a segment that maps to nothing, and a segment
+    // named after a capability the project does not have, are indistinguishable.
+    const extension = await page.goto(`/t/${TENANT}/p/${PROJECT}/climate`);
+    expect(extension?.status()).toBe(404);
     const body = await page.textContent("body");
-    expect(body).not.toContain("reports.social_generator");
+    expect(body).not.toContain("climate.analytics");
     expect(body).not.toContain("Tenant Settings");
 
-    // A nonsense segment is indistinguishable from it.
     const nonsense = await page.goto(`/t/${TENANT}/p/${PROJECT}/no-such-surface`);
     expect(nonsense?.status()).toBe(404);
+
+    // The route-level policy for an ineffective capability that *does* have a surface is asserted
+    // on the probe endpoint below and in `packages/domain/test/workspace.test.ts` (TD-055).
   });
 
   test("the capability probe endpoint answers 404 for a capability that is not effective", async ({
     request,
   }) => {
-    const disabled = await request.get(
-      `/t/${TENANT}/p/${PROJECT}/capabilities/reports.social_generator`,
-    );
+    const disabled = await request.get(`/t/${TENANT}/p/${PROJECT}/capabilities/climate.analytics`);
     expect(disabled.status()).toBe(404);
     expect(await disabled.text()).not.toContain("whoCanEnable");
 
@@ -51,11 +54,10 @@ test.describe("server-side authorization", () => {
     page,
   }) => {
     // This test used to assert the inert "module not implemented" state at `/quality`. GIS was the
-    // example until Slice 2, FieldFlow until Slice 3, the Quality Gate until Slice 5, and Documents
-    // until Slice 6.
-    // Every remaining workspace surface is ANNOUNCED, therefore never effective, therefore 404 —
-    // so the state currently has **no reachable route**, and asserting it in a browser would mean
-    // inventing a capability nobody ships.
+    // example until Slice 2, FieldFlow until Slice 3, the Quality Gate until Slice 5, Documents
+    // until Slice 6 and Reports until Slice 7. Every workspace surface of the pilot profile is now built, so the
+    // state has **no reachable route**, and asserting it in a browser would mean inventing a
+    // capability nobody ships.
     //
     // The policy itself is still covered where it is decided: `packages/domain/test/workspace.test.ts`
     // asserts that an effective capability whose surface is unbuilt yields `not-implemented`, and
@@ -67,11 +69,14 @@ test.describe("server-side authorization", () => {
       "la implementación aún no está disponible",
     );
 
-    // Documents joined the built surfaces in Slice 6; Reports is the only ANNOUNCED one left, and
-    // it stays indistinguishable from a URL that means nothing.
+    // Documents joined the built surfaces in Slice 6 and Reports in Slice 7, which leaves the
+    // workspace with no ANNOUNCED surface and no unbuilt one.
     const documents = await page.goto(`/t/${TENANT}/p/${PROJECT}/documents`);
     expect(documents?.status()).toBe(200);
-    const announced = await page.goto(`/t/${TENANT}/p/${PROJECT}/reports`);
-    expect(announced?.status()).toBe(404);
+    const reports = await page.goto(`/t/${TENANT}/p/${PROJECT}/reports`);
+    expect(reports?.status()).toBe(200);
+    await expect(page.getByRole("main")).not.toContainText(
+      "la implementación aún no está disponible",
+    );
   });
 });

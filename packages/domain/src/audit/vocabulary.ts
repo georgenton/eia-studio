@@ -37,6 +37,10 @@ export const AUDIT_ACTIONS = [
   // live in one place with one retention rule, and copying them here would create a second.
   "documents.version.ingested",
   "documents.assistant.asked",
+  // Report generation (Slice 7). That a version was produced, from how many facts, and whether a
+  // model wrote its prose. Never the chapter's text: the version holds it, immutably, once.
+  "reports.version.generated",
+  "reports.version.downloaded",
 ] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];

@@ -490,6 +490,8 @@ try {
          and not exists (select 1 from app.quality_finding qf where qf.provenance_id = pr.id)
          -- Documents (Slice 6).
          and not exists (select 1 from app.document_version dv where dv.provenance_id = pr.id)
+         -- Reports (Slice 7): a generated version records how it was produced.
+         and not exists (select 1 from app.report_version rv where rv.provenance_id = pr.id)
     `);
     /*
      * Provenance ids are **derived from the fixture key**, not random.

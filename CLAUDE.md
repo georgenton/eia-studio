@@ -6,10 +6,11 @@ surveys, social analysis with human-in-the-loop AI, quality review and client re
 **Current phase: SUSTAINED MVP DEVELOPMENT WAVE (authorised 3 Sep 2026).** Slice 0 (SaaS
 foundation), Slice 0.5 (staging foundation), Slice 1 (product shell, Portfolio, Command Center,
 provenance drawer), Slice 2 (GIS / Parcel Explorer, Parcel Workspace), Slice 3 (FieldFlow, versioned
-questionnaires, typed answers) and **Slice 4 (Social Intelligence / human-in-the-loop)** are merged
-into `main`; Implementation Gates 0–4 and Staging Gate 0.5 are closed. The wave continues through
-Slice 5 (Quality Gate), Slice 6 (document intelligence + RAG), Slice 7 (assisted report generation)
-and MVP integration, self-gated before each merge and logged in `docs/DEVELOPMENT_WAVE_LOG.md`.
+questionnaires, typed answers), Slice 4 (Social Intelligence / human-in-the-loop), Slice 5 (Quality
+Gate), Slice 6 (document intelligence + RAG) and **Slice 7 (assisted report generation)** are merged
+into `main`; Implementation Gates 0–4 and Staging Gate 0.5 are closed. The wave continues with MVP
+integration and demo hardening, self-gated before each merge and logged in
+`docs/DEVELOPMENT_WAVE_LOG.md`.
 Staging is live for preview only; **do not deploy production** and never touch the `production`
 branch.
 
@@ -56,8 +57,23 @@ than being dropped). Nothing generated is persisted. A document flagged `contain
 not redacted. The Quality Gate's evidence gained a passage link resolved at read time, so no Slice 5
 finding was rewritten. `core.documents` and `quality.rag_assistant` are now AVAILABLE.
 
-Reports and the Client Portal are **not** implemented; their routes exist only as capability-guarded
-placeholders until their slices land.
+**Slice 7 (assisted report generation)** produces the social chapter, and its governing rule is
+**the snapshot is the deliverable and the prose is a rendering of it** (ADR-022). A
+`ReportVersion` stores a validated JSON snapshot in which **every fact carries a typed source** —
+`metric` with its method in words, `human_review` (a validated coding, never a proposal),
+`quality_finding` with the decision a reviewer took, `document_chunk` with its version and page, or
+`provenance` with its facets. A fact without a source is unrepresentable. The snapshot is computed
+and checked **before** any prose exists, prose is generated from the snapshot and never from the
+database, and a paragraph stating a figure its section did not compute **fails the generation**
+rather than being trimmed. A version, its sections and its sources are written once (REVOKE *and*
+trigger); regenerating produces a new version and never edits the old one. A theme figure resting on
+zero validated codings is refused; every regime a fact carries must be declared at the top. The
+.docx says "BORRADOR — NO ES UN ENTREGABLE APROBADO" because there is no approval workflow (TD-060)
+and nothing in the system can say otherwise. `reports.social_generator` is now AVAILABLE — the last
+one, so the rail has no ANNOUNCED placeholder left.
+
+The Client Portal is **not** implemented; its route exists only as a capability-guarded placeholder
+until its slice lands.
 
 ## Read before acting
 
