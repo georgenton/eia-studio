@@ -161,17 +161,21 @@ describe("product status and presentation", () => {
   it("an EXTENSION never resolves to enabled, however the tenant is configured", () => {
     const set = resolveCapabilities({ tenant: tenantAll(ALL_KEYS) });
     expect(set["core.projects"]).toBe(true);
-    // Slice 6 moved `core.documents` and `quality.rag_assistant` to AVAILABLE, Slice 7 moved
-    // `reports.social_generator`. The eleven pilot keys are all shipped; the three extensions are
-    // the only ones the product status still refuses.
+    /*
+     * Slice 6 moved `core.documents` and `quality.rag_assistant` to AVAILABLE and Slice 7 moved
+     * `reports.social_generator`. `compliance.pma` joined them when the management plan was built
+     * (ADR-024) — narrowed to the plan's *design*, which is what exists; following whether the
+     * measures are carried out is `audit.environmental`, still an extension and still refused.
+     */
     for (const key of [
       "core.documents",
       "quality.rag_assistant",
       "reports.social_generator",
+      "compliance.pma",
     ] as const) {
       expect(set[key], key).toBe(true);
     }
-    for (const key of ["climate.analytics", "compliance.pma", "audit.environmental"] as const) {
+    for (const key of ["climate.analytics", "audit.environmental"] as const) {
       expect(set[key], key).toBe(false);
     }
   });

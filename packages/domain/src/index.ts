@@ -8,6 +8,7 @@ export * from "./core/config/registry";
 export * from "./field/index";
 export * from "./ai/index";
 export * from "./documents/index";
+export * from "./pgas/index";
 export * from "./reports/index";
 export * from "./social/index";
 export * from "./quality/index";

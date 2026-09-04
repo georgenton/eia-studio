@@ -36,7 +36,7 @@ Format: `type(scope)?: subject` with an optional body and footers.
 
 - Types: `feat`, `fix`, `docs`, `chore`, `refactor`, `test`, `perf`, `build`, `ci`, `revert`.
 - Scope (optional) = module or package: `core`, `projects`, `gis`, `field`, `social`, `quality`,
-  `documents`, `reports`, `portal`, `ai`, `provenance`, `audit`, `db`, `ui`, `web`, `worker`,
+  `documents`, `pgas`, `reports`, `portal`, `ai`, `provenance`, `audit`, `db`, `ui`, `web`, `worker`,
   `fixtures`, `docs`.
 - Breaking changes: `!` after the type/scope and a `BREAKING CHANGE:` footer.
 - Subject in imperative mood, no trailing period, ≤ 72 characters.

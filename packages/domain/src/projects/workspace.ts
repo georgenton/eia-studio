@@ -18,6 +18,7 @@ export const WORKSPACE_SURFACES = [
   "social",
   "quality",
   "documents",
+  "pgas",
   "reports",
 ] as const;
 
@@ -85,6 +86,14 @@ export const SURFACE_DEFINITIONS: Readonly<Record<WorkspaceSurface, SurfaceDefin
     implemented: true,
     plannedIn: null,
   },
+  pgas: {
+    key: "pgas",
+    capability: "compliance.pma",
+    label: "Plan de Manejo",
+    segment: "pgas",
+    implemented: true,
+    plannedIn: null,
+  },
   reports: {
     key: "reports",
     capability: "reports.social_generator",
@@ -103,6 +112,7 @@ export const WORKSPACE_RAIL_ORDER: ReadonlyArray<WorkspaceSurface> = [
   "social",
   "quality",
   "documents",
+  "pgas",
   "reports",
 ];
 

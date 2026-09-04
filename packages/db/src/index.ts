@@ -14,5 +14,6 @@ export {
   socialSchema,
   qualitySchema,
   documentsSchema,
+  pgasSchema,
   reportsSchema,
 } from "./schema/index";
