@@ -3,7 +3,7 @@ import { can, SURFACE_DEFINITIONS } from "@eia/domain";
 import { Panel, PanelBody, PanelHeader } from "@eia/ui";
 import { notFound, redirect } from "next/navigation";
 
-import { projectBreadcrumb, WorkspaceShell } from "@/components/workspace-shell";
+import { projectBreadcrumb, projectLabel, WorkspaceShell } from "@/components/workspace-shell";
 import { getSessionUser } from "@/lib/context";
 import { getDb } from "@/lib/db";
 import { projectPath } from "@/lib/navigation";
@@ -97,7 +97,7 @@ export default async function ReportVersionPage({
     breadcrumb: projectBreadcrumb(
       ctx,
       portfolio.tenantName,
-      project,
+      projectLabel(portfolio.projects, project),
       `${SURFACE_DEFINITIONS.reports.label} · ${versionLabel}`,
       projectPath(ctx.tenantSlug, project, "reports"),
     ),

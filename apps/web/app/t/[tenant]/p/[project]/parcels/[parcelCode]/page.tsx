@@ -4,7 +4,7 @@ import { notFound, redirect } from "next/navigation";
 
 import { isParcelTab, ParcelWorkspace } from "@/components/gis/parcel-workspace";
 import { ProvenancePanel } from "@/components/provenance-panel";
-import { projectBreadcrumb, WorkspaceShell } from "@/components/workspace-shell";
+import { projectBreadcrumb, projectLabel, WorkspaceShell } from "@/components/workspace-shell";
 import { getSessionUser } from "@/lib/context";
 import { getDb } from "@/lib/db";
 import { projectPath } from "@/lib/navigation";
@@ -60,7 +60,13 @@ export default async function ParcelWorkspacePage({
     userName: sessionUser?.name ?? sessionUser?.email ?? "Usuario",
     userEmail: sessionUser?.email ?? null,
     breadcrumb: [
-      ...projectBreadcrumb(ctx, portfolio.tenantName, project, "GIS & Predios", explorerPath),
+      ...projectBreadcrumb(
+        ctx,
+        portfolio.tenantName,
+        projectLabel(portfolio.projects, project),
+        "GIS & Predios",
+        explorerPath,
+      ),
       { label: parcelCode },
     ],
   };

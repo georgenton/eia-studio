@@ -22,3 +22,7 @@ Rules for these pages:
 | [08 · Document assistant](08-document-assistant.md)             | project documents, evidence retrieval, cited answers                     | current |
 | [09 · Report generation](09-report-generation.md)               | the social chapter draft and its traceability                            | current |
 | [10 · Demo walkthrough](10-demo-walkthrough.md)                 | one end-to-end path through everything above                             | current |
+
+Beside them, and not one of them: [`docs/MVP_REVIEW_HANDOFF.md`](../MVP_REVIEW_HANDOFF.md) is the
+end-of-wave hand-off — where the Preview is, which identities exist, what was verified, what is
+known not to work, and which decisions are waiting on the owner.

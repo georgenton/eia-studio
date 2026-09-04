@@ -122,8 +122,8 @@ loosened: migration 0021 replaces the CHECK it asserted, and it now asserts the 
 
 | | |
 |---|---|
-| Branch / PR | `feat/slice-7-report-generation` · *(recorded at merge)* |
-| Merge SHA | *(recorded at merge)* |
+| Branch / PR | `feat/slice-7-report-generation` · [#11](https://github.com/georgenton/eia-studio/pull/11) |
+| Merge SHA | `b8e9fc0` |
 | Migrations | `0022_report_generation_tables.sql` (4 tables, 1 enum), `0023_report_rls_and_immutability.sql` (grants + REVOKE, RLS, immutability triggers, uniqueness) — forward only, additive |
 | Tests | unit **283**, integration **350**, Playwright **141**, staging **90** |
 | Staging | migrations 22 → 24 applied forward; the baseline diff before and after shows **only the migration count**, no row added, changed or removed; verification suite **90 passed** (+9) and the baseline is byte-identical after it; no chapter exists there — a version is produced through the surface, never seeded |
@@ -149,3 +149,38 @@ cleanup gained `report_version`.
 
 **Debt recorded.** TD-060 (no approval workflow), TD-061 (grounding is arithmetic, not semantic),
 TD-062 (one chapter shape), TD-063 (the .docx is rendered per download, not stored).
+
+### MVP integration and demo hardening
+
+| | |
+|---|---|
+| Branch / PR | `feat/mvp-integration-demo-hardening` · *(recorded at merge)* |
+| Merge SHA | *(recorded at merge)* |
+| Migrations | **none** |
+| Tests | unit **283**, integration **353** (+3), Playwright **150** (+9), staging **90** |
+| Staging | untouched by this branch — no migration, no seed, no write. The verification of Slice 7 stands as the last measurement |
+| External configuration | unchanged — `LIVE_AI = BLOCKED_EXTERNAL_CONFIG` (TD-049) |
+
+**Scope delivered.** The walkthrough as a test (`e2e/mvp-journey.spec.ts`), which asserts the seams
+between surfaces rather than the surfaces themselves; a measured performance baseline
+(`docs/PERFORMANCE_BASELINE.md`) with the instrumentation that produced it; one real UX defect
+fixed; and the consolidated hand-off (`docs/MVP_REVIEW_HANDOFF.md`) that ends the wave.
+
+**Meaningful decisions.** The performance work **measured and stopped**. It found that every project
+page makes 37–95 database round trips, that 17 of them establish who is asking and 12 of those are
+transaction framing, and that the functions and the database are on opposite coasts. None of it was
+acted on: consolidating the context transactions changes the RLS envelope of the authorization path
+(TD-064), and the region question is an owner decision the brief reserves. Fixing the count is worth
+more than fixing the distance, and the document says so rather than proposing a migration.
+
+**Deviations.** The Preview could not be measured end to end: its deployment protection answers 302
+before a request reaches the application, and signing in needs the owner's credential. The
+procedure to turn the projection into a measurement is written down instead of guessed at.
+
+**Debt recorded.** TD-064 (context round trips), TD-065 (Social's 78 queries), TD-066 (no
+request-scoped authorization cache), TD-067 (no connection or statement timeout), TD-068 (the
+technician e2e specs consume a pending assignment per run).
+
+**Wave closed.** Seven slices merged, Implementation Gates 0–4 and Staging Gate 0.5 closed, no
+production deployment, the `production` branch untouched, and the staging database verified
+unchanged after every run against it.

@@ -3,7 +3,7 @@ import { can, SURFACE_DEFINITIONS } from "@eia/domain";
 import { notFound, redirect } from "next/navigation";
 
 import { QualityOverviewPanel } from "@/components/quality/quality-overview";
-import { projectBreadcrumb, WorkspaceShell } from "@/components/workspace-shell";
+import { projectBreadcrumb, projectLabel, WorkspaceShell } from "@/components/workspace-shell";
 import { getSessionUser } from "@/lib/context";
 import { getDb } from "@/lib/db";
 import { projectPath } from "@/lib/navigation";
@@ -62,7 +62,7 @@ export default async function QualityPage({
     breadcrumb: projectBreadcrumb(
       ctx,
       portfolio.tenantName,
-      project,
+      projectLabel(portfolio.projects, project),
       SURFACE_DEFINITIONS.quality.label,
     ),
   };

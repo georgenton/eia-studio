@@ -385,3 +385,27 @@ result is a refusal to count it rather than an absence of anything to count.
 in-process fake selected explicitly, and the versions CI produces have no prose at all — which is
 the shipped behaviour everywhere, since no provider is configured (TD-049).
 
+## 20. The walkthrough, as a test (MVP integration)
+
+Every slice has a spec that proves its own surface. None of them proved the thing a reviewer
+actually experiences: that the surfaces are **one product**. `e2e/mvp-journey.spec.ts` walks the
+coordinator's path in the order `docs/manual/10-demo-walkthrough.md` describes it and asserts the
+seams.
+
+| What it asserts | Why it is a seam and not a feature |
+|---|---|
+| tenant and project ride the rail across all six destinations | invariant 1 is about the shell, so it can only fail *between* surfaces |
+| a parcel selected in the table opens as a workspace | invariant 6's selection is shared state; a per-surface spec cannot see it break |
+| the Quality Gate names no compliance conclusion and offers a coordinator no decision form | invariant 11 plus the `quality.write` / `quality.review` split, on the screen where both meet |
+| a finding raised before ingestion links into the passage it was transcribed from, and the link resolves | ADR-020 §6's promise spans two slices; nothing inside either one can prove it |
+| the assistant answers with passages and says the search is lexical | ADR-021's honesty is a property of what the reader sees, not of the retriever |
+| the chapter carries five sections, says BORRADOR, and states no compliance conclusion | ADR-022's output read by the person the demo is for |
+| the session can be ended from the topbar | UX-001; a demo that cannot be handed to the next person is not a demo |
+
+It is also the regression guard for the walkthrough document: if a step here changes, that page is
+wrong.
+
+**Instrumentation is tested too.** `packages/testing/test/rls/pool-instrumentation.integration.test.ts`
+asserts that the performance hook counts statements inside transactions — where nearly all of them
+are — and that it is handed a duration and nothing else. A counter that silently sees nothing
+reports zero, and zero round trips is indistinguishable from a page that touched no database.

@@ -33,7 +33,7 @@ test.describe("Reports · the coordinator's journey", () => {
 
   test("every figure names where it came from", async ({ page }) => {
     await page.goto(REPORTS);
-    await page.getByRole("link", { name: "v1" }).click();
+    await page.getByRole("link", { name: "v1", exact: true }).click();
     const main = page.getByRole("main");
 
     await expect(main).toContainText("Universo y cobertura");
