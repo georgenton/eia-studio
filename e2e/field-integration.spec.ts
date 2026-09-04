@@ -1,6 +1,6 @@
 import type { Page } from "@playwright/test";
 
-import { expect, PROJECT, TENANT, test } from "./fixtures";
+import { PARCEL_CODE_PATTERN, PARCELS, expect, PROJECT, TENANT, test } from "./fixtures";
 
 /**
  * The join between FieldFlow and the surfaces that were already there.
@@ -37,10 +37,7 @@ test.describe("FieldFlow · what a submitted survey changes elsewhere", () => {
     await page.goto(`/t/${TENANT}/p/${PROJECT}/gis`);
     await expect(page.getByRole("table")).toBeVisible();
     const codes = (
-      await page
-        .getByRole("cell")
-        .filter({ hasText: /^PRED-/ })
-        .allInnerTexts()
+      await page.getByRole("cell").filter({ hasText: PARCEL_CODE_PATTERN }).allInnerTexts()
     )
       .map((text) => text.trim())
       .slice(0, 8);
@@ -73,8 +70,8 @@ test.describe("FieldFlow · what a submitted survey changes elsewhere", () => {
     page,
   }) => {
     // The far end of the corridor: 141 synthetic parcels, 12 assignments.
-    await page.goto(`/t/${TENANT}/p/${PROJECT}/parcels/PRED-ZAM-141?tab=visitas`);
-    await expect(page.getByRole("heading", { name: "PRED-ZAM-141", level: 1 })).toBeVisible();
+    await page.goto(`/t/${TENANT}/p/${PROJECT}/parcels/${PARCELS.noFieldWork}?tab=visitas`);
+    await expect(page.getByRole("heading", { name: PARCELS.noFieldWork, level: 1 })).toBeVisible();
     await expect(page.getByRole("main")).toContainText("No hay visitas registradas");
   });
 

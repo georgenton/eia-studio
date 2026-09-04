@@ -324,6 +324,39 @@ virtualization is observational, not architectural: a project whose parcel paylo
 server-side cap of 2 000 features (roughly 650 KiB of GeoJSON at this density), or a measured
 interaction delay in the table. See TECH_DEBT TD-027.
 
+#### 3.3a What the real package changed (ADR-023)
+
+The cartographic package arrived on 2 September 2026 and contradicted three assumptions this
+section made while the corridor was still generated. All three are properties of real cadastral and
+environmental data, so the model moved rather than the data.
+
+```
+Alignment.geom        geometry(LineString,4326)  →  geometry(MultiLineString,4326)
+ParcelGeometry.geom   geometry(Polygon,4326)     →  geometry(MultiPolygon,4326)
+Affectation.geom      geometry(Polygon,4326)     →  geometry(MultiPolygon,4326)
+
+Parcel { …, chainage_m, chainage_start_m, chainage_end_m, chainage_method }
+InfluenceArea { id, tenant_id, project_id, dataset_version_id,
+                kind: direct | indirect | direct_social | indirect_social,
+                label, geom geometry(MultiPolygon,4326), area_m2, provenance_id }
+   -- unique (tenant_id, dataset_version_id, kind): a redelimitation is a new version
+```
+
+**Multi-part is the normal case, not an edge case.** 20 of the 141 delivered parcels are two
+polygons — a plot split by the road, or with a detached portion — and one affectation is eight. A
+polygon is a valid multipolygon of one part, so the widening is lossless and migration 0024 applies
+it with `ST_Multi`.
+
+**A parcel's chainage is a range.** The package states an `INICIAL` and a `FINAL` abscissa per
+parcel with the side; `chainage_m` keeps its meaning as the single point the corridor orders by and
+takes the start. `chainage_method` distinguishes the 139 the consultancy declared from the 2 this
+product derived from geometry, so the two are never confused on a screen.
+
+**Influence areas are a layer.** AID, AII, AISD and AISI are what an environmental study delimits
+and what the PGAS's *lugar de aplicación* points at. One table, project-scoped, versioned by
+`spatial_dataset_version` exactly as parcels are — not a parcel with a category, because an
+influence area has no code, no owner and no field sheet.
+
 ### 3.4 Field
 
 ```

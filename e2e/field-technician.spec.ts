@@ -1,6 +1,6 @@
 import type { Page } from "@playwright/test";
 
-import { expect, PROJECT, TENANT, test } from "./fixtures";
+import { PARCEL_CODE_PATTERN, expect, PROJECT, TENANT, test } from "./fixtures";
 
 /**
  * The technician journey, on a phone, with a synthetic location.
@@ -71,7 +71,7 @@ test.describe("FieldFlow · technician", () => {
     await expect(main).not.toContainText("Técnico de campo 2");
     await expect(main).not.toContainText("Campaña de campo — demostración");
 
-    const cards = page.getByRole("link").filter({ hasText: /PRED-/ });
+    const cards = page.getByRole("link").filter({ hasText: PARCEL_CODE_PATTERN });
     const count = await cards.count();
     expect(count).toBeGreaterThan(0);
     // The fixture gives technician 2 every third parcel, so this must be fewer than the campaign.

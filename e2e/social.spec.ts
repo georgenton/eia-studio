@@ -61,7 +61,10 @@ test.describe("Social Intelligence · the specialist's journey", () => {
     await expect(main).toContainText("Preocupa el polvo");
     // No respondent, no technician, no parcel code, no coordinate on this screen.
     await expect(main).not.toContainText("Técnico de campo");
-    await expect(main).not.toContainText("PRED-");
+    // No parcel code in the coding queue: a coding is about what someone said, not about where
+    // they live. The codes are three digits now, so the assertion checks the column that would
+    // carry one rather than a prefix that no longer exists.
+    await expect(main.getByRole("columnheader", { name: /Predio/ })).toHaveCount(0);
     await expect(main).not.toContainText("-78.9");
   });
 

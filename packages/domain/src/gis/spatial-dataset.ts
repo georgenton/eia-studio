@@ -9,7 +9,12 @@ import type { ProvenanceFacets } from "../provenance/facets";
  * **versions** are what hold geometry, so a later official import becomes a new version that
  * supersedes ours without disturbing any `Parcel` identity.
  */
-export const SPATIAL_DATASET_KINDS = ["alignment", "parcels", "affectations"] as const;
+export const SPATIAL_DATASET_KINDS = [
+  "alignment",
+  "parcels",
+  "affectations",
+  "influence_areas",
+] as const;
 export const spatialDatasetKindSchema = z.enum(SPATIAL_DATASET_KINDS);
 export type SpatialDatasetKind = z.infer<typeof spatialDatasetKindSchema>;
 
@@ -54,19 +59,34 @@ export type LayerProvenanceLegend =
   | "SYNTHETIC_PARCELS"
   | "OFFICIAL_IMPORTED_ALIGNMENT"
   | "OFFICIAL_CADASTRE"
-  | "FIELD_CAPTURED";
+  | "FIELD_CAPTURED"
+  | "IMPORTED_STUDY_LAYER"
+  | "STUDY_DELIMITED_AREA";
 
 export function deriveLayerLegend(
   kind: SpatialDatasetKind,
   facets: ProvenanceFacets,
 ): LayerProvenanceLegend {
   const reconstructed = facets.transformations.includes("RECONSTRUCTED");
+  // An influence area is a boundary the study drew, not a cadastral fact and not a field capture.
+  // Labelling it `OFFICIAL_CADASTRE` because it was imported would claim a registry said so.
+  if (kind === "influence_areas") return "STUDY_DELIMITED_AREA";
   if (kind === "alignment") {
     if (reconstructed) return "RECONSTRUCTED_ALIGNMENT";
     return facets.origin === "IMPORTED_DATASET" ? "OFFICIAL_IMPORTED_ALIGNMENT" : "REAL_BASE_MAP";
   }
   if (facets.regime === "DEMO_SIMULATION") return "SYNTHETIC_PARCELS";
   if (facets.origin === "FIELD_CAPTURE") return "FIELD_CAPTURED";
+  /*
+   * Imported, but by whom and from what?
+   *
+   * A layer whose attributes had to be stripped before it could be stored is a consultancy's own
+   * working survey — it carried owner names, deeds and field notes, which a registry extract does
+   * not hand out. A cadastral layer arrives `ORIGINAL` and is labelled as cadastre. Calling the
+   * first one "official cadastre" would put a registry's authority behind a surveyor's sketch,
+   * which is precisely what invariant 13's vocabulary exists to prevent.
+   */
+  if (facets.transformations.includes("ANONYMIZED")) return "IMPORTED_STUDY_LAYER";
   return "OFFICIAL_CADASTRE";
 }
 
@@ -97,6 +117,14 @@ export const LAYER_LEGEND_COPY: Readonly<
   FIELD_CAPTURED: {
     label: "FIELD CAPTURED",
     note: "geometría levantada en campo",
+  },
+  IMPORTED_STUDY_LAYER: {
+    label: "IMPORTED STUDY LAYER",
+    note: "levantamiento predial del estudio · no es catastro oficial",
+  },
+  STUDY_DELIMITED_AREA: {
+    label: "STUDY DELIMITED AREA",
+    note: "área de influencia delimitada por el estudio",
   },
 };
 

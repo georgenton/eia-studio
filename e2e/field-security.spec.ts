@@ -1,4 +1,4 @@
-import { expect, PROJECT, TENANT, test } from "./fixtures";
+import { PARCEL_CODE_PATTERN, PARCELS, expect, PROJECT, TENANT, test } from "./fixtures";
 
 /**
  * A technician must not reach another technician's work by editing the address bar.
@@ -22,7 +22,10 @@ const FOREIGN_ASSIGNMENT = "00000000-0000-4000-8000-0000000000ff";
 test.describe("FieldFlow · technician isolation", () => {
   test("My Work lists only this technician's own assignments", async ({ page }) => {
     await page.goto(FIELD);
-    const codes = await page.getByRole("link").filter({ hasText: /PRED-/ }).allInnerTexts();
+    const codes = await page
+      .getByRole("link")
+      .filter({ hasText: PARCEL_CODE_PATTERN })
+      .allInnerTexts();
 
     expect(codes.length).toBeGreaterThan(0);
     // The fixture assigns every third parcel to the other technician, so a complete list would be
@@ -56,7 +59,7 @@ test.describe("FieldFlow · technician isolation", () => {
   }) => {
     // `gis.parcels` is effective for the project, so the route exists; what the technician gets
     // there is their own work only, never the project's responses.
-    await page.goto(`/t/${TENANT}/p/${PROJECT}/parcels/PRED-ZAM-001?tab=visitas`);
+    await page.goto(`/t/${TENANT}/p/${PROJECT}/parcels/${PARCELS.first}?tab=visitas`);
     const main = page.getByRole("main");
     await expect(main).not.toContainText("Técnico de campo 2");
   });

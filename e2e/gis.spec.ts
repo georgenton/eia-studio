@@ -1,4 +1,4 @@
-import { expect, PROJECT, TENANT, test } from "./fixtures";
+import { PARCELS, expect, PROJECT, TENANT, test } from "./fixtures";
 
 /**
  * The Slice 2 acceptance journey: Command Center → GIS / Parcel Explorer → shared selection →
@@ -25,23 +25,26 @@ test.describe("GIS reviewer journey", () => {
     await expect(page.getByText(/141 predios · 141 en vista/)).toBeVisible();
   });
 
-  test("the historical 141 and the synthetic 141 are not presented as the same fact", async ({
+  test("the study's published 141 and the imported layer's 141 are still two claims", async ({
     page,
   }) => {
+    /*
+     * Until the cartographic package arrived these two numbers were a real aggregate beside 141
+     * invented polygons, and the test's job was to keep them apart. Both are real now — and the
+     * job is unchanged. One is what the concluded study published; the other is how many polygons
+     * the consultancy's layer contains. They agree today, and a reader must still be able to see
+     * that they are different statements, because the next delivery may make them disagree.
+     */
     await page.goto(`/t/${TENANT}/p/${PROJECT}`);
     const main = page.getByRole("main");
 
-    // The KPI is the concluded study's verifiable universe.
     const strip = main.getByRole("group", { name: "Control de ejecución" });
     await expect(strip).toContainText("Universo estimado");
     await expect(strip).toContainText("REAL_AGGREGATE");
 
-    // The territorial summary counts the polygons we generated. Same number, different claim:
-    // it is labelled SYNTHETIC and says the layer is not cadastre.
     const territory = main.locator("section", { hasText: "Resumen territorial" }).first();
     await expect(territory).toContainText("141");
-    await expect(territory).toContainText("SYNTHETIC");
-    await expect(territory).toContainText("no es catastro");
+    // The layer is the study's own survey, and says so rather than claiming to be a registry.
     await expect(territory).not.toContainText("REAL_AGGREGATE");
   });
 
@@ -50,7 +53,9 @@ test.describe("GIS reviewer journey", () => {
     const table = page.getByRole("table", { name: /Predios/ });
 
     // 4 · the table is the accessible representation of the map: every parcel is a row
-    const row = table.getByRole("row").filter({ hasText: "PRED-ZAM-004" });
+    const row = table
+      .getByRole("row")
+      .filter({ has: page.getByRole("link", { name: `Abrir ${PARCELS.a}`, exact: true }) });
     await expect(row).toBeVisible();
 
     // 5 · selecting a row selects the parcel everywhere
@@ -59,15 +64,17 @@ test.describe("GIS reviewer journey", () => {
       "aria-pressed",
       "true",
     );
-    await expect(page.getByRole("status")).toContainText("PRED-ZAM-004");
+    await expect(page.getByRole("status")).toContainText(PARCELS.a);
 
     // 6 · the contextual panel describes the selected parcel and nothing else
     const panel = page.getByRole("complementary");
-    await expect(panel).toContainText("PRED-ZAM-004");
+    await expect(panel).toContainText(PARCELS.a);
     await expect(panel).toContainText("Predio seleccionado");
 
     // 7 · exactly one parcel is selected at a time
-    const other = table.getByRole("row").filter({ hasText: "PRED-ZAM-005" });
+    const other = table
+      .getByRole("row")
+      .filter({ has: page.getByRole("link", { name: `Abrir ${PARCELS.b}`, exact: true }) });
     await other.getByRole("button", { name: /Seleccionar/ }).click();
     await expect(other.getByRole("button", { name: /Seleccionar/ })).toHaveAttribute(
       "aria-pressed",
@@ -83,8 +90,10 @@ test.describe("GIS reviewer journey", () => {
     await page.goto(GIS);
 
     // 8 · a status filter reduces the set to the parcels that carry that state
+    // 20 of the 141 real parcels carry `INCOMPLETO` in the package's own `ESTADO` column, which
+    // the import maps to `estimated` — the boundary exists, the field work behind it does not yet.
     await page.getByRole("checkbox", { name: /En verificación/ }).check();
-    await expect(page.getByText(/141 predios · 2 en vista/)).toBeVisible();
+    await expect(page.getByText(/141 predios · 20 en vista/)).toBeVisible();
 
     // 9 · a search that matches nothing gives the empty-filter state, not an empty page
     await page.getByRole("checkbox", { name: /En verificación/ }).uncheck();
@@ -100,30 +109,50 @@ test.describe("GIS reviewer journey", () => {
     const legend = page.getByText("Procedencia de la capa");
     await expect(legend).toBeVisible();
     const main = page.getByRole("main");
-    await expect(main).toContainText("RECONSTRUCTED ALIGNMENT");
-    await expect(main).toContainText("eje aproximado, dibujado hasta recibir el GIS oficial");
-    await expect(main).toContainText("SYNTHETIC PARCELS");
-    await expect(main).toContainText("polígonos generados · no es catastro");
-    // The base map we do not have is not claimed.
+    // The alignment now comes from the official package, so the legend says so — and the
+    // reconstructed-axis caveat is gone because there is nothing left to caveat.
+    await expect(main).toContainText("OFFICIAL IMPORTED ALIGNMENT");
+    await expect(main).not.toContainText("RECONSTRUCTED ALIGNMENT");
+    await expect(main).not.toContainText("SYNTHETIC PARCELS");
+
+    /*
+     * The parcels are real, and the legend still refuses to call them cadastre: they are the
+     * consultancy's own survey, delivered with owner names that had to be stripped before the
+     * layer could be stored at all. "Official cadastre" would lend a registry's authority to a
+     * surveyor's file (ADR-023).
+     */
+    await expect(main).toContainText("IMPORTED STUDY LAYER");
+    await expect(main).toContainText("no es catastro oficial");
+    await expect(main).not.toContainText("OFFICIAL CADASTRE");
+
+    // The influence areas the study delimited are a layer of their own, labelled as such.
+    await expect(main).toContainText("STUDY DELIMITED AREA");
+
+    // The base map we do not have is still not claimed.
     await expect(main).not.toContainText("REAL BASE MAP");
   });
 
   test("open the Parcel Workspace from the selected parcel", async ({ page }) => {
     await page.goto(GIS);
     const table = page.getByRole("table", { name: /Predios/ });
-    const row = table.getByRole("row").filter({ hasText: "PRED-ZAM-004" });
+    const row = table
+      .getByRole("row")
+      .filter({ has: page.getByRole("link", { name: `Abrir ${PARCELS.a}`, exact: true }) });
     await row.getByRole("button", { name: /Seleccionar/ }).click();
 
     // 11 · the parcel is the master territorial workspace (invariant 7)
     await page.getByRole("link", { name: "Abrir Parcel Workspace" }).click();
-    await expect(page).toHaveURL(/\/parcels\/PRED-ZAM-004$/);
-    await expect(page.getByRole("heading", { name: "PRED-ZAM-004", level: 1 })).toBeVisible();
+    await expect(page).toHaveURL(new RegExp(`/parcels/${PARCELS.a}$`));
+    await expect(page.getByRole("heading", { name: PARCELS.a, level: 1 })).toBeVisible();
 
     // 12 · the summary states the territorial facts and their provenance
     const main = page.getByRole("main");
     await expect(main).toContainText("Ficha territorial");
-    await expect(main).toContainText("Proyección del centroide sobre el eje");
-    await expect(main.getByText("SYNTHETIC").first()).toBeVisible();
+    // The abscissa is the one the consultancy wrote on the field sheet, not one this product
+    // inferred from a centroid. The distinction is on screen because the method is (ADR-023).
+    await expect(main).toContainText("Declarada en ficha de campo");
+    await expect(main).not.toContainText("Proyección del centroide sobre el eje");
+    await expect(main).not.toContainText("SYNTHETIC");
 
     // 13 · the Visits tab is field work, and since Slice 3 it has some: state, questionnaire
     // version and provenance, never the answers themselves.
@@ -136,13 +165,22 @@ test.describe("GIS reviewer journey", () => {
   });
 
   test("parcel provenance opens the same one drawer", async ({ page }) => {
-    await page.goto(`/t/${TENANT}/p/${PROJECT}/parcels/PRED-ZAM-004`);
+    await page.goto(`/t/${TENANT}/p/${PROJECT}/parcels/${PARCELS.a}`);
     await page.getByRole("link", { name: "Ver origen de los datos del predio" }).click();
     const drawer = page.getByRole("dialog");
     await expect(drawer).toBeVisible();
     await expect(drawer).toContainText("Régimen");
-    await expect(drawer).toContainText("Simulación de demostración");
-    await expect(drawer).toContainText("corridor-generator@1");
+    /*
+     * The boundary is a fact of a concluded study, not a simulation — and the drawer says both
+     * how it arrived and what was done to it. `Anonimizado` is the honest half: the layer reached
+     * this product only after every owner-bearing attribute was stripped from it, and a reader who
+     * wants to know why a name is missing can find the answer here.
+     */
+    await expect(drawer).toContainText("Histórico observado");
+    await expect(drawer).toContainText("Dataset importado");
+    await expect(drawer).toContainText("Anonimizado");
+    await expect(drawer).not.toContainText("Simulación de demostración");
+    await expect(drawer).not.toContainText("corridor-generator@1");
     await page.keyboard.press("Escape");
     await expect(drawer).toBeHidden();
   });
@@ -165,20 +203,20 @@ test.describe("GIS reviewer journey", () => {
     // Reach the selection control of a specific parcel by tabbing, never by clicking.
     const select = table
       .getByRole("row")
-      .filter({ hasText: "PRED-ZAM-004" })
+      .filter({ has: page.getByRole("link", { name: `Abrir ${PARCELS.a}`, exact: true }) })
       .getByRole("button", { name: /Seleccionar/ });
     await select.focus();
     await expect(select).toBeFocused();
     await page.keyboard.press("Enter");
     await expect(select).toHaveAttribute("aria-pressed", "true");
-    await expect(page.getByRole("status")).toContainText("PRED-ZAM-004");
+    await expect(page.getByRole("status")).toContainText(PARCELS.a);
 
     // Open the Parcel Workspace from the keyboard.
     const open = page.getByRole("link", { name: "Abrir Parcel Workspace" });
     await open.focus();
     await page.keyboard.press("Enter");
-    await expect(page).toHaveURL(/\/parcels\/PRED-ZAM-004$/);
-    await expect(page.getByRole("heading", { name: "PRED-ZAM-004", level: 1 })).toBeVisible();
+    await expect(page).toHaveURL(new RegExp(`/parcels/${PARCELS.a}$`));
+    await expect(page.getByRole("heading", { name: PARCELS.a, level: 1 })).toBeVisible();
 
     // And inspect provenance from the keyboard.
     const provenance = page.getByRole("link", { name: "Ver origen de los datos del predio" });
@@ -201,7 +239,7 @@ test.describe("GIS reviewer journey", () => {
   });
 
   test("a parcel of another project is not reachable by guessing its code", async ({ page }) => {
-    const response = await page.goto(`/t/${TENANT}/p/${PROJECT}/parcels/PRED-ZAM-999`);
+    const response = await page.goto(`/t/${TENANT}/p/${PROJECT}/parcels/${PARCELS.absent}`);
     expect(response?.status()).toBe(404);
   });
 });

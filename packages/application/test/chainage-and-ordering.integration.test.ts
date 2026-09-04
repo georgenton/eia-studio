@@ -53,7 +53,7 @@ async function deriveChainage(projectId: string, tenantId: string) {
     )
     update app.parcel p
        set chainage_m = round((
-             ST_LineLocatePoint(axis.geom, ST_Centroid(ST_Transform(g.geom, ${ANALYSIS_SRID})))
+             ST_LineLocatePoint(ST_LineMerge(axis.geom), ST_Centroid(ST_Transform(g.geom, ${ANALYSIS_SRID})))
              * axis.length_m
            )::numeric, 1),
            chainage_method = 'centroid_projection'
@@ -114,9 +114,9 @@ beforeAll(async () => {
       (id, tenant_id, project_id, dataset_version_id, label, geom, length_m, provenance_id)
     values (${randomUUID()}, ${w.tenantA.id}, ${w.projectX.id}, ${alignmentVersion.id},
             'Eje de prueba',
-            ST_GeomFromText('LINESTRING(-79.00 -4.00, -78.90 -4.00)', 4326),
+            ST_Multi(ST_GeomFromText('LINESTRING(-79.00 -4.00, -78.90 -4.00)', 4326)),
             ST_Length(ST_Transform(
-              ST_GeomFromText('LINESTRING(-79.00 -4.00, -78.90 -4.00)', 4326), ${ANALYSIS_SRID})),
+              ST_Multi(ST_GeomFromText('LINESTRING(-79.00 -4.00, -78.90 -4.00)', 4326)), ${ANALYSIS_SRID})),
             ${provenanceId})
   `);
   const lengthRow = await db.migrator.execute(sql`

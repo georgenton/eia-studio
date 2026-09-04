@@ -372,7 +372,7 @@ export async function createParcelWithGeometry(
        provenance_id)
     values (
       ${geometryId}, ${input.tenantId}, ${input.projectId}, ${parcelId}, ${input.datasetVersionId},
-      ST_GeomFromText(${wkt}, 4326),
+      ST_Multi(ST_GeomFromText(${wkt}, 4326)),
       ST_Area(ST_Transform(ST_GeomFromText(${wkt}, 4326), ${sql.raw(String(analysisSrid))})),
       ${input.isActive ?? true},
       ${input.provenanceId}

@@ -20,7 +20,9 @@
   "project": {
     "slug": "puente-del-amor",
     "name": "Vía Puente del Amor – Los Hachos",
-    "locationLabel": "Zamora Chinchipe, Ecuador",
+    "locationLabel": "Yantzaza, Zamora Chinchipe",
+    "officialTitle": "Actualización de Estudios Socioambientales con lineamientos BID para el proyecto de asfaltado de la vía Puente del Amor – Los Hachos, cantón Yantzaza, provincia de Zamora Chinchipe",
+    "programmeReference": "PROVIAL 2 · EC-L1289",
     "profileKey": "road_eia_social",
     "profileVersion": "1",
     "lifecycle": "field"
@@ -110,55 +112,55 @@
       "$capturedAtFromScenario": true
     },
     "alignment": {
-      "key": "alignment-reconstructed",
-      "regime": "DEMO_SIMULATION",
-      "origin": "SYSTEM_GENERATED",
-      "transformations": ["ORIGINAL", "RECONSTRUCTED"],
-      "granularity": null,
-      "title": "Eje vial reconstruido del corredor",
-      "note": "Trazado aproximado generado para la demostración. No procede del paquete GIS oficial, que todavía no se ha recibido: se dibuja de forma discontinua y se reemplazará por el eje oficial cuando llegue. No es cartografía de referencia.",
-      "sourceLabel": "corridor-generator@1 · eje reconstruido",
-      "sourceReference": "fixtures/projects/zamora-puente-del-amor",
-      "sourceVersion": "alignment_v1",
-      "method": "Polilínea sobre puntos de control fijos, remuestreada cada 40 m con sinuosidad determinista; longitud verificada contra la cifra histórica del corredor.",
+      "regime": "HISTORICAL_OBSERVED",
+      "origin": "IMPORTED_DATASET",
+      "sourceLabel": "Anexo 7. Cartografía · CARTOGRAFIA.gdb (paquete de la consultora)",
+      "sourceReference": "sha256:ef9cd4c88d3955e61fb9b5e5055858827d7bdb5190084a9f9ebb4b7925205c1f",
       "capturedAt": null,
       "$capturedAtFromScenario": true,
-      "validationState": "PENDING",
-      "validationNote": "Se reemplazará con el eje del GIS oficial"
+      "key": "alignment-imported",
+      "transformations": ["ORIGINAL", "ANONYMIZED"],
+      "granularity": null,
+      "title": "Eje vial del paquete cartográfico",
+      "note": "Eje levantado por la consultora y entregado en el geodatabase del estudio (capa EJE_VIAL). Geometría original, reproyectada de EPSG:32717 al CRS de almacenamiento; no se alteró ninguna coordenada. Se descartó un atributo no geométrico al sanear el paquete.",
+      "sourceVersion": "EJE_VIAL",
+      "method": "Importación directa de la capa EJE_VIAL; la longitud la mide PostGIS sobre la geometría almacenada, en el CRS de análisis del propio dataset.",
+      "validationState": "VALIDATED",
+      "validationNote": "Longitud medida 7.361,3 m, coherente con los ~7,4 km publicados por el estudio"
     },
     "parcels": {
-      "key": "parcels-synthetic",
-      "regime": "DEMO_SIMULATION",
-      "origin": "SYSTEM_GENERATED",
-      "transformations": ["ORIGINAL"],
-      "granularity": "INDIVIDUAL",
-      "title": "Predios sintéticos del corredor",
-      "note": "Polígonos generados para representar el universo histórico de 141 predios frentistas. NO SON CATASTRO y no son los linderos históricos: son geometría de demostración con el mismo recuento que la cifra del expediente. La identidad de cada predio persiste cuando llegue la capa oficial; solo se reemplaza su geometría.",
-      "sourceLabel": "corridor-generator@1 · predios sintéticos",
-      "sourceReference": "fixtures/projects/zamora-puente-del-amor",
-      "sourceVersion": "parcels_v1",
-      "method": "Cuadriláteros perpendiculares al eje, alternando lados, con frente y fondo variados de forma determinista a partir de una semilla fija.",
+      "regime": "HISTORICAL_OBSERVED",
+      "origin": "IMPORTED_DATASET",
+      "sourceLabel": "Anexo 7. Cartografía · CARTOGRAFIA.gdb (paquete de la consultora)",
+      "sourceReference": "sha256:ef9cd4c88d3955e61fb9b5e5055858827d7bdb5190084a9f9ebb4b7925205c1f",
       "capturedAt": null,
       "$capturedAtFromScenario": true,
-      "validationState": "PENDING",
-      "validationNote": "Geometría de demostración, sin validar"
+      "key": "parcels-imported",
+      "transformations": ["ORIGINAL", "ANONYMIZED"],
+      "granularity": "INDIVIDUAL",
+      "title": "Predios frentistas del paquete cartográfico",
+      "note": "Los 141 predios frentistas del estudio (capa PREDIOS), con el código que usa la ficha de campo. Es el levantamiento predial de la consultora, NO catastro oficial. Se eliminaron 18 atributos con datos personales — propietario, escritura, acta de compra, encuestador, cargo, fotografías, fichas y notas de campo — antes de que la capa entrara al repositorio. La geometría no se modificó.",
+      "sourceVersion": "PREDIOS",
+      "method": "Lista blanca de atributos sobre la capa PREDIOS; se conservan código, superficie, estado, indicador de afectación y uso. La superficie que muestra el producto la calcula PostGIS sobre la geometría almacenada.",
+      "validationState": "PARTIAL",
+      "validationNote": "141 predios con código único; el paquete discrepa consigo mismo en otras fuentes (148 en la lista, 74 en la exportación)"
     },
     "affectations": {
-      "key": "affectations-synthetic",
-      "regime": "DEMO_SIMULATION",
-      "origin": "SYSTEM_GENERATED",
-      "transformations": ["ORIGINAL", "DERIVED"],
-      "granularity": "INDIVIDUAL",
-      "title": "Afectación estimada por franja de derecho de vía",
-      "note": "Intersección calculada entre cada predio sintético y una franja de derecho de vía de ancho fijo. Es una estimación geométrica de demostración: no es un avalúo, no representa un acuerdo y no incluye datos de personas.",
-      "sourceLabel": "corridor-generator@1 · afectación derivada",
-      "sourceReference": null,
-      "sourceVersion": "affectations_v1",
-      "method": "Área del predio dentro de la franja de derecho de vía ÷ área total del predio.",
+      "regime": "HISTORICAL_OBSERVED",
+      "origin": "IMPORTED_DATASET",
+      "sourceLabel": "Anexo 7. Cartografía · CARTOGRAFIA.gdb (paquete de la consultora)",
+      "sourceReference": "sha256:ef9cd4c88d3955e61fb9b5e5055858827d7bdb5190084a9f9ebb4b7925205c1f",
       "capturedAt": null,
       "$capturedAtFromScenario": true,
-      "validationState": "PENDING",
-      "validationNote": "Estimación geométrica de demostración"
+      "key": "affectations-imported",
+      "transformations": ["ORIGINAL", "ANONYMIZED"],
+      "granularity": "INDIVIDUAL",
+      "title": "Áreas afectadas del paquete cartográfico",
+      "note": "Las 71 áreas afectadas delimitadas por el estudio (capa AREAS_AFECTADAS). No es un avalúo, no representa un acuerdo y no incluye datos de personas: se eliminaron 19 atributos personales al sanear la capa. Una de las 71 corresponde a un código sin predio y no se importó.",
+      "sourceVersion": "AREAS_AFECTADAS",
+      "method": "Lista blanca de atributos; cada área se enlaza a su predio por el código del paquete. La superficie afectada la calcula PostGIS sobre la geometría almacenada.",
+      "validationState": "PARTIAL",
+      "validationNote": "70 de 71 áreas tienen predio correspondiente; el código 090 no existe en la capa de predios"
     },
     "fieldQuestionnaire": {
       "key": "field-questionnaire-reconstructed",
@@ -227,6 +229,23 @@
       "validationState": "PARTIAL",
       "validationNote": "Los valores son los del expediente; su reconciliación entre documentos es precisamente lo que el Quality Gate señala para revisión de especialista.",
       "$capturedAtFromScenario": true
+    },
+    "influenceAreas": {
+      "regime": "HISTORICAL_OBSERVED",
+      "origin": "IMPORTED_DATASET",
+      "sourceLabel": "Anexo 7. Cartografía · CARTOGRAFIA.gdb (paquete de la consultora)",
+      "sourceReference": "sha256:ef9cd4c88d3955e61fb9b5e5055858827d7bdb5190084a9f9ebb4b7925205c1f",
+      "capturedAt": null,
+      "$capturedAtFromScenario": true,
+      "key": "influence-areas-imported",
+      "transformations": ["ORIGINAL"],
+      "granularity": "AGGREGATE",
+      "title": "Áreas de influencia delimitadas por el estudio",
+      "note": "Área de influencia directa e indirecta del componente físico y área de influencia social directa e indirecta (capas AID_FISICA_TOTAL, AII_FISICA_TOTAL, AISD, AISI). Las cuatro llegaron declaradas en EPSG:32718 y se reproyectaron al CRS de almacenamiento; ninguna coordenada se alteró. No contienen atributos personales.",
+      "sourceVersion": "AID/AII/AISD/AISI",
+      "method": "Importación directa de las cuatro capas; la superficie la calcula PostGIS en el CRS de análisis del proyecto.",
+      "validationState": "PARTIAL",
+      "validationNote": "Declaradas en una zona UTM distinta al resto del paquete; reproyectadas, coinciden con el corredor"
     }
   },
   "metrics": [
@@ -429,49 +448,25 @@
     "scenarioTime": "14:02"
   },
   "gis": {
-    "$comment": "Deterministic generator inputs for the reconstructed corridor and its synthetic parcels. Repeated seeding reproduces identical business codes and geometry. Geometry is stored canonically in EPSG:4326; analysisSrid is the projected CRS this project's lengths and areas are measured in, and is a DEMO assumption because the official GIS package has not been received. NOT cadastre, NOT field survey. Contains no owner names, no phone numbers, no personal coordinates and no cadastral keys.",
-    "generator": "corridor-generator@1",
+    "$comment": "Cartografía real del estudio, extraída del paquete de la consultora y saneada: se conservan geometría, códigos de predio, abscisas, lado y superficie, y se eliminan todos los atributos con datos personales (propietario, escritura, acta de compra, encuestador, fotografías, fichas y notas de campo). No contiene nombres, cédulas, teléfonos ni direcciones. La geometría se almacena en EPSG:4326; analysisSrid es el CRS proyectado en el que se miden longitudes y superficies de este proyecto y ahora lo declara el propio paquete.",
     "analysisSrid": 32717,
-    "crsBasis": "DEMO_ASSUMPTION",
-    "alignmentLabel": "Eje vial del corredor",
-    "input": {
-      "seed": "puente-del-amor-v1",
-      "controlPoints": [
-        [-78.9536, -4.0812],
-        [-78.941, -4.0755],
-        [-78.9268, -4.0723],
-        [-78.9105, -4.0688],
-        [-78.8894, -4.063]
-      ],
-      "parcelCount": 141,
-      "frontageM": 62,
-      "depthM": 210,
-      "rightOfWayHalfWidthM": 25,
-      "setbackM": 6,
-      "sectors": [
-        {
-          "label": "Tramo 1",
-          "share": 0.28
-        },
-        {
-          "label": "Tramo 2",
-          "share": 0.3
-        },
-        {
-          "label": "Tramo 3",
-          "share": 0.23
-        },
-        {
-          "label": "Tramo 4",
-          "share": 0.19
-        }
-      ],
-      "codePrefix": "PRED-ZAM",
-      "statusPlan": {
-        "estimated": 2,
-        "notLocated": 1,
-        "excluded": 0
-      }
+    "crsBasis": "SOURCE_DECLARED",
+    "alignmentLabel": "Eje vial Puente del Amor – Mutintza",
+    "source": {
+      "archive": "Anexo 7. Cartografía.rar",
+      "sha256": "ef9cd4c88d3955e61fb9b5e5055858827d7bdb5190084a9f9ebb4b7925205c1f",
+      "receivedAt": "2026-09-02",
+      "dataset": "GDB/CARTOGRAFIA.gdb",
+      "sourceSrid": 32717,
+      "sanitization": "lista blanca de atributos; se descartaron 18 columnas en PREDIOS y 19 en AREAS_AFECTADAS"
+    },
+    "placeholderRemap": "ordinal_along_corridor",
+    "files": {
+      "alignment": "gis/alignment.geojson",
+      "parcels": "gis/parcels.geojson",
+      "affectations": "gis/affectations.geojson",
+      "chainage": "gis/chainage.json",
+      "influenceAreas": "gis/influence-areas.geojson"
     }
   },
   "field": {
@@ -770,8 +765,8 @@
       {
         "key": "project.location_label",
         "sourceRef": "Ficha técnica del proyecto",
-        "valueText": "Zamora Chinchipe, Ecuador",
-        "quote": "Provincia de Zamora Chinchipe, Ecuador"
+        "valueText": "Yantzaza, Zamora Chinchipe",
+        "quote": "Cantón Yantzaza, provincia de Zamora Chinchipe"
       }
     ]
   },

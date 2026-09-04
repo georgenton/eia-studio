@@ -1,7 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
 
-import { expect, PROJECT, TENANT, test } from "./fixtures";
+import { PARCEL_CODE_PATTERN, expect, PROJECT, TENANT, test } from "./fixtures";
 
 /**
  * The technician surface on the device it was designed for: accessibility, the refused-location
@@ -51,7 +51,7 @@ test.describe("FieldFlow · the technician's device", () => {
 
   test("an assignment with its questionnaire passes the accessibility scan", async ({ page }) => {
     await page.goto(FIELD);
-    await page.getByRole("link").filter({ hasText: /PRED-/ }).first().click();
+    await page.getByRole("link").filter({ hasText: PARCEL_CODE_PATTERN }).first().click();
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
     await scan(page);
   });
@@ -97,7 +97,7 @@ test.describe("FieldFlow · the technician's device", () => {
     await expect(page.getByRole("heading", { name: "Mi trabajo", level: 1 })).toBeVisible();
     await page.screenshot({ path: `${OUT}/01-my-work-mobile.png`, fullPage: true });
 
-    await page.getByRole("link").filter({ hasText: /PRED-/ }).first().click();
+    await page.getByRole("link").filter({ hasText: PARCEL_CODE_PATTERN }).first().click();
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
     await page.screenshot({ path: `${OUT}/02-assignment-mobile.png`, fullPage: true });
 
