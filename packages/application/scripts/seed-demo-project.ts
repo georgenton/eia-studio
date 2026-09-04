@@ -1475,6 +1475,17 @@ try {
         ),
       );
 
+      /*
+       * A campaign that already has work keeps it, and does not grow.
+       *
+       * Re-seeding fills gaps; it never re-does work, because an assignment may carry a submitted
+       * response that is immutable by design. But "fill the gaps" has to mean *up to the size the
+       * fixture declares*: when the selection of target parcels changed, an environment that had
+       * already been seeded gained the new targets **on top of** the old ones, and a twelve-parcel
+       * campaign quietly became a twenty-two-parcel one. The count below is what stops that.
+       */
+      let placedTotal = alreadyAssigned.size;
+
       for (const [index, target] of parcels.entries()) {
         // Every third assignment goes to the second technician, so "another technician's work
         // is invisible" is something the demo can actually demonstrate.
@@ -1487,6 +1498,11 @@ try {
           if (completed) submissionsSeeded += 1;
           continue;
         }
+
+        // The campaign is already the size it declares: the parcels it covers are the ones it
+        // covered before, wherever the selection has since moved to.
+        if (placedTotal >= field.campaign.assignmentCount) continue;
+        placedTotal += 1;
 
         const assignmentId = randomUUID();
         await tx.insert(fieldSchema.fieldAssignment).values({
