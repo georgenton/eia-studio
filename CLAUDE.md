@@ -94,6 +94,20 @@ version, idempotent by the file's SHA-256, and a revision supersedes rather than
 been built, and `audit.environmental` keeps that lifecycle (ADR-024 §7). `compliance.pma` is
 therefore AVAILABLE with a narrowed meaning, and the catalogue still holds exactly 14 keys.
 
+**Wave D (the product's language)** made every word on screen Spanish (ADR-025). The rule is a
+boundary rather than a translation pass: **a stored value is never rendered; a label for it is.**
+The rail reads *Centro de control · Cartografía y predios · Trabajo de campo · Análisis social ·
+Control de calidad · Documentos · Plan de Manejo · Informes*; the provenance drawer is headed
+*ORIGEN DEL DATO* with a *Validación humana* field; the four SOURCE TYPE badges say *Dato histórico
+· Dato calculado · Agregado sin datos personales · Simulación operativa* — the four categories and
+their derivation are unchanged (invariant 13), only the words. The solid **DEMO** stamp is gone:
+marking a simulation is an obligation (invariant 4), and a badge nobody reads twice has stopped
+marking anything. Keys, capability names, URL segments, enum values and the database keep their
+English names, and the consultancy's own words are quoted verbatim. `e2e/vocabulary.spec.ts` fails
+on any `SCREAMING_SNAKE_CASE` or leaked English that reaches a screen; the vocabulary itself is
+`docs/PRODUCT_LANGUAGE_ES.md`, and the divergence from the approved bundle is entry 15 of
+`docs/DESIGN_BUNDLE_KNOWN_ISSUES.md`.
+
 The Client Portal is **not** implemented; its route exists only as a capability-guarded placeholder
 until its slice lands.
 
@@ -117,11 +131,12 @@ Architecture documentation:
 Also relevant by task: `docs/DATA_MODEL.md`, `docs/PROVENANCE.md`, `docs/AI_GOVERNANCE.md`,
 `docs/DEMO_ZAMORA.md`, `docs/DESIGN_SYSTEM.md`, `docs/TESTING_STRATEGY.md`,
 `docs/GIS_IMPORT_CONTRACT.md`, `docs/FIELD_CAPTURE_ADAPTER_CONTRACT.md`, `docs/PGAS_MODEL.md`,
+`docs/PRODUCT_LANGUAGE_ES.md`,
 `docs/REAL_DATA_INTAKE.md`,
 `docs/IMPLEMENTATION_PLAN.md`, `docs/DESIGN_BUNDLE_KNOWN_ISSUES.md`, the delivery docs
 `docs/ENGINEERING_STANDARDS.md`, `docs/RELEASE_POLICY.md`, `docs/CI.md`, `docs/DEPLOYMENT.md`,
 `docs/DEPENDENCIES.md`, `docs/TECH_DEBT.md`, the Gate record `docs/DECISIONS/GATE-1.md`, and
-the ADRs in `docs/DECISIONS/ADR-001` … `ADR-024`. Root `README.md` has the local quick start.
+the ADRs in `docs/DECISIONS/ADR-001` … `ADR-025`. Root `README.md` has the local quick start.
 
 ## Working rules for every session
 

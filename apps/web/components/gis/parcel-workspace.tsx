@@ -124,7 +124,7 @@ export function ParcelWorkspace({
         <PendingModule
           capability="quality.document_gate"
           label="Calidad"
-          note="Los hallazgos del Quality Gate referidos a este predio se mostrarán aquí cuando el módulo esté implementado."
+          note="Los hallazgos del control de calidad referidos a este predio se mostrarán aquí cuando el módulo esté implementado."
         />
       ) : null}
     </div>
@@ -360,7 +360,7 @@ function VisitsTab({
         </table>
         <p className={styles.muted} style={{ marginTop: 12 }}>
           {canReadResponses
-            ? "Las respuestas individuales se consultan desde Social Intelligence, que llega en una fase posterior."
+            ? "Las respuestas individuales se consultan desde el análisis social, que llega en una fase posterior."
             : "Se muestra el estado del trabajo de campo. Ver una respuesta individual requiere el permiso field.responses.read."}
         </p>
       </PanelBody>

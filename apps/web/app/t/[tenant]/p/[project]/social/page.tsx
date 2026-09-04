@@ -125,7 +125,7 @@ export default async function SocialPage({
       <WorkspaceShell {...shell}>
         <div className={styles.surface}>
           <p className={styles.note} data-system-state="no-survey-data">
-            Todavía no hay respuestas enviadas que tabular. Social Intelligence lee únicamente
+            Todavía no hay respuestas enviadas que tabular. El análisis social lee únicamente
             respuestas <strong>enviadas</strong>: los borradores de campo no participan en ninguna
             cifra de esta superficie.
           </p>
@@ -162,7 +162,7 @@ export default async function SocialPage({
   return (
     <WorkspaceShell {...shell}>
       <div className={styles.surface}>
-        <nav className={styles.tabs} aria-label="Secciones de Social Intelligence">
+        <nav className={styles.tabs} aria-label="Secciones del análisis social">
           <a
             className={styles.tab}
             href={`?version=${selected.versionId}&tab=tabulacion`}

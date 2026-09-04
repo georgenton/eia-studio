@@ -165,15 +165,15 @@ test.describe("Social Intelligence · the specialist's journey", () => {
 
   test("the historical study and the demo coding stay apart", async ({ page }) => {
     await page.goto(`/t/${TENANT}/p/${PROJECT}`);
-    // The concluded study's socioeconomic figures carry the REAL_AGGREGATE badge on the Command
+    // The concluded study's socioeconomic figures carry the historical badge on the Command
     // Center: they are historical observations, and nothing produced by this slice joins them.
-    await expect(page.getByRole("main")).toContainText("REAL_AGGREGATE");
+    await expect(page.getByRole("main")).toContainText("Dato histórico");
 
     // Everything on the Social surface is demonstration data, and says so: the coding scheme is
     // marked as a reconstruction and the responses are synthetic.
     await page.goto(`${SOCIAL}?tab=abiertas`);
     const social = page.getByRole("main");
     await expect(social).toContainText("DEMO / RECONSTRUIDA");
-    await expect(social).not.toContainText("REAL_AGGREGATE");
+    await expect(social).not.toContainText("Dato histórico");
   });
 });

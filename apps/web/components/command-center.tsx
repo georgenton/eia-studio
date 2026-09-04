@@ -196,7 +196,7 @@ export function CommandCenter({
           {forecast ? (
             <Panel>
               <PanelHeader
-                label="Operational forecast"
+                label="Proyección operativa"
                 note="cálculo aritmético sobre el ritmo observado · sin modelo predictivo"
                 action={<ProvenanceLink href={provHref(basePath, forecast.provenanceId)} />}
               />
@@ -314,7 +314,7 @@ export function CommandCenter({
             <Panel>
               <PanelHeader
                 label="Actividad reciente"
-                badge={<DemoBadge facets={view.activity.map((a) => a.provenance)} label="DEMO" />}
+                badge={<DemoBadge facets={view.activity.map((a) => a.provenance)} />}
                 note={scenarioLabel ?? undefined}
               />
               <ActivityTable
@@ -365,7 +365,7 @@ export function CommandCenter({
             <PanelBody>
               <p className={styles.muted}>
                 Los instrumentos del proyecto y los hallazgos de calidad llegan con los módulos de
-                campo y Quality Gate. No se muestran cifras inventadas en su lugar.
+                campo y control de calidad. No se muestran cifras inventadas en su lugar.
               </p>
             </PanelBody>
           </Panel>
@@ -478,7 +478,9 @@ function FieldProgressPanel({
         label="Campaña de campo en curso"
         badge={<ProvenanceBadge facets={progress.provenance} />}
         action={
-          fieldPath ? <ProvenanceLink href={fieldPath}>Abrir FieldFlow</ProvenanceLink> : undefined
+          fieldPath ? (
+            <ProvenanceLink href={fieldPath}>Abrir el trabajo de campo</ProvenanceLink>
+          ) : undefined
         }
       />
       <PanelBody>

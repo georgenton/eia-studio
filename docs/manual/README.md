@@ -10,6 +10,11 @@ Rules for these pages:
 - every figure they mention is demo or reconstructed data, and they say which;
 - they are updated in the same pull request as the behaviour they describe.
 
+> **The screen is in Spanish; these pages are not.** Since ADR-025 the rail reads _Centro de
+> control_, _Cartografía y predios_, _Trabajo de campo_, _Análisis social_, _Control de calidad_,
+> _Documentos_, _Plan de Manejo_ and _Informes_. These guides keep the module names an engineer
+> searches for, and `docs/PRODUCT_LANGUAGE_ES.md` is the mapping between the two.
+
 | Page                                                            | Covers                                                                   | State   |
 | --------------------------------------------------------------- | ------------------------------------------------------------------------ | ------- |
 | [01 · Access and roles](01-access-and-roles.md)                 | signing in, the synthetic identities, what each role may do, signing out | current |

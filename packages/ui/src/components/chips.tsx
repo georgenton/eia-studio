@@ -1,4 +1,4 @@
-import type { ProvenanceFacets } from "@eia/domain";
+import { SOURCE_TYPE_LABEL, type ProvenanceFacets } from "@eia/domain";
 import type { ReactNode } from "react";
 
 import { deriveSourceTypeLabel, needsDemoBadge } from "../provenance-label";
@@ -41,8 +41,9 @@ const SOURCE_TYPE_TONE: Record<string, ChipTone> = {
 };
 
 /**
- * The v0.2 SOURCE TYPE badge. It is derived from the faceted provenance at render time and is
- * never read from a stored column (ADR-005, invariant 13).
+ * The v0.2 SOURCE TYPE badge, spoken in Spanish (ADR-025). It is derived from the faceted
+ * provenance at render time and is never read from a stored column (ADR-005, invariant 13); the
+ * derivation returns the four keys and this only decides the words.
  */
 export function ProvenanceBadge({ facets }: { facets: ProvenanceFacets }) {
   const label = deriveSourceTypeLabel(facets);
@@ -51,18 +52,22 @@ export function ProvenanceBadge({ facets }: { facets: ProvenanceFacets }) {
     <span
       className={`${styles.chip} ${styles.mono} ${styles[SOURCE_TYPE_TONE[label] ?? "neutral"]}`}
     >
-      {label}
+      {SOURCE_TYPE_LABEL[label]}
     </span>
   );
 }
 
 /**
- * Block-level DEMO / SYNTHETIC badge. Shown on any panel where at least one composing value is a
- * demo simulation, so a reader cannot mistake it for the historical record (invariant 4).
+ * Block-level badge for a panel whose figures include a simulation, so a reader cannot mistake one
+ * for the historical record (invariant 4).
+ *
+ * It says *Simulación operativa* rather than **DEMO**. The obligation is that the reader can tell
+ * which numbers are real; shouting a three-letter English word at them on every panel achieved
+ * that by making the product look like a sales demonstration of itself (ADR-025).
  */
 export function DemoBadge({
   facets,
-  label = "DEMO / SYNTHETIC",
+  label = "Simulación operativa",
 }: {
   facets: ReadonlyArray<ProvenanceFacets>;
   label?: string;

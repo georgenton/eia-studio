@@ -90,3 +90,26 @@ export const GRANULARITY_LABEL = {
   INDIVIDUAL: "Individual",
   AGGREGATE: "Agregado",
 } as const;
+
+/**
+ * The four SOURCE TYPE badges, in words a consultant reads rather than the enum a developer wrote
+ * (ADR-025). The *derivation* is unchanged — `deriveSourceTypeLabel` still returns the four keys of
+ * invariant 13 — and this is only how each one is spoken.
+ *
+ * Each phrase says what the number **is**, not what pipeline produced it: a reader deciding whether
+ * they may quote a figure needs to know it came from the file, or that nobody measured it.
+ */
+export const SOURCE_TYPE_LABEL = {
+  REAL_AGGREGATE: "Dato histórico",
+  RECONSTRUCTED: "Dato calculado",
+  ANONYMIZED: "Agregado sin datos personales",
+  SYNTHETIC: "Simulación operativa",
+} as const;
+
+/** One line explaining the badge above, shown beside it where there is room. */
+export const SOURCE_TYPE_NOTE = {
+  REAL_AGGREGATE: "Cifra verificable del expediente, sin datos identificables.",
+  RECONSTRUCTED: "Valor derivado de fuentes reales con un método declarado.",
+  ANONYMIZED: "Agregado de registros reales, sin identificadores.",
+  SYNTHETIC: "Generado para la demostración. No es historia del proyecto.",
+} as const;

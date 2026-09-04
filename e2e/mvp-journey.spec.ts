@@ -22,17 +22,18 @@ const HOME = `/t/${TENANT}/p/${PROJECT}`;
 test.describe("MVP · the coordinator's walkthrough, end to end", () => {
   test("the shell carries tenant and project across every surface", async ({ page }) => {
     await page.goto(`/t/${TENANT}`);
-    await page.getByRole("link", { name: "Abrir Command Center" }).click();
+    await page.getByRole("link", { name: "Abrir el centro de control" }).click();
     await expect(page).toHaveURL(new RegExp(`/t/${TENANT}/p/${PROJECT}$`));
 
     const rail = page.getByRole("navigation", { name: "Navegación principal" });
     const destinations = [
-      "GIS & Predios",
-      "Field Surveys",
-      "Social Intelligence",
-      "Quality Gate",
-      "Documents",
-      "Reports",
+      "Cartografía y predios",
+      "Trabajo de campo",
+      "Análisis social",
+      "Control de calidad",
+      "Documentos",
+      "Plan de Manejo",
+      "Informes",
     ];
     const crumbs = page.getByRole("navigation", { name: "Ruta de navegación" });
     // The Command Center's breadcrumb names the project the way a person would.

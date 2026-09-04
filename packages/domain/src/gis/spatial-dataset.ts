@@ -95,35 +95,35 @@ export const LAYER_LEGEND_COPY: Readonly<
   Record<LayerProvenanceLegend, { label: string; note: string }>
 > = {
   REAL_BASE_MAP: {
-    label: "REAL BASE MAP",
+    label: "Cartografía base real",
     note: "hidrografía, poblados y localización general",
   },
   RECONSTRUCTED_ALIGNMENT: {
-    label: "RECONSTRUCTED ALIGNMENT",
+    label: "Eje reconstruido",
     note: "eje aproximado, dibujado hasta recibir el GIS oficial",
   },
   SYNTHETIC_PARCELS: {
-    label: "SYNTHETIC PARCELS",
+    label: "Predios simulados",
     note: "polígonos generados · no es catastro",
   },
   OFFICIAL_IMPORTED_ALIGNMENT: {
-    label: "OFFICIAL IMPORTED ALIGNMENT",
+    label: "Eje vial del estudio",
     note: "eje vial del paquete GIS oficial",
   },
   OFFICIAL_CADASTRE: {
-    label: "OFFICIAL CADASTRE",
+    label: "Catastro oficial",
     note: "capa catastral oficial importada",
   },
   FIELD_CAPTURED: {
-    label: "FIELD CAPTURED",
+    label: "Levantado en campo",
     note: "geometría levantada en campo",
   },
   IMPORTED_STUDY_LAYER: {
-    label: "IMPORTED STUDY LAYER",
+    label: "Capa del estudio",
     note: "levantamiento predial del estudio · no es catastro oficial",
   },
   STUDY_DELIMITED_AREA: {
-    label: "STUDY DELIMITED AREA",
+    label: "Área delimitada por el estudio",
     note: "área de influencia delimitada por el estudio",
   },
 };

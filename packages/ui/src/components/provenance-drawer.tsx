@@ -93,7 +93,7 @@ export function ProvenanceDrawer({
       >
         <div className={styles.header}>
           <div>
-            <div className={styles.eyebrow}>DATA PROVENANCE</div>
+            <div className={styles.eyebrow}>ORIGEN DEL DATO</div>
             <h2 className={styles.title}>{title}</h2>
           </div>
           <button

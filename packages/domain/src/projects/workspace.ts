@@ -37,11 +37,19 @@ export interface SurfaceDefinition {
   readonly plannedIn: string | null;
 }
 
+/**
+ * The rail, in the language of the people who use it (ADR-025).
+ *
+ * The approved bundle names these modules in English — *Command Center*, *Social Intelligence*,
+ * *Quality Gate*. They read as product branding to the people who wrote them and as untranslated
+ * software to the environmental consultant who has to use the product. The keys, the capability
+ * names and the URL segments are unchanged: only the words on the screen are Spanish.
+ */
 export const SURFACE_DEFINITIONS: Readonly<Record<WorkspaceSurface, SurfaceDefinition>> = {
   "command-center": {
     key: "command-center",
     capability: "core.projects",
-    label: "Command Center",
+    label: "Centro de control",
     segment: "",
     implemented: true,
     plannedIn: null,
@@ -49,7 +57,7 @@ export const SURFACE_DEFINITIONS: Readonly<Record<WorkspaceSurface, SurfaceDefin
   gis: {
     key: "gis",
     capability: "gis.parcels",
-    label: "GIS & Predios",
+    label: "Cartografía y predios",
     segment: "gis",
     implemented: true,
     plannedIn: null,
@@ -57,7 +65,7 @@ export const SURFACE_DEFINITIONS: Readonly<Record<WorkspaceSurface, SurfaceDefin
   field: {
     key: "field",
     capability: "field.surveys",
-    label: "Field Surveys",
+    label: "Trabajo de campo",
     segment: "field",
     implemented: true,
     plannedIn: null,
@@ -65,7 +73,7 @@ export const SURFACE_DEFINITIONS: Readonly<Record<WorkspaceSurface, SurfaceDefin
   social: {
     key: "social",
     capability: "social.analytics",
-    label: "Social Intelligence",
+    label: "Análisis social",
     segment: "social",
     implemented: true,
     plannedIn: null,
@@ -73,7 +81,7 @@ export const SURFACE_DEFINITIONS: Readonly<Record<WorkspaceSurface, SurfaceDefin
   quality: {
     key: "quality",
     capability: "quality.document_gate",
-    label: "Quality Gate",
+    label: "Control de calidad",
     segment: "quality",
     implemented: true,
     plannedIn: null,
@@ -81,7 +89,7 @@ export const SURFACE_DEFINITIONS: Readonly<Record<WorkspaceSurface, SurfaceDefin
   documents: {
     key: "documents",
     capability: "core.documents",
-    label: "Documents",
+    label: "Documentos",
     segment: "documents",
     implemented: true,
     plannedIn: null,
@@ -97,7 +105,7 @@ export const SURFACE_DEFINITIONS: Readonly<Record<WorkspaceSurface, SurfaceDefin
   reports: {
     key: "reports",
     capability: "reports.social_generator",
-    label: "Reports",
+    label: "Informes",
     segment: "reports",
     implemented: true,
     plannedIn: null,

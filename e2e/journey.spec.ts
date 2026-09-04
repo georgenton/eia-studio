@@ -14,22 +14,22 @@ test.describe("reviewer journey", () => {
     await expect(projectLink).toBeVisible();
 
     // 3 · enter the project
-    await page.getByRole("link", { name: "Abrir Command Center" }).click();
+    await page.getByRole("link", { name: "Abrir el centro de control" }).click();
     await expect(page).toHaveURL(new RegExp(`/t/${TENANT}/p/${PROJECT}$`));
 
     // 4 · the shell keeps tenant and project context visible
     await expect(page.getByRole("navigation", { name: "Ruta de navegación" })).toContainText(
-      "Command Center",
+      "Centro de control",
     );
     await expect(page.getByLabel("Organización")).toHaveValue(TENANT);
     await expect(page.getByLabel("Proyecto activo")).toHaveValue(PROJECT);
 
     // 5 · capability-driven navigation
     const rail = page.getByRole("navigation", { name: "Navegación principal" });
-    await expect(rail.getByRole("link", { name: "Command Center" })).toBeVisible();
-    await expect(rail.getByRole("link", { name: "GIS & Predios" })).toBeVisible();
+    await expect(rail.getByRole("link", { name: "Centro de control" })).toBeVisible();
+    await expect(rail.getByRole("link", { name: "Cartografía y predios" })).toBeVisible();
     // Reports became a real destination in Slice 7; the rail has no placeholder row left.
-    await expect(rail.getByRole("link", { name: "Reports" })).toBeVisible();
+    await expect(rail.getByRole("link", { name: "Informes" })).toBeVisible();
 
     // 6 · the four approved historical aggregate facts, read from the KPI strip. The strip is
     // scoped explicitly because 141 also appears in the territorial summary, where it is a
@@ -43,9 +43,9 @@ test.describe("reviewer journey", () => {
     await expect(main.getByText("185", { exact: true })).toBeVisible();
 
     // 7 · historical values are visibly distinguishable from the demo simulation
-    await expect(main.getByText("REAL_AGGREGATE").first()).toBeVisible();
-    await expect(main.getByText("SYNTHETIC").first()).toBeVisible();
-    await expect(main.getByText("DEMO / SYNTHETIC")).toBeVisible();
+    await expect(main.getByText("Dato histórico").first()).toBeVisible();
+    await expect(main.getByText("Simulación operativa").first()).toBeVisible();
+    await expect(main.getByText("Simulación operativa").first()).toBeVisible();
 
     // 8 · the forecast is stated as arithmetic, never as a prediction
     await expect(main).toContainText("sin modelo predictivo");
@@ -70,8 +70,9 @@ test.describe("reviewer journey", () => {
     await expect(drawer).toContainText("Origen");
     await expect(drawer).toContainText("Transformaciones");
     await expect(drawer).toContainText("Granularidad");
-    await expect(drawer).toContainText("ETIQUETA DERIVADA DE LAS FACETAS");
-    await expect(drawer).toContainText("Human validation");
+    // The badge is explained in words, in the place where the reader is deciding what to quote.
+    await expect(drawer).toContainText("Cifra verificable del expediente");
+    await expect(drawer).toContainText("Validación humana");
 
     await expect(page.getByRole("button", { name: "Cerrar", exact: true })).toBeFocused();
     await page.keyboard.press("Escape");

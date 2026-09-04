@@ -75,7 +75,12 @@ export default async function CommandCenterPage({
       return (
         <WorkspaceShell
           {...shellProps}
-          breadcrumb={projectBreadcrumb(ctx, portfolio.tenantName, project, "Command Center")}
+          breadcrumb={projectBreadcrumb(
+            ctx,
+            portfolio.tenantName,
+            project,
+            SURFACE_DEFINITIONS["command-center"].label,
+          )}
         >
           <PermissionDeniedState
             role={outcome.role}

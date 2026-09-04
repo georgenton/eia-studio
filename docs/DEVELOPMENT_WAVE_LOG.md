@@ -242,8 +242,8 @@ campaign clusters at abscissa 0 now that the chainages are real).
 
 | | |
 |---|---|
-| Branch / PR | `feat/pgas-foundation` · PR pending |
-| Merge SHA | pending |
+| Branch / PR | `feat/pgas-foundation` · [#15](https://github.com/georgenton/eia-studio/pull/15) |
+| Merge SHA | `1665548` |
 | Migrations | `0027_pgas_tables.sql` (3 tables), `0028_pgas_rls_and_invariants.sql` (invariants, grants, RLS, the one-active-run index) — forward only, additive |
 | Tests | unit **300** (+14), integration **378** (+14), Playwright **155** (+5) |
 | Staging | **not applied in this session.** The read-only baseline was captured (27 migrations, 141 parcels, 23 provenance records); applying 0027–0028 and re-seeding was refused by the sandbox, so it is owed. Nothing was written to the persistent environment. |
@@ -274,3 +274,42 @@ Slices 6 and 7 made false.
 **Debt recorded.** TD-072 (the plan's *lugar de aplicación* is not cross-checked against the
 cartography — the one genuinely cross-document rule this material supports, deferred because against
 the delivered data it would be silent).
+
+### Wave D — the product's language
+
+| | |
+|---|---|
+| Branch / PR | `feat/spanish-environmental-ux` · PR pending |
+| Merge SHA | pending |
+| Migrations | **none** |
+| Tests | unit **300**, integration **378**, Playwright **167** (+12) |
+| Staging | untouched by this branch — no migration, no seed, no write |
+| External configuration | unchanged |
+
+**Scope delivered.** Every word on screen is Spanish. The rail (*Centro de control*, *Cartografía y
+predios*, *Trabajo de campo*, *Análisis social*, *Control de calidad*, *Documentos*, *Plan de
+Manejo*, *Informes*), the provenance drawer (*ORIGEN DEL DATO*, *Validación humana*), the four
+SOURCE TYPE badges (*Dato histórico*, *Dato calculado*, *Agregado sin datos personales*,
+*Simulación operativa*), the map legend, the demo fixture's own copy, and the panel badge that used
+to be a solid **DEMO** stamp. `docs/PRODUCT_LANGUAGE_ES.md` is the vocabulary; `e2e/vocabulary.spec.ts`
+is what keeps it.
+
+**Meaningful decisions.** ADR-025 states the rule as a boundary rather than a translation pass — *a
+stored value is never rendered; a label for it is* — because the leak was systematic: a component
+that renders a domain value directly produces one without anyone deciding to. The four badge
+categories and their derivation are untouched, so invariant 13 still holds and only the words
+changed. The drawer's eyebrow now explains the datum (*Cifra verificable del expediente, sin datos
+identificables*) rather than the mechanism (*ETIQUETA DERIVADA DE LAS FACETAS*), because a reader
+opens it to decide whether they may quote a figure. And the **DEMO** stamp was removed *because* of
+invariant 4 rather than despite it: a badge on every panel is skimmed, and one that is skimmed has
+stopped marking anything.
+
+**Deviations.** This is a deliberate divergence from the approved bundle, whose rail and badges are
+English. It changes nothing the bundle governs — composition, hierarchy, treatment, interaction
+intent (ARCHITECTURE §11a) — and is recorded as entry 15 of `docs/DESIGN_BUNDLE_KNOWN_ISSUES.md`.
+Thirteen e2e assertions were updated to the successor facts rather than loosened. The demo
+fixture's `surfaceLabel`s and one activity event were part of the leak and were corrected with the
+rest: a fixture writes the words a reviewer reads.
+
+**Debt recorded.** None new. TD-068 (the technician specs consume a pending assignment per run) was
+hit twice during this wave and worked around with `pnpm db:reset:local`; it is still owed.

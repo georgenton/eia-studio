@@ -56,7 +56,7 @@ export function ModuleNotImplementedState({
         se muestran cifras de demostración en su lugar.
       </p>
       <p>
-        <ButtonLink href={backHref}>Volver al Command Center</ButtonLink>
+        <ButtonLink href={backHref}>Volver al centro de control</ButtonLink>
       </p>
     </SystemState>
   );
