@@ -124,17 +124,18 @@ Or, without a human: enable Vercel's automation bypass secret for the project an
 `PERF_BASE_URL=<preview> pnpm perf:baseline` with the bypass header. That is an account settings
 change and is the owner's to make, not this session's.
 
-## 8. Candidate remedies, none applied
+## 8. Candidate remedies
 
-Ordered by how much they buy against how much they risk. **None of these is implemented**: the
-first three change the authorization path or a query layer that isolation tests guard, and the last
-two are infrastructure decisions the brief reserves for the owner.
+Ordered by how much they buy against how much they risk. **None was implemented when this was
+written**; candidate 1 has since been applied in its own change, with its own isolation tests, and
+§10 reports what it measured. The rest stand: two change a query layer that isolation tests guard,
+and two are infrastructure decisions the brief reserves for the owner.
 
 | # | Candidate | Buys | Costs and risk |
 |---|---|---|---|
-| 1 | Build the request context in **one transaction** instead of four | removes ~12 round trips from every page — the single largest structural win, and entirely in our own code | the four transactions currently run under *different* RLS envelopes (`tenant_id` null while the tenant is being resolved, set afterwards). Merging them changes the envelope of the authorization path itself, so it needs its own change, its own isolation tests and its own review — not a hardening pass. **TD-064** |
+| 1 | ~~Build the request context in **one transaction** instead of four~~ | **Applied**, in its own change with its own isolation tests. See §10 for what it actually bought. **TD-064 closed** |
 | 2 | Batch Social's tabulation into fewer statements | the 78-query route is the worst offender by far | the tabulation's denominators are declared per question and asserted by tests; rewriting the queries must not change a single figure. **TD-065** |
-| 3 | Cache the capability and membership resolution for the life of a request | removes repeated reads of the same rows within one render | correctness risk is real: a stale capability is an authorization decision made on old data. Only safe request-scoped, never across requests. **TD-066** |
+| 3 | Cache the capability and membership resolution for the life of a request | removes repeated reads of the same rows within one render | correctness risk is real: a stale capability is an authorization decision made on old data. Only safe request-scoped, never across requests. **TD-066**, now narrower: §10 removed the two duplicate reads a render actually made, by *returning* what had already been read rather than by caching anything |
 | 4 | Set `connectionTimeoutMillis` and a `statement_timeout` | a stuck request fails fast and legibly instead of hanging | small, safe, and does not make anything faster — it makes failures diagnosable. **TD-067** |
 | 5 | Put the web functions in the database's region (or the database in `iad1`) | would divide the projected latency by roughly the number of round trips | **owner decision, hard stop.** A database region migration is destructive-adjacent and explicitly reserved. Measure §7 first; the count should come down before geography is spent on it |
 
@@ -147,3 +148,37 @@ It is not a load test, not a Core Web Vitals report, and not a claim about produ
 production. It measures eight server-rendered routes of one synthetic project with 141 parcels,
 4 submitted responses and 6 documents. A project ten times larger would change §5 and would not
 change §6.
+
+## 10. What the merged transaction bought (4 September 2026)
+
+Candidate 1 was applied on `feat/request-context-performance`. Measured the same way as §5 — the
+same driver, the same machine, the same seeded project, 6 warm-up requests and 10 samples per route
+— against `main` immediately before the change and the branch immediately after.
+
+| Route | Context round trips | | Total round trips | | Median ms | |
+|---|---|---|---|---|---|---|
+| | before | after | before | after | before | after |
+| Portfolio | 14 | **9** | 37 | **24** | 37,8 | **25,1** |
+| Command Center | 17 | **12** | 62 | **49** | 128,1 | **116,1** |
+| GIS | 17 | **12** | 49 | **36** | 116,1 | **115,3** |
+| Field Surveys | 17 | **12** | 50 | **37** | 40,3 | **39,2** |
+| Social | 17 | **12** | 93 | **80** | 175,8 | **161,4** |
+| Quality Gate | 17 | **12** | 46 | **33** | 32,5 | **27,5** |
+| Documents | 17 | **12** | 44 | **31** | 34,2 | **28,9** |
+| Reports | 17 | **12** | 44 | **31** | 33,7 | **26,3** |
+
+**Every project route spends five fewer round trips deciding who is asking, and thirteen fewer
+overall.** The five are the framing of three transactions that no longer exist; the other eight are
+two reads that no longer happen at all — the application user row was being reconciled twice per
+render (once before the context and once for the user menu's display name), and the shell was
+re-reading the tenant capability rows the authorization path had just read.
+
+**Wall clock barely moved, and §6 predicted that.** Locally the database is a container with
+sub-millisecond round trips, so removing thirteen of them saves a few milliseconds. The figure that
+matters is the count, because it is the count that geography multiplies: on the projected 60–70 ms
+transatlantic path of §6 finding 5, thirteen fewer sequential exchanges is on the order of eight
+tenths of a second per page.
+
+**The region measurement is still owed.** §7 remains unperformed: the Preview answers 302 before a
+request reaches the application, and signing in needs the owner's credential. The count came down
+first, which is the order §8 argued for.

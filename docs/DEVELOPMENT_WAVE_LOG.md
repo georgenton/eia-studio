@@ -279,8 +279,8 @@ the delivered data it would be silent).
 
 | | |
 |---|---|
-| Branch / PR | `feat/spanish-environmental-ux` · PR pending |
-| Merge SHA | pending |
+| Branch / PR | `feat/spanish-environmental-ux` · [#16](https://github.com/georgenton/eia-studio/pull/16) |
+| Merge SHA | `7a51be9` |
 | Migrations | **none** |
 | Tests | unit **300**, integration **378**, Playwright **167** (+12) |
 | Staging | untouched by this branch — no migration, no seed, no write |
@@ -313,3 +313,34 @@ rest: a fixture writes the words a reviewer reads.
 
 **Debt recorded.** None new. TD-068 (the technician specs consume a pending assignment per run) was
 hit twice during this wave and worked around with `pnpm db:reset:local`; it is still owed.
+
+### Wave E — one transaction to know who is asking
+
+| | |
+|---|---|
+| Branch / PR | `feat/request-context-performance` · PR pending |
+| Merge SHA | pending |
+| Migrations | **none** |
+| Tests | unit **300**, integration **386** (+8), Playwright **167** |
+| Staging | untouched by this branch — no migration, no seed, no write |
+| Measured | context round trips **17 → 12** on every project route, **14 → 9** on the Portfolio, **13 fewer per page** overall (`docs/PERFORMANCE_BASELINE.md` §10) |
+
+**Scope delivered.** TD-064, closed. `resolveAccessContext` resolves the caller in one transaction:
+reconcile the user row, prove the tenant with `app.tenant_id` unset, adopt it, then read the
+project, its memberships, the overrides and the tenant's capability rows under it. The settings the
+shell needs come back with the context instead of being re-read, and `getSessionUser` no longer
+reconciles the user row a second time for a display name.
+
+**Meaningful decisions.** The envelope was preserved rather than approximated: `adoptTenantContext`
+exists so the ordering the four transactions expressed structurally is expressed by `SET LOCAL`
+inside one, and the eight-test envelope suite was written *before* the merge because a performance
+argument is not a licence to weaken the authorization path. One behaviour did change and is
+deliberate: a denied resolution now leaves no `app.user` row behind, because the reconciliation
+rolls back with everything else — a row for somebody with access to nothing is a row nobody asked
+for, and identities are provisioned explicitly (`provision:identity`) rather than by browsing.
+
+**Deviations.** The region measurement (`docs/PERFORMANCE_BASELINE.md` §7) is still owed: the
+Preview answers 302 before a request reaches the application and signing in needs the owner's
+credential. §8 argued the count should come down before geography is spent on it, and it has.
+
+**Debt recorded.** None new. TD-064 closed; TD-066 narrowed to what remains true.

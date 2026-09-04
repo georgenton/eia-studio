@@ -4,7 +4,6 @@ import { notFound, redirect } from "next/navigation";
 import { projectBreadcrumb, projectLabel, WorkspaceShell } from "@/components/workspace-shell";
 import { getSessionUser } from "@/lib/context";
 import { getDb } from "@/lib/db";
-import { getTenantCapabilitySettings } from "@/lib/queries";
 import { resolveSurfaceAccessBySegment } from "@/lib/surface-access";
 import { ModuleNotImplementedState, PermissionDeniedState } from "@/lib/system-state";
 
@@ -41,9 +40,8 @@ export default async function SurfacePage({
   }
 
   // `ok` cannot occur here: an implemented surface has its own static route, which wins.
-  const { ctx, surface: definition } = access;
+  const { ctx, surface: definition, tenantSettings } = access;
   const sessionUser = await getSessionUser();
-  const tenantSettings = await getTenantCapabilitySettings(ctx);
   const portfolio = await loadPortfolio(getDb(), ctx);
 
   return (

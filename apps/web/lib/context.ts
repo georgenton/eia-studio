@@ -2,8 +2,13 @@ import "server-only";
 
 import { randomUUID } from "node:crypto";
 
-import { PermissionDenied, type RequestContext, type SessionUser } from "@eia/domain";
-import { buildRequestContext, ensureUser } from "@eia/application";
+import {
+  PermissionDenied,
+  type RequestContext,
+  type SessionUser,
+  type TenantCapabilitySettings,
+} from "@eia/domain";
+import { resolveAccessContext } from "@eia/application";
 import { headers } from "next/headers";
 
 import { getDb } from "./db";
@@ -14,12 +19,23 @@ import { logRouteTiming, measure } from "./timing";
 export type ContextResult =
   | { readonly kind: "unauthenticated" }
   | { readonly kind: "denied"; readonly role: string | null; readonly restrictedData: string }
-  | { readonly kind: "ok"; readonly ctx: RequestContext };
+  | {
+      readonly kind: "ok";
+      readonly ctx: RequestContext;
+      /** Read while resolving the caller, so the shell does not ask for them a second time. */
+      readonly tenantSettings: TenantCapabilitySettings;
+    };
 
+/**
+ * The authenticated person, for the shell's user menu.
+ *
+ * It no longer reconciles the application user row: that is part of resolving the caller and
+ * happens inside the one transaction that does it (TD-064). Every page called this *after*
+ * `resolveSurfaceAccess`, so the reconciliation ran twice per render — once before the context and
+ * once for a display name.
+ */
 export async function getSessionUser(): Promise<SessionUser | null> {
-  const user = await identityPort.getSessionUser(await headers());
-  if (user) await ensureUser(getDb(), user);
-  return user;
+  return identityPort.getSessionUser(await headers());
 }
 
 /**
@@ -47,11 +63,10 @@ function routeLabel(requestHeaders: Headers, hasProject: boolean): string {
   return hasProject ? "/t/[tenant]/p/[project]" : "/t/[tenant]";
 }
 
-/** The same resolution, split into the two phases the performance baseline reports separately. */
+/** The identity half of the resolution, which the performance baseline reports separately. */
 async function timedSessionUser(): Promise<{
   user: SessionUser | null;
   session: number;
-  ensure: number;
   queries: number;
   ms: number;
   requestHeaders: Headers;
@@ -60,25 +75,7 @@ async function timedSessionUser(): Promise<{
   const [user, session, sessionDb] = await measure(() =>
     identityPort.getSessionUser(requestHeaders),
   );
-  if (!user) {
-    return {
-      user,
-      session,
-      ensure: 0,
-      queries: sessionDb.queries,
-      ms: sessionDb.ms,
-      requestHeaders,
-    };
-  }
-  const [, ensure, ensureDb] = await measure(() => ensureUser(getDb(), user));
-  return {
-    user,
-    session,
-    ensure,
-    queries: sessionDb.queries + ensureDb.queries,
-    ms: sessionDb.ms + ensureDb.ms,
-    requestHeaders,
-  };
+  return { user, session, queries: sessionDb.queries, ms: sessionDb.ms, requestHeaders };
 }
 
 /**
@@ -95,8 +92,8 @@ export async function getRequestContext(
   if (!sessionUser) return { kind: "unauthenticated" };
   const requestId = randomUUID();
   try {
-    const [ctx, contextMs, contextDb] = await measure(() =>
-      buildRequestContext(getDb(), {
+    const [access, contextMs, contextDb] = await measure(() =>
+      resolveAccessContext(getDb(), {
         sessionUser,
         tenantSlug,
         projectSlug: projectSlug ?? null,
@@ -106,14 +103,14 @@ export async function getRequestContext(
     logRouteTiming({
       route: routeLabel(identity.requestHeaders, Boolean(projectSlug)),
       requestId,
-      phases: { session: identity.session, ensureUser: identity.ensure, context: contextMs },
+      phases: { session: identity.session, context: contextMs },
       contextDb: {
         queries: identity.queries + contextDb.queries,
         ms: identity.ms + contextDb.ms,
       },
       startedAt,
     });
-    return { kind: "ok", ctx };
+    return { kind: "ok", ctx: access.ctx, tenantSettings: access.tenantSettings };
   } catch (error) {
     if (error instanceof PermissionDenied) {
       logger.info(

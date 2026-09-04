@@ -39,7 +39,6 @@ import { tenantBreadcrumb, WorkspaceShell } from "@/components/workspace-shell";
 import { getRequestContext, getSessionUser } from "@/lib/context";
 import { getDb } from "@/lib/db";
 import { lifecycleLabel } from "@/lib/lifecycle";
-import { getTenantCapabilitySettings } from "@/lib/queries";
 import { PermissionDeniedState } from "@/lib/system-state";
 
 import styles from "./portfolio.module.css";
@@ -73,7 +72,7 @@ export default async function PortfolioPage({
       </main>
     );
   }
-  const { ctx } = result;
+  const { ctx, tenantSettings } = result;
   const sessionUser = await getSessionUser();
 
   let portfolio;
@@ -94,7 +93,6 @@ export default async function PortfolioPage({
     throw error;
   }
 
-  const tenantSettings = await getTenantCapabilitySettings(ctx);
   const basePath = `/t/${ctx.tenantSlug}`;
   // Module chips on a project card come from the resolved capability set, never a hardcoded list.
   const moduleChips = WORKSPACE_RAIL_ORDER.filter(

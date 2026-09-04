@@ -59,9 +59,10 @@ function since(before: DbCounters): DbCounters {
 export interface PhaseTimings {
   /** Resolving the session through the identity provider, including its own database reads. */
   readonly session: number;
-  /** Reconciling the application user row with the authenticated identity. */
-  readonly ensureUser: number;
-  /** Tenant, project, memberships, capabilities and permissions. */
+  /**
+   * Tenant, project, memberships, capabilities, permissions **and** the user-row reconciliation,
+   * which is one transaction since TD-064 rather than four.
+   */
   readonly context: number;
 }
 
