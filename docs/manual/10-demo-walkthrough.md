@@ -3,6 +3,10 @@
 One path through everything that exists today. It takes about fifteen minutes and uses three
 identities, so **signing out is part of the walkthrough** (topbar → your name → _Cerrar sesión_).
 
+This is the operator's version: every route, every check, every state. For showing the product to
+the consultancy — what to say, in what order, and what to answer when asked — use
+`docs/CONSULTANCY_DEMO_SCRIPT.md`, which walks the same path in nine beats.
+
 The cartography, the chainages, the management plan and the published aggregates are the
 consultancy's own; everything about day-to-day operation is a simulation and is labelled one.
 `docs/ZAMORA_WORKSPACE.md` says which is which, surface by surface. Nothing here is anybody's
@@ -21,7 +25,8 @@ for.
    one figure and confirm it names a regime, an origin, transformations and a granularity.
    _Check:_ the forecast states its formula and its inputs, so you can reproduce it by hand.
 3. **Cartografía y predios** (GIS). Click a polygon; the table row selects. Click another row; the
-   map follows. The 141 parcels and the centreline are the study's own, imported from the
+   map follows. Turn _Áreas de influencia del estudio_ off and on: the four delimited areas are
+   drawn under the parcels, as a generalised outline, and the legend says so. The 141 parcels and the centreline are the study's own, imported from the
    consultancy's geodatabase, and the layer-provenance legend says exactly that — _Eje vial del
    estudio_, _Capa del estudio · no es catastro oficial_. There is deliberately no base map.
    _Check:_ the KPI strip says 141 predios and so does the layer. They are still **two claims**:

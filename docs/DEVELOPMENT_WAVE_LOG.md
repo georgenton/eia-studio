@@ -418,3 +418,82 @@ it was actually testing.
 
 **Debt recorded.** TD-073 (nothing in the schema prevents two `ACTIVE` campaigns; the current rule
 has a deterministic tie-break rather than a guarantee).
+
+## Consultancy demo readiness wave (authorised 5 September 2026)
+
+Focused product readiness rather than another subsystem: clarity → realism → speed → evidence →
+demo flow. Standing constraints unchanged from the wave above.
+
+### Readiness 1 — the workspace as a consulting product
+
+| | |
+|---|---|
+| Branch / PR | `feat/consultancy-demo-readiness` · [#22](https://github.com/georgenton/eia-studio/pull/22) |
+| Merge SHA | `dbf6bcc` |
+| Migrations | **none** |
+| Tests | unit **307** (+7), integration **398**, Playwright **170** (+2) |
+
+**Scope delivered.** An audit of every surface, read as a consultant rather than as an engineer,
+and its consequences: the last internal words off the screens (*tenant*, *Portfolio*, *fixture*, a
+permission key, rule keys, role and status enums, a repository path, the classifier's
+adapter/prompt/hash table); the rail ordered the way the work happens, with the Quality Gate renamed
+*Control de consistencia*; the management plan rendered as a plan, grouped by the document's own
+programme banners; the four areas of influence drawn (TD-070); field history behind a disclosure;
+and the one cross-document check the plan supports (TD-072).
+
+**Meaningful decisions.** The audit trail the removed identifiers carried was **kept, one click
+away** — the model, adapter and prompt version of a run, the taxonomy's fingerprint, a rule's
+catalogue key on the finding it produced — because it is evidence, not something a consultant reads
+while working. The influence areas are drawn from a **generalised outline computed on read** (890 KB
+of stored coordinates → 21 KB drawn) rather than by simplifying what is stored, which is the choice
+TD-070 asked for. `rule.pgas_place_vs_influence_area@1` is **silent against the study as delivered**,
+which is exactly why the surface lists what was checked whether or not it fired.
+
+**Debt recorded.** None new. TD-070 and TD-072 closed.
+
+### Readiness 2 — round trips and the connection
+
+| | |
+|---|---|
+| Branch / PR | `perf/connection-and-round-trips` · [#23](https://github.com/georgenton/eia-studio/pull/23) |
+| Merge SHA | `ed4affb` |
+| Migrations | **none** |
+| Tests | unit **307**, integration **398**, Playwright **170** |
+| Measured | **four fewer round trips on every project page** (`docs/PERFORMANCE_BASELINE.md` §11) |
+
+**Scope delivered.** `loadWorkspaceHeader`, because every page was loading a whole portfolio —
+metrics, attention items, activity feed and their provenance — to draw a breadcrumb and a switcher.
+And a connection pool that no longer runs on defaults: keepalive, a bounded lifetime, a shorter idle
+timeout, a connect timeout and a statement timeout, chosen from the one observed `ECONNRESET` rather
+than from a checklist (§11.1).
+
+**Meaningful decisions.** **No retries.** A retry around a transaction re-runs whatever it contained
+and this product's transactions write; the pool already discards an errored client, so making the
+failing request fail clearly is the honest fix. Social's 85 round trips were left alone: campaign
+scoping (ADR-026) added an `EXISTS` to each of its reads, the correct denominator costs more than
+the wrong one, and rewriting those queries must not change a single figure (TD-065).
+
+**Debt recorded.** None new. TD-067 closed; TD-065 amended with what campaign scoping cost.
+
+### Readiness 3 — the demo, and two products deliberately not started
+
+| | |
+|---|---|
+| Branch / PR | `docs/demo-script-and-product-direction` · PR pending |
+| Merge SHA | pending |
+| Migrations | **none** |
+
+**Scope delivered.** `docs/CONSULTANCY_DEMO_SCRIPT.md` — nine beats, roughly 25 minutes, in Spanish,
+with what to say, what to answer, and what not to do. `docs/CLIENT_PORTAL_DECISION.md` — what a
+client actually needs, the eight things that must never be exposed, what already exists to feed it,
+and the three decisions the owner has to make first. `docs/ENVIRONMENTAL_AUDIT_PRODUCT_DIRECTION.md`
+— the chain from a proposed measure to an audit report, and the adoption act that is the seam.
+
+**Meaningful decisions.** Both notes end with *do not start yet*, and say what would have to be true
+first: a second project and the compliance review for the portal; a real engagement with obligations
+in force for the audit. The demo script's instruction is to **not lead with AI** — it is one step of
+nine and the least finished — and never to describe the simulated field operation as though it
+happened.
+
+**TD-073 (two ACTIVE campaigns) is deliberately deferred**, per the owner's decision: the current
+resolution is deterministic and no business case for simultaneous field operations exists yet.

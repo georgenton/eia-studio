@@ -105,9 +105,18 @@ marking a simulation is an obligation (invariant 4), and a badge nobody reads tw
 marking anything. Keys, capability names, URL segments, enum values and the database keep their
 English names, and the consultancy's own words are quoted verbatim. `e2e/vocabulary.spec.ts` fails
 on any `SCREAMING_SNAKE_CASE` or leaked English that reaches a screen; the vocabulary itself is
-`docs/PRODUCT_LANGUAGE_ES.md`, `docs/ZAMORA_WORKSPACE.md`,
-`docs/PRODUCT_VALUE_AND_DIRECTION.md`, and the divergence from the approved bundle is entry 15 of
+`docs/PRODUCT_LANGUAGE_ES.md`, and the divergence from the approved bundle is entry 15 of
 `docs/DESIGN_BUNDLE_KNOWN_ISSUES.md`.
+
+**The demo-readiness wave (5 Sep 2026)** finished the consultant-facing pass: the rail is ordered
+the way the work happens and the Quality Gate is *Control de consistencia*; the management plan
+reads as a plan rather than as a table; the study's four areas of influence are drawn from a
+generalised outline while the stored geometry is untouched (TD-070); a plan's *lugar de aplicación*
+is checked against that cartography (`rule.pgas_place_vs_influence_area@1`, TD-072); the shell stopped
+loading a whole portfolio to draw a breadcrumb and the connection pool no longer runs on defaults
+(TD-067). What to show a consultancy, and what to answer, is `docs/CONSULTANCY_DEMO_SCRIPT.md`; the
+two products deliberately **not** started are described in `docs/CLIENT_PORTAL_DECISION.md` and
+`docs/ENVIRONMENTAL_AUDIT_PRODUCT_DIRECTION.md`.
 
 The Client Portal is **not** implemented; its route exists only as a capability-guarded placeholder
 until its slice lands.
@@ -133,7 +142,8 @@ Also relevant by task: `docs/DATA_MODEL.md`, `docs/PROVENANCE.md`, `docs/AI_GOVE
 `docs/DEMO_ZAMORA.md`, `docs/DESIGN_SYSTEM.md`, `docs/TESTING_STRATEGY.md`,
 `docs/GIS_IMPORT_CONTRACT.md`, `docs/FIELD_CAPTURE_ADAPTER_CONTRACT.md`, `docs/PGAS_MODEL.md`,
 `docs/PRODUCT_LANGUAGE_ES.md`, `docs/ZAMORA_WORKSPACE.md`,
-`docs/PRODUCT_VALUE_AND_DIRECTION.md`,
+`docs/PRODUCT_VALUE_AND_DIRECTION.md`, `docs/CONSULTANCY_DEMO_SCRIPT.md`,
+`docs/CLIENT_PORTAL_DECISION.md`, `docs/ENVIRONMENTAL_AUDIT_PRODUCT_DIRECTION.md`,
 `docs/REAL_DATA_INTAKE.md`,
 `docs/IMPLEMENTATION_PLAN.md`, `docs/DESIGN_BUNDLE_KNOWN_ISSUES.md`, the delivery docs
 `docs/ENGINEERING_STANDARDS.md`, `docs/RELEASE_POLICY.md`, `docs/CI.md`, `docs/DEPLOYMENT.md`,
