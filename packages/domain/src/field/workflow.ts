@@ -71,6 +71,38 @@ export function assertCampaignActivatable(input: {
   assertCaptureChannelSatisfiesOfflineMode(input.captureChannel, input.offlineMode);
 }
 
+export class CampaignNotClosable extends InvalidInput {
+  constructor(reason: string) {
+    super(`this campaign cannot be closed: ${reason}`);
+    this.name = "CampaignNotClosable";
+  }
+}
+
+/**
+ * Closing is how a campaign stops being the current operation without losing what it did.
+ *
+ * It is the transition that makes the alternative unnecessary. When the parcels a campaign should
+ * cover change after technicians have already been out, the honest move is to close what happened
+ * and open what is now intended — never to rewrite yesterday's operation so today's plan matches
+ * it (ADR-026). So closing deletes nothing, cancels nothing and touches no response: a closed
+ * campaign keeps every assignment, visit and submitted answer it ever had.
+ *
+ * Only two states are refusable. A campaign that is already closed is a no-op the caller should
+ * know about rather than repeat, and a `DRAFT` has nothing to close — it was never in the field,
+ * so what it needs is to be activated or left alone.
+ */
+export function assertCampaignClosable(input: { readonly status: CampaignStatus }): void {
+  if (input.status === "CLOSED") {
+    throw new CampaignNotClosable("it is already closed");
+  }
+  if (input.status === "DRAFT") {
+    throw new CampaignNotClosable(
+      "it was never activated; a draft has no field work to close, and closing one would record " +
+        "an operation that did not happen",
+    );
+  }
+}
+
 /* ---------------------------------------------------------------------------------------------
  * Assignment
  * ------------------------------------------------------------------------------------------ */

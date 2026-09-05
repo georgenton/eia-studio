@@ -93,7 +93,8 @@ export const DEMO_BASELINE = {
   coordinatorEmail: "coordinadora@demo.invalid",
   technicianEmail: manifest.field.technician.email,
   secondTechnicianEmail: manifest.field.secondTechnician.email,
-  campaigns: 1,
+  /** Exactly one campaign is the current operation; closed ones are history and may accumulate. */
+  activeCampaigns: 1,
   surveyVersions: 1,
   assignments: manifest.field.campaign.assignmentCount,
   submittedResponses: Array.from(
@@ -164,20 +165,31 @@ export async function loadStagingFixture(db: Database): Promise<StagingFixtureId
   const technicianUserId = await userId(DEMO_BASELINE.technicianEmail);
   const secondTechnicianUserId = await userId(DEMO_BASELINE.secondTechnicianEmail);
 
+  /*
+   * The **current** operation, not the first one the project ever had (ADR-026).
+   *
+   * A persistent environment accumulates campaigns: one that ran and closed keeps its assignments
+   * and its submitted responses, and it is still worth verifying — but it is not the operational
+   * baseline a reviewer logs in to see. The order is the one `resolveCurrentCampaign` uses.
+   */
   const campaign = await one<{ id: string; survey_version_id: string }>(
     db,
     sql`select id, survey_version_id from app.survey_campaign
         where tenant_id = ${tenant.id} and project_id = ${project.id}
-        order by created_at limit 1`,
-    "the demo field campaign",
+        order by (status = 'ACTIVE') desc, activated_at desc nulls last, created_at desc
+        limit 1`,
+    "the current field campaign",
   );
 
   const assignmentOf = async (assignee: string, label: string) =>
     (
       await one<{ id: string }>(
         db,
+        // Of the current operation: an assignment from a closed campaign would make the isolation
+        // probes assert against work that is history rather than against today's baseline.
         sql`select id from app.field_assignment
             where tenant_id = ${tenant.id} and project_id = ${project.id}
+              and campaign_id = ${campaign.id}
               and assignee_user_id = ${assignee}
             order by id limit 1`,
         `an assignment for ${label}`,
@@ -192,10 +204,12 @@ export async function loadStagingFixture(db: Database): Promise<StagingFixtureId
 
   const instance = await one<{ id: string }>(
     db,
-    sql`select id from app.survey_instance
-        where tenant_id = ${tenant.id} and project_id = ${project.id}
-          and respondent_user_id = ${technicianUserId} and status = 'SUBMITTED'
-        order by id limit 1`,
+    sql`select i.id from app.survey_instance i
+          join app.field_assignment a on a.tenant_id = i.tenant_id and a.id = i.assignment_id
+        where i.tenant_id = ${tenant.id} and i.project_id = ${project.id}
+          and a.campaign_id = ${campaign.id}
+          and i.respondent_user_id = ${technicianUserId} and i.status = 'SUBMITTED'
+        order by i.id limit 1`,
     "a submitted response by the first technician",
   );
 

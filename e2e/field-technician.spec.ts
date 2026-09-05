@@ -69,7 +69,7 @@ test.describe("FieldFlow · technician", () => {
     const main = page.getByRole("main");
     await expect(main).not.toContainText("Carga por técnico");
     await expect(main).not.toContainText("Técnico de campo 2");
-    await expect(main).not.toContainText("Campaña de campo — demostración");
+    await expect(main).not.toContainText("Operativo actual");
 
     const cards = page.getByRole("link").filter({ hasText: PARCEL_CODE_PATTERN });
     const count = await cards.count();

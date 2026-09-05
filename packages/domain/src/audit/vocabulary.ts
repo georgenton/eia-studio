@@ -18,6 +18,7 @@ export const AUDIT_ACTIONS = [
   // submitted, never what it said. Ordinary row mutations are not audited — an event store that
   // mirrors every write is noise nobody reads.
   "field.campaign.activated",
+  "field.campaign.closed",
   "field.assignment.reassigned",
   "field.survey.published",
   "field.survey.submitted",

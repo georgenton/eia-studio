@@ -3,6 +3,7 @@ import {
   answerInputSchema,
   assertAssignmentTransition,
   assertCampaignActivatable,
+  assertCampaignClosable,
   assertInstanceEditable,
   assertSubmissionComplete,
   NotFound,
@@ -273,6 +274,94 @@ export async function activateCampaign(
       captureChannel: row.capture_channel,
       offlineMode,
       assignmentCount: row.assignment_count,
+    };
+  });
+}
+
+export interface CampaignClosure {
+  readonly campaignId: string;
+  readonly status: CampaignStatus;
+  readonly closedAt: Date;
+  /** What the campaign carried when it closed — the record of an operation, not a target. */
+  readonly assignmentCount: number;
+  readonly submittedCount: number;
+}
+
+/**
+ * Close a campaign: it stops being the current operation and keeps everything it did (ADR-026).
+ *
+ * Nothing is deleted, nothing is cancelled and no response is touched. The assignments, visits and
+ * submitted answers stay exactly as they are, and the counts returned here are a record of what
+ * the campaign carried at the moment it closed.
+ *
+ * This is the transition that makes the tempting alternative unnecessary. When the parcels a
+ * campaign should cover change after field work exists, the operation that happened is closed and
+ * a new one is opened; the old campaign is never rewritten to match a newer plan.
+ */
+export async function closeCampaign(
+  db: Database,
+  ctx: RequestContext,
+  campaignId: string,
+): Promise<CampaignClosure> {
+  requireCapability(ctx, "field.surveys");
+  requirePermission(ctx, "field.campaigns.manage");
+  if (ctx.projectId === null) throw new Error("closeCampaign requires a project context");
+  const projectId = ctx.projectId;
+
+  return withFieldContext(db, ctx, async (tx) => {
+    const rows = await tx.execute(sql`
+      select c.id, c.status,
+             (select count(*)::int from app.field_assignment fa
+               where fa.tenant_id = c.tenant_id and fa.campaign_id = c.id) as assignment_count,
+             (select count(*)::int from app.survey_instance si
+                join app.field_assignment fa2
+                  on fa2.tenant_id = si.tenant_id and fa2.id = si.assignment_id
+               where si.tenant_id = c.tenant_id and fa2.campaign_id = c.id
+                 and si.status = 'SUBMITTED') as submitted_count
+        from app.survey_campaign c
+       where c.tenant_id = ${ctx.tenantId} and c.project_id = ${projectId} and c.id = ${campaignId}
+       limit 1
+    `);
+    const row = rows.rows[0] as unknown as
+      | { id: string; status: CampaignStatus; assignment_count: number; submitted_count: number }
+      | undefined;
+    if (!row) throw new NotFound("survey campaign");
+
+    assertCampaignClosable({ status: row.status });
+
+    const closedAt = new Date();
+    await tx
+      .update(fieldSchema.surveyCampaign)
+      .set({ status: "CLOSED", closedAt })
+      .where(
+        and(
+          eq(fieldSchema.surveyCampaign.tenantId, ctx.tenantId),
+          eq(fieldSchema.surveyCampaign.id, campaignId),
+        ),
+      );
+
+    await recordAudit(
+      tx,
+      { tenantId: ctx.tenantId, projectId },
+      { userId: ctx.userId, kind: "user", requestId: ctx.requestId },
+      {
+        action: "field.campaign.closed",
+        objectKind: "survey_campaign",
+        objectId: campaignId,
+        // Counts, never a respondent or an answer.
+        details: {
+          assignmentCount: row.assignment_count,
+          submittedCount: row.submitted_count,
+        },
+      },
+    );
+
+    return {
+      campaignId,
+      status: "CLOSED" as const,
+      closedAt,
+      assignmentCount: row.assignment_count,
+      submittedCount: row.submitted_count,
     };
   });
 }

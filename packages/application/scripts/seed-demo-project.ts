@@ -37,6 +37,7 @@ import {
 } from "@eia/domain";
 import { config as loadDotenv } from "dotenv";
 
+import { supersedeOtherCampaigns } from "../src/field/campaign-canonicalization";
 import { assertAnalysisSridUsable } from "../src/gis/analysis-crs";
 import { importPgasChapter } from "../src/pgas/import";
 import { ingestDocumentVersionInTx } from "../src/documents/ingest";
@@ -260,7 +261,19 @@ const manifestSchema = z
           .strict(),
         campaign: z
           .object({
+            /**
+             * The campaign's **identity**, which is not its name (ADR-026).
+             *
+             * A revision that changes what the campaign covers changes this key, and the seeder
+             * then opens a new campaign instead of adding parcels to one that already has field
+             * work. The display name is Spanish, user-facing and free to change; an identity that
+             * doubled as a label would make every wording change a new campaign, and every change
+             * of scope invisible.
+             */
+            key: z.string().min(3),
             name: z.string().min(1),
+            /** What the previous campaign is called once this revision supersedes it. */
+            supersededName: z.string().min(1),
             status: z.enum(["DRAFT", "ACTIVE", "CLOSED"]),
             startsOnOffsetDays: z.number().int(),
             targetOnOffsetDays: z.number().int(),
@@ -551,7 +564,11 @@ try {
      * re-seed updates the record in place and every reference stays valid, which is what
      * idempotent actually has to mean here.
      */
-    const provenanceIdFor = (key: string): string => {
+    /**
+     * A stable UUID for a fixture key, so a re-seed updates in place instead of creating a second
+     * row that nothing points at. Used for provenance records and for campaign identity (ADR-026).
+     */
+    const derivedIdFor = (key: string): string => {
       const digest = createHash("sha1").update(`${projectId}:${key}`).digest();
       const bytes = Buffer.from(digest.subarray(0, 16));
       // RFC 4122 variant and version bits, so the value is a well-formed UUID.
@@ -560,6 +577,7 @@ try {
       const hex = bytes.toString("hex");
       return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
     };
+    const provenanceIdFor = derivedIdFor;
 
     const provenanceIds = new Map<string, string>();
     for (const record of provenanceByKey.values()) {
@@ -1377,13 +1395,37 @@ try {
       }
     }
 
+    /* ------------------------------------------------------------------------------------
+     * The campaign, identified by the fixture's key rather than by its name (ADR-026).
+     *
+     * A campaign is an operational snapshot. When a revision changes which parcels it should
+     * cover, the seeder must not add the new ones to a campaign that already has visits and
+     * submitted responses: that rewrites an operation that happened so a newer plan matches it,
+     * and it is what turned a twelve-parcel campaign on staging into a twenty-two-parcel one.
+     *
+     * So the fixture declares a key, the id is derived from it deterministically — the same
+     * technique the provenance records use — and a changed key is simply a different campaign.
+     * The previous one is **closed**, keeps every row it ever had, and is renamed to the
+     * historical label the fixture declares so a reader can tell the two apart on screen.
+     * ---------------------------------------------------------------------------------- */
+    const campaignId = derivedIdFor(`campaign:${field.campaign.key}`);
     const campaignRows = await tx.execute(sql`
       select id from app.survey_campaign
-      where tenant_id = ${tenantId} and project_id = ${projectId} and name = ${field.campaign.name}
+       where tenant_id = ${tenantId} and project_id = ${projectId} and id = ${campaignId}
     `);
-    const campaignId =
-      (campaignRows.rows[0] as unknown as { id: string } | undefined)?.id ?? randomUUID();
     const campaignExists = campaignRows.rows.length > 0;
+
+    // Any other campaign of this project steps down: at most one is the current operation. The
+    // transition is `supersedeOtherCampaigns`, which asks the domain's lifecycle rule and deletes
+    // nothing — the superseded campaign keeps every assignment, visit and response it ever had.
+    const supersession = await supersedeOtherCampaigns(tx, {
+      tenantId,
+      projectId,
+      currentCampaignId: campaignId,
+      supersededName: field.campaign.supersededName,
+      closedAt: scenarioInstant,
+    });
+    const supersededCampaigns = supersession.closed.length;
     const dayOffset = (days: number) =>
       new Date(scenarioInstant.getTime() + days * 86_400_000).toISOString().slice(0, 10);
     if (!campaignExists) {
@@ -1870,7 +1912,10 @@ try {
             `lado derivado en ${gisImportReport.sideDerived}`
           : "GIS: el paquete ya estaba importado, sin cambios",
         `abscisa derivada para ${chainage.rowCount ?? 0} predio(s) sin declaración (centroid_projection, CRS EPSG:${analysisSrid})`,
-        `field: ${assignmentsSeeded} assignments · ${submissionsSeeded} submitted · offline_mode=${field.offlineMode}`,
+        `field: ${assignmentsSeeded} assignments · ${submissionsSeeded} submitted · offline_mode=${field.offlineMode}` +
+          (supersededCampaigns > 0
+            ? ` · ${supersededCampaigns} operativo(s) anterior(es) cerrado(s), sin borrar nada`
+            : ""),
         `documentos: ${documentsSeeded} · ${documentChunks} pasajes`,
         pgasReport,
         `quality: ${assertionsSeeded} afirmaciones del corpus (${assertionsLinked} con pasaje) · 0 hallazgos sembrados`,

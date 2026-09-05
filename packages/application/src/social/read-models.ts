@@ -19,6 +19,7 @@ import {
 import { sql } from "drizzle-orm";
 
 import { withFieldContext } from "../field/context";
+import { resolveCurrentCampaign } from "../field/read-models";
 
 /**
  * Everything Social Intelligence reads.
@@ -47,6 +48,50 @@ import { withFieldContext } from "../field/context";
  * portal already uses — is the right long-term answer and is recorded as TD-045; inventing it now
  * would mean a second, staler copy of every figure before anything needs one.
  */
+/**
+ * Social Intelligence reads **the current operation**, not everything a project has ever captured
+ * (ADR-026).
+ *
+ * A project accumulates campaigns. A campaign that ran and closed keeps its responses, and those
+ * responses are real records of what happened — but adding them to today's denominator would make
+ * a tabulation describe two operations at once, months apart, as though they were one sample. That
+ * is the arithmetic error the denominator rules exist to prevent, arriving through the back door.
+ *
+ * The scope is a predicate rather than a filter applied afterwards, so a count and the list it
+ * describes can never diverge: every `survey_instance` belongs to an assignment (`assignment_id`
+ * is NOT NULL) and every assignment belongs to exactly one campaign.
+ *
+ * The historical 119 socioeconomic surveys of the concluded study are untouched by any of this:
+ * they are a `HISTORICAL_OBSERVED` metric, not rows in these tables.
+ */
+function instanceInCampaign(alias: string, campaignId: string | null) {
+  if (campaignId === null) return sql`false`;
+  const a = sql.raw(alias);
+  return sql`exists (
+    select 1 from app.field_assignment fa_scope
+     where fa_scope.tenant_id = ${a}.tenant_id
+       and fa_scope.id = ${a}.assignment_id
+       and fa_scope.campaign_id = ${campaignId}
+  )`;
+}
+
+/** The same scope, reached from an answer id — for the tables that link to answers, not instances. */
+function answerInCampaign(answerIdColumn: string, campaignId: string | null) {
+  if (campaignId === null) return sql`false`;
+  const column = sql.raw(answerIdColumn);
+  return sql`exists (
+    select 1
+      from app.survey_answer a_scope
+      join app.survey_instance i_scope
+        on i_scope.tenant_id = a_scope.tenant_id and i_scope.id = a_scope.instance_id
+      join app.field_assignment fa_scope
+        on fa_scope.tenant_id = i_scope.tenant_id and fa_scope.id = i_scope.assignment_id
+     where a_scope.tenant_id = i_scope.tenant_id
+       and a_scope.id = ${column}
+       and fa_scope.campaign_id = ${campaignId}
+  )`;
+}
+
 const UUID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export interface SocialSurveyVersionOption {
@@ -78,15 +123,31 @@ export async function loadSocialVersions(
   requirePermission(ctx, "social.read");
   requirePermission(ctx, "field.responses.read");
   return withFieldContext(db, ctx, async (tx) => {
+    // One current campaign *per version*, resolved the same way `resolveCurrentCampaign` does, so
+    // the count beside a version is the count the tabulation of that version will show.
     const result = await tx.execute(sql`
       select v.id as version_id, v.version_label, t.name as template_name,
-             count(i.id) filter (where i.status = 'SUBMITTED')::int as submitted
+             coalesce((
+               select count(*)::int from app.survey_instance i
+                where i.tenant_id = v.tenant_id and i.survey_version_id = v.id
+                  and i.status = 'SUBMITTED'
+                  and exists (
+                    select 1 from app.field_assignment fa
+                     where fa.tenant_id = i.tenant_id and fa.id = i.assignment_id
+                       and fa.campaign_id = cur.id
+                  )
+             ), 0) as submitted
         from app.survey_version v
         join app.survey_template t on t.tenant_id = v.tenant_id and t.id = v.template_id
-        left join app.survey_instance i
-               on i.tenant_id = v.tenant_id and i.survey_version_id = v.id
+        left join lateral (
+          select c.id
+            from app.survey_campaign c
+           where c.tenant_id = v.tenant_id and c.project_id = v.project_id
+             and c.survey_version_id = v.id
+           order by (c.status = 'ACTIVE') desc, c.activated_at desc nulls last, c.created_at desc
+           limit 1
+        ) cur on true
        where v.tenant_id = ${ctx.tenantId} and v.project_id = ${ctx.projectId}
-       group by v.id, v.version_label, t.name
        order by v.version_label
     `);
     return (
@@ -126,6 +187,12 @@ export async function loadTabulation(
   if (!UUID_SHAPE.test(surveyVersionId)) throw new NotFound("survey version not found");
 
   return withFieldContext(db, ctx, async (tx) => {
+    const current = await resolveCurrentCampaign(tx, {
+      tenantId: ctx.tenantId,
+      projectId: ctx.projectId!,
+      surveyVersionId,
+    });
+    const scope = instanceInCampaign("i", current?.id ?? null);
     const versionRows = await tx.execute(sql`
       select v.id, v.version_label, t.name as template_name
         from app.survey_version v
@@ -139,9 +206,10 @@ export async function loadTabulation(
 
     // The universe: submitted responses of this version. Drafts never take part (§4).
     const submittedRow = await tx.execute(sql`
-      select count(*)::int as n from app.survey_instance
-       where tenant_id = ${ctx.tenantId} and project_id = ${ctx.projectId}
-         and survey_version_id = ${surveyVersionId} and status = 'SUBMITTED'
+      select count(*)::int as n from app.survey_instance i
+       where i.tenant_id = ${ctx.tenantId} and i.project_id = ${ctx.projectId}
+         and i.survey_version_id = ${surveyVersionId} and i.status = 'SUBMITTED'
+         and ${scope}
     `);
     const submitted = Number((submittedRow.rows[0] as { n: number }).n);
 
@@ -171,6 +239,7 @@ export async function loadTabulation(
           join app.survey_instance i on i.tenant_id = a.tenant_id and i.id = a.instance_id
          where a.tenant_id = ${ctx.tenantId} and a.question_id = ${question.id}
            and i.status = 'SUBMITTED' and i.survey_version_id = ${surveyVersionId}
+           and ${scope}
       `);
       const answered = Number((answeredRow.rows[0] as { n: number }).n);
 
@@ -185,6 +254,8 @@ export async function loadTabulation(
             join app.survey_option o on o.tenant_id = a.tenant_id and o.id = a.option_id
            where a.tenant_id = ${ctx.tenantId} and a.question_id = ${question.id}
              and i.status = 'SUBMITTED' and i.survey_version_id = ${surveyVersionId}
+             and ${scope}
+           and ${scope}
            group by o.code, o.label, o.ordinal
            order by o.ordinal
         `);
@@ -198,6 +269,8 @@ export async function loadTabulation(
             join app.survey_option o on o.tenant_id = link.tenant_id and o.id = link.option_id
            where link.tenant_id = ${ctx.tenantId} and a.question_id = ${question.id}
              and i.status = 'SUBMITTED' and i.survey_version_id = ${surveyVersionId}
+             and ${scope}
+           and ${scope}
            group by o.code, o.label, o.ordinal
            order by o.ordinal
         `);
@@ -209,6 +282,8 @@ export async function loadTabulation(
             join app.survey_instance i on i.tenant_id = a.tenant_id and i.id = a.instance_id
            where a.tenant_id = ${ctx.tenantId} and a.question_id = ${question.id}
              and i.status = 'SUBMITTED' and i.survey_version_id = ${surveyVersionId}
+             and ${scope}
+           and ${scope}
              and a.boolean_value is not null
            group by a.boolean_value
         `);
@@ -227,6 +302,8 @@ export async function loadTabulation(
             join app.survey_instance i on i.tenant_id = a.tenant_id and i.id = a.instance_id
            where a.tenant_id = ${ctx.tenantId} and a.question_id = ${question.id}
              and i.status = 'SUBMITTED' and i.survey_version_id = ${surveyVersionId}
+             and ${scope}
+           and ${scope}
              and a.number_value is not null
         `);
         numeric = summariseNumeric(
@@ -341,6 +418,12 @@ export async function loadOpenResponses(
   if (!UUID_SHAPE.test(input.surveyVersionId)) throw new NotFound("survey version not found");
 
   return withFieldContext(db, ctx, async (tx) => {
+    const current = await resolveCurrentCampaign(tx, {
+      tenantId: ctx.tenantId,
+      projectId: ctx.projectId!,
+      surveyVersionId: input.surveyVersionId,
+    });
+    const scope = instanceInCampaign("i", current?.id ?? null);
     // One row per *answer*, carrying its most recent proposal.
     //
     // A second run over the same question is a legitimate thing to do — a new model, a refined
@@ -378,6 +461,7 @@ export async function loadOpenResponses(
        where a.tenant_id = ${ctx.tenantId} and a.project_id = ${ctx.projectId}
          and i.status = 'SUBMITTED'
          and i.survey_version_id = ${input.surveyVersionId}
+         and ${scope}
          and q.type in ('SHORT_TEXT', 'LONG_TEXT')
          and a.text_value is not null
          and length(btrim(a.text_value)) > 0
@@ -518,6 +602,12 @@ export async function loadSocialMetrics(
   requirePermission(ctx, "field.responses.read");
 
   return withFieldContext(db, ctx, async (tx) => {
+    const current = await resolveCurrentCampaign(tx, {
+      tenantId: ctx.tenantId,
+      projectId: ctx.projectId!,
+      surveyVersionId,
+    });
+    const scope = instanceInCampaign("i", current?.id ?? null);
     // Counted per answer, over the most recent proposal for each — the same rule the queue uses,
     // so a figure and the list it describes can never disagree. Latency and tokens are summed over
     // every call the project actually made, because those are costs, not states.
@@ -529,6 +619,7 @@ export async function loadSocialMetrics(
           join app.survey_question q on q.tenant_id = a.tenant_id and q.id = a.question_id
          where a.tenant_id = ${ctx.tenantId} and a.project_id = ${ctx.projectId}
            and i.status = 'SUBMITTED' and i.survey_version_id = ${surveyVersionId}
+           and ${scope}
            and q.type in ('SHORT_TEXT', 'LONG_TEXT')
            and a.text_value is not null and length(btrim(a.text_value)) > 0
       ),
@@ -633,12 +724,18 @@ export async function loadDistributions(
   requirePermission(ctx, "field.responses.read");
 
   return withFieldContext(db, ctx, async (tx) => {
+    const current = await resolveCurrentCampaign(tx, {
+      tenantId: ctx.tenantId,
+      projectId: ctx.projectId!,
+      surveyVersionId,
+    });
     const validatedRows = await tx.execute(sql`
       select cat.code, cat.label, count(*)::int as n
         from app.human_review_category link
         join app.human_review h on h.tenant_id = link.tenant_id and h.id = link.review_id
         join app.taxonomy_category cat on cat.tenant_id = link.tenant_id and cat.id = link.category_id
        where link.tenant_id = ${ctx.tenantId} and link.project_id = ${ctx.projectId}
+         and ${answerInCampaign("h.answer_id", current?.id ?? null)}
        group by cat.code, cat.label, cat.ordinal
        order by cat.ordinal
     `);
@@ -653,8 +750,11 @@ export async function loadDistributions(
       select cat.code, cat.label, count(*)::int as n
         from app.ai_classification_category link
         join latest on latest.id = link.classification_id
+        join app.ai_classification c2
+          on c2.tenant_id = link.tenant_id and c2.id = link.classification_id
         join app.taxonomy_category cat on cat.tenant_id = link.tenant_id and cat.id = link.category_id
        where link.tenant_id = ${ctx.tenantId} and link.project_id = ${ctx.projectId}
+         and ${answerInCampaign("c2.answer_id", current?.id ?? null)}
        group by cat.code, cat.label, cat.ordinal
        order by cat.ordinal
     `);

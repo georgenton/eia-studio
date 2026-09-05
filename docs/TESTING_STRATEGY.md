@@ -116,6 +116,30 @@ The suite iterates the registry of entry points so that a new action without reg
 - Aggregation across versions requires a `QuestionMapping`; without it the metric reports
   per-version bases.
 
+## 8a. Campaign canonicalization tests (ADR-026)
+
+A campaign is an operational snapshot, so the tests are about rows **surviving** rather than about a
+function returning the right thing: the failure mode being guarded is a quiet rewrite, not a crash.
+
+`packages/application/test/campaign-canonicalization.integration.test.ts` reproduces the drift that
+made the rule necessary and then asserts the rule:
+
+- V1 runs — three parcels, one of them visited with a submitted response;
+- a revision with a different target universe **closes** V1 rather than adding to it: closed,
+  dated, renamed as history, and with every assignment and response still there;
+- V2 receives only its own parcels, including the one both revisions share (a per-campaign
+  uniqueness rule means the same ground surveyed by two operations is a fact, not a duplicate);
+- applying the same revision again changes nothing at all — no second campaign, no duplicated
+  assignment, no re-closing;
+- a `DRAFT` is left alone, because nothing happened under it;
+- the Command Center panel, the tabulation denominator and the report snapshot each count the
+  **current** operation and not both, while the closed one stays fully readable;
+- closing is a permission (`field.campaigns.manage`), refused for a viewer, and refused a second
+  time rather than silently repeated.
+
+The historical 119 aggregate is a `HISTORICAL_OBSERVED` metric, not a row in these tables; no
+campaign scope reaches it, and the staging suite keeps asserting it separately.
+
 ## 9. PII tests
 
 - PII-flagged answers land in `pii` tables and not in `app.answer`.
@@ -261,8 +285,14 @@ foreign keys installed; the runtime role without superuser or `BYPASSRLS`. Then 
 the runtime role, using the identities actually provisioned there: no context reads nothing, a
 forged tenant/project/user widens nothing, one technician cannot reach another's assignment, visit,
 response or answers, a technician can reach their own, and `field.responses.read` is what separates
-the two. Then the demo baseline — campaign, technicians, assignments, submitted responses,
-ownership coherence, no dangling provenance, `DEMO_SIMULATION` on every captured response, the
+the two. Then the demo baseline, and here the distinction of ADR-026 matters: a persistent environment
+legitimately accumulates **closed** campaigns, so the suite asserts the *current* operation exactly
+— exactly one active campaign, exactly the assignments the fixture declares, exactly its submitted
+responses — and asserts of history only that it is closed, dated and still carries its work. It
+never relaxes an exact count to `>=` to accommodate accumulation: that would hide the next drift,
+which is how the last one survived. The project's *total* assignment count is therefore not a
+fixture number and is not asserted as one. Then technicians, ownership coherence, no dangling
+provenance, `DEMO_SIMULATION` on every captured response, the
 historical aggregate still `HISTORICAL_OBSERVED` and not derived from demo answers, and no answer
 text that looks like an identifier. Finally the installed contracts, each as a rollback probe: a
 published version refuses an edit and a delete, its questions refuse a change, a submitted response

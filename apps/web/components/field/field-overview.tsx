@@ -63,7 +63,12 @@ export function FieldOverviewSurface({
         return (
           <Panel key={campaign.id}>
             <PanelHeader
-              label="Campaña de campo"
+              /*
+               * Which operation this is, in a word (ADR-026). A project keeps the campaigns that
+               * ran; only one of them is what "pendientes" means today, and a reader should not
+               * have to compare dates to work out which.
+               */
+              label={campaign.isCurrent ? "Operativo actual" : "Operativo anterior"}
               badge={<ProvenanceBadge facets={campaign.provenance} />}
               action={
                 <ProvenanceLink href={`${basePath}?prov=${campaign.provenanceId}`}>
@@ -88,6 +93,14 @@ export function FieldOverviewSurface({
                   {CAMPAIGN_STATUS_LABEL[campaign.status]}
                 </Chip>
               </div>
+
+              {campaign.isCurrent ? null : (
+                <p className={styles.historyNote}>
+                  Operativo cerrado. Se conserva completo — sus asignaciones, visitas y fichas
+                  enviadas siguen aquí — y no cuenta en el avance ni en las cifras del operativo
+                  actual.
+                </p>
+              )}
 
               <dl className={styles.channel}>
                 <div>

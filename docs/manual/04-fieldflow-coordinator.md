@@ -8,8 +8,12 @@ with `field.read` gets this one; a caller with only `field.assignments.read_own`
 
 ## What the coordinator sees
 
-- the active **campaign**, the **questionnaire version** it captures against, the **capture
-  channel** and whether that channel supports offline;
+- **_Operativo actual_** — the campaign running now, the **questionnaire version** it captures
+  against, the **capture channel** and whether that channel supports offline;
+- **_Operativo anterior_**, for each earlier operation the project ran. It is closed and complete —
+  every assignment, visit and submitted response still there — and it takes no part in today's
+  progress, the tabulation's denominator or a report snapshot (ADR-026). A project accumulates
+  these; only one of them is what "pendientes" means today;
 - **progress counted from the tables** — assignments, visits, responses submitted — never a stored
   running total that could drift;
 - **workload per technician**: counts only. A coordinator sees how much a technician has done, not
@@ -29,3 +33,6 @@ Opening one requires `field.responses.read`, which a technician and a GIS specia
   responses stay readable against the version they were captured on.
 - **Offline capture does not exist yet.** `field.surveys.offline_mode = required` refuses to
   activate a campaign, because the web capture channel declares no offline support (TD-035).
+- **A campaign's parcels are not edited after the field work starts.** A campaign records an
+  operation, not a plan: when the intended coverage changes, the operation that ran is **closed**
+  and a new one opens. Nothing is deleted, and the old campaign keeps everything it did (ADR-026).

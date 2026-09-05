@@ -28,9 +28,12 @@ for.
    one published by the study, one counted from the file it delivered.
 4. **A parcel.** Open one from the table. Resumen, Afectaciones and Visitas carry data; Instrumentos,
    Media and Calidad state plainly that they are waiting on a module.
-5. **Trabajo de campo** (FieldFlow). The campaign, its questionnaire version, progress counted from the tables, and
+5. **Trabajo de campo** (FieldFlow). _Operativo actual_ — the campaign running now, its questionnaire version, progress counted from the tables, and
    workload per technician as counts. Open one submitted response and read its answers.
    _Check:_ there is no way to edit an answer. There is not meant to be.
+   _Check:_ on staging there is also an _Operativo anterior_, closed. It keeps every assignment and
+   response it had, and its note says it takes no part in the current figures — which is why the
+   progress above counts twelve assignments and not twenty-two (ADR-026).
 6. **Análisis social → Tabulación** (Social Intelligence). Every question states its denominator in words, and the
    multi-choice one says its shares can exceed 100 %.
    _Check:_ the Respuestas abiertas tab offers you no run button. A coordinator watches; a

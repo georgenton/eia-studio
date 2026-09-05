@@ -18,6 +18,7 @@ import { randomUUID } from "node:crypto";
 
 import { recordAudit } from "../audit/record";
 import { withFieldContext } from "../field/context";
+import { resolveCurrentCampaign } from "../field/read-models";
 import { buildSocialSnapshot } from "./snapshot";
 
 /**
@@ -69,10 +70,19 @@ export async function generateSocialChapter(
   // `withFieldContext` because the snapshot counts response rows, whose policies ask whether this
   // caller may see rows that are not their own.
   return withFieldContext(db, ctx, async (tx) => {
+    // Which operation this chapter is about (ADR-026). A closed campaign's responses are a record
+    // of what happened and stay queryable; they are not part of the operation being reported now.
+    const campaign = await resolveCurrentCampaign(tx, {
+      tenantId: ctx.tenantId,
+      projectId,
+      surveyVersionId: input.surveyVersionId,
+    });
     const snapshot = await buildSocialSnapshot(tx, {
       tenantId: ctx.tenantId,
       projectId,
       surveyVersionId: input.surveyVersionId,
+      campaignId: campaign?.id ?? null,
+      campaignName: campaign?.name ?? null,
     });
     assertSnapshotHonest(snapshot);
     const digest = snapshotDigest(snapshot);
