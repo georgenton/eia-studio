@@ -45,7 +45,11 @@ const manifest = manifestSchema.parse(JSON.parse(readFileSync(manifestPath, "utf
 const emailArgIndex = process.argv.indexOf("--user-email");
 const userEmail = emailArgIndex >= 0 ? process.argv[emailArgIndex + 1] : undefined;
 
-const pool = createPool(env.DATABASE_MIGRATOR_URL, { max: 1, applicationName: "eia-studio-seed" });
+const pool = createPool(env.DATABASE_MIGRATOR_URL, {
+  max: 1,
+  applicationName: "eia-studio-seed",
+  statementTimeoutMs: null,
+});
 const db = createDatabase(pool);
 try {
   await db.transaction(async (tx) => {

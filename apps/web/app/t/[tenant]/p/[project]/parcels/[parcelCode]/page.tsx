@@ -1,4 +1,4 @@
-import { loadParcelVisits, loadParcelWorkspace, loadPortfolio } from "@eia/application";
+import { loadParcelVisits, loadParcelWorkspace, loadWorkspaceHeader } from "@eia/application";
 import { can } from "@eia/domain";
 import { notFound, redirect } from "next/navigation";
 
@@ -45,7 +45,7 @@ export default async function ParcelWorkspacePage({
 
   const { ctx, tenantSettings } = access;
   const sessionUser = await getSessionUser();
-  const portfolio = await loadPortfolio(getDb(), ctx);
+  const header = await loadWorkspaceHeader(getDb(), ctx);
   const explorerPath = projectPath(ctx.tenantSlug, project, "gis");
   const basePath = `/t/${ctx.tenantSlug}/p/${project}/parcels/${encodeURIComponent(parcelCode)}`;
   const tab = isParcelTab(rawTab) ? rawTab : "resumen";
@@ -53,15 +53,15 @@ export default async function ParcelWorkspacePage({
   const shell = {
     ctx,
     tenantSettings,
-    projects: portfolio.projects,
+    projects: header.projects,
     currentSurface: "gis" as const,
     userName: sessionUser?.name ?? sessionUser?.email ?? "Usuario",
     userEmail: sessionUser?.email ?? null,
     breadcrumb: [
       ...projectBreadcrumb(
         ctx,
-        portfolio.tenantName,
-        projectLabel(portfolio.projects, project),
+        header.tenantName,
+        projectLabel(header.projects, project),
         "GIS & Predios",
         explorerPath,
       ),

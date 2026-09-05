@@ -2,7 +2,7 @@ import {
   loadDistributions,
   loadOpenQuestion,
   loadOpenResponses,
-  loadPortfolio,
+  loadWorkspaceHeader,
   loadPublishedTaxonomy,
   loadRuns,
   loadSocialMetrics,
@@ -71,19 +71,19 @@ export default async function SocialPage({
 
   const { ctx, tenantSettings } = access;
   const sessionUser = await getSessionUser();
-  const portfolio = await loadPortfolio(getDb(), ctx);
+  const header = await loadWorkspaceHeader(getDb(), ctx);
 
   const shell = {
     ctx,
     tenantSettings,
-    projects: portfolio.projects,
+    projects: header.projects,
     currentSurface: "social" as const,
     userName: sessionUser?.name ?? sessionUser?.email ?? "Usuario",
     userEmail: sessionUser?.email ?? null,
     breadcrumb: projectBreadcrumb(
       ctx,
-      portfolio.tenantName,
-      projectLabel(portfolio.projects, project),
+      header.tenantName,
+      projectLabel(header.projects, project),
       SURFACE_DEFINITIONS.social.label,
     ),
   };

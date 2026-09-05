@@ -1,4 +1,4 @@
-import { loadFieldOverview, loadMyWork, loadPortfolio } from "@eia/application";
+import { loadFieldOverview, loadMyWork, loadWorkspaceHeader } from "@eia/application";
 import { can, readFieldOfflineMode, SURFACE_DEFINITIONS } from "@eia/domain";
 import { notFound, redirect } from "next/navigation";
 
@@ -48,20 +48,20 @@ export default async function FieldPage({
 
   const { ctx, tenantSettings } = access;
   const sessionUser = await getSessionUser();
-  const portfolio = await loadPortfolio(getDb(), ctx);
+  const header = await loadWorkspaceHeader(getDb(), ctx);
   const basePath = projectPath(ctx.tenantSlug, project, "field");
 
   const shell = {
     ctx,
     tenantSettings,
-    projects: portfolio.projects,
+    projects: header.projects,
     currentSurface: "field" as const,
     userName: sessionUser?.name ?? sessionUser?.email ?? "Usuario",
     userEmail: sessionUser?.email ?? null,
     breadcrumb: projectBreadcrumb(
       ctx,
-      portfolio.tenantName,
-      projectLabel(portfolio.projects, project),
+      header.tenantName,
+      projectLabel(header.projects, project),
       SURFACE_DEFINITIONS.field.label,
     ),
     drawer: prov ? (

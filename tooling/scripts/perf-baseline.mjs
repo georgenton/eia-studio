@@ -37,6 +37,7 @@ const ROUTES = [
   { key: "social", path: `/t/${TENANT}/p/${PROJECT}/social` },
   { key: "quality", path: `/t/${TENANT}/p/${PROJECT}/quality` },
   { key: "documents", path: `/t/${TENANT}/p/${PROJECT}/documents` },
+  { key: "pgas", path: `/t/${TENANT}/p/${PROJECT}/pgas` },
   { key: "reports", path: `/t/${TENANT}/p/${PROJECT}/reports` },
 ];
 
@@ -84,7 +85,10 @@ const cookie = await signIn();
 const results = [];
 
 for (const route of ROUTES) {
-  for (let i = 0; i < WARMUP; i += 1) await timeRoute(route.path, cookie, route.key);
+  // The first hit is reported, not warmed away: a reviewer opening a page nobody has opened today
+  // pays it, and a median that hides it answers a question nobody asked.
+  const cold = await timeRoute(route.path, cookie, route.key);
+  for (let i = 1; i < WARMUP; i += 1) await timeRoute(route.path, cookie, route.key);
   const samples = [];
   let status = null;
   let region = null;
@@ -104,6 +108,7 @@ for (const route of ROUTES) {
     region,
     cache,
     samples: SAMPLES,
+    coldMs: cold.ms,
     min: quantile(sorted, 0),
     median: quantile(sorted, 0.5),
     p95: quantile(sorted, 0.95),

@@ -7,6 +7,14 @@ export interface PoolOptions {
   readonly max?: number;
   readonly applicationName?: string;
   /**
+   * How long a statement may run before the server cancels it, in milliseconds; `null` disables it.
+   *
+   * It makes nothing faster. It makes a stuck query fail, legibly, instead of holding a connection
+   * until something else times out (TD-067). Operator work — migrations, seeds, imports, test
+   * fixtures — passes `null`, because a migration cancelled halfway is worse than a slow one.
+   */
+  readonly statementTimeoutMs?: number | null;
+  /**
    * Called after every statement, with how long the round trip took.
    *
    * The performance baseline needs to know how many times a page talks to the database and what
@@ -18,11 +26,42 @@ export interface PoolOptions {
 }
 
 export function createPool(connectionString: string, options: PoolOptions = {}): pg.Pool {
+  /*
+   * Connection settings, chosen from one observed failure rather than from a checklist.
+   *
+   * A manual review of the Preview saw a single `read ECONNRESET` on a session query. The functions
+   * and the database are in different regions and the path runs through a public TCP proxy, which
+   * is the shape of failure where an idle connection is dropped by something in the middle and the
+   * pool then hands it to a request as though it were healthy (`docs/PERFORMANCE_BASELINE.md` §6).
+   *
+   * So: **keepalive**, so the path is never idle long enough to be reclaimed silently; a **bounded
+   * lifetime** and a shorter **idle timeout**, so a connection is recycled by us rather than by a
+   * middlebox; and a **connect timeout**, so a request that cannot get a connection fails in
+   * seconds with a legible error instead of hanging (TD-067).
+   *
+   * Deliberately *not* here: retries. A retry around a transaction re-runs whatever it contained,
+   * and this product's transactions write. The pool already discards a client that errored, so the
+   * next request gets a fresh connection; making the failing one fail clearly is the honest fix.
+   */
   const pool = new pg.Pool({
     connectionString,
     max: options.max ?? 10,
     application_name: options.applicationName ?? "eia-studio",
+    keepAlive: true,
+    keepAliveInitialDelayMillis: 10_000,
+    idleTimeoutMillis: 30_000,
+    maxLifetimeSeconds: 600,
+    connectionTimeoutMillis: 10_000,
   });
+
+  const statementTimeoutMs =
+    options.statementTimeoutMs === undefined ? 20_000 : options.statementTimeoutMs;
+  if (statementTimeoutMs !== null) {
+    pool.on("connect", (client) => {
+      // On the client's own queue, so it runs before anything the caller sends on it.
+      void client.query(`set statement_timeout = ${Math.trunc(statementTimeoutMs)}`);
+    });
+  }
   const { onQuery } = options;
   if (onQuery) {
     // Wrapping the client rather than the pool: every use-case runs inside a transaction, and a

@@ -34,7 +34,7 @@ export {
 } from "./tenancy/capability-settings";
 export { loadCommandCenter } from "./projects/command-center";
 export type { CommandCenterView, ProjectHeader } from "./projects/command-center";
-export { loadPortfolio } from "./projects/portfolio";
+export { loadWorkspaceHeader, loadPortfolio } from "./projects/portfolio";
 export type { PortfolioCard, PortfolioView } from "./projects/portfolio";
 export {
   facetsOf,

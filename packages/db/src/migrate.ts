@@ -14,7 +14,12 @@ export const MIGRATIONS_SCHEMA = "drizzle";
  * the runtime role: the runtime role has no DDL privileges, so it would fail (ADR-004).
  */
 export async function runMigrations(migratorUrl: string): Promise<void> {
-  const pool = createPool(migratorUrl, { max: 1, applicationName: "eia-studio-migrate" });
+  const pool = createPool(migratorUrl, {
+    max: 1,
+    applicationName: "eia-studio-migrate",
+    // A migration cancelled halfway is worse than a slow one.
+    statementTimeoutMs: null,
+  });
   try {
     const db = drizzle({ client: pool });
     await migrate(db, { migrationsFolder: MIGRATIONS_FOLDER, migrationsSchema: MIGRATIONS_SCHEMA });

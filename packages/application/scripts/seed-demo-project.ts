@@ -464,6 +464,8 @@ const scenarioDay = (offsetDays: number, time: string): Date =>
 const pool = createPool(env.DATABASE_MIGRATOR_URL, {
   max: 1,
   applicationName: "eia-studio-seed-demo-project",
+  // A seed writes 141 parcels and 86 measures in one transaction.
+  statementTimeoutMs: null,
 });
 const db = createDatabase(pool);
 

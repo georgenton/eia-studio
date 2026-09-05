@@ -1,7 +1,7 @@
 import {
   loadCommandCenter,
   loadFieldProgress,
-  loadPortfolio,
+  loadWorkspaceHeader,
   loadTerritorialSummary,
 } from "@eia/application";
 import { can, SURFACE_DEFINITIONS } from "@eia/domain";
@@ -51,13 +51,13 @@ export default async function CommandCenterPage({
 
   const { ctx, tenantSettings } = access;
   const sessionUser = await getSessionUser();
-  const portfolio = await loadPortfolio(getDb(), ctx);
+  const header = await loadWorkspaceHeader(getDb(), ctx);
   const basePath = projectPath(ctx.tenantSlug, project, "");
 
   const shellProps = {
     ctx,
     tenantSettings,
-    projects: portfolio.projects,
+    projects: header.projects,
     currentSurface: "command-center" as const,
     userName: sessionUser?.name ?? sessionUser?.email ?? "Usuario",
     userEmail: sessionUser?.email ?? null,
@@ -75,7 +75,7 @@ export default async function CommandCenterPage({
           {...shellProps}
           breadcrumb={projectBreadcrumb(
             ctx,
-            portfolio.tenantName,
+            header.tenantName,
             project,
             SURFACE_DEFINITIONS["command-center"].label,
           )}
@@ -116,7 +116,7 @@ export default async function CommandCenterPage({
       {...shellProps}
       breadcrumb={projectBreadcrumb(
         ctx,
-        portfolio.tenantName,
+        header.tenantName,
         view.project.name,
         SURFACE_DEFINITIONS["command-center"].label,
       )}

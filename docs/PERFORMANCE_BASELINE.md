@@ -182,3 +182,74 @@ tenths of a second per page.
 **The region measurement is still owed.** §7 remains unperformed: the Preview answers 302 before a
 request reaches the application, and signing in needs the owner's credential. The count came down
 first, which is the order §8 argued for.
+
+## 11. Re-measured after the demo-readiness wave (5 September 2026)
+
+Same driver, same machine, same seeded project, 6 warm-ups and 10 samples per route, comparing
+`main` at `dbf6bcc` with the branch that made these two changes.
+
+| Route | Round trips | | Median ms | | First hit (cold) |
+|---|---:|---:|---:|---:|---:|
+| | before | after | before | after | after |
+| Cartera de proyectos | 24 | 24 | 26,8 | 26,9 | 189 |
+| Centro de control | 49 | **45** | 110,8 | **102,0** | 107 |
+| Cartografía y predios | 37 | **33** | 135,7 | **132,3** | 245 |
+| Trabajo de campo | 37 | **33** | 36,9 | **28,7** | 34 |
+| Análisis social | 85 | **81** | 230,9 | **217,1** | 240 |
+| Control de consistencia | 33 | **29** | 29,0 | **21,2** | 34 |
+| Documentos | 31 | **27** | 32,3 | **25,4** | 35 |
+| Plan de Manejo | — | 29 | — | 45,7 | 49 |
+| Informes | 31 | **27** | 26,8 | **18,6** | 24 |
+
+**Four fewer round trips on every project page, and one honest reason.** Every workspace page
+renders a tenant name, a project switcher and a breadcrumb, and every one of them called
+`loadPortfolio` to get them — a read that also fetches metrics, attention items, the activity feed
+and all of their provenance records so that the *Portfolio page* can draw cards. `loadWorkspaceHeader`
+asks for the two things the shell needs. Same permission, same context, narrower query.
+
+**The context phase is unchanged at 12** (9 on the Portfolio). It was brought down from 17 in the
+previous wave and there is nothing further to take out of it that would not weaken the envelope.
+
+**Cold and warm are now reported separately.** The first hit of a route costs 25–245 ms more than
+its median — Next.js compiling and the pool opening its first connection. It is not noise to be
+warmed away: a reviewer opening a page nobody has opened today pays it.
+
+**Social is the outlier, and it grew on purpose.** 85 round trips and ~230 ms: the tabulation reads
+answers per question and per option (TD-065), and campaign scoping (ADR-026) added an `EXISTS` to
+each of those reads. That is the right trade — a denominator that mixes two field operations is
+cheap and wrong — but it makes Social the one route where consolidation would now pay for itself.
+
+### 11.1 The `ECONNRESET`, and what was done about it
+
+One request on the Preview failed with `read ECONNRESET` on a session query. §6 read it as a single
+connection failure on a long-haul TCP path through a public proxy, on a connection the pool believed
+was healthy — not a capacity problem. Nothing since has contradicted that: no second occurrence, and
+the pool's `max` of 10 is never approached.
+
+The pool was configured with **nothing but `max` and an application name**, which means node-postgres
+defaults: no TCP keepalive, a 10-second idle timeout, unbounded connection lifetime, no connect
+timeout, no statement timeout. On a path where an idle connection can be reclaimed by a middlebox
+without either end being told, that is the exact shape that produces one unexplainable reset.
+
+| Setting | Value | Why |
+|---|---|---|
+| `keepAlive` (+10 s delay) | on | the path is never idle long enough to be reclaimed silently |
+| `maxLifetimeSeconds` | 600 | a connection is recycled by us, on our schedule, rather than by something in the middle |
+| `idleTimeoutMillis` | 30 000 | idle connections are returned rather than held open across a long gap |
+| `connectionTimeoutMillis` | 10 000 | a request that cannot get a connection fails in seconds, legibly (TD-067) |
+| `statement_timeout` | 20 000 ms | a stuck query fails instead of holding its connection (TD-067) — operator work (migrations, seeds, imports, test fixtures) passes `null`, because a migration cancelled halfway is worse than a slow one |
+
+**No retries were added**, and that is a decision rather than an omission. A retry around a
+transaction re-runs whatever the transaction contained, and this product's transactions write. The
+pool already discards a client that errored, so the next request gets a fresh connection; making the
+failing one fail clearly is the honest fix. If resets recur *with* keepalive, that is new evidence
+and a different diagnosis — a read-only retry at a single, named call site could then be argued from
+it.
+
+### 11.2 Region: still the owner's, and still a projection
+
+Unchanged. The functions are in `iad1`, the database in `us-west2`; §7's measurement is still blocked
+by the Preview's deployment protection. What has changed is the count the distance multiplies: 17 → 12
+context round trips in the previous wave, and now four fewer per page again. **The recommendation
+stands: fix the count before spending geography on it, and the count keeps coming down.** A database
+region migration remains a hard stop.

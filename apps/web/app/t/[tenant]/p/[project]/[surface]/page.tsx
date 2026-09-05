@@ -1,4 +1,4 @@
-import { loadPortfolio } from "@eia/application";
+import { loadWorkspaceHeader } from "@eia/application";
 import { notFound, redirect } from "next/navigation";
 
 import { projectBreadcrumb, projectLabel, WorkspaceShell } from "@/components/workspace-shell";
@@ -42,19 +42,19 @@ export default async function SurfacePage({
   // `ok` cannot occur here: an implemented surface has its own static route, which wins.
   const { ctx, surface: definition, tenantSettings } = access;
   const sessionUser = await getSessionUser();
-  const portfolio = await loadPortfolio(getDb(), ctx);
+  const header = await loadWorkspaceHeader(getDb(), ctx);
 
   return (
     <WorkspaceShell
       breadcrumb={projectBreadcrumb(
         ctx,
-        portfolio.tenantName,
-        projectLabel(portfolio.projects, project),
+        header.tenantName,
+        projectLabel(header.projects, project),
         definition.label,
       )}
       ctx={ctx}
       currentSurface={definition.key}
-      projects={portfolio.projects}
+      projects={header.projects}
       tenantSettings={tenantSettings}
       userName={sessionUser?.name ?? sessionUser?.email ?? "Usuario"}
       userEmail={sessionUser?.email ?? null}

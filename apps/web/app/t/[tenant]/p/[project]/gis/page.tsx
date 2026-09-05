@@ -1,4 +1,4 @@
-import { loadParcelExplorer, loadPortfolio } from "@eia/application";
+import { loadParcelExplorer, loadWorkspaceHeader } from "@eia/application";
 import { SURFACE_DEFINITIONS } from "@eia/domain";
 import { notFound, redirect } from "next/navigation";
 
@@ -45,21 +45,21 @@ export default async function GisPage({
 
   const { ctx, tenantSettings } = access;
   const sessionUser = await getSessionUser();
-  const portfolio = await loadPortfolio(getDb(), ctx);
+  const header = await loadWorkspaceHeader(getDb(), ctx);
   const basePath = projectPath(ctx.tenantSlug, project, "gis");
   const parcelsPath = `/t/${ctx.tenantSlug}/p/${project}/parcels`;
 
   const shell = {
     ctx,
     tenantSettings,
-    projects: portfolio.projects,
+    projects: header.projects,
     currentSurface: "gis" as const,
     userName: sessionUser?.name ?? sessionUser?.email ?? "Usuario",
     userEmail: sessionUser?.email ?? null,
     breadcrumb: projectBreadcrumb(
       ctx,
-      portfolio.tenantName,
-      projectLabel(portfolio.projects, project),
+      header.tenantName,
+      projectLabel(header.projects, project),
       SURFACE_DEFINITIONS.gis.label,
     ),
   };
