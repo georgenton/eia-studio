@@ -158,11 +158,13 @@ describe("running the rule set", () => {
     const ctx = await contextFor(coordinator);
     const result = await runQualityCheck(db.runtime, ctx);
 
-    // Two firing rules from four assertions. The other three rules have no inputs in this
+    // Two firing rules from four assertions. The other four rules have no inputs in this
     // project and are reported as skipped — not raised as `MISSING_EVIDENCE` findings, because
-    // "the document does not say" and "we could not find it" are different claims.
+    // "the document does not say" and "we could not find it" are different claims. The plan
+    // rule is skipped for the same reason: this project has no management plan chapter.
     expect(result.created).toBe(2);
     expect(result.skipped.map((s) => s.requirementKey).sort()).toEqual([
+      "rule.pgas_place_vs_influence_area",
       "rule.project_identity",
       "rule.territorial_institution",
       "rule.vulnerability_conclusion",
@@ -204,7 +206,7 @@ describe("running the rule set", () => {
   it("shows the rule catalogue even where nothing fired", async () => {
     // A gate that lists only its findings is indistinguishable from one that never ran.
     const overview = await loadQualityOverview(db.runtime, await contextFor(coordinator));
-    expect(overview.requirements).toHaveLength(5);
+    expect(overview.requirements).toHaveLength(6);
     expect(overview.requirements.map((r) => r.key)).toContain("rule.vulnerability_conclusion");
   });
 });

@@ -2,7 +2,10 @@ import { loadPortfolio } from "@eia/application";
 import {
   ATTENTION_SEVERITY_LABEL,
   PermissionDenied,
+  CAPABILITY_CATALOG,
   ROAD_EIA_SOCIAL_PROFILE,
+  profileLabel,
+  type CapabilityKey,
   SURFACE_DEFINITIONS,
   WORKSPACE_RAIL_ORDER,
 } from "@eia/domain";
@@ -15,7 +18,6 @@ import {
   DemoBadge,
   EmptyState,
   MetricFigure,
-  Mono,
   PageHeader,
   Panel,
   PanelBody,
@@ -113,16 +115,14 @@ export default async function PortfolioPage({
       userEmail={sessionUser?.email ?? null}
     >
       <PageHeader
-        title="Portfolio"
+        title="Cartera de proyectos"
         subtitle={
           <>
             <span>
               {formatCount(portfolio.projects.length)}{" "}
               {portfolio.projects.length === 1 ? "proyecto activo" : "proyectos activos"}
             </span>
-            <span>
-              perfil <Mono>{ROAD_EIA_SOCIAL_PROFILE.key}</Mono>
-            </span>
+            <span>perfil {ROAD_EIA_SOCIAL_PROFILE.label}</span>
           </>
         }
       />
@@ -140,7 +140,7 @@ export default async function PortfolioPage({
       <Columns>
         <Stack gap={16}>
           {portfolio.projects.length === 0 ? (
-            <SystemState state="empty" title="Aún no hay proyectos en este tenant">
+            <SystemState state="empty" title="Aún no hay proyectos en esta organización">
               <p>
                 Crea uno desde una plantilla de perfil o importa geometría, predios y encuestas.
               </p>
@@ -156,9 +156,7 @@ export default async function PortfolioPage({
                       </h2>
                       <p className={styles.cardMeta}>
                         {project.locationLabel ? <span>{project.locationLabel}</span> : null}
-                        <span>
-                          perfil <Mono>{project.profileKey}</Mono>
-                        </span>
+                        <span>perfil {profileLabel(project.profileKey)}</span>
                       </p>
                     </div>
                     <StatusChip label={lifecycleLabel(project.lifecycle)} tone="ok" />
@@ -215,7 +213,7 @@ export default async function PortfolioPage({
 
           {portfolio.projects.length > 0 ? (
             <EmptyState
-              title="Aún no hay más proyectos en este tenant"
+              title="Aún no hay más proyectos en esta organización"
               description="Crea uno desde una plantilla de perfil o importa geometría, predios y encuestas existentes."
             />
           ) : null}
@@ -250,7 +248,7 @@ export default async function PortfolioPage({
                 badge={<DemoBadge facets={portfolio.activity.map((a) => a.provenance)} />}
               />
               <ActivityTable
-                caption="Actividad reciente del tenant"
+                caption="Actividad reciente de la organización"
                 rows={portfolio.activity.map((event) => ({
                   id: event.id,
                   time: formatIsoDateShort(event.occurredAt.toISOString().slice(0, 10)),
@@ -263,19 +261,21 @@ export default async function PortfolioPage({
           ) : null}
 
           <Panel>
-            <PanelHeader label="Capabilities del tenant" />
+            <PanelHeader label="Módulos activos" />
             <PanelBody>
               <p className={styles.muted}>
-                La navegación se construye desde el resolutor de capabilities. Un módulo
-                deshabilitado no aparece y tampoco es invocable por URL.
+                Lo que esta organización tiene contratado y encendido. Un módulo apagado no aparece
+                en el menú y tampoco se abre escribiendo su dirección.
               </p>
               <div className={styles.chipRow}>
+                {/*
+                  The module's name, not its key. A consultant reads this panel to know what the
+                  firm has; the key is what the code checks and belongs nowhere near it.
+                */}
                 {Object.entries(ctx.capabilities)
                   .filter(([, enabled]) => enabled)
                   .map(([key]) => (
-                    <Chip key={key} mono>
-                      {key}
-                    </Chip>
+                    <Chip key={key}>{CAPABILITY_CATALOG[key as CapabilityKey].label}</Chip>
                   ))}
               </div>
             </PanelBody>

@@ -38,7 +38,7 @@ for.
    multi-choice one says its shares can exceed 100 %.
    _Check:_ the Respuestas abiertas tab offers you no run button. A coordinator watches; a
    specialist decides.
-7. **Control de calidad** (Quality Gate). Press _Ejecutar revisión_. Four findings appear — real inconsistencies in the
+7. **Control de consistencia** (Quality Gate). Press _Ejecutar revisión_. Four findings appear — real inconsistencies in the
    concluded study's file. Open **QG-001**: two documents of the same file, 71 predios and 70, at
    equal weight, neither called the error. Press the button again: nothing duplicates.
    _Check:_ there is no decision form. A coordinator checks; a reviewer decides.
@@ -46,7 +46,7 @@ for.
    with its document, version and page — and a line saying there is no narrative because no model is
    configured. Read the caveat under the results: this is lexical search, not semantic.
    _Check:_ ask something the corpus does not discuss. It says so and cites nothing.
-9. Back in **Control de calidad → QG-001**: the evidence now links to the passage it was transcribed from.
+9. Back in **Control de consistencia → QG-001**: the evidence now links to the passage it was transcribed from.
    Follow the link — it lands on the document, at that passage. The finding was never rewritten.
 10. **Plan de Manejo.** The study's Cap 11, as the consultancy wrote it: nine plans, twenty-two
     programmes, eighty-six measures. Read the note at the top — this is the plan the study
@@ -89,7 +89,7 @@ for.
 
 ## 4 · Quality reviewer — `revisor@demo.invalid`
 
-1. Sign in, open **Control de calidad → QG-003** (the consultation dates).
+1. Sign in, open **Control de consistencia → QG-003** (the consultation dates).
 2. _Check:_ the submit button stays disabled until the justification is long enough. A token word is
    not a reason.
 3. Dismiss it with a real reason. Reload: the decision, your name and your words are in the history.

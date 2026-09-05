@@ -66,6 +66,7 @@ export function ParcelExplorer({
     () => [...new Map(orderLayersForLegend(view.layers).map((l) => [l.legend, l])).values()],
     [view.layers],
   );
+  const [showInfluenceAreas, setShowInfluenceAreas] = useState(true);
   const selected = view.parcels.find((p) => p.id === selection.selectedParcelId) ?? null;
   const presentStatuses = ALL_STATUSES.filter((s) => view.parcels.some((p) => p.status === s));
 
@@ -131,6 +132,7 @@ export function ParcelExplorer({
           <ParcelMap
             onSelect={selection.select}
             selectedParcelId={selection.selectedParcelId}
+            showInfluenceAreas={showInfluenceAreas}
             view={view}
           />
           <div className={styles.layerLegend}>
@@ -150,6 +152,38 @@ export function ParcelExplorer({
                 );
               })}
             </ul>
+
+            {/*
+              The areas the study delimited, and a switch for them. They are drawn as a generalised
+              outline — enough to read a corridor against, not a substitute for the stored polygon —
+              and the note says so rather than implying the map is the survey.
+            */}
+            {view.influenceAreas.length > 0 ? (
+              <div className={styles.influenceBlock}>
+                <label className={styles.influenceToggle}>
+                  <input
+                    checked={showInfluenceAreas}
+                    onChange={(event) => setShowInfluenceAreas(event.currentTarget.checked)}
+                    type="checkbox"
+                  />
+                  Áreas de influencia del estudio
+                </label>
+                <ul className={styles.influenceList}>
+                  {view.influenceAreas.map((area) => (
+                    <li key={area.kind}>
+                      <span>{area.label}</span>
+                      <span className={styles.influenceArea}>
+                        {formatDecimal(area.areaHa, 0)} ha
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                <p className={styles.influenceNote}>
+                  Contorno generalizado para el dibujo; la geometría almacenada es la que entregó el
+                  estudio.
+                </p>
+              </div>
+            ) : null}
           </div>
         </div>
 

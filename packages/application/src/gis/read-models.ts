@@ -1,5 +1,6 @@
 import { gisSchema, withDbContext, type Database, type DbTx } from "@eia/db";
 import {
+  CANONICAL_SRID,
   affectationRatio,
   deriveLayerLegend,
   NotFound,
@@ -94,11 +95,38 @@ export interface ParcelExplorerView {
   } | null;
   readonly parcels: ReadonlyArray<ParcelRow>;
   readonly features: ReadonlyArray<ParcelFeature>;
+  /**
+   * The areas of influence the study delimited, **simplified for drawing** (TD-070).
+   *
+   * They are the context a parcel sits in — a consultant reads a corridor against them — and until
+   * now they were imported, legended and invisible. The stored geometry is untouched: these are
+   * a presentation copy, generalised in the dataset's own analysis CRS so the tolerance is metres
+   * on the ground rather than degrees, and the surface says the drawn outline is generalised.
+   * Without it the indirect social area alone is 585 KB of coordinates on every page load.
+   */
+  readonly influenceAreas: ReadonlyArray<InfluenceAreaFeature>;
   readonly layers: ReadonlyArray<LayerProvenance>;
   /** Bounding box of the active parcel layer in presentation CRS: [w, s, e, n]. */
   readonly bounds: readonly [number, number, number, number] | null;
   readonly truncated: boolean;
 }
+
+export interface InfluenceAreaFeature {
+  readonly kind: string;
+  readonly label: string;
+  readonly areaHa: number;
+  readonly geometry: unknown;
+  readonly provenanceId: string;
+}
+
+/**
+ * How much detail a drawn outline keeps, in metres of the dataset's analysis CRS.
+ *
+ * Interpolated with `sql.raw` rather than bound: PostGIS resolves `ST_SimplifyPreserveTopology`
+ * and `ST_Transform` by argument type, and an untyped bind parameter makes the overload
+ * ambiguous. Both values are constants of this module, never anything a caller supplies.
+ */
+const INFLUENCE_AREA_SIMPLIFY_M = 12;
 
 function toNumber(value: string | null): number | null {
   return value === null ? null : Number(value);
@@ -191,6 +219,36 @@ export async function loadParcelExplorer(
         on v.tenant_id = a.tenant_id and v.id = a.dataset_version_id and v.is_active
       where a.tenant_id = ${ctx.tenantId} and a.project_id = ${projectId}
       limit 1
+    `);
+
+    /*
+     * The areas of influence, generalised for display only.
+     *
+     * `ST_SimplifyPreserveTopology` in the dataset's analysis CRS, then back to the storage CRS:
+     * a metre tolerance is meaningless in degrees, and a simplification that produced a
+     * self-intersecting ring would be worse than no outline at all. Nothing is written; the stored
+     * polygon is the one the study delivered.
+     */
+    const influenceRows = await tx.execute(sql`
+      select ia.kind::text as kind,
+             ia.label,
+             ia.area_m2,
+             ia.provenance_id,
+             ST_AsGeoJSON(
+               ST_Transform(
+                 ST_SimplifyPreserveTopology(
+                   ST_Transform(ia.geom, v.analysis_srid),
+                   ${sql.raw(String(INFLUENCE_AREA_SIMPLIFY_M))}
+                 ),
+                 ${sql.raw(String(CANONICAL_SRID))}
+               ),
+               5
+             ) as geojson
+        from app.influence_area ia
+        join app.spatial_dataset_version v
+          on v.tenant_id = ia.tenant_id and v.id = ia.dataset_version_id and v.is_active
+       where ia.tenant_id = ${ctx.tenantId} and ia.project_id = ${projectId}
+       order by ia.area_m2
     `);
 
     // One query for the table and the map: the same rows, so a parcel can never be on the map
@@ -315,6 +373,21 @@ export async function loadParcelExplorer(
         : null,
       parcels,
       features,
+      influenceAreas: (
+        influenceRows.rows as unknown as ReadonlyArray<{
+          kind: string;
+          label: string;
+          area_m2: string;
+          provenance_id: string;
+          geojson: string;
+        }>
+      ).map((row) => ({
+        kind: row.kind,
+        label: row.label,
+        areaHa: Number(row.area_m2) / 10_000,
+        geometry: JSON.parse(row.geojson),
+        provenanceId: row.provenance_id,
+      })),
       layers,
       bounds: Number.isFinite(west) ? [west, south, east, north] : null,
       truncated,

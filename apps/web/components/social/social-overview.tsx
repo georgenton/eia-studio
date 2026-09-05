@@ -7,7 +7,15 @@ import type {
   TaxonomyVersionSummary,
 } from "@eia/application";
 import { AGREEMENT_SEMANTICS } from "@eia/domain";
-import { Chip, formatCount, formatPercent, Panel, PanelBody, PanelHeader } from "@eia/ui";
+import {
+  Chip,
+  formatCount,
+  formatDateTime,
+  formatPercent,
+  Panel,
+  PanelBody,
+  PanelHeader,
+} from "@eia/ui";
 import { useState, useTransition } from "react";
 
 import { startClassificationRunAction } from "@/lib/social-actions";
@@ -173,14 +181,26 @@ export function SocialOverview({
         <Panel>
           <PanelHeader
             label="Esquema de codificación"
-            action={<Chip tone="warn">DEMO / RECONSTRUIDA</Chip>}
+            action={<Chip tone="warn">Reconstruido</Chip>}
           />
           <PanelBody>
             <p className={styles.note}>
-              Versión <strong>{taxonomy.versionLabel}</strong>
-              {taxonomy.definitionHash ? ` · huella ${taxonomy.definitionHash}` : ""}.{" "}
-              {taxonomy.sourceNote}
+              Versión <strong>{taxonomy.versionLabel}</strong>. {taxonomy.sourceNote}
             </p>
+            {/*
+              The definition's fingerprint is what proves two codings were made against the same
+              scheme. It is evidence, so it stays; it is not something a specialist reads while
+              working, so it does not sit in the sentence above.
+            */}
+            {taxonomy.definitionHash ? (
+              <details className={styles.technical}>
+                <summary>Detalle técnico del esquema</summary>
+                <p>
+                  Huella de la definición: <code>{taxonomy.definitionHash}</code>. Dos
+                  codificaciones hechas contra la misma huella se hicieron contra el mismo esquema.
+                </p>
+              </details>
+            ) : null}
             <ul className={styles.categoryList}>
               {taxonomy.categories.map((category) => (
                 <li key={category.code}>
@@ -195,45 +215,80 @@ export function SocialOverview({
 
       {runs.length > 0 ? (
         <Panel>
-          <PanelHeader label="Ejecuciones" />
+          <PanelHeader label="Codificaciones asistidas" note={`${runs.length} ejecución(es)`} />
           <PanelBody>
+            <p className={styles.note}>
+              Cada vez que se pidió al modelo que propusiera categorías, y qué devolvió. Son
+              propuestas: ninguna entra en un resultado sin la decisión de un especialista.
+            </p>
             <table className={styles.table}>
               <thead>
                 <tr>
+                  <th scope="col">Cuándo</th>
                   <th scope="col">Estado</th>
-                  <th scope="col">Modelo solicitado</th>
-                  <th scope="col">Modelo que respondió</th>
-                  <th scope="col">Adaptador</th>
-                  <th scope="col">Prompt</th>
-                  <th scope="col">Esquema</th>
                   <th scope="col">Propuestas</th>
+                  <th scope="col">Esquema</th>
                 </tr>
               </thead>
               <tbody>
                 {runs.map((run) => (
                   <tr key={run.runId}>
-                    <td>{run.status}</td>
-                    <td>{run.requestedModel}</td>
-                    <td>{run.resolvedModel ?? "—"}</td>
-                    <td>{run.classifierKind}</td>
+                    <td>{run.startedAt ? formatDateTime(run.startedAt) : "—"}</td>
+                    <td>{RUN_STATUS_LABEL[run.status] ?? run.status}</td>
                     <td>
-                      {run.promptVersion} · {run.promptHash}
+                      {formatCount(run.succeeded)} de {formatCount(run.queued)}
+                      {run.failed > 0 ? ` · ${formatCount(run.failed)} sin resultado` : ""}
                     </td>
                     <td>{run.taxonomyVersionLabel}</td>
-                    <td>
-                      {formatCount(run.succeeded)} / {formatCount(run.queued)}
-                      {run.failed > 0 ? ` · ${formatCount(run.failed)} fallidas` : ""}
-                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+            {/*
+              Which model answered, through which adapter and against which prompt version is the
+              record AI governance asks us to keep (AI_GOVERNANCE.md). It is kept, and it is one
+              click away — it is an audit trail, not a working view.
+            */}
+            <details className={styles.technical}>
+              <summary>Detalle técnico de las ejecuciones</summary>
+              <table className={styles.table}>
+                <thead>
+                  <tr>
+                    <th scope="col">Modelo solicitado</th>
+                    <th scope="col">Modelo que respondió</th>
+                    <th scope="col">Adaptador</th>
+                    <th scope="col">Instrucción (versión · huella)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {runs.map((run) => (
+                    <tr key={run.runId}>
+                      <td>{run.requestedModel}</td>
+                      <td>{run.resolvedModel ?? "—"}</td>
+                      <td>{run.classifierKind}</td>
+                      <td>
+                        {run.promptVersion} · {run.promptHash}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </details>
           </PanelBody>
         </Panel>
       ) : null}
     </div>
   );
 }
+
+/** Run states, in words. The keys are what the worker writes; these are what a person reads. */
+const RUN_STATUS_LABEL: Readonly<Record<string, string>> = {
+  QUEUED: "En cola",
+  RUNNING: "En curso",
+  COMPLETED: "Completada",
+  FAILED: "Fallida",
+  BLOCKED: "Bloqueada",
+};
 
 function Kpi({ label, value, help }: { label: string; value: string; help?: string }) {
   // Label, then figure, then explanation. The explanation belongs *under* the number it qualifies:

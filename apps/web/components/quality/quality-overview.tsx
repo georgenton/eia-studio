@@ -86,7 +86,7 @@ export function QualityOverviewPanel({
     <>
       <Panel>
         <PanelHeader
-          label="Control de calidad"
+          label="Control de consistencia"
           note={
             overview.lastRun?.finishedAt
               ? `Última revisión: ${dateTime(overview.lastRun.finishedAt)}`
@@ -102,7 +102,7 @@ export function QualityOverviewPanel({
         />
         <PanelBody>
           <p className={styles.note}>
-            El control de calidad señala <strong>discrepancias entre dos fuentes</strong> del
+            El control de consistencia señala <strong>discrepancias entre dos fuentes</strong> del
             expediente. No determina cuál de las dos es correcta, ni declara conformidad: esa
             decisión, con su justificación, es de un especialista y queda registrada de forma
             permanente.
@@ -200,11 +200,15 @@ export function QualityOverviewPanel({
           <ul className={styles.ruleList}>
             {overview.requirements.map((requirement) => (
               <li className={styles.ruleItem} key={requirement.key}>
+                {/*
+                  The rule's name, and its version as a plain word. The catalogue key is what a
+                  finding stores so a decision taken last month can be traced to the exact rule
+                  that produced it — it belongs in the finding's detail, not in a list a specialist
+                  reads to know what was checked.
+                */}
                 <span className={styles.ruleName}>
                   {requirement.title}{" "}
-                  <span className={styles.code}>
-                    {requirement.key}@{requirement.version}
-                  </span>
+                  <span className={styles.code}>versión {requirement.version}</span>
                 </span>
                 <span className={styles.ruleWhat}>{requirement.what}</span>
               </li>

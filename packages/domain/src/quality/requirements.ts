@@ -112,6 +112,19 @@ export const QUALITY_REQUIREMENTS: ReadonlyArray<QualityRequirement> = [
       "Revisión interdisciplinaria entre el área social y la legal: contrastar la definición usada en cada documento y dejar constancia del criterio que rige.",
   },
   {
+    key: "rule.pgas_place_vs_influence_area",
+    version: "1",
+    type: "GEOGRAPHICAL_MISMATCH",
+    defaultSeverity: "medium",
+    interdisciplinaryByDefault: false,
+    title: "Área de aplicación del plan frente a la cartografía",
+    what: "Un plan de manejo declara aplicarse en un área de influencia que la cartografía del proyecto no contiene.",
+    whyFlagged:
+      "Una medida se ejecuta y se fiscaliza sobre un área concreta. Si el plan la nombra y la cartografía no la delimita, no hay forma de saber dónde debe aplicarse ni de verificar después que se aplicó allí.",
+    suggestedAction:
+      "Contrastar el capítulo del plan con las capas entregadas: o el plan nombra un área que debe delimitarse, o la cartografía la tiene con otro nombre. Dejar constancia de cuál de las dos rige.",
+  },
+  {
     key: "rule.project_identity",
     version: "1",
     type: "CROSS_DOCUMENT_INCONSISTENCY",

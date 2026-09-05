@@ -4,6 +4,7 @@ import {
   evidenceLocatorSchema,
   NotFound,
   requireCapability,
+  QUALITY_REQUIREMENTS,
   requirementByKey,
   requirePermission,
   type EvidenceLocator,
@@ -381,13 +382,9 @@ function toSummary(row: FindingRow): FindingSummary {
 
 /** Read from the code catalogue, which is where a rule's definition lives (ADR-020). */
 function requirementCatalogue(): QualityOverview["requirements"] {
-  return [
-    "rule.affectation_count",
-    "rule.territorial_institution",
-    "rule.consultation_planned_vs_actual",
-    "rule.vulnerability_conclusion",
-    "rule.project_identity",
-  ].map((key) => {
+  // Every rule the run executes, in the order it executes them. Listing a subset would make the
+  // panel's promise — "what this review checks, whether or not it found anything" — untrue.
+  return QUALITY_REQUIREMENTS.map((entry) => entry.key).map((key) => {
     const requirement = requirementByKey(key);
     return {
       key: requirement.key,

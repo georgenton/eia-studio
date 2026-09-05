@@ -4,12 +4,16 @@ import {
   demoScenarioDate,
   LAYER_LEGEND_COPY,
   PARCEL_STATUS_PRESENTATION,
+  profileLabel,
+  PROJECT_ROLE_LABEL,
+  TENANT_ROLE_LABEL,
   selectLayerByKind,
   SURFACE_DEFINITIONS,
   type MetricKey,
   type MetricSnapshot,
   type ParcelStatus,
   type ProvenanceFacets,
+  type TenantRole,
   type RequestContext,
 } from "@eia/domain";
 import {
@@ -138,9 +142,7 @@ export function CommandCenter({
               {length && length.numericValue !== null ? (
                 <span>{formatDecimal(length.numericValue)} km</span>
               ) : null}
-              <span>
-                perfil <Mono>{view.project.profileKey}</Mono>
-              </span>
+              <span>perfil {profileLabel(view.project.profileKey)}</span>
             </p>
           </div>
           {forecast ? (
@@ -157,7 +159,11 @@ export function CommandCenter({
               </div>
               <div>
                 <dt>Rol en el proyecto</dt>
-                <dd>{view.projectRole ?? `${view.tenantRole} (acceso implícito)`}</dd>
+                <dd>
+                  {view.projectRole
+                    ? PROJECT_ROLE_LABEL[view.projectRole]
+                    : `${TENANT_ROLE_LABEL[view.tenantRole as TenantRole]} · acceso implícito`}
+                </dd>
               </div>
               <div>
                 <dt>{scenarioLabel ? "Fecha de corte del escenario" : "Última actualización"}</dt>
@@ -275,8 +281,13 @@ export function CommandCenter({
                       <span className={styles.assumptionsLabel}>Supuestos:</span>{" "}
                       {forecast.assumptions.join(" · ")}
                     </p>
+                    {/*
+                      Traceability, in a sentence rather than as a bare token. The exact version
+                      string stays where a reader can check it — the provenance record of the
+                      forecast — and here it is introduced.
+                    */}
                     <p className={styles.algorithm}>
-                      <Mono>{forecast.algorithmVersion}</Mono>
+                      Versión del cálculo: <Mono>{forecast.algorithmVersion}</Mono>
                     </p>
                   </div>
                 </div>

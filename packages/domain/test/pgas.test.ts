@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   headingVariants,
+  placeFromObjective,
   measureCode,
   pgasChapterSchema,
   planCompleteness,
@@ -195,5 +196,27 @@ describe("the chapter schema refuses a shape this importer cannot honestly read"
         plans: [{ ...plan(), presupuesto: "USD 12.000" }],
       }),
     ).toThrow();
+  });
+});
+
+describe("the place of application, where the chapter hides it", () => {
+  it("reads it out of the objective paragraph, which is where seven of the nine put it", () => {
+    expect(
+      placeFromObjective(
+        "OBJETIVO: Implementar acciones. LUGAR DE APLICACIÓN: Vía “Puente del Amor – Los Hachos”\n" +
+          "FASES DEL PROYECTO: Construcción, cierre y abandono",
+      ),
+    ).toBe("Vía “Puente del Amor – Los Hachos”");
+  });
+
+  it("takes the whole tail when no phase label follows", () => {
+    expect(placeFromObjective("OBJETIVO: X. Lugar de aplicación: Área de Influencia Directa")).toBe(
+      "Área de Influencia Directa",
+    );
+  });
+
+  it("returns nothing when the objective does not state one, rather than guessing", () => {
+    expect(placeFromObjective("OBJETIVO: Implementar acciones de prevención.")).toBeNull();
+    expect(placeFromObjective(null)).toBeNull();
   });
 });

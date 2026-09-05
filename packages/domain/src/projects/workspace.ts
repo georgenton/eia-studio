@@ -81,7 +81,7 @@ export const SURFACE_DEFINITIONS: Readonly<Record<WorkspaceSurface, SurfaceDefin
   quality: {
     key: "quality",
     capability: "quality.document_gate",
-    label: "Control de calidad",
+    label: "Control de consistencia",
     segment: "quality",
     implemented: true,
     plannedIn: null,
@@ -112,15 +112,23 @@ export const SURFACE_DEFINITIONS: Readonly<Record<WorkspaceSurface, SurfaceDefin
   },
 };
 
-/** Rail order of the approved design: workspace surfaces, then the client portal link. */
+/**
+ * Rail order: the order the work happens in.
+ *
+ * *Proyecto → territorio → levantamiento → resultados → revisión → gestión ambiental → documentos
+ * → informe.* The management plan sits before the documents and the report because that is where a
+ * consultant reaches it: after the findings are reviewed and before the chapter is written. The
+ * approved bundle's grouping is unchanged; only the position of the plan moved, and only because
+ * the plan did not exist when the bundle was drawn.
+ */
 export const WORKSPACE_RAIL_ORDER: ReadonlyArray<WorkspaceSurface> = [
   "command-center",
   "gis",
   "field",
   "social",
   "quality",
-  "documents",
   "pgas",
+  "documents",
   "reports",
 ];
 

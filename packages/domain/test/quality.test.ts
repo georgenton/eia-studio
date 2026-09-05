@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  detectPgasPlaceVsInfluenceArea,
   assertComparable,
   assertPermittedFindingLanguage,
   availableDecisions,
@@ -401,5 +402,81 @@ describe("the catalogue is internally consistent", () => {
     for (const forbidden of ["Zamora", "Puente del Amor", "Pichincha", "Los Hachos", "7,4"]) {
       expect(text, forbidden).not.toContain(forbidden);
     }
+  });
+});
+
+/**
+ * The plan against the map (ADR-024 §5, TD-072 closed).
+ *
+ * Two sources — a chapter that says where a plan applies, and the geometry delivered with it. The
+ * silent case is the one that matters most here: against the study as delivered this rule finds
+ * nothing, and a rule that cannot be seen finding nothing is a rule nobody can trust when it does.
+ */
+describe("a plan's place of application against the cartography", () => {
+  const areas = {
+    influenceAreaKinds: ["direct", "indirect", "direct_social", "indirect_social"],
+    influenceAreaLabels: [
+      "Área de influencia directa — componente físico",
+      "Área de influencia social directa",
+    ],
+  };
+
+  it("says nothing when the plan names an area the cartography delimits", () => {
+    expect(
+      detectPgasPlaceVsInfluenceArea({
+        plan: {
+          code: "PRC-01",
+          title: "PLAN DE RELACIONES COMUNITARIAS",
+          place: "LUGAR DE APLICACIÓN: Área de Influencia Directa del Proyecto",
+        },
+        ...areas,
+      }),
+    ).toBeNull();
+  });
+
+  it("says nothing when the plan names no area at all", () => {
+    expect(
+      detectPgasPlaceVsInfluenceArea({
+        plan: { code: "PPMI-01", title: "PLAN DE PREVENCIÓN", place: "Vía “Puente del Amor”" },
+        ...areas,
+      }),
+    ).toBeNull();
+  });
+
+  it("reports it when the cartography has no such area, naming both sides", () => {
+    const finding = detectPgasPlaceVsInfluenceArea({
+      plan: {
+        code: "PRC-01",
+        title: "PLAN DE RELACIONES COMUNITARIAS",
+        place: "LUGAR DE APLICACIÓN: Área de Influencia Directa del Proyecto",
+      },
+      influenceAreaKinds: ["indirect"],
+      influenceAreaLabels: ["Área de influencia indirecta — componente físico"],
+    });
+    expect(finding).not.toBeNull();
+    expect(finding?.requirementKey).toBe("rule.pgas_place_vs_influence_area");
+    const roles = finding?.evidence.map((e) => e.role);
+    expect(roles).toEqual(["SOURCE_A", "SOURCE_B"]);
+    expect(finding?.evidence[0]?.locator).toMatchObject({ kind: "pgas_plan", planCode: "PRC-01" });
+    expect(finding?.evidence[1]?.locator).toMatchObject({
+      kind: "spatial_layer",
+      layer: "influence_areas",
+    });
+    // Never a verdict: it says the two disagree, not which of them is wrong.
+    expect(finding?.explanation).toContain("requiere revisión de especialista");
+  });
+
+  it("distinguishes the social area from the physical one", () => {
+    const finding = detectPgasPlaceVsInfluenceArea({
+      plan: {
+        code: "PC-01",
+        title: "PLAN DE CONTINGENCIAS",
+        place: "Área de Influencia Social Directa",
+      },
+      influenceAreaKinds: ["direct"],
+      influenceAreaLabels: ["Área de influencia directa — componente físico"],
+    });
+    // `direct` is not `direct_social`: the plan named the social area and the map has the physical.
+    expect(finding).not.toBeNull();
   });
 });

@@ -17,8 +17,11 @@ test.describe("Quality Gate · the coordinator's journey", () => {
 
     // A gate that lists nothing must be distinguishable from one that never ran.
     await expect(main.getByText("Reglas vigentes")).toBeVisible();
-    await expect(main.getByText("rule.affectation_count@1")).toBeVisible();
-    await expect(main.getByText("rule.project_identity@1")).toBeVisible();
+    // The rules by name and version. The catalogue key is traceability and lives on the finding,
+    // not in the list a specialist reads to know what was checked.
+    await expect(main).toContainText("Número de predios afectados");
+    await expect(main).toContainText("Identificación del proyecto en el expediente");
+    await expect(main).toContainText("Área de aplicación del plan frente a la cartografía");
 
     // The product's position, in words, on the page.
     await expect(main).toContainText("No determina cuál de las dos es correcta");
