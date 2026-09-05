@@ -649,7 +649,9 @@
       ]
     },
     "campaign": {
-      "name": "Campaña de campo — demostración",
+      "key": "zamora-field-operations-v2",
+      "name": "Operativo de campo · en curso",
+      "supersededName": "Operativo de campo anterior",
       "status": "ACTIVE",
       "startsOnOffsetDays": -6,
       "targetOnOffsetDays": 8,

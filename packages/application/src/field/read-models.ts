@@ -56,6 +56,14 @@ export interface FieldCampaignSummary {
   readonly submittedCount: number;
   readonly provenanceId: string;
   readonly provenance: ProvenanceFacets;
+  /**
+   * Whether this is the operation running now (ADR-026).
+   *
+   * A project accumulates campaigns and they are all worth keeping, but exactly one of them is
+   * what "pendientes" means today. The list says which, so the surface never has to guess and a
+   * closed operation is never mistaken for the current workload.
+   */
+  readonly isCurrent: boolean;
 }
 
 export interface TechnicianWorkload {
@@ -151,7 +159,7 @@ export async function loadFieldOverview(db: Database, ctx: RequestContext): Prom
       rows.map((row) => row.provenance_id),
     );
 
-    const campaigns: FieldCampaignSummary[] = rows.map((row) => {
+    const campaigns: Array<Omit<FieldCampaignSummary, "isCurrent">> = rows.map((row) => {
       const record = provenance.get(row.provenance_id);
       if (!record) throw new Error("provenance record missing for a survey campaign");
       return {
@@ -212,7 +220,14 @@ export async function loadFieldOverview(db: Database, ctx: RequestContext): Prom
       completed: row.completed,
     }));
 
-    return { campaigns, workload };
+    // The current operation first, then the rest as history, newest first. The rule matches
+    // `resolveCurrentCampaign`, which is what every other surface consults.
+    const currentId = (campaigns.find((c) => c.status === "ACTIVE") ?? campaigns[0])?.id ?? null;
+    const ordered = campaigns
+      .map((campaign) => ({ ...campaign, isCurrent: campaign.id === currentId }))
+      .sort((a, b) => Number(b.isCurrent) - Number(a.isCurrent));
+
+    return { campaigns: ordered, workload };
   });
 }
 
@@ -706,6 +721,50 @@ export async function loadParcelVisits(
   });
 }
 
+/**
+ * Which campaign *is* the current operation (ADR-026).
+ *
+ * One definition, consulted by the Command Center's field panel, by Social Intelligence and by the
+ * report snapshot, because those three showing three different universes is exactly the failure
+ * this exists to prevent. A project accumulates campaigns: an operation that ran and closed is
+ * history and stays queryable, but it is not what "pendientes" or a denominator means today.
+ *
+ * The rule, in order: the **active** campaign; the most recently activated one if somehow there
+ * are several; otherwise the most recently created, so a project whose only campaign is a draft
+ * still has something to show. Returns `null` for a project with no campaign at all.
+ *
+ * `surveyVersionId` narrows it to the campaigns that ran on one questionnaire version, which is
+ * what a *tabulation* needs: two campaigns on two different versions are already two universes,
+ * distinguished by the version (TD-039). The drift this rule exists for is two campaigns on the
+ * **same** version, where nothing else would tell them apart.
+ */
+export interface CurrentCampaign {
+  readonly id: string;
+  readonly name: string;
+  readonly status: CampaignStatus;
+}
+
+export async function resolveCurrentCampaign(
+  tx: DbTx,
+  scope: {
+    readonly tenantId: string;
+    readonly projectId: string;
+    readonly surveyVersionId?: string;
+  },
+): Promise<CurrentCampaign | null> {
+  const rows = await tx.execute(sql`
+    select id, name, status
+      from app.survey_campaign
+     where tenant_id = ${scope.tenantId} and project_id = ${scope.projectId}
+       ${scope.surveyVersionId ? sql`and survey_version_id = ${scope.surveyVersionId}` : sql``}
+     order by (status = 'ACTIVE') desc, activated_at desc nulls last, created_at desc
+     limit 1
+  `);
+  const row = rows.rows[0] as unknown as
+    { id: string; name: string; status: CampaignStatus } | undefined;
+  return row ? { id: row.id, name: row.name, status: row.status } : null;
+}
+
 export interface FieldProgressSummary {
   readonly campaignId: string;
   readonly campaignName: string;
@@ -730,9 +789,11 @@ export async function loadFieldProgress(
   if (ctx.projectId === null) throw new Error("loadFieldProgress requires a project context");
 
   const overview = await loadFieldOverview(db, ctx);
-  const active =
+  // Same order as `resolveCurrentCampaign`, over rows this read model already has in hand.
+  const current =
     overview.campaigns.find((campaign) => campaign.status === "ACTIVE") ?? overview.campaigns[0];
-  if (!active) return null;
+  if (!current) return null;
+  const active = current;
   return {
     campaignId: active.id,
     campaignName: active.name,

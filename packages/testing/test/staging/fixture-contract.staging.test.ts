@@ -33,11 +33,27 @@ async function count(query: ReturnType<typeof sql>): Promise<number> {
   return (result.rows[0] as { n: number }).n;
 }
 
+/**
+ * Two different things are asserted here, and keeping them apart is the point (ADR-026).
+ *
+ * **The canonical operational baseline** — exactly one active campaign, covering exactly the
+ * parcels the current fixture declares, with exactly its submitted responses. This is what a
+ * reviewer logs in to see, and it is asserted exactly: a `>=` here would let drift accumulate
+ * silently, which is how a twelve-parcel campaign became a twenty-two-parcel one.
+ *
+ * **History** — campaigns that ran and closed. A persistent environment legitimately accumulates
+ * them, they keep every row they ever had, and so the project's *total* assignment count is not a
+ * fixture number and is never asserted as one. What is asserted is that history stays coherent:
+ * closed, named as history, and never mixed into the current operation.
+ */
 describe("staging · the demo field baseline", () => {
-  it("holds one campaign on one published survey version", async () => {
+  it("has exactly one current operation, on one published survey version", async () => {
     expect(
-      await count(sql`select count(*)::int as n from app.survey_campaign where ${scope()}`),
-    ).toBe(DEMO_BASELINE.campaigns);
+      await count(sql`
+        select count(*)::int as n from app.survey_campaign
+         where ${scope()} and status = 'ACTIVE'
+      `),
+    ).toBe(DEMO_BASELINE.activeCampaigns);
     expect(
       await count(sql`select count(*)::int as n from app.survey_version where ${scope()}`),
     ).toBe(DEMO_BASELINE.surveyVersions);
@@ -63,19 +79,45 @@ describe("staging · the demo field baseline", () => {
     );
   });
 
-  it("holds the documented number of assignments and submitted responses", async () => {
+  it("the current operation holds exactly the assignments and responses the fixture declares", async () => {
     expect(
-      await count(sql`select count(*)::int as n from app.field_assignment where ${scope()}`),
+      await count(sql`
+        select count(*)::int as n from app.field_assignment
+         where ${scope()} and campaign_id = ${f.campaignId}
+      `),
     ).toBe(DEMO_BASELINE.assignments);
     expect(
       await count(sql`
-        select count(*)::int as n from app.survey_instance
-        where ${scope()} and status = 'SUBMITTED'
+        select count(*)::int as n from app.survey_instance i
+          join app.field_assignment a on a.tenant_id = i.tenant_id and a.id = i.assignment_id
+         where i.tenant_id = ${f.tenantId} and i.project_id = ${f.projectId}
+           and a.campaign_id = ${f.campaignId} and i.status = 'SUBMITTED'
       `),
     ).toBe(DEMO_BASELINE.submittedResponses);
     expect(
       await count(sql`select count(*)::int as n from app.survey_answer where ${scope()}`),
     ).toBeGreaterThan(0);
+  });
+
+  it("keeps its history coherent: closed, named as history, and not part of today", async () => {
+    const others = await db.migrator.execute(sql`
+      select id, name, status::text as status, closed_at,
+             (select count(*)::int from app.field_assignment a where a.campaign_id = c.id) as assignments
+        from app.survey_campaign c
+       where ${scope()} and c.id <> ${f.campaignId}
+    `);
+    for (const row of others.rows as Array<{
+      id: string;
+      name: string;
+      status: string;
+      closed_at: Date | null;
+      assignments: number;
+    }>) {
+      // Every campaign that is not the current one is closed, dated, and still carries its work.
+      expect(row.status, row.id).toBe("CLOSED");
+      expect(row.closed_at, row.id).not.toBeNull();
+      expect(row.assignments, row.id).toBeGreaterThan(0);
+    }
   });
 
   it("every assignment belongs to a technician who is a member of this project", async () => {
@@ -277,11 +319,17 @@ describe("staging · the installed contracts, probed and rolled back", () => {
     // counts the suite opened with, so a probe that somehow committed would fail here rather than
     // in a reviewer's browser tomorrow.
     expect(
-      await count(sql`select count(*)::int as n from app.field_assignment where ${scope()}`),
+      await count(sql`
+        select count(*)::int as n from app.field_assignment
+         where ${scope()} and campaign_id = ${f.campaignId}
+      `),
     ).toBe(DEMO_BASELINE.assignments);
     expect(
       await count(sql`
-        select count(*)::int as n from app.survey_instance where ${scope()} and status = 'SUBMITTED'
+        select count(*)::int as n from app.survey_instance i
+          join app.field_assignment a on a.tenant_id = i.tenant_id and a.id = i.assignment_id
+         where i.tenant_id = ${f.tenantId} and i.project_id = ${f.projectId}
+           and a.campaign_id = ${f.campaignId} and i.status = 'SUBMITTED'
       `),
     ).toBe(DEMO_BASELINE.submittedResponses);
     expect(

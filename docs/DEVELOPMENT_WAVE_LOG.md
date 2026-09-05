@@ -385,3 +385,36 @@ makes, not a plan the code has assumed.
 | Tests | unit **300**, integration **386**, Playwright **168**, staging **88 of 90** |
 | Staging | migrated to 0028, re-seeded, verified. The two staging failures are one fact: its demo campaign holds 22 assignments where the fixture declares 12, because a re-seed after the target parcels moved added the new ones beside the old. Removing them is a delete against a persistent environment and waits on the owner |
 | Not done, deliberately | no production deployment, no real personal data, no Climate Intelligence, no audit/compliance implementation, no region move |
+
+### Staging campaign canonicalization
+
+| | |
+|---|---|
+| Branch / PR | `fix/staging-campaign-canonicalization` · PR pending |
+| Merge SHA | pending |
+| Migrations | **none** |
+| Tests | unit **300**, integration **398** (+12), Playwright **168**, staging **91** (+1) |
+| Staging | one authorized, non-destructive transition: the drifted campaign **closed**, a new canonical campaign seeded. **Zero deletes, zero id replacements, zero submitted-response mutations**; the baseline diff is additions only, and two consecutive verification runs afterwards leave it byte-identical |
+
+**Scope delivered.** The owner's decision, implemented: preserve the operational history and create
+a new canonical current campaign, rather than deleting the eight technically-deletable assignments
+(which would have left 14/6 — no fixture's baseline either) or adopting 22/6 as the new normal.
+
+**Meaningful decisions.** ADR-026 answers the modelling question underneath the incident: a campaign
+is an **operational snapshot**, not a plan, so its target universe is a fact about something that
+happened and changed semantics open a new campaign. `assertCampaignClosable` + `closeCampaign` are
+the transition the product was missing; the demo fixture identifies its campaign by a declared key
+rather than by its Spanish display name; and `resolveCurrentCampaign` is now the single definition
+of *now*, consulted by the Command Center's field panel, by every Social Intelligence read model and
+by the report snapshot. That last part was the real hazard: Social tabulation grouped by survey
+version alone, so two campaigns on one published version would have shared a denominator — two
+operations, months apart, presented as one sample.
+
+**Deviations.** The staging fixture contract was **not** relaxed to `>=`. It now asserts the current
+operation exactly and asserts of history only that it is closed, dated and intact; the project's
+total assignment count is no longer a fixture number. One isolation assertion that hardcoded "one
+campaign is visible" now compares permitted and unpermitted callers instead, which is the property
+it was actually testing.
+
+**Debt recorded.** TD-073 (nothing in the schema prevents two `ACTIVE` campaigns; the current rule
+has a deterministic tie-break rather than a guarantee).

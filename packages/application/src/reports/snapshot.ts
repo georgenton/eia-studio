@@ -30,6 +30,17 @@ export interface SnapshotInput {
   readonly tenantId: string;
   readonly projectId: string;
   readonly surveyVersionId: string;
+  /**
+   * The operation the chapter describes (ADR-026).
+   *
+   * A project accumulates campaigns, and a report that counted all of them would put two
+   * operations months apart into one denominator — a figure nobody measured. The caller resolves
+   * which campaign is current and passes it, so the snapshot records *which* operation it counted
+   * rather than "whatever was in the tables". `null` means the project has no campaign, and every
+   * response-derived figure is then legitimately zero.
+   */
+  readonly campaignId: string | null;
+  readonly campaignName: string | null;
 }
 
 export async function buildSocialSnapshot(tx: DbTx, input: SnapshotInput): Promise<ReportSnapshot> {
@@ -49,6 +60,21 @@ export async function buildSocialSnapshot(tx: DbTx, input: SnapshotInput): Promi
     { version_label: string; template_name: string } | undefined;
   if (!versionRow) throw new NotFound("survey version");
 
+  /**
+   * Every response-derived figure in this snapshot belongs to one campaign. Written as a predicate
+   * over the `survey_instance` alias each query already has, so no query can forget it silently.
+   */
+  const inCampaign = (alias: string) => {
+    if (input.campaignId === null) return sql`false`;
+    const a = sql.raw(alias);
+    return sql`exists (
+      select 1 from app.field_assignment fa_scope
+       where fa_scope.tenant_id = ${a}.tenant_id
+         and fa_scope.id = ${a}.assignment_id
+         and fa_scope.campaign_id = ${input.campaignId}
+    )`;
+  };
+
   const regimes = new Set<string>();
   const sections: ReportSection[] = [];
   const section = (key: SocialSectionKey, summary: string, facts: ReportFact[]) => {
@@ -66,13 +92,15 @@ export async function buildSocialSnapshot(tx: DbTx, input: SnapshotInput): Promi
       left join app.field_assignment a on a.tenant_id = fv.tenant_id and a.id = fv.assignment_id
      where i.tenant_id = ${input.tenantId} and i.project_id = ${input.projectId}
        and i.survey_version_id = ${input.surveyVersionId}
+       and ${inCampaign("i")}
   `);
   const u = universe.rows[0] as { submitted: number; total: number; parcels: number };
 
   section(
     "universe",
     "Cobertura del levantamiento sobre la versión del cuestionario que se reporta. Sólo se " +
-      "cuentan las fichas enviadas: los borradores de campo no participan en ninguna cifra.",
+      "cuentan las fichas enviadas: los borradores de campo no participan en ninguna cifra." +
+      (input.campaignName ? ` Operativo de campo: ${input.campaignName}.` : ""),
     [
       {
         key: "submitted",
@@ -107,6 +135,7 @@ export async function buildSocialSnapshot(tx: DbTx, input: SnapshotInput): Promi
            (select count(*)::int from app.survey_answer a
              join app.survey_instance i2 on i2.tenant_id = a.tenant_id and i2.id = a.instance_id
             where a.tenant_id = q.tenant_id and a.question_id = q.id and i2.status = 'SUBMITTED'
+              and ${inCampaign("i2")}
            ) as answered
       from app.survey_question q
      where q.tenant_id = ${input.tenantId} and q.project_id = ${input.projectId}
@@ -133,6 +162,7 @@ export async function buildSocialSnapshot(tx: DbTx, input: SnapshotInput): Promi
         left join app.survey_option o on o.tenant_id = sel.tenant_id and o.id = sel.option_id
        where a.tenant_id = ${input.tenantId} and a.question_id = ${row.id}
          and i.status = 'SUBMITTED'
+         and ${inCampaign("i")}
        group by 1
        order by 2 desc, 1
     `);
@@ -178,6 +208,7 @@ export async function buildSocialSnapshot(tx: DbTx, input: SnapshotInput): Promi
       join app.survey_instance i on i.tenant_id = a.tenant_id and i.id = a.instance_id
      where link.tenant_id = ${input.tenantId} and link.project_id = ${input.projectId}
        and i.survey_version_id = ${input.surveyVersionId}
+       and ${inCampaign("i")}
      group by cat.code, cat.label, cat.tenant_id, cat.version_id
      order by 3 desc, 2
   `);
@@ -189,6 +220,7 @@ export async function buildSocialSnapshot(tx: DbTx, input: SnapshotInput): Promi
       join app.survey_instance i on i.tenant_id = a.tenant_id and i.id = a.instance_id
      where h.tenant_id = ${input.tenantId} and h.project_id = ${input.projectId}
        and i.survey_version_id = ${input.surveyVersionId}
+       and ${inCampaign("i")}
   `);
   const reviewCount = Number((reviewed.rows[0] as { n: number }).n);
 

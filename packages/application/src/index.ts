@@ -70,6 +70,7 @@ export type {
 } from "./field/read-models";
 export {
   activateCampaign,
+  closeCampaign,
   completeVisit,
   saveSurveyDraft,
   startVisit,
@@ -206,3 +207,6 @@ export type {
   ReportVersionDetail,
   ReportVersionSummary,
 } from "./reports/read-models";
+
+export { supersedeOtherCampaigns } from "./field/campaign-canonicalization";
+export type { CampaignSupersession } from "./field/campaign-canonicalization";

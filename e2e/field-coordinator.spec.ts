@@ -24,7 +24,10 @@ test.describe("FieldFlow · coordinator", () => {
     await page.goto(FIELD);
     const main = page.getByRole("main");
 
-    await expect(main).toContainText("Campaña de campo — demostración");
+    // The current operation, named as such. A project keeps the campaigns that ran, and the
+    // surface says which one is today's (ADR-026).
+    await expect(main).toContainText("Operativo actual");
+    await expect(main).toContainText("Operativo de campo · en curso");
     // The version label is what a response resolves against, so it is on screen for traceability.
     await expect(main).toContainText("v1");
     await expect(main.getByText("Simulación operativa").first()).toBeVisible();

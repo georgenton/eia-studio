@@ -137,3 +137,15 @@
   clip-path: inset(50%);
   white-space: nowrap;
 }
+
+/*
+ * The note under a closed operation. Quiet: it explains why a panel with real work in it is not
+ * part of today's numbers, and it should not compete with the operation that is.
+ */
+.historyNote {
+  margin: 10px 0 0;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--eia-text-secondary);
+  max-width: 76ch;
+}

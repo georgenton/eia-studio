@@ -31,12 +31,24 @@ and the badge on screen says it in words: *Dato histórico*, *Dato calculado*,
 | **Centro de control** | 7,4 km · 141 predios · 119 levantamientos · 185 participantes, all from the concluded study | visited/pending/productivity/forecast, and the activity feed | the four aggregates, each badged *Dato histórico* |
 | **Cartografía y predios** | the centreline (7 361,3 m measured), 141 parcels with the codes the field sheet uses, 70 affected areas, four areas of influence, the chainage table | nothing on the map is ours; the *selection* and the derived areas are computed | the geometry, the areas, the chainages |
 | **Ficha del predio** | code, side, chainage, area, affected share, the package's own status | the visit history, which belongs to the demonstration campaign | everything except the visits |
-| **Trabajo de campo** | nothing | the whole campaign: 12 assignments spread along the corridor, 4 submitted responses, the questionnaire itself | nothing; it is a simulation and says so |
+| **Trabajo de campo** | nothing | the current operation: 12 assignments spread along the corridor, 4 submitted responses, the questionnaire itself — plus any earlier operation, closed and labelled *Operativo anterior* | nothing; it is a simulation and says so |
 | **Análisis social** | the tabulation *method* and the historical 119 as an aggregate | the answers being tabulated, the taxonomy, every coding | the historical aggregate; never the frequencies |
 | **Control de calidad** | the assertions, read by hand from the study's own documents | the rule catalogue and the run | the disagreements it reports, as disagreements |
 | **Documentos** | the passages, transcribed by hand from the study | the chunking and the retrieval | the passages, with their version |
 | **Plan de Manejo** | all of it — 9 plans, 22 programmes, 86 measures, verbatim | the `measure_code` beside each row, which the surface says is ours | every cell of the matrix |
 | **Informes** | the figures it quotes, each with its typed source | the chapter itself, marked BORRADOR | nothing until a person approves it, and nothing approves it here |
+
+### 2.1 One operation is the current one
+
+A project keeps the field operations that ran (ADR-026). Exactly one is *Operativo actual*: it is
+what the Command Center's progress, the tabulation's denominator and a report snapshot count. Any
+earlier one is *Operativo anterior*, closed and complete — every assignment, visit and submitted
+response still there and still readable — and it takes no part in today's figures.
+
+The pilot's persistent environment has one of each, and the reason is worth knowing: when the
+demonstration campaign's parcels moved along the corridor, the operation that had already run was
+closed rather than rewritten. Its twenty-two assignments and six responses are the record of what
+that environment actually did.
 
 ## 3. The four things that are deliberately *not* repaired
 

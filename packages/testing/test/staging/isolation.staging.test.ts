@@ -190,7 +190,14 @@ describe("staging · field.responses.read is what separates the two", () => {
     expect(await countVisible(db.runtime, withoutPermission, "app.survey_answer")).toBe(0);
     expect(await countVisible(db.runtime, withoutPermission, "app.field_visit")).toBe(0);
     // …while the operational workflow stays visible: a campaign is not an individual's data.
-    expect(await countVisible(db.runtime, withoutPermission, "app.survey_campaign")).toBe(1);
+    //
+    // Asserted against what the *permitted* caller sees rather than against a literal, because a
+    // project accumulates campaigns — one current, the rest closed history (ADR-026) — and the
+    // property under test is that `field.responses.read` changes nothing about campaign
+    // visibility. The exact size of the current operation is the fixture contract's business.
+    expect(await countVisible(db.runtime, withoutPermission, "app.survey_campaign")).toBe(
+      await countVisible(db.runtime, coordinator(), "app.survey_campaign"),
+    );
   });
 });
 
