@@ -12,7 +12,7 @@ Rules for these pages:
 
 > **The screen is in Spanish; these pages are not.** Since ADR-025 the rail reads _Centro de
 > control_, _Cartografía y predios_, _Trabajo de campo_, _Análisis social_, _Control de consistencia_,
-> _Documentos_, _Plan de Manejo_ and _Informes_. These guides keep the module names an engineer
+> _Plan de Manejo_, _Documentos_ and _Informes_. These guides keep the module names an engineer
 > searches for, and `docs/PRODUCT_LANGUAGE_ES.md` is the mapping between the two.
 
 | Page                                                            | Covers                                                                   | State   |
