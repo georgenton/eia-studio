@@ -101,6 +101,7 @@ const runtimePool = createPool(runtime.DATABASE_URL, { max: 1, applicationName: 
 const migratorPool = createPool(migrator.DATABASE_MIGRATOR_URL, {
   max: 1,
   applicationName: "eia-provision",
+  statementTimeoutMs: null,
 });
 const runtimeDb = createDatabase(runtimePool);
 const migratorDb = createDatabase(migratorPool);

@@ -1,4 +1,4 @@
-import { loadDocumentVersion, loadPortfolio } from "@eia/application";
+import { loadDocumentVersion, loadWorkspaceHeader } from "@eia/application";
 import { can, SURFACE_DEFINITIONS } from "@eia/domain";
 import { Panel, PanelBody, PanelHeader } from "@eia/ui";
 import { notFound, redirect } from "next/navigation";
@@ -48,19 +48,19 @@ export default async function DocumentPage({
 
   const { ctx, tenantSettings } = access;
   const sessionUser = await getSessionUser();
-  const portfolio = await loadPortfolio(getDb(), ctx);
+  const header = await loadWorkspaceHeader(getDb(), ctx);
 
   const shell = {
     ctx,
     tenantSettings,
-    projects: portfolio.projects,
+    projects: header.projects,
     currentSurface: "documents" as const,
     userName: sessionUser?.name ?? sessionUser?.email ?? "Usuario",
     userEmail: sessionUser?.email ?? null,
     breadcrumb: projectBreadcrumb(
       ctx,
-      portfolio.tenantName,
-      projectLabel(portfolio.projects, project),
+      header.tenantName,
+      projectLabel(header.projects, project),
       `${SURFACE_DEFINITIONS.documents.label} · ${code}`,
       projectPath(ctx.tenantSlug, project, "documents"),
     ),

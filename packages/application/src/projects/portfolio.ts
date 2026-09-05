@@ -54,6 +54,52 @@ export interface PortfolioView {
  * `has_project_access` per row. A project the user administers but is not assigned to therefore
  * appears by name with no figures, which is exactly the D-015 rule.
  */
+/**
+ * What the shell needs, and nothing else.
+ *
+ * Every workspace page renders a tenant name, a project switcher and a breadcrumb, and every one of
+ * them called `loadPortfolio` to get them — a read that also fetches the metrics, the attention
+ * items, the activity feed and all of their provenance records so that the *Portfolio page* can
+ * draw its cards. Six queries and a transaction, on every page, for two strings and a list of
+ * names.
+ *
+ * Same permission and same context as the full read: this is narrower, never looser.
+ */
+export interface WorkspaceHeader {
+  readonly tenantName: string;
+  readonly projects: ReadonlyArray<{ id: string; slug: string; name: string }>;
+}
+
+export async function loadWorkspaceHeader(
+  db: Database,
+  ctx: RequestContext,
+): Promise<WorkspaceHeader> {
+  requirePermission(ctx, "portfolio.read");
+
+  return withDbContext(
+    db,
+    { userId: ctx.userId, tenantId: ctx.tenantId, projectId: null },
+    async (tx) => {
+      const tenantRows = await tx
+        .select({ name: appSchema.tenant.name })
+        .from(appSchema.tenant)
+        .where(eq(appSchema.tenant.id, ctx.tenantId));
+
+      const projectRows = await tx
+        .select({
+          id: appSchema.project.id,
+          slug: appSchema.project.slug,
+          name: appSchema.project.name,
+        })
+        .from(appSchema.project)
+        .where(eq(appSchema.project.tenantId, ctx.tenantId))
+        .orderBy(asc(appSchema.project.createdAt));
+
+      return { tenantName: tenantRows[0]?.name ?? "", projects: projectRows };
+    },
+  );
+}
+
 export async function loadPortfolio(db: Database, ctx: RequestContext): Promise<PortfolioView> {
   requirePermission(ctx, "portfolio.read");
 

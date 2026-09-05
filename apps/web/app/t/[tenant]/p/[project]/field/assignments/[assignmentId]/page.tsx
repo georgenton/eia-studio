@@ -1,4 +1,4 @@
-import { loadAssignmentDetail, loadPortfolio } from "@eia/application";
+import { loadAssignmentDetail, loadWorkspaceHeader } from "@eia/application";
 import {
   ASSIGNMENT_STATUS_PRESENTATION,
   formatChainage,
@@ -52,7 +52,7 @@ export default async function AssignmentPage({
 
   const { ctx, tenantSettings } = access;
   const sessionUser = await getSessionUser();
-  const portfolio = await loadPortfolio(getDb(), ctx);
+  const header = await loadWorkspaceHeader(getDb(), ctx);
   const fieldPath = projectPath(ctx.tenantSlug, project, "field");
 
   let detail;
@@ -71,15 +71,15 @@ export default async function AssignmentPage({
     <WorkspaceShell
       ctx={ctx}
       tenantSettings={tenantSettings}
-      projects={portfolio.projects}
+      projects={header.projects}
       currentSurface="field"
       userName={sessionUser?.name ?? sessionUser?.email ?? "Usuario"}
       userEmail={sessionUser?.email ?? null}
       breadcrumb={[
         ...projectBreadcrumb(
           ctx,
-          portfolio.tenantName,
-          projectLabel(portfolio.projects, project),
+          header.tenantName,
+          projectLabel(header.projects, project),
           SURFACE_DEFINITIONS.field.label,
           fieldPath,
         ),

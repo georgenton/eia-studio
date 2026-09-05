@@ -1,4 +1,4 @@
-import { loadPortfolio, loadReportOverview } from "@eia/application";
+import { loadWorkspaceHeader, loadReportOverview } from "@eia/application";
 import { can, SURFACE_DEFINITIONS } from "@eia/domain";
 import { notFound, redirect } from "next/navigation";
 
@@ -45,19 +45,19 @@ export default async function ReportsPage({
 
   const { ctx, tenantSettings } = access;
   const sessionUser = await getSessionUser();
-  const portfolio = await loadPortfolio(getDb(), ctx);
+  const header = await loadWorkspaceHeader(getDb(), ctx);
 
   const shell = {
     ctx,
     tenantSettings,
-    projects: portfolio.projects,
+    projects: header.projects,
     currentSurface: "reports" as const,
     userName: sessionUser?.name ?? sessionUser?.email ?? "Usuario",
     userEmail: sessionUser?.email ?? null,
     breadcrumb: projectBreadcrumb(
       ctx,
-      portfolio.tenantName,
-      projectLabel(portfolio.projects, project),
+      header.tenantName,
+      projectLabel(header.projects, project),
       SURFACE_DEFINITIONS.reports.label,
     ),
   };

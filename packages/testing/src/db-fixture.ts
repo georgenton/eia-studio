@@ -21,7 +21,9 @@ let cached: TestDatabase | null = null;
 export function getTestDatabase(): TestDatabase {
   if (cached) return cached;
   const info = inject("eiaTestDatabase");
+  // Resets and fixture builds are long by nature; the request-shaped timeout is for requests.
   const migratorPool = createPool(info.migratorUrl, {
+    statementTimeoutMs: null,
     max: 4,
     applicationName: "eia-test-migrator",
   });
