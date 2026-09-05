@@ -8,6 +8,7 @@ import {
 import {
   Chip,
   formatCount,
+  formatIsoDate,
   formatPercent,
   Panel,
   PanelBody,
@@ -19,6 +20,120 @@ import {
 import { ProvenanceLink } from "@/components/navigation";
 
 import styles from "./field-overview.module.css";
+
+/** One operation, as a panel. The same shape whether it is the current one or history. */
+function CampaignPanel({
+  campaign,
+  basePath,
+  offlineMode,
+}: {
+  campaign: FieldOverview["campaigns"][number];
+  basePath: string;
+  offlineMode: FieldOfflineMode;
+}) {
+  const channel = captureChannel(campaign.captureChannel);
+  const mode = campaign.offlineModeAtActivation ?? offlineMode;
+  const semantics = FIELD_OFFLINE_MODE_SEMANTICS[mode];
+  return (
+    <Panel>
+      <PanelHeader
+        /*
+         * Which operation this is, in a word (ADR-026). A project keeps the campaigns that
+         * ran; only one of them is what "pendientes" means today, and a reader should not
+         * have to compare dates to work out which.
+         */
+        label={campaign.isCurrent ? "Operativo actual" : "Operativo anterior"}
+        badge={<ProvenanceBadge facets={campaign.provenance} />}
+        action={
+          <ProvenanceLink href={`${basePath}?prov=${campaign.provenanceId}`}>
+            Ver origen
+          </ProvenanceLink>
+        }
+      />
+      <PanelBody>
+        <div className={styles.head}>
+          <div>
+            <h2 className={styles.name}>{campaign.name}</h2>
+            <p className={styles.meta}>
+              {campaign.surveyTemplateName} ·{" "}
+              {/* The version label is traceability, not decoration: a response resolves
+                        against exactly this definition, for ever. */}
+              <span className={styles.version}>{campaign.surveyVersionLabel}</span>
+              {campaign.startsOn ? ` · desde ${formatIsoDate(campaign.startsOn)}` : ""}
+              {campaign.targetOn ? ` · meta ${formatIsoDate(campaign.targetOn)}` : ""}
+            </p>
+          </div>
+          <Chip tone={campaign.status === "ACTIVE" ? "ok" : "neutral"}>
+            {CAMPAIGN_STATUS_LABEL[campaign.status]}
+          </Chip>
+        </div>
+
+        {campaign.isCurrent ? null : (
+          <p className={styles.historyNote}>
+            Operativo cerrado. Se conserva completo — sus asignaciones, visitas y fichas enviadas
+            siguen aquí — y no cuenta en el avance ni en las cifras del operativo actual.
+          </p>
+        )}
+
+        <dl className={styles.channel}>
+          <div>
+            <dt>Canal de captura</dt>
+            <dd>{channel.label}</dd>
+          </div>
+          <div>
+            <dt>Captura offline</dt>
+            {/* Stated as it is. Saying "offline disponible" for a channel that posts to the
+                      server would cost a technician a day of work in a valley with no signal. */}
+            <dd>
+              {semantics.label}
+              <span className={styles.channelNote}>
+                {channel.supportsOffline
+                  ? "El canal declara soporte offline."
+                  : "El canal web requiere conexión al enviar; no hay cola offline."}
+              </span>
+            </dd>
+          </div>
+        </dl>
+
+        <div className={styles.progress}>
+          <ProgressBar
+            ratio={campaign.progress.completionRatio ?? 0}
+            label="Avance de la campaña"
+            valueLabel={`${formatCount(campaign.submittedCount)} / ${formatCount(
+              campaign.progress.total,
+            )} enviadas${
+              campaign.progress.completionRatio === null
+                ? ""
+                : ` · ${formatPercent(campaign.progress.completionRatio)}`
+            }`}
+          />
+          <ul className={styles.counts}>
+            <li>
+              <span>Asignadas</span>
+              <strong>{formatCount(campaign.progress.total)}</strong>
+            </li>
+            <li>
+              <span>Pendientes</span>
+              <strong>{formatCount(campaign.progress.pending)}</strong>
+            </li>
+            <li>
+              <span>En curso</span>
+              <strong>{formatCount(campaign.progress.inProgress)}</strong>
+            </li>
+            <li>
+              <span>Completadas</span>
+              <strong>{formatCount(campaign.progress.completed)}</strong>
+            </li>
+            <li>
+              <span>Enviadas</span>
+              <strong>{formatCount(campaign.submittedCount)}</strong>
+            </li>
+          </ul>
+        </div>
+      </PanelBody>
+    </Panel>
+  );
+}
 
 /**
  * FieldFlow for a coordinator or social specialist: which campaign is running, how far it has got,
@@ -54,113 +169,49 @@ export function FieldOverviewSurface({
     );
   }
 
+  const current = overview.campaigns.filter((campaign) => campaign.isCurrent);
+  const history = overview.campaigns.filter((campaign) => !campaign.isCurrent);
+
   return (
     <div className={styles.surface}>
-      {overview.campaigns.map((campaign) => {
-        const channel = captureChannel(campaign.captureChannel);
-        const mode = campaign.offlineModeAtActivation ?? offlineMode;
-        const semantics = FIELD_OFFLINE_MODE_SEMANTICS[mode];
-        return (
-          <Panel key={campaign.id}>
-            <PanelHeader
-              /*
-               * Which operation this is, in a word (ADR-026). A project keeps the campaigns that
-               * ran; only one of them is what "pendientes" means today, and a reader should not
-               * have to compare dates to work out which.
-               */
-              label={campaign.isCurrent ? "Operativo actual" : "Operativo anterior"}
-              badge={<ProvenanceBadge facets={campaign.provenance} />}
-              action={
-                <ProvenanceLink href={`${basePath}?prov=${campaign.provenanceId}`}>
-                  Ver origen
-                </ProvenanceLink>
-              }
+      {current.map((campaign) => (
+        <CampaignPanel
+          key={campaign.id}
+          campaign={campaign}
+          basePath={basePath}
+          offlineMode={offlineMode}
+        />
+      ))}
+
+      {history.length > 0 ? (
+        /*
+         * History is reachable, not in the way (ADR-026).
+         *
+         * A project accumulates operations, and a coordinator opening this surface is looking at
+         * the one running now. Stacking a closed operation of equal weight underneath it invites
+         * exactly the mistake this whole rule exists to prevent — reading yesterday's numbers as
+         * today's. It opens on a click, and it is closed by default.
+         */
+        <details className={styles.history}>
+          <summary className={styles.historySummary}>
+            {history.length === 1
+              ? "Ver el operativo anterior"
+              : `Ver los ${history.length} operativos anteriores`}
+          </summary>
+          <p className={styles.historyNote}>
+            Operativos cerrados. Se conservan completos — sus asignaciones, visitas y fichas
+            enviadas siguen aquí — y no cuentan en el avance ni en las cifras del operativo actual.
+          </p>
+          {history.map((campaign) => (
+            <CampaignPanel
+              key={campaign.id}
+              campaign={campaign}
+              basePath={basePath}
+              offlineMode={offlineMode}
             />
-            <PanelBody>
-              <div className={styles.head}>
-                <div>
-                  <h2 className={styles.name}>{campaign.name}</h2>
-                  <p className={styles.meta}>
-                    {campaign.surveyTemplateName} ·{" "}
-                    {/* The version label is traceability, not decoration: a response resolves
-                        against exactly this definition, for ever. */}
-                    <span className={styles.version}>{campaign.surveyVersionLabel}</span>
-                    {campaign.startsOn ? ` · desde ${campaign.startsOn}` : ""}
-                    {campaign.targetOn ? ` · meta ${campaign.targetOn}` : ""}
-                  </p>
-                </div>
-                <Chip tone={campaign.status === "ACTIVE" ? "ok" : "neutral"}>
-                  {CAMPAIGN_STATUS_LABEL[campaign.status]}
-                </Chip>
-              </div>
-
-              {campaign.isCurrent ? null : (
-                <p className={styles.historyNote}>
-                  Operativo cerrado. Se conserva completo — sus asignaciones, visitas y fichas
-                  enviadas siguen aquí — y no cuenta en el avance ni en las cifras del operativo
-                  actual.
-                </p>
-              )}
-
-              <dl className={styles.channel}>
-                <div>
-                  <dt>Canal de captura</dt>
-                  <dd>{channel.label}</dd>
-                </div>
-                <div>
-                  <dt>Captura offline</dt>
-                  {/* Stated as it is. Saying "offline disponible" for a channel that posts to the
-                      server would cost a technician a day of work in a valley with no signal. */}
-                  <dd>
-                    {semantics.label}
-                    <span className={styles.channelNote}>
-                      {channel.supportsOffline
-                        ? "El canal declara soporte offline."
-                        : "El canal web requiere conexión al enviar; no hay cola offline."}
-                    </span>
-                  </dd>
-                </div>
-              </dl>
-
-              <div className={styles.progress}>
-                <ProgressBar
-                  ratio={campaign.progress.completionRatio ?? 0}
-                  label="Avance de la campaña"
-                  valueLabel={`${formatCount(campaign.submittedCount)} / ${formatCount(
-                    campaign.progress.total,
-                  )} enviadas${
-                    campaign.progress.completionRatio === null
-                      ? ""
-                      : ` · ${formatPercent(campaign.progress.completionRatio)}`
-                  }`}
-                />
-                <ul className={styles.counts}>
-                  <li>
-                    <span>Asignadas</span>
-                    <strong>{formatCount(campaign.progress.total)}</strong>
-                  </li>
-                  <li>
-                    <span>Pendientes</span>
-                    <strong>{formatCount(campaign.progress.pending)}</strong>
-                  </li>
-                  <li>
-                    <span>En curso</span>
-                    <strong>{formatCount(campaign.progress.inProgress)}</strong>
-                  </li>
-                  <li>
-                    <span>Completadas</span>
-                    <strong>{formatCount(campaign.progress.completed)}</strong>
-                  </li>
-                  <li>
-                    <span>Enviadas</span>
-                    <strong>{formatCount(campaign.submittedCount)}</strong>
-                  </li>
-                </ul>
-              </div>
-            </PanelBody>
-          </Panel>
-        );
-      })}
+          ))}
+        </details>
+      ) : null}
 
       <Panel>
         <PanelHeader label="Carga por técnico" />
@@ -194,8 +245,8 @@ export function FieldOverviewSurface({
             </table>
           )}
           <p className={styles.footnote}>
-            Recuentos de trabajo, no respuestas. Ver una respuesta individual requiere el permiso{" "}
-            <code>field.responses.read</code>.
+            Recuentos de trabajo, no respuestas. Abrir una ficha concreta requiere el permiso de
+            lectura de respuestas individuales, que no todos los roles tienen.
           </p>
         </PanelBody>
       </Panel>

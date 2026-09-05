@@ -29,11 +29,11 @@ and the badge on screen says it in words: *Dato histórico*, *Dato calculado*,
 |---|---|---|---|
 | **Portfolio** | the project, its official title and programme reference | the portfolio's progress chips, which read simulated metrics | the title; not the progress |
 | **Centro de control** | 7,4 km · 141 predios · 119 levantamientos · 185 participantes, all from the concluded study | visited/pending/productivity/forecast, and the activity feed | the four aggregates, each badged *Dato histórico* |
-| **Cartografía y predios** | the centreline (7 361,3 m measured), 141 parcels with the codes the field sheet uses, 70 affected areas, four areas of influence, the chainage table | nothing on the map is ours; the *selection* and the derived areas are computed | the geometry, the areas, the chainages |
+| **Cartografía y predios** | the centreline (7 361,3 m measured), 141 parcels with the codes the field sheet uses, 70 affected areas, four areas of influence drawn under the parcels, the chainage table | nothing on the map is ours; the *selection*, the derived areas and the generalised outline used for drawing are computed | the geometry, the areas, the chainages |
 | **Ficha del predio** | code, side, chainage, area, affected share, the package's own status | the visit history, which belongs to the demonstration campaign | everything except the visits |
 | **Trabajo de campo** | nothing | the current operation: 12 assignments spread along the corridor, 4 submitted responses, the questionnaire itself — plus any earlier operation, closed and labelled *Operativo anterior* | nothing; it is a simulation and says so |
 | **Análisis social** | the tabulation *method* and the historical 119 as an aggregate | the answers being tabulated, the taxonomy, every coding | the historical aggregate; never the frequencies |
-| **Control de calidad** | the assertions, read by hand from the study's own documents | the rule catalogue and the run | the disagreements it reports, as disagreements |
+| **Control de consistencia** | the assertions, read by hand from the study's own documents | the rule catalogue and the run | the disagreements it reports, as disagreements |
 | **Documentos** | the passages, transcribed by hand from the study | the chunking and the retrieval | the passages, with their version |
 | **Plan de Manejo** | all of it — 9 plans, 22 programmes, 86 measures, verbatim | the `measure_code` beside each row, which the surface says is ours | every cell of the matrix |
 | **Informes** | the figures it quotes, each with its typed source | the chapter itself, marked BORRADOR | nothing until a person approves it, and nothing approves it here |

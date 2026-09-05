@@ -1,5 +1,11 @@
 import { listUserTenants } from "@eia/application";
-import type { RequestContext, TenantCapabilitySettings, WorkspaceSurface } from "@eia/domain";
+import {
+  PROJECT_ROLE_LABEL,
+  TENANT_ROLE_LABEL,
+  type RequestContext,
+  type TenantCapabilitySettings,
+  type WorkspaceSurface,
+} from "@eia/domain";
 import { AppShell, RailBrand, RailFooter, RailSection, TopbarUser } from "@eia/ui";
 
 import { AccountMenu } from "./account-menu";
@@ -69,8 +75,13 @@ export async function WorkspaceShell({
     activeProjectSlug,
   );
   const portal = portalNavEntry(ctx, tenantSettings);
-  const role = ctx.projectRole ?? ctx.tenantRole;
-  const roleLabel = `${ctx.tenantRole}${role === ctx.tenantRole ? "" : ` / ${role}`}`;
+  /*
+   * Who the reader is, in their own words. The keys (`MEMBER`, `COORDINATOR`) are what the
+   * authorization model checks; the topbar shows what the person actually is on this project.
+   */
+  const roleLabel = ctx.projectRole
+    ? PROJECT_ROLE_LABEL[ctx.projectRole]
+    : TENANT_ROLE_LABEL[ctx.tenantRole];
 
   return (
     <AppShell
@@ -90,12 +101,12 @@ export async function WorkspaceShell({
             value={activeProjectSlug ?? ""}
             emptyLabel="Sin proyecto seleccionado"
           />
-          <RailSection label="Workspace">
+          <RailSection label="Espacio de trabajo">
             <CapabilityNav
               entries={[
                 {
                   key: "portfolio",
-                  label: "Portfolio",
+                  label: "Cartera de proyectos",
                   href: `/t/${ctx.tenantSlug}`,
                   presentation: "ACTIVE",
                 },
@@ -110,7 +121,7 @@ export async function WorkspaceShell({
               entries={[
                 {
                   key: "tenant-settings",
-                  label: "Tenant Settings",
+                  label: "Configuración de la organización",
                   href: null,
                   presentation: "ANNOUNCED",
                   badge: "PRÓXIMAMENTE",
@@ -138,7 +149,7 @@ export async function WorkspaceShell({
 }
 
 export function tenantBreadcrumb(tenantName: string): Array<{ label: string; href?: string }> {
-  return [{ label: tenantName }, { label: "Portfolio" }];
+  return [{ label: tenantName }, { label: "Cartera de proyectos" }];
 }
 
 /**

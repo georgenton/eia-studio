@@ -30,7 +30,7 @@ test.describe("MVP · the coordinator's walkthrough, end to end", () => {
       "Cartografía y predios",
       "Trabajo de campo",
       "Análisis social",
-      "Control de calidad",
+      "Control de consistencia",
       "Documentos",
       "Plan de Manejo",
       "Informes",

@@ -54,10 +54,45 @@ const documentLocator = z
   })
   .strict();
 
+/**
+ * One plan of the management plan chapter (ADR-024).
+ *
+ * The plan is named by its own code and title rather than by a row id, because that is how a
+ * specialist finds it in the chapter — and because a re-import gives the plan a new row while the
+ * finding it produced must keep pointing at the same plan (ADR-026 applies the same reasoning to
+ * campaigns).
+ */
+const pgasPlanLocator = z
+  .object({
+    kind: z.literal("pgas_plan"),
+    planCode: z.string().min(1).max(40).nullable(),
+    planTitle: z.string().min(1).max(300),
+  })
+  .strict();
+
+/**
+ * What the project's cartography does — or does not — contain.
+ *
+ * The absence of a layer is a legitimate side of a comparison: a plan that names an area of
+ * influence the map does not hold is a disagreement between a document and the geometry delivered
+ * with it. The locator names the layer, never a feature id, because "there is no such feature" is
+ * precisely the case it has to be able to express.
+ */
+const spatialLayerLocator = z
+  .object({
+    kind: z.literal("spatial_layer"),
+    layer: z.string().min(1).max(60),
+    /** What the layer holds today, in the words the map's legend uses. */
+    present: z.array(z.string().min(1).max(120)).max(20),
+  })
+  .strict();
+
 export const evidenceLocatorSchema = z.discriminatedUnion("kind", [
   assertionLocator,
   projectLocator,
   documentLocator,
+  pgasPlanLocator,
+  spatialLayerLocator,
 ]);
 export type EvidenceLocator = z.infer<typeof evidenceLocatorSchema>;
 

@@ -30,6 +30,36 @@ const FIELD_LABEL: Record<string, string> = {
   deadline: "plazo",
 };
 
+/** «3 programas · 11 medidas», which is what the plan actually contains. */
+function planNote(plan: PgasPlanView["plans"][number]): string {
+  const programmes = new Set(plan.measures.map((m) => m.programmeTitle ?? "—")).size;
+  const measures = plan.measures.length;
+  return `${programmes} programa(s) · ${measures} medida(s)`;
+}
+
+/** The measures of a plan, in the document's own programme groupings and order. */
+function groupByProgramme(
+  measures: PgasPlanView["plans"][number]["measures"],
+): ReadonlyArray<{ title: string | null; measures: typeof measures }> {
+  const groups: Array<{ title: string | null; measures: Array<(typeof measures)[number]> }> = [];
+  for (const measure of measures) {
+    const title = measure.programmeTitle;
+    const last = groups[groups.length - 1];
+    if (last && last.title === title) last.measures.push(measure);
+    else groups.push({ title, measures: [measure] });
+  }
+  return groups;
+}
+
+function Field({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <dt>{label}</dt>
+      <dd>{value || "—"}</dd>
+    </div>
+  );
+}
+
 function Completeness({ plan }: { plan: PgasPlanView["plans"][number] }) {
   const gaps = Object.entries(plan.completeness.missing).filter(([, count]) => count > 0);
   if (gaps.length === 0) {
@@ -115,56 +145,69 @@ export function PgasOverview({ view }: { view: PgasPlanView }) {
         <Panel key={`${plan.code ?? plan.title}`}>
           <PanelHeader
             label={plan.code ? `${plan.code} · ${plan.title}` : plan.title}
-            note={`${plan.measures.length} medida(s)`}
+            note={planNote(plan)}
           />
           <PanelBody>
             {plan.objective ? <p className={styles.objective}>{plan.objective}</p> : null}
             {plan.place ? <p className={styles.place}>{plan.place}</p> : null}
             <Completeness plan={plan} />
 
-            <table className={styles.table}>
-              <caption className="sr-only">
-                Medidas de {plan.title}, con su aspecto, impacto, indicador y responsable
-              </caption>
-              <thead>
-                <tr>
-                  <th scope="col">N° del documento</th>
-                  <th scope="col">Código EIA Studio</th>
-                  <th scope="col">Aspecto</th>
-                  <th scope="col">Impacto</th>
-                  <th scope="col">Medida</th>
-                  <th scope="col">Indicador</th>
-                  <th scope="col">Verificación</th>
-                  <th scope="col">Responsable</th>
-                  <th scope="col">Frecuencia</th>
-                  <th scope="col">Plazo</th>
-                </tr>
-              </thead>
-              <tbody>
-                {plan.measures.map((m) => (
-                  <tr key={m.measureCode}>
-                    <td className={styles.stated}>{m.statedNumber || "—"}</td>
-                    <td className={styles.code}>{m.measureCode}</td>
-                    <td>{m.aspect || "—"}</td>
-                    <td>{m.impact || "—"}</td>
-                    <td className={styles.measure}>{m.measure || "—"}</td>
-                    <td>{m.indicator || "—"}</td>
-                    <td>{m.verification || "—"}</td>
-                    <td>{m.responsible || "—"}</td>
-                    <td>{m.frequency || "—"}</td>
-                    <td>{m.deadline || "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            {/*
+              The document's own second level. A programme is a banner row with a title and nothing
+              else (ADR-024), and reading the plan without it turns eleven measures about different
+              subjects into one undifferentiated list.
+            */}
+            {groupByProgramme(plan.measures).map((group) => (
+              <section className={styles.programme} key={group.title ?? "sin-programa"}>
+                <h3 className={styles.programmeTitle}>
+                  {group.title ?? "Medidas sin programa declarado"}
+                </h3>
+                <ol className={styles.measures}>
+                  {group.measures.map((m) => (
+                    <li className={styles.measure} key={m.measureCode}>
+                      <p className={styles.measureText}>{m.measure || "—"}</p>
+                      <dl className={styles.fields}>
+                        <Field label="Aspecto ambiental" value={m.aspect} />
+                        <Field label="Impacto identificado" value={m.impact} />
+                        <Field label="Indicador" value={m.indicator} />
+                        <Field label="Medio de verificación" value={m.verification} />
+                        <Field label="Responsable" value={m.responsible} />
+                        <Field label="Frecuencia" value={m.frequency} />
+                        <Field label="Plazo" value={m.deadline} />
+                      </dl>
+                      <p className={styles.measureIds}>
+                        <span>
+                          N° del documento: <strong>{m.statedNumber || "—"}</strong>
+                        </span>
+                        <span className={styles.code}>Código EIA Studio: {m.measureCode}</span>
+                      </p>
+                    </li>
+                  ))}
+                </ol>
+              </section>
+            ))}
+
+            {/*
+              Source fidelity, one click away. The labels above are normalized so the plan reads;
+              the document's own headings — `FRENCUENCIA` included — are what it actually says, and
+              they are what is stored.
+            */}
+            <details className={styles.headings}>
+              <summary>Cómo nombra este plan sus columnas</summary>
+              <p>
+                Los rótulos de arriba están normalizados para poder leer el plan. El capítulo, en
+                este plan, escribe: {plan.columns.map((c) => `«${c}»`).join(" · ")}. Se conserva tal
+                cual en el dato almacenado.
+              </p>
+            </details>
           </PanelBody>
         </Panel>
       ))}
 
       <p className={styles.footnote}>
-        La columna «N° del documento» reproduce la numeración del capítulo, incluidas las
-        repeticiones. El «Código EIA Studio» lo genera este producto para poder referenciar una
-        medida; no es una referencia de la consultora.
+        El «N° del documento» reproduce la numeración del capítulo, incluidas las repeticiones. El
+        «Código EIA Studio» lo genera este producto para poder referenciar una medida; no es una
+        referencia de la consultora.
       </p>
     </div>
   );

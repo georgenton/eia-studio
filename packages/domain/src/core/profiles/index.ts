@@ -54,3 +54,14 @@ export const SYSTEM_PROFILES: ReadonlyMap<string, ProjectProfile> = new Map([
 export function getSystemProfile(key: string): ProjectProfile | undefined {
   return SYSTEM_PROFILES.get(key);
 }
+
+/**
+ * What a project's profile is called on screen.
+ *
+ * `road_eia_social` is a key the code matches on; *EIA social vial* is what it means to the person
+ * reading a project card. An unknown key falls back to itself rather than to nothing: a profile
+ * this build does not know about is a fact worth showing, not a blank.
+ */
+export function profileLabel(key: string): string {
+  return getSystemProfile(key)?.label ?? key;
+}

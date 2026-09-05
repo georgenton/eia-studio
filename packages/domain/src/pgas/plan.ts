@@ -197,3 +197,26 @@ export function repeatedStatedNumbers(
     .map(([statedNumber, occurrences]) => ({ statedNumber, occurrences }))
     .sort((a, b) => a.statedNumber.localeCompare(b.statedNumber, "es", { numeric: true }));
 }
+
+/**
+ * The *lugar de aplicación*, where the chapter writes it inside the objective.
+ *
+ * Two of the nine plans carry it in their own field; the other seven fold it into the objective
+ * paragraph, after a `LUGAR DE APLICACIÓN:` label. Reading the label is reading the document's own
+ * structure, not editing it: the objective keeps every word it had, and what is returned is a view
+ * of the same text.
+ *
+ * It matters because the place is one half of the only cross-document check the plan supports —
+ * a plan that says it applies in an area of influence, against the cartography that does or does
+ * not delimit that area (ADR-024 §5).
+ */
+export function placeFromObjective(objective: string | null): string | null {
+  if (!objective) return null;
+  const match = /LUGAR\s+DE\s+APLICACI[ÓO]N\s*:?/iu.exec(objective);
+  if (!match) return null;
+  const after = objective.slice(match.index + match[0].length);
+  // The label that follows it in this chapter, where there is one.
+  const end = /FASES?\s+DEL\s+PROYECTO\s*:?/iu.exec(after);
+  const place = (end ? after.slice(0, end.index) : after).trim();
+  return place.length > 0 ? place : null;
+}

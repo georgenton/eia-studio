@@ -12,5 +12,10 @@ export { InMemoryJobQueue } from "./ports/job-queue";
 export type { JobEnvelope, JobQueuePort } from "./ports/job-queue";
 export { formatStorageKey } from "./ports/storage";
 export type { StorageKey, StoragePort } from "./ports/storage";
-export { ROAD_EIA_SOCIAL_PROFILE, SYSTEM_PROFILES, getSystemProfile } from "./profiles/index";
+export {
+  ROAD_EIA_SOCIAL_PROFILE,
+  SYSTEM_PROFILES,
+  getSystemProfile,
+  profileLabel,
+} from "./profiles/index";
 export type { ProjectProfile } from "./profiles/index";

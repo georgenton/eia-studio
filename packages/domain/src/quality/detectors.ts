@@ -393,3 +393,115 @@ export function detectProjectIdentity(input: ProjectIdentityInput): DetectedFind
     ],
   });
 }
+
+/* ---------------------------------------------------------------------------------------------
+ * The plan against the map (ADR-024 §5, closing TD-072)
+ * ------------------------------------------------------------------------------------------ */
+
+/** The areas of influence a plan can name, and the layer kinds that would satisfy each. */
+const INFLUENCE_PHRASES: ReadonlyArray<{
+  readonly phrase: string;
+  readonly label: string;
+  readonly satisfiedBy: ReadonlyArray<string>;
+}> = [
+  {
+    phrase: "area de influencia social directa",
+    label: "Área de influencia social directa",
+    satisfiedBy: ["direct_social"],
+  },
+  {
+    phrase: "area de influencia social indirecta",
+    label: "Área de influencia social indirecta",
+    satisfiedBy: ["indirect_social"],
+  },
+  {
+    phrase: "area de influencia directa",
+    label: "Área de influencia directa",
+    satisfiedBy: ["direct", "direct_social"],
+  },
+  {
+    phrase: "area de influencia indirecta",
+    label: "Área de influencia indirecta",
+    satisfiedBy: ["indirect", "indirect_social"],
+  },
+];
+
+export interface PgasPlaceInput {
+  readonly plan: {
+    readonly code: string | null;
+    readonly title: string;
+    /** *Lugar de aplicación*, verbatim from the chapter. */
+    readonly place: string;
+  };
+  /** The kinds of delimited area the project's cartography actually holds. */
+  readonly influenceAreaKinds: ReadonlyArray<string>;
+  /** Their labels, for the evidence a reviewer reads. */
+  readonly influenceAreaLabels: ReadonlyArray<string>;
+}
+
+/**
+ * A plan that says where it applies, and a cartography that does or does not delimit it.
+ *
+ * The two sides are a **document** and a **geometry**, which is what makes this the one genuinely
+ * cross-document check the management plan supports (ADR-024 §5). It says nothing about compliance
+ * and nothing about which side is right: a plan may legitimately name an area that still has to be
+ * delimited, and a cartography may hold it under another name.
+ *
+ * Matching is deliberately literal — the phrases the chapter actually uses, accent- and
+ * case-insensitive. A fuzzy match would produce a finding nobody can check, which in a module whose
+ * whole value is checkability is worse than no finding at all.
+ */
+export function detectPgasPlaceVsInfluenceArea(input: PgasPlaceInput): DetectedFinding | null {
+  const normalise = (value: string) =>
+    value
+      .normalize("NFD")
+      .replace(/\p{Diacritic}/gu, "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .toLowerCase();
+  const place = normalise(input.plan.place);
+
+  // The most specific phrase wins: "social directa" is not the same claim as "directa".
+  const named = INFLUENCE_PHRASES.find((candidate) => place.includes(candidate.phrase));
+  if (!named) return null;
+  if (named.satisfiedBy.some((kind) => input.influenceAreaKinds.includes(kind))) return null;
+
+  const requirement = requirementByKey("rule.pgas_place_vs_influence_area");
+  const planName = input.plan.code ? `${input.plan.code} · ${input.plan.title}` : input.plan.title;
+  return build(requirement, {
+    subject: ["pgas-place", input.plan.code ?? input.plan.title, named.phrase],
+    title: `El plan «${planName}» se aplica en un área que la cartografía no delimita`,
+    explanation:
+      `El plan declara aplicarse en «${named.label}» y la cartografía del proyecto no contiene esa ` +
+      `área de influencia${
+        input.influenceAreaLabels.length > 0
+          ? `; delimita ${input.influenceAreaLabels.join(", ")}`
+          : " y no delimita ninguna"
+      }. Posible inconsistencia entre el plan y la cartografía; requiere revisión de especialista.`,
+    evidence: [
+      {
+        role: "SOURCE_A",
+        locator: {
+          kind: "pgas_plan",
+          planCode: input.plan.code,
+          planTitle: input.plan.title,
+        },
+        label: "Lugar de aplicación declarado en el plan",
+        quote: input.plan.place.slice(0, 2000),
+      },
+      {
+        role: "SOURCE_B",
+        locator: {
+          kind: "spatial_layer",
+          layer: "influence_areas",
+          present: input.influenceAreaLabels.slice(0, 20),
+        },
+        label: "Áreas de influencia en la cartografía del proyecto",
+        quote:
+          input.influenceAreaLabels.length > 0
+            ? input.influenceAreaLabels.join(" · ")
+            : "La cartografía del proyecto no contiene áreas de influencia delimitadas",
+      },
+    ],
+  });
+}

@@ -197,3 +197,44 @@
     height: 320px;
   }
 }
+
+/* The delimited areas: a switch, what they are, and how big. Part of the legend, not a control bar. */
+.influenceBlock {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--eia-hairline);
+}
+.influenceToggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--eia-text-secondary);
+  cursor: pointer;
+}
+.influenceList {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.influenceList li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 10.5px;
+  color: var(--eia-text-muted);
+}
+.influenceArea {
+  font-family: var(--eia-font-mono);
+  white-space: nowrap;
+}
+.influenceNote {
+  margin: 6px 0 0;
+  font-size: 10px;
+  line-height: 1.45;
+  color: var(--eia-text-muted);
+}

@@ -2,6 +2,7 @@ import { qualitySchema, withDbContext, type Database, type DbTx } from "@eia/db"
 import {
   detectAffectationCount,
   detectPlannedVsActual,
+  detectPgasPlaceVsInfluenceArea,
   detectProjectIdentity,
   detectTerritorialInstitution,
   detectVulnerabilityConclusion,
@@ -274,6 +275,25 @@ function* detectAll(
     if (finding) yield finding;
   }
 
+  // QG · the management plan against the cartography: a plan that says where it applies, and a
+  // map that does or does not delimit that area. The one cross-document check this chapter
+  // supports (ADR-024 §5); it closes TD-072.
+  if (project.pgasPlaces.length === 0) {
+    skip(
+      "rule.pgas_place_vs_influence_area",
+      "ningún plan del capítulo declara un lugar de aplicación",
+    );
+  } else {
+    for (const plan of project.pgasPlaces) {
+      const finding = detectPgasPlaceVsInfluenceArea({
+        plan,
+        influenceAreaKinds: project.influenceAreaKinds,
+        influenceAreaLabels: project.influenceAreaLabels,
+      });
+      if (finding) yield finding;
+    }
+  }
+
   // QG · project identity: the location the corpus states against the project record.
   const statedLocation = assertions.one("project.location_label");
   if (!statedLocation?.value_text) {
@@ -415,6 +435,15 @@ async function nextFindingCode(tx: DbTx, tenantId: string, projectId: string): P
 interface ProjectFacts {
   readonly locationLabel: string;
   readonly jurisdiction: string;
+  /** Plans of the management plan chapter that declare where they apply (ADR-024). */
+  readonly pgasPlaces: ReadonlyArray<{
+    readonly code: string | null;
+    readonly title: string;
+    readonly place: string;
+  }>;
+  /** What the cartography delimits, by kind and by the label the legend shows. */
+  readonly influenceAreaKinds: ReadonlyArray<string>;
+  readonly influenceAreaLabels: ReadonlyArray<string>;
 }
 
 /**
@@ -443,7 +472,44 @@ async function loadProjectFacts(
     .filter(Boolean);
   const jurisdiction = parts.length > 1 ? parts[parts.length - 2]! : (parts[0] ?? locationLabel);
 
-  return { locationLabel, jurisdiction };
+  /*
+   * The two sides of the plan-against-the-map comparison, read here so the detector stays pure.
+   *
+   * Only the **active** import of the chapter: a superseded plan is history and a finding about it
+   * would be a finding about a document nobody is working from (ADR-024 §4).
+   */
+  const places = await tx.execute(sql`
+    select p.code, p.title, p.place
+      from app.pgas_plan p
+      join app.pgas_import_run r on r.tenant_id = p.tenant_id and r.id = p.import_run_id
+     where p.tenant_id = ${tenantId} and p.project_id = ${projectId}
+       and r.is_active and p.place is not null and btrim(p.place) <> ''
+     order by p.ordinal
+  `);
+
+  const areas = await tx.execute(sql`
+    select ia.kind::text as kind, ia.label
+      from app.influence_area ia
+      join app.spatial_dataset_version v
+        on v.tenant_id = ia.tenant_id and v.id = ia.dataset_version_id and v.is_active
+     where ia.tenant_id = ${tenantId} and ia.project_id = ${projectId}
+     order by ia.label
+  `);
+  const areaRows = areas.rows as unknown as ReadonlyArray<{ kind: string; label: string }>;
+
+  return {
+    locationLabel,
+    jurisdiction,
+    pgasPlaces: (
+      places.rows as unknown as ReadonlyArray<{
+        code: string | null;
+        title: string;
+        place: string;
+      }>
+    ).map((row) => ({ code: row.code, title: row.title, place: row.place })),
+    influenceAreaKinds: areaRows.map((row) => row.kind),
+    influenceAreaLabels: areaRows.map((row) => row.label),
+  };
 }
 
 /**

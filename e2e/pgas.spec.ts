@@ -41,7 +41,7 @@ test.describe("Plan de Manejo · the coordinator's journey", () => {
      */
     const FORBIDDEN = /incumplimiento|no conforme|infracci[óo]n|error detectado/i;
     await expect(summary).not.toContainText(FORBIDDEN);
-    await expect(main.getByText(/La columna «N° del documento»/)).not.toContainText(FORBIDDEN);
+    await expect(main.getByText(/El «N° del documento»/)).not.toContainText(FORBIDDEN);
     // Nothing here offers to record that a measure was carried out (ADR-024 §7).
     await expect(main.getByRole("checkbox")).toHaveCount(0);
     await expect(main.getByRole("button", { name: /cumpl|evidencia|verificar/i })).toHaveCount(0);
@@ -52,15 +52,14 @@ test.describe("Plan de Manejo · the coordinator's journey", () => {
   }) => {
     await page.goto(PGAS);
     const main = page.getByRole("main");
-    await expect(
-      main.getByRole("columnheader", { name: "N° del documento" }).first(),
-    ).toBeVisible();
-    await expect(
-      main.getByRole("columnheader", { name: "Código EIA Studio" }).first(),
-    ).toBeVisible();
+    // Both identifiers on every measure: the document's own number and the code minted here.
+    await expect(main.getByText(/N° del documento:/).first()).toBeVisible();
+    await expect(main.getByText(/Código EIA Studio:/).first()).toBeVisible();
     await expect(main).toContainText("no es una referencia de la consultora");
-    // The minted shape: plan code · programme · row.
-    await expect(main.getByText(/^[A-Z-]+\d*\.\d{2}\.\d{2}$/).first()).toBeVisible();
+    // The minted shape: plan code · programme · row, beside the label that says whose it is.
+    await expect(
+      main.getByText(/Código EIA Studio: [A-Z-]+\d*\.\d{2}\.\d{2}/).first(),
+    ).toBeVisible();
   });
 
   test("reports what the chapter leaves inconsistent, in the chapter's own words", async ({

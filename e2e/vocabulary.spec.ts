@@ -30,6 +30,11 @@ const SURFACES: ReadonlyArray<{ name: string; path: string }> = [
   { name: "Documents", path: `/t/${TENANT}/p/${PROJECT}/documents` },
   { name: "Plan de Manejo", path: `/t/${TENANT}/p/${PROJECT}/pgas` },
   { name: "Reports", path: `/t/${TENANT}/p/${PROJECT}/reports` },
+  { name: "Social · abiertas", path: `/t/${TENANT}/p/${PROJECT}/social?tab=abiertas` },
+  {
+    name: "Parcel · visitas",
+    path: `/t/${TENANT}/p/${PROJECT}/parcels/${PARCELS.a}?tab=visitas`,
+  },
 ];
 
 /** An identifier shape: two or more capitalised segments joined by underscores. */
@@ -59,6 +64,23 @@ const LEAKED_ENGLISH = [
   "Quality Gate",
   "FieldFlow",
   "Parcel Explorer",
+  // The organisation is an organisation; «tenant» is what the schema calls it.
+  "Tenant",
+  "tenant",
+  "Portfolio",
+  "Workspace",
+  "capabilities",
+  // Loading terminology. A consultant reads about the expediente, not about our test data.
+  "fixture",
+  // Authorization keys and rule keys, which belong in a finding's detail and nowhere else.
+  "field.responses.read",
+  "rule.",
+  // Role and status enums.
+  "COORDINATOR",
+  "MEMBER",
+  "COMPLETED",
+  "SUBMITTED",
+  "PENDING",
 ];
 
 /** The rail is outside `main`, and it was the most visible English in the product. */
@@ -77,7 +99,7 @@ test("the rail names every module in Spanish", async ({ page }) => {
     expect(text, `the rail still says «${term}»`).not.toContain(term);
   }
   await expect(rail).toContainText("Centro de control");
-  await expect(rail).toContainText("Control de calidad");
+  await expect(rail).toContainText("Control de consistencia");
 });
 
 /** The drawer is a dialog, so `main` never sees it — and it held three of the leaks. */

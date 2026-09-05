@@ -30,10 +30,14 @@ follows from that one fact.
 | `gis` | Cartografía y predios |
 | `field` | Trabajo de campo |
 | `social` | Análisis social |
-| `quality` | Control de calidad |
+| `quality` | Control de consistencia |
 | `documents` | Documentos |
 | `pgas` | Plan de Manejo |
 | `reports` | Informes |
+
+The rail is ordered the way the work happens: *proyecto → territorio → levantamiento → resultados
+→ revisión → gestión ambiental → documentos → informe*. Outside the project: *Cartera de
+proyectos*, *Portal del cliente*, *Configuración de la organización*.
 
 ### Where a figure comes from (the four SOURCE TYPE badges, invariant 13)
 
@@ -66,6 +70,13 @@ Studio · Validación humana.
 | Forbidden | Because | Say instead |
 |---|---|---|
 | `SCREAMING_SNAKE_CASE` of any kind | it is a stored value that escaped | its label |
+| *tenant* | the reader belongs to an organisation; *tenant* is what the schema calls it | «organización» |
+| *Portfolio*, *Workspace*, *capabilities* | the shell's own English | «Cartera de proyectos», «Espacio de trabajo», «Módulos activos» |
+| *fixture*, *ingestar*, *dataset* | how the data got here, not what it is | «carga verificada», «expediente», «capa» |
+| A permission key (`field.responses.read`) | it is a grant the code checks | name the thing it protects: «el permiso de lectura de respuestas individuales» |
+| A rule key (`rule.affectation_count@1`) | traceability, not a label | the rule's name and «versión 1»; the key stays on the finding's detail |
+| A role or status enum (`COORDINATOR`, `COMPLETED`) | the authorization model's words | «Coordinación de proyecto», «Completada» |
+| A profile key (`road_eia_social`) | the template's identifier | «EIA social vial» |
 | Command Center · Field Surveys · Social Intelligence · Quality Gate · FieldFlow · Parcel Explorer | untranslated software to the reader | the rail names above |
 | DATA PROVENANCE · SOURCE TYPE · Human validation | the same, in the one place a reader goes for the truth of a number | Origen del dato · Validación humana |
 | **DEMO** as a standalone stamp | marks nothing once it is everywhere | Simulación operativa |

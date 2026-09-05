@@ -67,7 +67,9 @@ test.describe("FieldFlow · coordinator", () => {
     await expect(table).toBeVisible();
     await expect(table).toContainText("Técnico de campo 1");
     await expect(table).toContainText("Técnico de campo 2");
-    await expect(page.getByRole("main")).toContainText("field.responses.read");
+    await expect(page.getByRole("main")).toContainText(
+      "requiere el permiso de lectura de respuestas individuales",
+    );
   });
 
   test("the Command Center separates the demo campaign from the historical 119", async ({

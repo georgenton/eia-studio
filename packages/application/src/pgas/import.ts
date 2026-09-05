@@ -1,5 +1,5 @@
 import { pgasSchema, type DbTx } from "@eia/db";
-import { measureCode, pgasChapterSchema, type PgasChapter } from "@eia/domain";
+import { measureCode, pgasChapterSchema, placeFromObjective, type PgasChapter } from "@eia/domain";
 import { eq, sql } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 
@@ -88,7 +88,12 @@ export async function importPgasChapter(
       code: plan.code,
       title: plan.title,
       objective: plan.objective,
-      place: plan.place,
+      /*
+       * The chapter states the place of application two ways: its own field in two plans, and
+       * inside the objective paragraph in the other seven. Both are read; the objective is stored
+       * whole either way, so nothing the document says is lost or moved.
+       */
+      place: plan.place ?? placeFromObjective(plan.objective),
       columnHeadings: [...plan.columns],
     });
 

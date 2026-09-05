@@ -61,19 +61,35 @@ export function ParcelMap({
   view,
   selectedParcelId,
   onSelect,
+  showInfluenceAreas = true,
 }: {
   view: ParcelExplorerView;
   selectedParcelId: string | null;
   onSelect: (parcelId: string | null) => void;
+  /** Whether the delimited areas are drawn. The toggle lives with the legend that names them. */
+  showInfluenceAreas?: boolean;
 }) {
   const container = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<InstanceType<typeof MapLibreMap> | null>(null);
   const onSelectRef = useRef(onSelect);
+  const showInfluenceRef = useRef(showInfluenceAreas);
   // The map is built once; the click handler it captures must still call the *current* callback,
   // so the ref is refreshed in an effect rather than during render.
   useEffect(() => {
     onSelectRef.current = onSelect;
   }, [onSelect]);
+
+  // The map is built once, so a later toggle changes the layer rather than rebuilding anything.
+  useEffect(() => {
+    showInfluenceRef.current = showInfluenceAreas;
+    const map = mapRef.current;
+    if (!map?.isStyleLoaded()) return;
+    for (const id of ["influence-fill", "influence-line"]) {
+      if (map.getLayer(id)) {
+        map.setLayoutProperty(id, "visibility", showInfluenceAreas ? "visible" : "none");
+      }
+    }
+  }, [showInfluenceAreas]);
 
   useEffect(() => {
     const node = container.current;
@@ -113,7 +129,11 @@ export function ParcelMap({
           type: "geojson",
           data: { type: "Feature", geometry: view.alignment.geometry, properties: {} } as never,
         });
-        // A dashed line, because the alignment is reconstructed and must not read as surveyed.
+        /*
+         * A solid line. It used to be dashed, because the alignment was a reconstruction and a
+         * solid line would have read as surveyed; the study's own centreline was imported in
+         * ADR-023, so the dashes now understate what the map is showing.
+         */
         map.addLayer({
           id: "alignment-halo",
           type: "line",
@@ -124,7 +144,66 @@ export function ParcelMap({
           id: "alignment-line",
           type: "line",
           source: "alignment",
-          paint: { "line-color": "#17506b", "line-width": 2.6, "line-dasharray": [3, 2] },
+          paint: { "line-color": "#17506b", "line-width": 2.6 },
+        });
+      }
+
+      /*
+       * The areas of influence, under everything else (TD-070).
+       *
+       * They are context: a corridor read against the ground the study delimited. Drawn from the
+       * generalised outline the read model produced — the stored polygon is untouched — and behind
+       * the parcels, because the parcel is the working object and an area of 27 000 ha painted
+       * over it would bury the thing the surface is for.
+       */
+      if (view.influenceAreas.length > 0) {
+        map.addSource("influence-areas", {
+          type: "geojson",
+          data: {
+            type: "FeatureCollection",
+            features: view.influenceAreas.map((area) => ({
+              type: "Feature",
+              geometry: area.geometry,
+              properties: { kind: area.kind, label: area.label },
+            })),
+          } as never,
+        });
+        map.addLayer({
+          id: "influence-fill",
+          type: "fill",
+          source: "influence-areas",
+          layout: { visibility: showInfluenceRef.current ? "visible" : "none" },
+          paint: {
+            "fill-color": [
+              "match",
+              ["get", "kind"],
+              "direct",
+              "#2c6046",
+              "direct_social",
+              "#17506b",
+              "#8b959c",
+            ] as unknown as ExpressionSpecification,
+            "fill-opacity": 0.07,
+          },
+        });
+        map.addLayer({
+          id: "influence-line",
+          type: "line",
+          source: "influence-areas",
+          layout: { visibility: showInfluenceRef.current ? "visible" : "none" },
+          paint: {
+            "line-color": [
+              "match",
+              ["get", "kind"],
+              "direct",
+              "#2c6046",
+              "direct_social",
+              "#17506b",
+              "#a6aeb4",
+            ] as unknown as ExpressionSpecification,
+            "line-width": 1.2,
+            "line-dasharray": [4, 3],
+          },
         });
       }
 

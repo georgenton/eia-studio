@@ -90,3 +90,84 @@
   line-height: 1.5;
   max-width: 90ch;
 }
+
+/* ------------------------------------------------------------------------------------------
+ * A management plan, not a spreadsheet.
+ *
+ * The measure's own words are the content; the nine columns of the source matrix become labelled
+ * fields underneath it. The programme banner is the document's second level and is rendered as
+ * one — a heading, not a repeated cell.
+ * --------------------------------------------------------------------------------------- */
+.programme {
+  margin-top: 14px;
+}
+.programmeTitle {
+  margin: 0 0 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--eia-text-secondary);
+}
+.measures {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.measure {
+  border: 1px solid var(--eia-hairline);
+  border-radius: 5px;
+  padding: 12px 14px;
+  background: var(--eia-surface);
+}
+.measureText {
+  margin: 0 0 10px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--eia-text-primary);
+  max-width: 92ch;
+}
+.fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 8px 18px;
+  margin: 0;
+}
+.fields dt {
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--eia-text-muted);
+}
+.fields dd {
+  margin: 2px 0 0;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--eia-text-secondary);
+}
+.measureIds {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin: 10px 0 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--eia-hairline);
+  font-size: 11px;
+  color: var(--eia-text-muted);
+}
+.headings {
+  margin-top: 14px;
+  font-size: 11.5px;
+  color: var(--eia-text-secondary);
+}
+.headings > summary {
+  cursor: pointer;
+}
+.headings p {
+  margin: 6px 0 0;
+  line-height: 1.55;
+  max-width: 92ch;
+}

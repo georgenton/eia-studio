@@ -9,7 +9,9 @@ test.describe("reviewer journey", () => {
   }) => {
     // 2 · the Portfolio shows the authorized project and nothing else
     await page.goto(`/t/${TENANT}`);
-    await expect(page.getByRole("heading", { name: "Portfolio", level: 1 })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Cartera de proyectos", level: 1 }),
+    ).toBeVisible();
     const projectLink = page.getByRole("link", { name: /Vía Puente del Amor/ });
     await expect(projectLink).toBeVisible();
 
