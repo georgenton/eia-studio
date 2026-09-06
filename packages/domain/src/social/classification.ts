@@ -182,6 +182,55 @@ export function isEligibleForClassification(
   );
 }
 
+/**
+ * The largest number of answers one run may send to a model, and why there is a number at all.
+ *
+ * Nothing else bounds it. A run codes every eligible answer of one question, so the cost of
+ * pressing the button is the size of the project's field work — four responses in the pilot, and
+ * some other number in a project nobody has run yet. A cap turns "this is expensive" from
+ * something discovered on an invoice into something the product refuses to do silently.
+ *
+ * It is a **refusal, not a truncation**. Coding the first two hundred of a thousand answers and
+ * saying nothing would leave a queue whose remainder nobody is waiting for, and a distribution
+ * computed over a subset chosen by primary key. The caller is told the count and asked to say what
+ * they meant — which is also how a deliberate small run (a live smoke over one or two answers) is
+ * expressed: an explicit `limit`.
+ */
+export const MAX_ANSWERS_PER_CLASSIFICATION_RUN = 200;
+
+export class ClassificationRunTooLarge extends InvalidInput {
+  override readonly name = "ClassificationRunTooLarge";
+}
+
+/**
+ * Which of the eligible answers this run actually sends, in the order they were read.
+ *
+ * Pure, so the refusal is decided in one place and testable without a database. The caller has
+ * already ordered the candidates deterministically; taking a prefix therefore makes a limited run
+ * reproducible rather than arbitrary.
+ */
+export function selectAnswersForRun<T>(
+  eligible: ReadonlyArray<T>,
+  limit: number | undefined,
+): ReadonlyArray<T> {
+  if (limit === undefined) {
+    if (eligible.length > MAX_ANSWERS_PER_CLASSIFICATION_RUN) {
+      throw new ClassificationRunTooLarge(
+        `${eligible.length} eligible responses exceeds the ${MAX_ANSWERS_PER_CLASSIFICATION_RUN} ` +
+          "a single run may send to a model. Say how many with an explicit limit; the run is not " +
+          "truncated for you.",
+      );
+    }
+    return eligible;
+  }
+  if (!Number.isInteger(limit) || limit < 1 || limit > MAX_ANSWERS_PER_CLASSIFICATION_RUN) {
+    throw new ClassificationRunTooLarge(
+      `a run limit must be a whole number between 1 and ${MAX_ANSWERS_PER_CLASSIFICATION_RUN}`,
+    );
+  }
+  return eligible.slice(0, limit);
+}
+
 /** Bounded retries, for transient provider and schema failures only (§23). */
 export const MAX_CLASSIFICATION_ATTEMPTS = 3;
 

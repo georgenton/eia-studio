@@ -482,6 +482,47 @@ describe("Slice 4 · a run, its proposals, and a specialist's decisions", () => 
     expect((pending.rows[0] as { n: number }).n).toBe(demoAnswers.length);
   });
 
+  /**
+   * The cost guardrail, wired. The pure decision is `selectAnswersForRun` in the domain; what this
+   * asserts is that the use-case obeys it — that a limited run really queues fewer rows, and that
+   * the audit says a limit was applied rather than leaving a smaller run looking like a smaller
+   * project.
+   */
+  it("a limited run queues only what was asked for, and records that it was limited", async () => {
+    const ctx = await contextFor(specialist);
+    const limited = await startClassificationRun(
+      db.runtime,
+      ctx,
+      {
+        taxonomyVersionId: taxonomy.versionId,
+        surveyVersionId,
+        questionId: openQuestionId,
+        limit: 1,
+      },
+      RUN_CONFIG,
+    );
+    expect(limited.queued).toBe(1);
+    expect(demoAnswers.length).toBeGreaterThan(1);
+
+    const queued = await db.migrator.execute(sql`
+      select count(*)::int as n from app.ai_classification where run_id = ${limited.runId}
+    `);
+    expect((queued.rows[0] as { n: number }).n).toBe(1);
+
+    const audit = await db.migrator.execute(sql`
+      select details from audit.log
+       where object_id = ${limited.runId} and action = 'social.classification_run.started'
+    `);
+    expect((audit.rows[0] as { details: { limit: number; queued: number } }).details).toMatchObject(
+      {
+        limit: 1,
+        queued: 1,
+      },
+    );
+
+    await db.migrator.execute(sql`delete from app.classification_run where id = ${limited.runId}`);
+  });
+
   it("records the configuration the run was created with", async () => {
     const rows = await db.migrator.execute(sql`
       select requested_model, classifier_kind, prompt_version, prompt_hash, status::text as status
