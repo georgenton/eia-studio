@@ -28,7 +28,10 @@ import { startClassificationRun } from "../src/social/use-cases";
  * `social.ai.run` is refused exactly as they would be in the browser.
  *
  *   pnpm social:run --email especialista@demo.invalid --tenant demo-consultancy \
- *     --project puente-del-amor
+ *     --project puente-del-amor [--limit 2]
+ *
+ * `--limit` bounds how many answers the run sends. It is the smoke procedure of
+ * `docs/AI_LIVE_ACTIVATION.md` §7: two answers, one model, one invoice line to look at.
  */
 loadDotenv({ path: resolve(process.cwd(), "../../.env"), quiet: true });
 loadDotenv({ path: resolve(process.cwd(), ".env"), quiet: true });
@@ -39,6 +42,7 @@ function arg(name: string): string | undefined {
 }
 
 const email = arg("email");
+const limitArg = arg("limit");
 const tenantSlug = arg("tenant");
 const projectSlug = arg("project");
 if (!email || !tenantSlug || !projectSlug) {
@@ -104,6 +108,9 @@ try {
       taxonomyVersionId: version.id,
       surveyVersionId: open.version_id,
       questionId: open.id,
+      // `--limit 2` is how a first live run against a paid provider is kept to two answers. It
+      // takes the same path as every other run: the same gate, the same cap, the same rows.
+      ...(limitArg === undefined ? {} : { limit: Number.parseInt(limitArg, 10) }),
     },
     {
       classifier: resolveClassifierAvailability({
@@ -118,7 +125,10 @@ try {
   console.log(
     `social:run: run ${started.runId} created · ${started.queued} queued · ` +
       `${started.skipped} skipped · taxonomy ${version.version_label} · ` +
-      `classifier ${social.SOCIAL_CLASSIFIER ?? "(unset)"}`,
+      `classifier ${social.SOCIAL_CLASSIFIER ?? "(unset)"}` +
+      (social.SOCIAL_CLASSIFIER === "ai-gateway"
+        ? ` · model ${social.SOCIAL_CLASSIFIER_MODEL ?? "(unset)"} · this run bills the provider`
+        : ""),
   );
 } finally {
   await pool.end();

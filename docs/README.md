@@ -26,6 +26,8 @@ See [DECISIONS/GATE-1.md](DECISIONS/GATE-1.md) for the conditions (D-013…D-020
 | [DEPENDENCIES.md](DEPENDENCIES.md) | Exact dependency versions chosen in Slice 0 and why; what is deliberately not installed |
 | [CONSULTANCY_DEMO_PREFLIGHT.md](CONSULTANCY_DEMO_PREFLIGHT.md) | What to verify before a walkthrough: `pnpm demo:preflight`, `pnpm demo:doctor`, the hosting surfaces, and what to do when a check fails while you are already late |
 | [CONSULTANCY_FEEDBACK_TEMPLATE.md](CONSULTANCY_FEEDBACK_TEMPLATE.md) | The form to fill in during a walkthrough, the seven kinds of remark, and where each one is routed afterwards |
+| [AI_LIVE_ACTIVATION.md](AI_LIVE_ACTIVATION.md) | What is configured, what would leave this system per feature, what it would cost, the bounded smoke procedure, and how to turn it off |
+| [AI_MODEL_SELECTION.md](AI_MODEL_SELECTION.md) | Which gateway model, chosen from the live catalogue with the filters that eliminated the others, and the prices it was written against |
 | [TECH_DEBT.md](TECH_DEBT.md) | Intentional technical debt with owner and removal trigger |
 | [DECISIONS/](DECISIONS/) | GATE-1 record · ADR-001 multi-tenancy · ADR-002 capability resolution · ADR-003 project profiles · ADR-004 RLS · ADR-005 provenance · ADR-006 survey versioning · ADR-007 AI human-in-the-loop · ADR-008 quality gate · ADR-009 client portal isolation · ADR-010 identity provider boundary · ADR-011 release/versioning · ADR-012 deployment topology · ADR-013 Drizzle/PostgreSQL · ADR-014 frontend stack scope · ADR-015 domain/application layering |
 

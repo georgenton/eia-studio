@@ -15,6 +15,7 @@ import {
   distributeValidated,
   InvalidReview,
   isEligibleForClassification,
+  MAX_ANSWERS_PER_CLASSIFICATION_RUN,
   isTabulated,
   RESIDUAL_CATEGORY_CODE,
   shouldRetry,
@@ -28,6 +29,7 @@ import {
   type ProvenanceFacets,
   type TaxonomyCategoryInput,
   type TaxonomyDefinition,
+  selectAnswersForRun,
 } from "../src/index";
 
 const categories: ReadonlyArray<TaxonomyCategoryInput> = [
@@ -380,5 +382,38 @@ describe("retries are bounded", () => {
     expect(shouldRetry(2)).toBe(true);
     expect(shouldRetry(3)).toBe(false);
     expect(shouldRetry(99)).toBe(false);
+  });
+});
+
+/**
+ * The cost guardrail. What it protects is not correctness — a run of a thousand answers would code
+ * them all — but the size of the act: pressing one button is the only thing standing between a
+ * project and a provider invoice proportional to its field work.
+ */
+describe("how many answers one run may send", () => {
+  const answers = Array.from({ length: MAX_ANSWERS_PER_CLASSIFICATION_RUN + 5 }, (_, i) => i);
+
+  it("sends everything when the project is smaller than the cap", () => {
+    expect(selectAnswersForRun([1, 2, 3], undefined)).toEqual([1, 2, 3]);
+    expect(
+      selectAnswersForRun(answers.slice(0, MAX_ANSWERS_PER_CLASSIFICATION_RUN), undefined),
+    ).toHaveLength(MAX_ANSWERS_PER_CLASSIFICATION_RUN);
+  });
+
+  it("refuses rather than truncating when it is larger", () => {
+    expect(() => selectAnswersForRun(answers, undefined)).toThrowError(/exceeds the 200/);
+    // The point of refusing: nothing was selected, so nothing was silently left out of the queue.
+    expect(() => selectAnswersForRun(answers, undefined)).toThrowError(/not truncated for you/);
+  });
+
+  it("takes the first n, in the order they were read, when a limit is given", () => {
+    expect(selectAnswersForRun(answers, 2)).toEqual([0, 1]);
+    expect(selectAnswersForRun([7, 8], 5)).toEqual([7, 8]);
+  });
+
+  it("refuses a limit that is not a whole number within the cap", () => {
+    for (const bad of [0, -1, 1.5, MAX_ANSWERS_PER_CLASSIFICATION_RUN + 1]) {
+      expect(() => selectAnswersForRun(answers, bad)).toThrowError(/whole number between 1 and/);
+    }
   });
 });

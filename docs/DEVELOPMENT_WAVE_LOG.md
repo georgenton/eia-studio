@@ -508,8 +508,8 @@ model call, no production deployment, no persistent staging mutation.
 
 | | |
 |---|---|
-| Branch / PR | `feat/consultancy-validation-readiness` · PR pending |
-| Merge SHA | pending |
+| Branch / PR | `feat/consultancy-validation-readiness` · PR #25 |
+| Merge SHA | `6f3c7ee` |
 | Migrations | **none** |
 | Tests | unit **705**, integration **398**, Playwright **177** |
 
@@ -536,3 +536,32 @@ edit.
 query; it is now the connection's `options` startup parameter. `docs/TECH_DEBT.md` had **two**
 TD-073 entries — the PGAS ingestion one is now TD-074, the campaign one keeps the number the log
 already references.
+
+### Validation 2 — live AI, ready and not switched on
+
+| | |
+|---|---|
+| Branch / PR | `feat/live-ai-readiness` · PR pending |
+| Merge SHA | pending |
+| Migrations | **none** |
+
+**Scope delivered.** `docs/AI_LIVE_ACTIVATION.md` — the resolution matrix for the three features
+that may call a model, what each would actually send, what it would cost, the bounded smoke
+procedure, and the rollback. `docs/AI_MODEL_SELECTION.md` — a reading of the **live** Vercel AI
+Gateway catalogue taken on 6 September 2026 (373 models; no credential used, no model invoked),
+the filters that eliminated 331 of them, and the two chosen with their prices. A cap on how many
+answers one run may send, with an explicit `limit` for a deliberate small run. A boundary test over
+what each of the three paths puts in an outbound payload.
+
+**Meaningful decisions.** **No paid call was made**, and no provider is configured anywhere. The
+run cap **refuses rather than truncates**. The model ids were read from the catalogue rather than
+remembered — which is how the document came to record that of OpenAI's language models only the
+`gpt-oss` and `codex` families report zero data retention across every route, that Google's Gemini
+models report it for *some*, and that `claude-sonnet-5` is now cheaper than the `claude-sonnet-4.5`
+the code's own example still names. The `DEMO_SIMULATION` gate is stated for what it is: a rule
+about **individual survey answers**, not about aggregates — the report path sends already-computed
+figures, some resting on the study's historical numbers, and saying otherwise would be a
+comfortable overstatement.
+
+**Debt recorded.** TD-075: the report narrative records its model and prompt version but not its
+tokens, and the assistant records nothing because nothing it produces is persisted.

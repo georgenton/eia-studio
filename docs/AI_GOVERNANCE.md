@@ -3,6 +3,11 @@
 > Related: ADR-007, SECURITY.md §10a. No LLM is called in this phase; this document defines the
 > contract any future integration must satisfy. Aligned with Gate 1 decision D-018 (privacy by
 > design; AI vendor governance; legal review as a production readiness gate).
+>
+> **Operationally**: which adapter runs where, what each of the three features would actually send,
+> what it would cost and how to try it small is `docs/AI_LIVE_ACTIVATION.md`; which model, read from
+> the gateway's live catalogue rather than remembered, is `docs/AI_MODEL_SELECTION.md`. No provider
+> is configured in any environment, and turning one on is an owner decision.
 
 ## 1. Principles (from the bundle)
 

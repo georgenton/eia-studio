@@ -5,7 +5,9 @@ import {
   compareLabels,
   decideReview,
   isEligibleForClassification,
+  MAX_ANSWERS_PER_CLASSIFICATION_RUN,
   NotFound,
+  selectAnswersForRun,
   requireAvailableClassifier,
   requireCapability,
   requirePermission,
@@ -38,12 +40,18 @@ import { loadTaxonomyDefinition } from "./read-models";
  * the user's role: every answer whose text would leave this system is checked for
  * `DEMO_SIMULATION`, and a run that would include anything else is refused before a single row is
  * written. The test asserts the classifier was never constructed, let alone invoked.
+ *
+ * **A run is bounded.** `limit` says how many of the eligible answers this run may include, and
+ * without one a run larger than `MAX_ANSWERS_PER_CLASSIFICATION_RUN` is refused rather than
+ * quietly truncated. It is how a deliberate small live run — two answers, to see that a provider
+ * answers at all — is expressed without a second code path that could skip a check.
  */
 export const startRunInputSchema = z
   .object({
     taxonomyVersionId: z.uuid(),
     surveyVersionId: z.uuid(),
     questionId: z.uuid(),
+    limit: z.int().min(1).max(MAX_ANSWERS_PER_CLASSIFICATION_RUN).optional(),
   })
   .strict();
 export type StartRunInput = z.infer<typeof startRunInputSchema>;
@@ -148,6 +156,12 @@ export async function startClassificationRun(
       throw new NotFound("no eligible open responses: nothing submitted, or nothing with text");
     }
 
+    // Bounded, and bounded *out loud*. `order by a.id` above makes the subset deterministic, so a
+    // limited run is reproducible; an unlimited run over more than the cap is refused, because a
+    // silent truncation would leave a queue nobody is waiting for and a distribution computed over
+    // whichever answers happened to sort first.
+    const selected = selectAnswersForRun(eligible, parsed.limit);
+
     const runProvenance = await createSocialProvenance(tx, ctx, projectId, {
       title: "Propuesta de codificación asistida",
       note:
@@ -175,7 +189,7 @@ export async function startClassificationRun(
       provenanceId: runProvenance,
     });
 
-    for (const row of eligible) {
+    for (const row of selected) {
       await tx.insert(socialSchema.aiClassification).values({
         id: randomUUID(),
         tenantId: ctx.tenantId,
@@ -196,8 +210,9 @@ export async function startClassificationRun(
         objectKind: "classification_run",
         objectId: runId,
         details: {
-          queued: eligible.length,
-          skipped: rows.length - eligible.length,
+          queued: selected.length,
+          skipped: rows.length - selected.length,
+          limit: parsed.limit ?? null,
           model: classifier.model,
           classifier: classifier.kind,
           taxonomyVersion: taxonomy.versionLabel,
@@ -206,7 +221,7 @@ export async function startClassificationRun(
       },
     );
 
-    return { runId, queued: eligible.length, skipped: rows.length - eligible.length };
+    return { runId, queued: selected.length, skipped: rows.length - selected.length };
   });
 }
 
