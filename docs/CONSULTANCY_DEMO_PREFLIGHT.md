@@ -65,8 +65,28 @@ The doctor's twenty checks map onto the script's nine beats. Read them in that o
 | 8 · Plan de Manejo | `plan de manejo` (plans · programmes · measures) | the chapter's import missing or superseded by an empty one |
 | 9 · Informes | `versiones de informe` | no draft to open |
 | throughout | `origen del dato` (no dangling provenance) | a *Ver origen* that opens on an empty drawer |
-| throughout | `identidades` (five) | a role the script promises to switch to and cannot |
+| throughout | `identidades` (five, named) | a role the script promises to switch to and cannot — see §2a |
 | AI | `codificación asistida`, `asistente documental` | see §3 — not a failure, a thing to know before you are asked |
+
+### 2a · Known: staging has no reviewer identity
+
+As of 6 September 2026 the doctor reports, against staging:
+
+```
+WARN identidades de demostración  faltan 1 de 5: revisor@demo.invalid — no se podrá cambiar de identidad
+```
+
+`revisor@demo.invalid` does not exist there. It is the identity the walkthrough switches to in order
+to **settle** a Quality Gate finding — checking and deciding are different grants (TENANCY.md §3.3)
+— so beat 6 can be shown but not completed. Either say so («la decisión la toma un revisor, que es
+otra identidad; en este entorno no está provisionada»), or provision it before the meeting:
+
+```bash
+DEMO_USER_PASSWORD=… pnpm provision:identity --email revisor@demo.invalid   --name "Revisor" --tenant demo-consultancy --tenant-role MEMBER   --project puente-del-amor --project-role REVIEWER
+```
+
+The credential is the owner's and is never printed or committed. The script refuses `production`
+and refuses any address off the synthetic demo domain.
 
 Two doctor checks deserve their own line, because they are the ones that would put something false
 on screen rather than nothing:

@@ -253,3 +253,167 @@ by the Preview's deployment protection. What has changed is the count the distan
 context round trips in the previous wave, and now four fewer per page again. **The recommendation
 stands: fix the count before spending geography on it, and the count keeps coming down.** A database
 region migration remains a hard stop.
+
+## 12. Social, traced (6 September 2026)
+
+A targeted read-only trace of the one route §11 named as the outlier, in answer to the question
+"are there obvious duplicated reads?". Not a redesign: TD-065's rewrite of the tabulation into
+grouped aggregates is still the work it always was, and correctness wins over query count.
+
+### 12.1 What the trace found
+
+**Eighty-three round trips, and where they go.** Rendering *Análisis social* calls eight read
+models. Four of them — `loadTabulation`, `loadOpenResponses`, `loadSocialMetrics`,
+`loadDistributions` — each resolve the current campaign **independently**, which is four queries
+for one fact. The rest is the tabulation's own loop: one *answered* count per tabulated question,
+plus one tally query per question, which is where the bulk of the eighty-three lives.
+
+**A defect, not an optimisation.** Four of the tabulation's queries carried the campaign-scope
+predicate **twice**:
+
+```sql
+   and exists (select 1 from app.field_assignment fa_scope where …)
+   and exists (select 1 from app.field_assignment fa_scope where …)
+```
+
+A duplicated `AND` of an identical correlated `EXISTS`, in the `SINGLE_CHOICE`, `MULTI_CHOICE`,
+`BOOLEAN` and numeric branches — a mechanical edit when campaign scoping arrived (ADR-026). It
+changes no result, which is why nothing caught it, and it made every tally query state the same
+subquery twice. Removed.
+
+### 12.2 What removing it measured
+
+Same driver as §11, 6 warm-ups and 10 samples, **two independent before/after pairs** because the
+first pair's other routes disagreed with each other by more than the effect being measured.
+
+| Route | before (2 runs) | after (2 runs) | Round trips |
+|---|---:|---:|---:|
+| Análisis social | 711,3 · 742,5 ms | **685,0 · 706,9 ms** | 83 → 83 |
+
+**About 4 %, repeatable across both pairs, and no change in round trips** — which is what a
+predicate removal should look like: the same conversations with the database, each one asking for
+slightly less. It is not a fix for TD-065 and is not offered as one.
+
+**The other routes are not reported, because this run cannot support a claim about them.** Two
+`before` measurements of *Control de consistencia* on the same build differed by 28 ms (62,0 and
+33,5), which is larger than the effect under test. Only the route that was actually changed, and
+only where both pairs agree, is reported.
+
+### 12.3 Why these absolute numbers are not §11's
+
+§11 measured *Análisis social* at 217 ms; the same route on the same machine now measures ~700 ms
+**before** any change in this section. The difference is the **database, not the code**: the local
+project has been accumulating submitted responses since, because every `pnpm e2e` run submits real
+ones through the product (TD-068 describes the same accumulation from the other side). More
+submitted instances is more work per tally, and Social is the route whose cost scales with them.
+
+The lesson is a measurement rule, and it applies to §13 as well: **a timing is only comparable to
+another timing taken against the same data**. A before/after pair measured minutes apart is; a
+number quoted from a document written last week is not.
+
+### 12.4 TD-065 stays open
+
+The consolidation that would matter is the tabulation's per-question loop, and it is unchanged.
+Resolving the current campaign once per render instead of four times would remove three round trips
+of eighty-three — real, but it means passing a campaign id between read models that each open their
+own transaction, which is a wider change than a 4 % route deserves and is exactly the kind of
+signature change that invites somebody to pass one from a client. Left alone deliberately.
+
+## 13. Measuring the region cost, behind deployment protection
+
+§7 says what is missing: a way to reach the protected Preview as a signed-in user. This is the
+procedure, written to be run by the owner, in order, with the numbers it should produce. **It moves
+nothing.** A database region migration remains a hard stop and is not part of this.
+
+### 13.1 What the question actually is
+
+The functions run in `iad1` and the database in `us-west2` (§3), and the web app reaches it through
+the **public** TCP proxy rather than the private network. The projection in §6 is
+*round trips × cross-coast RTT*. What is unmeasured is that RTT, and therefore whether the
+projection is right — everything measured so far was taken against a database on the same machine,
+where a round trip costs nothing and only the *count* shows.
+
+Do not derive a region conclusion from a local timing. A local measurement can only tell you the
+count; the count is what §11 and §12 measure, and it is genuinely lower than it was.
+
+### 13.2 Before you start
+
+1. `LOG_LEVEL=debug` on the Preview deployment, or the `perf` lines are not emitted at all.
+2. The demo credential (`DEMO_USER_PASSWORD`) for the environment being measured.
+3. `pnpm demo:preflight` and `pnpm demo:doctor` against the **same** environment — a route that
+   renders an empty surface is not a measurement of that route.
+4. Nobody else using the deployment while it runs. Attribution is per process (§2).
+
+### 13.3 The measurement
+
+Two ways in, and the first is the one that needs no account change:
+
+**By hand, as a signed-in person.** Sign in to the Preview as `coordinadora@demo.invalid`. Then, in
+one browser session, visit each of the three routes **twice** — the first hit is cold, the second
+is warm, and both are wanted:
+
+| # | Route | Path |
+|---|---|---|
+| 1 | Centro de control | `/t/demo-consultancy/p/puente-del-amor` |
+| 2 | Cartografía y predios | `/t/demo-consultancy/p/puente-del-amor/gis` |
+| 3 | Análisis social | `/t/demo-consultancy/p/puente-del-amor/social` |
+
+For each hit, record from the browser's network panel, on the **document** request:
+
+- **TTFB** (`Waiting for server response`);
+- the `x-vercel-id` header — it names the region that served it, and confirms `iad1`;
+- the total transfer time, which is not the number of interest but tells you whether you were
+  measuring the network.
+
+Then `vercel logs <deployment-url>` and read the `perf` lines for the same six requests:
+`route`, `db.queries`, `db.ms`, `render.ms`.
+
+**Or, with the automation bypass.** Enabling Vercel's protection-bypass secret for the project makes
+this one command, with warm-ups and ten samples per route instead of two hits:
+
+```bash
+PERF_BASE_URL=<preview url> DEMO_USER_PASSWORD=… pnpm perf:baseline
+```
+
+The bypass secret is an account settings change and is the owner's to make. The script signs in,
+warms and samples serially, changes nothing, and prints JSON.
+
+### 13.4 What to write down
+
+One row per route per state:
+
+| Route | State | TTFB (ms) | `db.queries` | `db.ms` | `render.ms` | `x-vercel-id` |
+|---|---|---|---|---|---|---|
+| Centro de control | cold | | | | | |
+| Centro de control | warm | | | | | |
+| Cartografía y predios | cold | | | | | |
+| Cartografía y predios | warm | | | | | |
+| Análisis social | cold | | | | | |
+| Análisis social | warm | | | | | |
+
+And, beside it, the same three routes measured locally in the same week, so the two columns can be
+subtracted. Also record what the data was: `pnpm demo:doctor`'s counts, because §12.3 is the reason.
+
+### 13.5 How to read it
+
+- **`db.ms ÷ db.queries` is the answer.** Locally it is well under a millisecond. If it comes back
+  at 25–40 ms on the Preview, the projection in §6 is confirmed and the cross-coast round trip is
+  the dominant cost; if it comes back near 1 ms, something else is (and the something else is
+  probably `render.ms`).
+- **`db.queries` must match the local count for the same route.** If it does not, the two
+  environments are not rendering the same thing and nothing else in the table means anything.
+- **Cold and warm separately.** A reviewer opening a page nobody has opened today pays the cold
+  number, and it is the one a demonstration actually shows.
+- **Análisis social is the sentinel.** With ~83 round trips it multiplies the RTT by the largest
+  factor, so it is where the region cost is visible if it is visible anywhere.
+
+### 13.6 What may be concluded, and by whom
+
+If `db.ms ÷ db.queries` confirms the projection, the finding is that **geography now costs more
+than count** — the count having come down from 17 to 12 context round trips and four fewer per page
+(§10, §11). That is the first time moving a region would be the right next step, and it is still an
+owner decision: co-locating means either moving the functions to the database's region or moving
+the database, and the second is destructive-adjacent and reserved.
+
+If it does not confirm it, the projection in §6 is wrong and this document says so, in a §14 that
+reports the numbers rather than defending §6.

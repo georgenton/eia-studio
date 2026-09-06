@@ -479,8 +479,8 @@ the wrong one, and rewriting those queries must not change a single figure (TD-0
 
 | | |
 |---|---|
-| Branch / PR | `docs/demo-script-and-product-direction` · PR pending |
-| Merge SHA | pending |
+| Branch / PR | `docs/demo-script-and-product-direction` · PR #24 |
+| Merge SHA | `385cf20` |
 | Migrations | **none** |
 
 **Scope delivered.** `docs/CONSULTANCY_DEMO_SCRIPT.md` — nine beats, roughly 25 minutes, in Spanish,
@@ -541,8 +541,8 @@ already references.
 
 | | |
 |---|---|
-| Branch / PR | `feat/live-ai-readiness` · PR pending |
-| Merge SHA | pending |
+| Branch / PR | `feat/live-ai-readiness` · PR #26 |
+| Merge SHA | `555a116` |
 | Migrations | **none** |
 
 **Scope delivered.** `docs/AI_LIVE_ACTIVATION.md` — the resolution matrix for the three features
@@ -565,3 +565,35 @@ comfortable overstatement.
 
 **Debt recorded.** TD-075: the report narrative records its model and prompt version but not its
 tokens, and the assistant records nothing because nothing it produces is persisted.
+### Validation 3 — the trace, the measurement procedure, and three documents
+
+| | |
+|---|---|
+| Branch / PR | `feat/second-project-and-trace` · PR pending |
+| Merge SHA | pending |
+| Migrations | **none** |
+
+**Scope delivered.** A read-only trace of *Análisis social* (`docs/PERFORMANCE_BASELINE.md` §12),
+which found a duplicated campaign-scope predicate in four tally queries and removed it. An operator
+procedure for measuring the region cost behind deployment protection (§13) — the routes, the two
+ways in, the table to fill, how to read `db.ms ÷ db.queries`, and who may conclude what.
+`docs/CONSULTANCY_DEMO_BRIEF.md` (one page, non-technical Spanish, six questions).
+`docs/THESIS_ALIGNMENT.md` (Conditions B and C preserved; A structurally impossible today).
+`docs/SECOND_PROJECT_READINESS.md` (every component classified, and what the next study costs).
+
+**Meaningful decisions.** **TD-065 stays open**: the consolidation that would matter is the
+per-question loop, and resolving the current campaign once instead of four times would buy three
+round trips of eighty-three at the price of passing a campaign id between read models that each
+open their own transaction. Correctness wins over query count. **Only the route that changed is
+reported**: two `before` runs of another route disagreed by more than the effect under test, so the
+rest of the table was dropped rather than dressed up. And the absolute numbers are **not** §11's —
+the local database has been accumulating submitted responses from every e2e run since, which is
+itself the measurement rule §13 is written around.
+
+**On the thesis**: `human_review.classification_id` is `NOT NULL`, so a coding cannot exist without
+a proposal to attach to. That is why Condition A needs a new row shape and a blind mode, and why
+`HumanReview` is not a gold standard — the reviewer decided while looking at the proposal.
+
+**On the second project**: nothing was refactored, because nothing needed it. `zamora`, `yantzaza`,
+`provial` and the rest appear nowhere in `packages/domain`, `packages/ui`, `packages/application/src`
+or the web app's trees, and the pilot's figures appear there only inside five comments.

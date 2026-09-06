@@ -167,6 +167,10 @@ Out of scope for implementation slices, but the data model keeps what it needs: 
 `AIClassification` and `HumanReview`, thresholds snapshots and model/prompt versions. Calibration
 claims may only appear in the UI after an evaluation ADR documents the method.
 
+`docs/THESIS_ALIGNMENT.md` maps those artefacts onto the three conditions a human-in-the-loop study
+compares — and says plainly which one is missing: an **independent** manual coding cannot exist,
+because `human_review.classification_id` is `NOT NULL` and a reviewer always sees the proposal.
+
 ## 10. Copy rules enforced by tests
 
 A lint over message catalogues and rule templates fails on the forbidden phrases for scores
