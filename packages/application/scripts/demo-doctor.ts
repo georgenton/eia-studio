@@ -71,6 +71,12 @@ async function one<T>(query: ReturnType<typeof sql>): Promise<T | null> {
   return (result.rows[0] as T | undefined) ?? null;
 }
 
+/** Every row, for the checks that report *which* thing is missing rather than how many. */
+async function all<T>(query: ReturnType<typeof sql>): Promise<ReadonlyArray<T>> {
+  const result = await db.execute(query);
+  return result.rows as ReadonlyArray<T>;
+}
+
 try {
   /* ── the project itself ─────────────────────────────────────────────────────────────────── */
   const project = await one<{
@@ -326,19 +332,39 @@ try {
     );
 
     /* ── the identities the walkthrough signs in as ───────────────────────────────────────── */
-    const identities = await one<{ found: number; expected: number }>(sql`
-      select count(*)::int as found, 5 as expected
+    // Named one by one, and the missing ones are named back. A count alone reported "4 de 5" as
+    // OK on staging while `revisor@demo.invalid` did not exist — and the reviewer is the identity
+    // the walkthrough switches to in order to settle a finding, which is the whole Quality Gate
+    // beat. The address is a synthetic `.invalid` account, not personal data.
+    const expected = [
+      "coordinadora@demo.invalid",
+      "especialista@demo.invalid",
+      "revisor@demo.invalid",
+      "tecnico@demo.invalid",
+      "admin@demo.invalid",
+    ];
+    const present = await all<{ email: string }>(sql`
+      select u.email
         from app."user" u
         join app.tenant_membership tm on tm.user_id = u.id and tm.tenant_id = ${project.tenant_id}
-       where u.email in (
-         'coordinadora@demo.invalid', 'especialista@demo.invalid', 'revisor@demo.invalid',
-         'tecnico@demo.invalid', 'admin@demo.invalid'
-       )
+       where u.email in (${sql.join(
+         expected.map((email) => sql`${email}`),
+         sql`, `,
+       )})
     `);
+    const have = new Set(present.map((row) => row.email));
+    const missing = expected.filter((email) => !have.has(email));
     report(
-      (identities?.found ?? 0) >= 4 ? "OK" : "FAIL",
+      missing.length === 0
+        ? "OK"
+        : // Nobody can sign in at all without the coordinator; the rest lose one beat each.
+          missing.includes("coordinadora@demo.invalid")
+          ? "FAIL"
+          : "WARN",
       "identidades de demostración",
-      `${identities?.found ?? 0} de 5 con membresía en la organización`,
+      missing.length === 0
+        ? "las 5 con membresía en la organización"
+        : `faltan ${missing.length} de 5: ${missing.join(", ")} — no se podrá cambiar de identidad`,
     );
   }
 

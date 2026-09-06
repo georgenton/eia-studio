@@ -9,6 +9,10 @@
 
 ## Before you start
 
+Give them `docs/CONSULTANCY_DEMO_BRIEF.md` — one page, non-technical Spanish, ending in the six
+questions this meeting exists to answer. Read its three lists out loud early (what is real, what is
+a simulation, what is not enabled) so nobody has to work it out from the badges.
+
 Run the preflight first: `pnpm demo:preflight` and `pnpm demo:doctor` against the environment you
 will show, and read `docs/CONSULTANCY_DEMO_PREFLIGHT.md` — including its last section, which is the
 order of preference when something is red and there is no time left (**show less, never show

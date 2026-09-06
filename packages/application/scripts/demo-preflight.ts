@@ -104,11 +104,16 @@ try {
   );
 
   /* ── where the walkthrough will be shown from ───────────────────────────────────────────── */
+  // Read from *this terminal's* environment, not from the database — so pointing the command at
+  // staging while a local `.env` is loaded reports `localhost`, which is true and useless unless it
+  // says whose value it is. Confirming that the address serves this database stays a manual step.
   const preview = process.env.PREVIEW_URL ?? process.env.PUBLIC_APP_URL;
   report(
     preview ? "OK" : "WARN",
-    "dirección de la demostración",
-    preview ?? "sin PREVIEW_URL ni PUBLIC_APP_URL: confirmar a mano antes de la reunión",
+    "dirección (de este terminal)",
+    preview
+      ? `${preview} — de esta terminal, no de la base: confirmar que apunta a ella`
+      : "sin PREVIEW_URL ni PUBLIC_APP_URL: confirmar a mano antes de la reunión",
   );
 
   const password = process.env.DEMO_USER_PASSWORD;

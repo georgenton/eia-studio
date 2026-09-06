@@ -255,7 +255,6 @@ export async function loadTabulation(
            where a.tenant_id = ${ctx.tenantId} and a.question_id = ${question.id}
              and i.status = 'SUBMITTED' and i.survey_version_id = ${surveyVersionId}
              and ${scope}
-           and ${scope}
            group by o.code, o.label, o.ordinal
            order by o.ordinal
         `);
@@ -270,7 +269,6 @@ export async function loadTabulation(
            where link.tenant_id = ${ctx.tenantId} and a.question_id = ${question.id}
              and i.status = 'SUBMITTED' and i.survey_version_id = ${surveyVersionId}
              and ${scope}
-           and ${scope}
            group by o.code, o.label, o.ordinal
            order by o.ordinal
         `);
@@ -283,7 +281,6 @@ export async function loadTabulation(
            where a.tenant_id = ${ctx.tenantId} and a.question_id = ${question.id}
              and i.status = 'SUBMITTED' and i.survey_version_id = ${surveyVersionId}
              and ${scope}
-           and ${scope}
              and a.boolean_value is not null
            group by a.boolean_value
         `);
@@ -303,7 +300,6 @@ export async function loadTabulation(
            where a.tenant_id = ${ctx.tenantId} and a.question_id = ${question.id}
              and i.status = 'SUBMITTED' and i.survey_version_id = ${surveyVersionId}
              and ${scope}
-           and ${scope}
              and a.number_value is not null
         `);
         numeric = summariseNumeric(
