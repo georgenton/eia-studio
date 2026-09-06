@@ -497,3 +497,42 @@ happened.
 
 **TD-073 (two ACTIVE campaigns) is deliberately deferred**, per the owner's decision: the current
 resolution is deterministic and no business case for simultaneous field operations exists yet.
+
+## Consultancy validation & live-AI readiness wave (authorised 6 September 2026)
+
+Two objectives, kept apart on purpose: make the product **validatable by a consulting firm**, and
+make live AI **ready to activate** when the owner authorises it — without activating it. No paid
+model call, no production deployment, no persistent staging mutation.
+
+### Validation 1 — the checks that run before somebody is watching
+
+| | |
+|---|---|
+| Branch / PR | `feat/consultancy-validation-readiness` · PR pending |
+| Merge SHA | pending |
+| Migrations | **none** |
+| Tests | unit **705**, integration **398**, Playwright **177** |
+
+**Scope delivered.** `pnpm demo:preflight` (seven checks: which database was reached, migrations
+against the repository's journal, PostGIS, `eia_app` without `BYPASSRLS`, RLS forced everywhere, the
+address, the credential's presence) and `pnpm demo:doctor` (twenty checks over the study's data,
+following the demo script's nine beats). `e2e/journey-integrity.spec.ts` — seven tests for what only
+fails *between* screens: rail destinations that answer and name themselves, no dead links, every
+control with an accessible name, every empty region explaining itself, the field surface opening on
+the current operation, the provenance drawer opening and closing, and a way out of the workspace a
+reader can find. `docs/CONSULTANCY_DEMO_PREFLIGHT.md` and `docs/CONSULTANCY_FEEDBACK_TEMPLATE.md`.
+
+**Meaningful decisions.** The operator tools are **read-only in every environment**: one that
+repairs what it finds is one nobody can trust to report. Two conditions are hard failures rather
+than warnings — a dangling `provenance_id`, and fake-classifier rows in a persistent environment —
+because both put something *false* on screen rather than nothing. An unconfigured model provider is
+a **WARN**: the deterministic product is unaffected, and the honest demonstration of the other half
+is the unavailable state. The feedback template is a **document, not a module**: no ticket entity,
+no backlog table, no feedback surface in the product; and it keeps *they could not find it* apart
+from *they found it and reject it*, because merging the two turns a strategic signal into a copy
+edit.
+
+**Fixed in passing.** `SET statement_timeout` was a fire-and-forget query racing the first real
+query; it is now the connection's `options` startup parameter. `docs/TECH_DEBT.md` had **two**
+TD-073 entries — the PGAS ingestion one is now TD-074, the campaign one keeps the number the log
+already references.

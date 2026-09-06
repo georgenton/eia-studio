@@ -24,6 +24,8 @@ See [DECISIONS/GATE-1.md](DECISIONS/GATE-1.md) for the conditions (D-013…D-020
 | [CI.md](CI.md) | GitHub Actions quality gates by stage; only real scripts are ever called |
 | [DEPLOYMENT.md](DEPLOYMENT.md) | Vercel + Railway topology, environments, secrets (names only), database evaluation, repository commands |
 | [DEPENDENCIES.md](DEPENDENCIES.md) | Exact dependency versions chosen in Slice 0 and why; what is deliberately not installed |
+| [CONSULTANCY_DEMO_PREFLIGHT.md](CONSULTANCY_DEMO_PREFLIGHT.md) | What to verify before a walkthrough: `pnpm demo:preflight`, `pnpm demo:doctor`, the hosting surfaces, and what to do when a check fails while you are already late |
+| [CONSULTANCY_FEEDBACK_TEMPLATE.md](CONSULTANCY_FEEDBACK_TEMPLATE.md) | The form to fill in during a walkthrough, the seven kinds of remark, and where each one is routed afterwards |
 | [TECH_DEBT.md](TECH_DEBT.md) | Intentional technical debt with owner and removal trigger |
 | [DECISIONS/](DECISIONS/) | GATE-1 record · ADR-001 multi-tenancy · ADR-002 capability resolution · ADR-003 project profiles · ADR-004 RLS · ADR-005 provenance · ADR-006 survey versioning · ADR-007 AI human-in-the-loop · ADR-008 quality gate · ADR-009 client portal isolation · ADR-010 identity provider boundary · ADR-011 release/versioning · ADR-012 deployment topology · ADR-013 Drizzle/PostgreSQL · ADR-014 frontend stack scope · ADR-015 domain/application layering |
 
