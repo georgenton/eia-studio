@@ -43,10 +43,21 @@ export function createPool(connectionString: string, options: PoolOptions = {}):
    * and this product's transactions write. The pool already discards a client that errored, so the
    * next request gets a fresh connection; making the failing one fail clearly is the honest fix.
    */
+  const statementTimeoutMs =
+    options.statementTimeoutMs === undefined ? 20_000 : options.statementTimeoutMs;
+
   const pool = new pg.Pool({
     connectionString,
     max: options.max ?? 10,
     application_name: options.applicationName ?? "eia-studio",
+    /*
+     * Sent with the startup packet rather than as a `set` on connect. A fire-and-forget `set`
+     * races with the first query the caller sends on the same client — pg warns about exactly
+     * that — and costs a round trip on every new connection. This costs none and cannot race.
+     */
+    ...(statementTimeoutMs === null
+      ? {}
+      : { options: `-c statement_timeout=${Math.trunc(statementTimeoutMs)}` }),
     keepAlive: true,
     keepAliveInitialDelayMillis: 10_000,
     idleTimeoutMillis: 30_000,
@@ -54,14 +65,6 @@ export function createPool(connectionString: string, options: PoolOptions = {}):
     connectionTimeoutMillis: 10_000,
   });
 
-  const statementTimeoutMs =
-    options.statementTimeoutMs === undefined ? 20_000 : options.statementTimeoutMs;
-  if (statementTimeoutMs !== null) {
-    pool.on("connect", (client) => {
-      // On the client's own queue, so it runs before anything the caller sends on it.
-      void client.query(`set statement_timeout = ${Math.trunc(statementTimeoutMs)}`);
-    });
-  }
   const { onQuery } = options;
   if (onQuery) {
     // Wrapping the client rather than the pool: every use-case runs inside a transaction, and a

@@ -9,6 +9,12 @@
 
 ## Before you start
 
+Run the preflight first: `pnpm demo:preflight` and `pnpm demo:doctor` against the environment you
+will show, and read `docs/CONSULTANCY_DEMO_PREFLIGHT.md` — including its last section, which is the
+order of preference when something is red and there is no time left (**show less, never show
+something false**). Have `docs/CONSULTANCY_FEEDBACK_TEMPLATE.md` open to write into during the
+session; what they say is the point of the meeting, and it does not survive memory.
+
 | | |
 |---|---|
 | Sign in as | `coordinadora@demo.invalid` — the coordinator sees the whole workflow |
