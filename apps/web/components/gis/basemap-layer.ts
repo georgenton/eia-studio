@@ -24,6 +24,7 @@ const BOTTOM_PROJECT_LAYER = [
   "parcels-line",
   "alignment-halo",
   "alignment-line",
+  "parcels-selected-halo",
   "parcels-selected",
 ];
 

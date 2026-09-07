@@ -23,7 +23,10 @@ reach and a screen reader cannot announce — and it is the way back when scroll
 project off screen.
 
 **«Fondo del mapa»**, beneath it, chooses the geographic reference drawn _underneath_ the study:
-_Sin fondo_ · _Mapa_ · _Satélite_ · _Relieve_. Which of them are available depends on
+_Sin fondo_ · _Mapa_ · _Satélite_ · _Relieve_. On **staging all four are available** — MapTiler
+Free is enabled there for demonstration, development and research — and the surface opens on
+_Satélite_, because on a rural corridor the imagery is where the road, the vegetation and the
+settlements can be seen in relation to one another. Which of them are available depends on
 configuration, and with no reference provider set only _Sin fondo_ is — the other three are shown
 disabled with one line saying what they need, because "not configured" is a fact and not an error.
 The choice is a view preference: it is remembered in that browser and nowhere else, and it is not

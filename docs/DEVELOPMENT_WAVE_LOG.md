@@ -675,3 +675,33 @@ do not exist — no external request, no credential, nobody billed.
 **Not activated.** No account was created and no paid service subscribed. `docs/BASEMAP_POLICY.md`
 §7 lists the six steps, of which the first — deciding the account and the plan — is the owner's and
 costs money.
+
+## MapTiler activation on staging (7 September 2026)
+
+| | |
+|---|---|
+| Branch / PR | `feat/maptiler-activation` · PR pending |
+| Merge SHA | pending |
+| Migrations | **none** |
+| Plan | **MapTiler Free** — research, development and consultancy demonstration. No paid tier, no billing details, no charge incurred |
+| Environment | Vercel **Preview only**. Production has no environment variables and was not touched |
+
+**What activation found.** Two defects that only a real account could reveal. `satellite-v4` — the
+id the provider's documentation gives as its own example — **answers 404 on this account**, so the
+satellite background would have degraded silently to the neutral ground; every id is now verified
+by requesting a real tile over the corridor. And a background change could be **silently dropped**:
+the attach ran only when `map.isStyleLoaded()` happened to be true, and otherwise queued itself on
+a `load` event that had already fired and would never fire again.
+
+**What real imagery changed.** One thing, and only after looking: the **selected parcel was
+invisible** over satellite — a deep blue outline on a five-hectare polygon vanishes into dark
+vegetation, so clicking a table row appeared to do nothing on the map. It gains a white halo over
+imagery and none on a pale ground. Everything else was left alone: fills, outlines, influence areas
+and legends all read at working scale, which is what the previous wave's values were chosen for.
+
+**The key.** A browser key, restricted at MapTiler to the stable Preview hostname — verified from
+here, 403 without that origin and 200 with it. It is in Vercel Preview's environment and nowhere
+else: not in code, documentation, screenshots or test output.
+
+**CI is unchanged and still provider-independent.** The live run has its own config and its own
+spec, outside every Playwright project, so no test in CI can make a billable request.
