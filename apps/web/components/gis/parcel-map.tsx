@@ -75,6 +75,8 @@ interface LayerPresentation {
   readonly parcelFillOpacity: number;
   readonly parcelLineWidth: number;
   readonly selectedLineWidth: number;
+  readonly selectedHaloColor: string;
+  readonly selectedHaloWidth: number;
   readonly alignmentHaloColor: string;
   readonly alignmentHaloWidth: number;
   readonly alignmentHaloOpacity: number;
@@ -87,6 +89,10 @@ const OVER_PALE_GROUND: LayerPresentation = {
   parcelFillOpacity: 0.85,
   parcelLineWidth: 1,
   selectedLineWidth: 3,
+  // No halo on a pale ground: the blue already reads there, and a white ring would rub out the
+  // boundary the selected parcel shares with its neighbour.
+  selectedHaloColor: "#ffffff",
+  selectedHaloWidth: 0,
   alignmentHaloColor: "#c6d2d6",
   alignmentHaloWidth: 11,
   alignmentHaloOpacity: 0.7,
@@ -99,6 +105,8 @@ const OVER_IMAGERY: LayerPresentation = {
   parcelFillOpacity: 0.45,
   parcelLineWidth: 1.4,
   selectedLineWidth: 4,
+  selectedHaloColor: "#ffffff",
+  selectedHaloWidth: 7,
   alignmentHaloColor: "#ffffff",
   alignmentHaloWidth: 12,
   alignmentHaloOpacity: 0.85,
@@ -151,6 +159,8 @@ function applyPresentation(map: InstanceType<typeof MapLibreMap>, mode: BasemapM
   set("parcels-fill", "fill-opacity", p.parcelFillOpacity);
   set("parcels-line", "line-width", p.parcelLineWidth);
   set("parcels-selected", "line-width", p.selectedLineWidth);
+  set("parcels-selected-halo", "line-color", p.selectedHaloColor);
+  set("parcels-selected-halo", "line-width", p.selectedHaloWidth);
   set("alignment-halo", "line-color", p.alignmentHaloColor);
   set("alignment-halo", "line-width", p.alignmentHaloWidth);
   set("alignment-halo", "line-opacity", p.alignmentHaloOpacity);
@@ -198,6 +208,16 @@ export function ParcelMap({
   /** Set when the provider's tiles will not load: the ground goes neutral and says so. */
   const [basemapFailed, setBasemapFailed] = useState(false);
   const modeRef = useRef(mode);
+  /*
+   * Whether the map has finished building, and what to do with the background once it has.
+   *
+   * Not `map.isStyleLoaded()`: that answers "is the style settled *right now*", which is false
+   * while sources are loading — so a background change that arrived at the wrong moment would
+   * queue itself on a `load` event that had already fired and would never fire again, leaving the
+   * reader's choice silently unapplied. This says "the map is built", which is the question.
+   */
+  const mapBuiltRef = useRef(false);
+  const applyBasemapRef = useRef<(() => void) | null>(null);
   const onSelectRef = useRef(onSelect);
   const showInfluenceRef = useRef(showInfluenceAreas);
   // The map is built once; the click handler it captures must still call the *current* callback,
@@ -395,6 +415,19 @@ export function ParcelMap({
         });
       }
 
+      /*
+       * A halo under the selected parcel, for the same reason the centreline has one: over
+       * satellite imagery a deep blue 4 px outline on a small polygon simply disappears into dark
+       * vegetation, and a reader who clicks a row in the table sees nothing move on the map. The
+       * halo is the thing that makes the selection legible; the blue on top is what names it.
+       */
+      map.addLayer({
+        id: "parcels-selected-halo",
+        type: "line",
+        source: "parcels",
+        paint: { "line-color": "#ffffff", "line-width": 5, "line-opacity": 0.9 },
+        filter: ["==", ["get", "parcelId"], ""],
+      });
       map.addLayer({
         id: "parcels-selected",
         type: "line",
@@ -406,6 +439,8 @@ export function ParcelMap({
       map.getCanvas().setAttribute("aria-hidden", "true");
       node.dataset.mapReady = "true";
       publishCamera();
+      mapBuiltRef.current = true;
+      applyBasemapRef.current?.();
     });
 
     map.on("click", "parcels-fill", (event: MapLayerMouseEvent) => {
@@ -425,6 +460,8 @@ export function ParcelMap({
     });
 
     return () => {
+      mapBuiltRef.current = false;
+      applyBasemapRef.current = null;
       delete node.dataset.mapReady;
       delete node.dataset["mapView"];
       delete node.dataset["parcelsInView"];
@@ -472,8 +509,8 @@ export function ParcelMap({
       applyPresentation(map, attached ? wanted : "none");
       node.dataset["basemapMode"] = attached ? wanted : "none";
     };
-    if (map.isStyleLoaded()) void apply();
-    else map.once("load", () => void apply());
+    applyBasemapRef.current = () => void apply();
+    if (mapBuiltRef.current) applyBasemapRef.current();
     return () => controller.abort();
   }, [basemap, mode, basemapFailed, view]);
 
@@ -483,7 +520,13 @@ export function ParcelMap({
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !map.isStyleLoaded()) return;
-    map.setFilter("parcels-selected", ["==", ["get", "parcelId"], selectedParcelId ?? ""]);
+    const selectionFilter: ExpressionSpecification = [
+      "==",
+      ["get", "parcelId"],
+      selectedParcelId ?? "",
+    ] as unknown as ExpressionSpecification;
+    map.setFilter("parcels-selected-halo", selectionFilter);
+    map.setFilter("parcels-selected", selectionFilter);
     if (!selectedParcelId) return;
     const feature = view.features.find((f) => f.id === selectedParcelId);
     if (!feature) return;

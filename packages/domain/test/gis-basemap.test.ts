@@ -63,7 +63,7 @@ describe("what a deployment may offer as a background", () => {
     const catalogue = resolveBasemapCatalogue({ provider: "maptiler", maptilerKey: "a b/c" });
     const satellite = basemapSourceFor(catalogue, "satellite")!;
     expect(satellite.tiles[0]).toMatch(
-      /^https:\/\/api\.maptiler\.com\/tiles\/[a-z0-9-]+\/\{z\}\/\{x\}\/\{y\}\?key=/,
+      /^https:\/\/api\.maptiler\.com\/maps\/[a-z0-9-]+\/256\/\{z\}\/\{x\}\/\{y\}\.jpg\?key=/,
     );
     expect(basemapSourceFor(catalogue, "map")!.tiles[0]).toMatch(
       /^https:\/\/api\.maptiler\.com\/maps\/[a-z0-9-]+\/256\/\{z\}\/\{x\}\/\{y\}\.png\?key=/,

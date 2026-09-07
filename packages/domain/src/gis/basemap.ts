@@ -83,32 +83,42 @@ const NEUTRAL: BasemapCatalogue = {
 };
 
 /**
- * MapTiler's documented endpoint shapes (docs.maptiler.com/cloud/api, read 7 September 2026):
+ * The three styles, **verified against the account's own catalogue on 7 September 2026** by
+ * requesting one real tile over the pilot corridor through the key's allowed origin.
  *
  *   maps    `https://api.maptiler.com/maps/{mapId}/{tileSize}/{z}/{x}/{y}.{format}?key=…`
- *   tiles   `https://api.maptiler.com/tiles/{tilesId}/{z}/{x}/{y}?key=…`
+ *   tiles   `https://api.maptiler.com/tiles/{tilesId}/{z}/{x}/{y}.{format}?key=…`
  *
- * The **shapes** are documented; the **ids** below are the documented examples (`streets-v4`,
- * `satellite-v4`) plus one for relief that this session could not verify without an account.
- * Confirming all three against the account's own catalogue is an explicit activation step
- * (`docs/BASEMAP_POLICY.md`). An id the account does not have returns 404s, which this product
- * treats as "no background": the neutral ground stays and the project stays drawn.
+ * Verifying mattered: `satellite-v4`, taken from the documentation's own example while no account
+ * existed, **answers 404 on this account** and would have degraded silently to the neutral ground.
+ * It is `satellite-v2`. The other two were confirmed rather than assumed, and the choices between
+ * near-equivalents were made by looking at the tiles:
+ *
+ * - `hybrid` over plain satellite imagery, because on a rural corridor the settlement names are
+ *   the link between the picture and the study — a corridor is usually named after the places at
+ *   its ends, and a reader should be able to find them on the ground.
+ * - `topo-v2` over `outdoor-v2` for relief: both carry contours, and `topo-v2` draws them and the
+ *   hydrography strongly enough to read under the project's own layers.
+ *
+ * An id this account loses would return 404, which this product treats as "no background": the
+ * neutral ground stays and the project stays drawn.
  */
-const MAPTILER_MAP_ID = "streets-v4";
-const MAPTILER_SATELLITE_TILESET = "satellite-v4";
-const MAPTILER_RELIEF_MAP_ID = "outdoor-v2";
+const MAPTILER_MAP_ID = "streets-v2";
+const MAPTILER_SATELLITE_MAP_ID = "hybrid";
+const MAPTILER_RELIEF_MAP_ID = "topo-v2";
 
 /**
  * The attribution MapTiler's terms require. Rendered by the surface, never suppressed.
  *
  * Stated here rather than read from the provider's TileJSON because a legal obligation should not
  * depend on a network response that may fail — the credit must be visible even on the first frame.
- * Confirming the exact required wording, and the satellite imagery credits in particular, is part
- * of activation.
+ * The wording and the links are **copied from what the account's own TileJSON and style documents
+ * return** (checked 7 September 2026), so what the surface shows is what the provider asks for
+ * rather than a paraphrase of it.
  */
 const MAPTILER_CREDITS: ReadonlyArray<BasemapCredit> = [
   { label: "© MapTiler", href: "https://www.maptiler.com/copyright/" },
-  { label: "© OpenStreetMap", href: "https://www.openstreetmap.org/copyright" },
+  { label: "© OpenStreetMap contributors", href: "https://www.openstreetmap.org/copyright" },
 ];
 
 function maptilerSources(key: string): Partial<Record<BasemapMode, BasemapTileSource>> {
@@ -126,7 +136,7 @@ function maptilerSources(key: string): Partial<Record<BasemapMode, BasemapTileSo
     satellite: {
       mode: "satellite",
       tiles: [
-        `https://api.maptiler.com/tiles/${MAPTILER_SATELLITE_TILESET}/{z}/{x}/{y}?key=${encoded}`,
+        `https://api.maptiler.com/maps/${MAPTILER_SATELLITE_MAP_ID}/256/{z}/{x}/{y}.jpg?key=${encoded}`,
       ],
       tileSize: 256,
       maxZoom: 20,

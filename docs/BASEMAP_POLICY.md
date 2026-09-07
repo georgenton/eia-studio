@@ -122,32 +122,65 @@ Layer order, bottom to top: **reference basemap → influence fill → influence
 the parcels in this change: underneath them it was legible on a pale ground and lost against
 imagery, and the road is the subject of the study.
 
-## 7. Activation
+## 7. Activation status
 
-Nothing here is switched on. No account was created, no key was requested, no paid service was
-subscribed to, and no request has ever been made to a tile provider from this repository.
+**MapTiler Free is enabled on staging / Preview, for research, development and consultancy
+demonstration** (owner authorisation, 7 September 2026). This is not a commercial production
+licence and says nothing about production readiness: **Production is not configured, and the
+production branch was not touched.** Before a real engagement is served from this, the plan and its
+terms are the owner's decision to revisit.
 
-To activate MapTiler, in order:
+| | |
+|---|---|
+| Plan | **MapTiler Free.** No Flex, no paid tier, no billing details added, nothing that incurs a charge |
+| Environment | Vercel **Preview only**: `BASEMAP_PROVIDER=maptiler` and `MAPTILER_KEY`. Production has no environment variables at all |
+| Key type | a **browser/application key**, not an administrative service token |
+| Origin restriction | applied at MapTiler to the stable Preview hostname. Verified from here: a tile request without that origin answers **403**, the same request with it answers **200** |
+| Local development | **not** covered by this key, deliberately. A developer who needs a background asks for a separate development key rather than widening this one |
 
-1. **The owner** creates or nominates a MapTiler Cloud account and decides the plan. This costs
-   money above the free allowance and is not a decision this repository can take.
-2. Create a **browser key**, restricted to the origins that serve the workspace — the staging
-   hostname, and later production. A browser key is public by nature (§8); the restriction, not
-   secrecy, is what protects it.
-3. Set a **spend cap or quota alert** on the account.
-4. **Confirm the three style ids** against the account's own catalogue. The endpoint *shapes* are
-   documented (`docs/…` links below); the ids in `packages/domain/src/gis/basemap.ts` are the ids
-   the documentation gives as examples plus one for relief that could not be verified without an
-   account. An id the account does not have degrades to the neutral ground — the surface stays
-   correct — but it should be right rather than merely safe.
-5. Set `BASEMAP_PROVIDER=maptiler` and `MAPTILER_KEY` on staging, and reload the GIS surface.
-6. Re-run `pnpm e2e -- e2e/screenshots.spec.ts` to produce the `Mapa`, `Satélite` and `Relieve`
-   screenshots from the real provider. Until then only `Sin fondo` is pictured, deliberately: a
-   screenshot of a background nobody has activated would be either somebody else's imagery pasted
-   in or a fabrication.
+### The style ids, verified rather than assumed
+
+Checked on 7 September 2026 by requesting one real tile over the pilot corridor through the key's
+allowed origin. **Verifying mattered**: `satellite-v4`, taken from the provider's own documentation
+example while no account existed, answers **404** on this account and would have degraded silently
+to the neutral ground.
+
+| Mode | Endpoint | Why this one |
+|---|---|---|
+| `Mapa` | `maps/streets-v2` raster | restrained reference map; carries the settlement names and the road network |
+| `Satélite` | `maps/hybrid` raster | imagery **with labels**. On a rural corridor the place names are what connect the picture to the study; plain `tiles/satellite-v2` also works and is one constant away if the labels ever crowd the parcels |
+| `Relieve` | `maps/topo-v2` raster | contours and hydrography, drawn strongly enough to read under the project's layers. `outdoor-v2` carries the same contours more faintly |
+
+The attribution wording and links are copied from what the account's own TileJSON and style
+documents return, so the surface shows what the provider asks for rather than a paraphrase.
+
+### Still the owner's
+
+- **A spend cap or quota alert** on the MapTiler account. Free has an allowance; nothing in this
+  product can enforce it, and a demonstration that exceeds it degrades to the neutral ground rather
+  than billing anybody, but the alert is worth having.
+- **Rotating the key** if it has been shared through a channel that keeps history. Rotation is one
+  value change in Vercel Preview and needs no code.
+- **Production**, if it is ever wanted: a separate key, a separate origin restriction, and a
+  decision about the plan.
 
 Sources for the endpoint shapes, read 7 September 2026:
 `https://docs.maptiler.com/cloud/api/maps/` and `https://docs.maptiler.com/cloud/api/tiles/`.
+
+### Looking at it before a consultancy does
+
+`playwright.live.config.ts` and `e2e/basemap-live.spec.ts` are a **manual** run against the real
+provider, deliberately outside the ordinary suite so CI can never make a billable request:
+
+```bash
+MAPTILER_KEY=… DEMO_USER_PASSWORD=… npx playwright test --config playwright.live.config.ts
+```
+
+They produce the four screenshots and assert that every tile came back `200`, that the parcels and
+the centreline are drawn over each background, and that the attribution is present. Because the key
+is restricted to the Preview origin — and the Preview sits behind deployment protection — each tile
+request is re-issued from Node with that origin's `Referer`. The bytes are the provider's, fetched
+with the owner's key through the origin the owner allowed; only the hop is different.
 
 ## 8. Security
 
@@ -158,7 +191,7 @@ tiles; every web map in existence works this way. Treating it as a secret would 
 |---|---|
 | What protects it | the provider's allowed-origin restriction and a spend cap — not obscurity |
 | What it is not | a server credential. Never reuse a database, gateway or auth secret as a map key |
-| Where it lives | the platform's environment, never the repository. `.env.example` carries the name only |
+| Where it lives | Vercel Preview's environment, never the repository. `.env.example` carries the name only, and no key appears in code, documentation, screenshots or test output |
 | Blast radius | somebody who copies it can draw maps at your expense on an allowed origin. That is a billing risk, not a data risk: the key grants no access to this product, its database or its tenants |
 | Logs | tile URLs contain the key, so they are never logged. The product logs no map requests at all |
 
