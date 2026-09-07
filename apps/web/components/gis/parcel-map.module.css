@@ -79,13 +79,19 @@
 
 /* Real controls, deliberately outside the `aria-hidden` canvas: a keyboard reaches them and a
    screen reader announces them, which is exactly what a control inside the map cannot be. */
+/* Bottom left, stacked above the scale bar.
+   The rest of the map is spoken for: the parcel-state legend holds the top left and the
+   layer-provenance panel the whole right side, and a control placed over the legend that names
+   what the layers *are* would be the wrong thing to cover. */
 .controls {
   position: absolute;
-  top: 12px;
-  right: 12px;
+  bottom: 56px;
+  left: 12px;
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
   gap: 8px;
+  max-width: 230px;
 }
 .recentre {
   background: rgba(255, 255, 255, 0.95);
@@ -104,4 +110,64 @@
 .recentre:focus-visible {
   outline: 2px solid var(--eia-accent);
   outline-offset: 2px;
+}
+.basemap {
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid var(--eia-border);
+  border-radius: var(--eia-radius-panel);
+  box-shadow: var(--eia-shadow-card);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 210px;
+  padding: 8px 10px;
+}
+.basemapLabel {
+  color: var(--eia-text-secondary);
+  font-size: var(--eia-size-label);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.basemapSelect {
+  background: #fff;
+  border: 1px solid var(--eia-border);
+  border-radius: 4px;
+  color: var(--eia-ink);
+  font: inherit;
+  font-size: var(--eia-size-label);
+  padding: 4px 6px;
+}
+.basemapSelect:focus-visible {
+  outline: 2px solid var(--eia-accent);
+  outline-offset: 2px;
+}
+.basemapHint {
+  color: var(--eia-text-secondary);
+  font-size: 11px;
+  line-height: 1.35;
+  margin: 0;
+}
+
+/* Attribution: a condition of using someone else's tiles, so it is never hidden while they are
+   drawn, and it is document text rather than a control inside the `aria-hidden` canvas. */
+.credits {
+  background: rgba(255, 255, 255, 0.88);
+  border-radius: 4px;
+  bottom: 34px;
+  color: var(--eia-text-secondary);
+  font-size: 10.5px;
+  left: 12px;
+  line-height: 1.4;
+  margin: 0;
+  padding: 3px 7px;
+  position: absolute;
+}
+.credits a {
+  color: inherit;
+}
+.creditsKind {
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }

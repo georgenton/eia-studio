@@ -136,7 +136,13 @@ project, province and customer appear only inside fixture data.
 6. **Fixtures are not tests.** Tests use small, generic factories (tenant A / tenant B, project X
    / project Y). Zamora fixtures are used only for demo seeding and for a small set of
    scenario tests that exercise the four Quality Gate cases through generic rule ids.
-7. **No PII in the repository.** The real expedient contains names, signatures and phone numbers
+7. **A reference basemap is not project data.** With a provider configured, the map may draw
+   third-party tiles *underneath* the study's layers as geographic context. It is never part of
+   this fixture, never gets a provenance record, and never appears in the layer legend — and it is
+   absent by default, so what a reviewer sees without configuration is precisely the study's own
+   cartography (`docs/BASEMAP_POLICY.md`). Nothing visible on somebody else's imagery may be
+   described as a finding of this study.
+8. **No PII in the repository.** The real expedient contains names, signatures and phone numbers
    (assembly minutes, survey sheets). The repo holds references and anonymised derivatives only;
    identified data is imported at runtime into the PII store under the tenant's control.
 

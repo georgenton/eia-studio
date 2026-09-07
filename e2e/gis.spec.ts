@@ -393,6 +393,56 @@ test.describe("GIS reviewer journey", () => {
     expect(back.drawn).toBeGreaterThan(0);
   });
 
+  /*
+   * No reference basemap configured — which is the deployed truth, and the invariant that matters
+   * most in this wave: **without a key the GIS surface is exactly what it was.** The study's own
+   * cartography is drawn on the neutral ground, nothing is requested from anybody, and the
+   * capability is offered rather than hidden, so a reader can see that a background is supported
+   * and simply not switched on here.
+   */
+  test("with no reference map configured, the project is drawn on the neutral ground", async ({
+    page,
+  }) => {
+    const external: string[] = [];
+    page.on("request", (request) => {
+      const host = new URL(request.url()).hostname;
+      if (host !== "127.0.0.1" && host !== "localhost") external.push(request.url());
+    });
+
+    await page.goto(GIS);
+    const camera = await cameraOf(page);
+    expect(camera.drawn).toBeGreaterThan(0);
+    expect(camera.alignment).toBeGreaterThan(0);
+
+    // The map is on the neutral ground, and says so rather than leaving it to be inferred.
+    await expect(page.getByTestId("parcel-map")).toHaveAttribute("data-basemap-mode", "none");
+    await expect(page.getByTestId("basemap-credits")).toHaveCount(0);
+
+    // Not one byte was asked of a third party.
+    expect(external).toEqual([]);
+  });
+
+  test("the background control offers what is not configured, disabled and explained", async ({
+    page,
+  }) => {
+    await page.goto(GIS);
+    const select = page.getByLabel("Fondo del mapa");
+    await expect(select).toBeVisible();
+    await expect(select).toHaveValue("none");
+
+    await expect(select.locator("option[value='none']")).toBeEnabled();
+    for (const mode of ["map", "satellite", "terrain"]) {
+      await expect(select.locator(`option[value='${mode}']`)).toBeDisabled();
+    }
+    // A statement of configuration, not an error state.
+    await expect(page.getByText("Requiere mapa de referencia configurado")).toBeVisible();
+    await expect(page.getByTestId("basemap-unavailable")).toHaveCount(0);
+
+    // Reachable and announced: it is a real control in the document, outside the hidden canvas.
+    await select.focus();
+    await expect(select).toBeFocused();
+  });
+
   test("a parcel of another project is not reachable by guessing its code", async ({ page }) => {
     const response = await page.goto(`/t/${TENANT}/p/${PROJECT}/parcels/${PARCELS.absent}`);
     expect(response?.status()).toBe(404);
