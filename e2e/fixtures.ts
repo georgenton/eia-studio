@@ -35,6 +35,20 @@ export const PARCELS = {
  * bare cells: an assignment card's text begins with the code and continues with its state. The
  * negative lookahead keeps it from matching the first three digits of a longer number.
  */
+/**
+ * The envelope of the study's own parcel layer, `[west, south, east, north]` in EPSG:4326.
+ *
+ * Measured from the delivered cartography with `ST_Extent` over the 141 active geometries, and
+ * used to assert that the map's opening camera actually **contains all of them** — the claim a
+ * count of rendered polygons cannot make, because a renderer may cull and a viewport may clip.
+ */
+export const PARCEL_EXTENT = {
+  west: -78.74472,
+  south: -3.81973,
+  east: -78.70651,
+  north: -3.77014,
+} as const;
+
 export const PARCEL_CODE_PATTERN = /^\d{3}[A-Za-z]?(?!\d)/;
 
 export const USERS = {

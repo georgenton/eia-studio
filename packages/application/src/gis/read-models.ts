@@ -3,9 +3,12 @@ import {
   CANONICAL_SRID,
   affectationRatio,
   deriveLayerLegend,
+  extendBounds,
+  geometryBounds,
   NotFound,
   requireCapability,
   requirePermission,
+  unionBounds,
   type AffectationCategory,
   type ChainageMethod,
   type LayerProvenanceLegend,
@@ -106,7 +109,12 @@ export interface ParcelExplorerView {
    */
   readonly influenceAreas: ReadonlyArray<InfluenceAreaFeature>;
   readonly layers: ReadonlyArray<LayerProvenance>;
-  /** Bounding box of the active parcel layer in presentation CRS: [w, s, e, n]. */
+  /**
+   * Where the map opens, in presentation CRS: `[w, s, e, n]` over the **parcels and the
+   * centreline** — the object of the work. The areas of influence are context and are left out,
+   * because the indirect social one is five times the corridor and framing it hides what a reader
+   * came to look at. `null` only when the project has no drawable geometry at all.
+   */
   readonly bounds: readonly [number, number, number, number] | null;
   readonly truncated: boolean;
 }
@@ -331,26 +339,12 @@ export async function loadParcelExplorer(
     });
 
     const features: ParcelFeature[] = [];
-    let west = Infinity;
-    let south = Infinity;
-    let east = -Infinity;
-    let north = -Infinity;
     for (const row of bounded) {
       if (!row.geojson) continue;
-      const geometry = JSON.parse(row.geojson) as { coordinates: number[][][] };
-      for (const ring of geometry.coordinates) {
-        for (const [x, y] of ring) {
-          if (x === undefined || y === undefined) continue;
-          west = Math.min(west, x);
-          east = Math.max(east, x);
-          south = Math.min(south, y);
-          north = Math.max(north, y);
-        }
-      }
       features.push({
         type: "Feature",
         id: row.id,
-        geometry,
+        geometry: JSON.parse(row.geojson) as ParcelFeature["geometry"],
         properties: { parcelId: row.id, parcelCode: row.parcel_code, status: row.status },
       });
     }
@@ -360,13 +354,28 @@ export async function loadParcelExplorer(
     const alignmentProvenance = alignmentRow
       ? await loadProvenanceRecords(tx, ctx, [alignmentRow.provenance_id])
       : new Map();
+    const alignmentGeometry = alignmentRow ? JSON.parse(alignmentRow.geojson) : null;
+
+    /*
+     * Where the map opens: the parcels and the centreline, and deliberately nothing else.
+     *
+     * `unionBounds` walks down to the numbers rather than indexing to a fixed depth, which is the
+     * whole point — every parcel of this study is stored as a `MultiPolygon` and the centreline as
+     * a `MultiLineString`, and the previous two-level loop turned all of them into `NaN`, so the
+     * read model returned no extent and the map opened on `[0, 0]` at zoom 1 (docs/manual §3).
+     *
+     * The areas of influence are **not** in it. The indirect social area spans about 22 by 28 km
+     * against the corridor's 4 by 6: framing it would make the object of the work — the road and
+     * its frontage parcels — a smudge in the middle of a mostly empty rectangle. They are context,
+     * and the toggle beside the legend is where a reader asks for them.
+     */
 
     return {
       alignment: alignmentRow
         ? {
             label: alignmentRow.label,
             lengthM: Number(alignmentRow.length_m),
-            geometry: JSON.parse(alignmentRow.geojson),
+            geometry: alignmentGeometry,
             provenanceId: alignmentRow.provenance_id,
             provenance: facetsOf(alignmentProvenance.get(alignmentRow.provenance_id)!),
           }
@@ -389,7 +398,10 @@ export async function loadParcelExplorer(
         provenanceId: row.provenance_id,
       })),
       layers,
-      bounds: Number.isFinite(west) ? [west, south, east, north] : null,
+      bounds: extendBounds(
+        unionBounds(features.map((feature) => feature.geometry)),
+        geometryBounds(alignmentGeometry),
+      ),
       truncated,
     };
   });

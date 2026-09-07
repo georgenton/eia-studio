@@ -134,6 +134,89 @@ describe("loadParcelExplorer", () => {
     );
   });
 
+  /**
+   * The camera, on the geometry the database actually stores.
+   *
+   * Every parcel of this product goes in through `ST_Multi`, so what `ST_AsGeoJSON` hands the read
+   * model is a `MultiPolygon` — four levels of nesting — and the extent used to be computed by
+   * indexing two levels deep. It returned `null`, the map opened on `[0, 0]` at zoom 1, and the
+   * project's own cartography sat several thousand kilometres outside the viewport. Nothing failed
+   * loudly: the payload was complete and the camera was somewhere else.
+   */
+  it("frames the project: the extent is finite and contains the parcels", async () => {
+    const ctx = await contextFor(w.memberA, w.tenantA.slug, w.projectX.slug);
+    const view = await loadParcelExplorer(db.runtime, ctx);
+
+    expect(view.bounds).not.toBeNull();
+    const [west, south, east, north] = view.bounds!;
+    for (const value of [west, south, east, north]) expect(Number.isFinite(value)).toBe(true);
+    expect(west).toBeLessThan(east);
+    expect(south).toBeLessThan(north);
+
+    // What the database says the extent is, computed by PostGIS rather than by us.
+    const envelope = await db.migrator.execute(sql`
+      select ST_XMin(e) as w, ST_YMin(e) as s, ST_XMax(e) as x, ST_YMax(e) as n
+        from (select ST_Extent(geom) as e from app.parcel_geometry
+               where project_id = ${w.projectX.id} and is_active) as t
+    `);
+    const truth = envelope.rows[0] as { w: number; s: number; x: number; n: number };
+    expect(west).toBeCloseTo(Number(truth.w), 6);
+    expect(south).toBeCloseTo(Number(truth.s), 6);
+    expect(east).toBeCloseTo(Number(truth.x), 6);
+    expect(north).toBeCloseTo(Number(truth.n), 6);
+  });
+
+  it("frames a parcel whose geometry is genuinely in two pieces", async () => {
+    // 20 of the study's 141 parcels are multi-part. A parcel split by a quebrada is one parcel with
+    // two polygons, and the far piece must be inside the opening view like any other.
+    const provenanceId = (
+      await createProvenanceRecord(db.migrator, {
+        tenantId: w.tenantA.id,
+        projectId: w.projectX.id,
+        regime: "DEMO_SIMULATION",
+      })
+    ).id;
+    // The project's existing active version: only one may be active per dataset, and this parcel
+    // belongs to the same layer as the others rather than to a layer of its own.
+    const active = await db.migrator.execute(sql`
+      select id from app.spatial_dataset_version
+       where project_id = ${w.projectX.id} and is_active limit 1
+    `);
+    const datasetVersionId = (active.rows[0] as { id: string }).id;
+    const { parcelId } = await createParcelWithGeometry(db.migrator, {
+      tenantId: w.tenantA.id,
+      projectId: w.projectX.id,
+      provenanceId,
+      datasetVersionId,
+      parcelCode: "PRED-XXX-MULTI",
+    });
+    // Two disjoint squares, the second an eighth of a degree east and north of the first.
+    await db.migrator.execute(sql`
+      update app.parcel_geometry
+         set geom = ST_Multi(ST_Union(
+               ST_GeomFromText('POLYGON((-78.9 -4.1, -78.899 -4.1, -78.899 -4.099, -78.9 -4.099, -78.9 -4.1))', 4326),
+               ST_GeomFromText('POLYGON((-78.8 -4.0, -78.799 -4.0, -78.799 -3.999, -78.8 -3.999, -78.8 -4.0))', 4326)))
+       where parcel_id = ${parcelId}
+    `);
+
+    try {
+      const ctx = await contextFor(w.memberA, w.tenantA.slug, w.projectX.slug);
+      const view = await loadParcelExplorer(db.runtime, ctx);
+      const feature = view.features.find((f) => f.id === parcelId);
+      expect((feature?.geometry as { type: string }).type).toBe("MultiPolygon");
+
+      const [west, south, east, north] = view.bounds!;
+      for (const value of [west, south, east, north]) expect(Number.isFinite(value)).toBe(true);
+      // Both pieces are inside: the far one is what the old algorithm turned into NaN.
+      expect(west).toBeLessThanOrEqual(-78.9);
+      expect(east).toBeGreaterThanOrEqual(-78.799);
+      expect(south).toBeLessThanOrEqual(-4.1);
+      expect(north).toBeGreaterThanOrEqual(-3.999);
+    } finally {
+      await db.migrator.execute(sql`delete from app.parcel where id = ${parcelId}`);
+    }
+  });
+
   it("bounds the payload so one project cannot ask the server for an unbounded map", async () => {
     const ctx = await contextFor(w.memberA, w.tenantA.slug, w.projectX.slug);
     const view = await loadParcelExplorer(db.runtime, ctx);
@@ -143,6 +226,55 @@ describe("loadParcelExplorer", () => {
 });
 
 describe("loadParcelWorkspace", () => {
+  /**
+   * The workspace's extent comes from PostGIS — `ST_XMin(ST_Envelope(geom))` and its three
+   * siblings — not from JavaScript, and `ST_Envelope` is already the envelope of the whole
+   * collection. It was therefore never affected by the multi-part defect the explorer had, and it
+   * was left alone; this test is the coverage that was missing, not a fix.
+   */
+  it("frames a multi-part parcel around every one of its pieces", async () => {
+    const provenanceId = (
+      await createProvenanceRecord(db.migrator, {
+        tenantId: w.tenantA.id,
+        projectId: w.projectX.id,
+        regime: "DEMO_SIMULATION",
+      })
+    ).id;
+    const active = await db.migrator.execute(sql`
+      select id from app.spatial_dataset_version
+       where project_id = ${w.projectX.id} and is_active limit 1
+    `);
+    const { parcelId } = await createParcelWithGeometry(db.migrator, {
+      tenantId: w.tenantA.id,
+      projectId: w.projectX.id,
+      provenanceId,
+      datasetVersionId: (active.rows[0] as { id: string }).id,
+      parcelCode: "PRED-XXX-WS-MULTI",
+    });
+    await db.migrator.execute(sql`
+      update app.parcel_geometry
+         set geom = ST_Multi(ST_Union(
+               ST_GeomFromText('POLYGON((-78.9 -4.1, -78.899 -4.1, -78.899 -4.099, -78.9 -4.099, -78.9 -4.1))', 4326),
+               ST_GeomFromText('POLYGON((-78.8 -4.0, -78.799 -4.0, -78.799 -3.999, -78.8 -3.999, -78.8 -4.0))', 4326)))
+       where parcel_id = ${parcelId}
+    `);
+
+    try {
+      const ctx = await contextFor(w.memberA, w.tenantA.slug, w.projectX.slug);
+      const view = await loadParcelWorkspace(db.runtime, ctx, "PRED-XXX-WS-MULTI");
+      expect(view.bounds).not.toBeNull();
+      const [west, south, east, north] = view.bounds!;
+      for (const value of [west, south, east, north]) expect(Number.isFinite(value)).toBe(true);
+      expect(west).toBeCloseTo(-78.9, 6);
+      expect(south).toBeCloseTo(-4.1, 6);
+      expect(east).toBeCloseTo(-78.799, 6);
+      expect(north).toBeCloseTo(-3.999, 6);
+      expect((view.geometry as { type: string }).type).toBe("MultiPolygon");
+    } finally {
+      await db.migrator.execute(sql`delete from app.parcel where id = ${parcelId}`);
+    }
+  });
+
   it("returns the parcel of the context's project", async () => {
     const ctx = await contextFor(w.memberA, w.tenantA.slug, w.projectX.slug);
     const view = await loadParcelWorkspace(db.runtime, ctx, "PRED-XXX-001");

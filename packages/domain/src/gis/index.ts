@@ -1,3 +1,4 @@
+export * from "./bounds";
 export * from "./crs";
 export * from "./spatial-dataset";
 export * from "./parcel";

@@ -597,3 +597,45 @@ a proposal to attach to. That is why Condition A needs a new row shape and a bli
 **On the second project**: nothing was refactored, because nothing needed it. `zamora`, `yantzaza`,
 `provial` and the rest appear nowhere in `packages/domain`, `packages/ui`, `packages/application/src`
 or the web app's trees, and the pilot's figures appear there only inside five comments.
+
+## Hotfix — the map that framed nothing (7 September 2026)
+
+| | |
+|---|---|
+| Branch / PR | `fix/gis-multipolygon-camera` · PR pending |
+| Merge SHA | pending |
+| Migrations | **none** |
+| Data | **none touched** — this was a read model and a camera, not a seed |
+
+**The defect.** *Cartografía y predios* opened on an empty grey square. Nothing was missing: 141
+parcels with geometry, the 7 361 m centreline and four areas of influence were all in the payload,
+and the table listed every one of them. `loadParcelExplorer` computed the opening extent by walking
+coordinates **two levels deep**, which is the shape of a `Polygon`; every parcel of this study is
+stored as a `MultiPolygon`, so `Math.min` received a ring, the accumulator became `NaN`, and one
+multi-part parcel emptied the extent for all 141. `bounds: null` → `center [0, 0], zoom 1`, about
+8 700 km from the project, scale bar reading *3000 km*.
+
+**Why nothing caught it.** Every GIS test was green, and each was right: the table, the shared
+selection, the filters, the legends and the provenance drawer all describe the *payload*. None of
+them could see where the camera was pointing — a canvas has no state a test can read. The
+regression now does: the map publishes its viewport and how many parcel polygons are actually drawn,
+and the suite asserts the corridor is inside a frame under a degree wide with geometry in it.
+
+**The fix.** A pure `geometryBounds` / `unionBounds` in `@eia/domain` that recurses to the numbers
+instead of indexing to a fixed depth, ignoring anything that is not two finite numbers rather than
+propagating it. The identical recursive walk already existed **inline in the map component**,
+written there after the same mistake broke selection on the first click — the read model was simply
+missed. It is now one function, and the client uses it too.
+
+**Two deliberate exclusions.** The areas of influence are not in the opening extent (the indirect
+social one is 22 × 28 km against the corridor's 4 × 6, which would make the road a smudge), and
+**no base map was added** — the point of the fix is that the project's own cartography is visible
+with no external provider at all.
+
+**«Centrar en proyecto».** A real button outside the `aria-hidden` canvas, which is why it can
+exist where MapLibre's own controls cannot (IG2-005): it re-frames the extent, and it is the way
+back after scrolling has lost the project.
+
+**`loadParcelWorkspace` was audited and left alone.** Its extent comes from PostGIS —
+`ST_XMin(ST_Envelope(geom))` and siblings — which is already the envelope of the whole collection;
+verified against the real multi-part parcels, and given the multi-part test it lacked.
