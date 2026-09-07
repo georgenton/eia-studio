@@ -82,6 +82,18 @@ An import is a **job**, not a request (ARCHITECTURE.md §6): `ImportRun` carries
 settings, and progress is written to the run row so the surface can show `syncing`. Nothing about
 the import happens inside an HTTP request.
 
+## 6a. What is imported, and what is only drawn behind it
+
+Everything this contract governs is **evidence**: it arrives as a `SpatialDatasetVersion`, carries
+provenance, is named in the layer legend and may be cited.
+
+A **reference basemap is none of those things** and is not an import. It is third-party tiles drawn
+underneath, chosen by a reader, configurable per deployment and absent by default
+(`docs/BASEMAP_POLICY.md`). It never becomes a dataset version, never acquires a provenance record,
+and is never matched, validated or reconciled against anything here. Nothing on it may be treated
+as a source: if satellite imagery appears to contradict a delivered polygon, that is a finding to
+put to the consultancy, not a correction to apply.
+
 ## 7. Open decisions
 
 - Whether the package is uploaded through the product or staged in object storage first.

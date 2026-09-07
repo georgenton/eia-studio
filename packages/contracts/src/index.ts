@@ -26,5 +26,7 @@ export { workerEnvSchema } from "./env/worker";
 export type { WorkerEnv } from "./env/worker";
 export { socialEnvSchema, assistantEnvSchema, SOCIAL_CLASSIFIERS } from "./env/social";
 export type { SocialEnv, AssistantEnv } from "./env/social";
+export { basemapEnvSchema } from "./env/basemap";
+export type { BasemapEnv } from "./env/basemap";
 export { emailEnvSchema } from "./env/email";
 export type { EmailEnv } from "./env/email";

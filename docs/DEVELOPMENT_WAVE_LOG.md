@@ -639,3 +639,39 @@ back after scrolling has lost the project.
 **`loadParcelWorkspace` was audited and left alone.** Its extent comes from PostGIS —
 `ST_XMin(ST_Envelope(geom))` and siblings — which is already the envelope of the whole collection;
 verified against the real multi-part parcels, and given the multi-part test it lacked.
+
+## Reference basemap (7 September 2026)
+
+| | |
+|---|---|
+| Branch / PR | `feat/gis-reference-basemaps` · PR pending |
+| Merge SHA | pending |
+| Migrations | **none** |
+| Provider | **none activated** — no account, no key, no request ever made to a tile provider |
+
+**Scope delivered.** A provider-neutral reference basemap under the study's cartography, in four
+modes (*Sin fondo* · *Mapa* · *Satélite* · *Relieve*) with MapTiler as the first provider; a
+switcher on the map; per-browser preference; attribution; and `docs/BASEMAP_POLICY.md`.
+
+**The principle the shape enforces.** The basemap is **context**, the study's layers are
+**evidence**, and they cannot merge by accident: the background is one raster layer with no
+provenance record, no entry in the layer legend, no *Ver origen* and no path into a report snapshot.
+An e2e test asserts a configured reference service does not appear among the study's layers.
+
+**Two decisions worth naming.** Raster tiles rather than the provider's vector style, because
+`setStyle` tears down every source and layer — the project's geometry would be rebuilt on every
+background change and would vanish while the new style loaded. And the **centreline moved above the
+parcels**: underneath them it was legible on a pale ground and lost against imagery, and the road
+is the subject of the study.
+
+**What the wave found.** MapLibre does **not** report a raster tile that answers 404 — no error
+event, no failed state, just a background that never appears — and a permanently failing source
+stops the map ever reaching `idle`, which had silently disabled the camera instrumentation added in
+the previous change. Availability is therefore *asked*: one tile covering the project is fetched,
+and anything but a plain success becomes "no background", with the neutral ground and one quiet
+line. The suite covers this against a second server configured with a reference service whose tiles
+do not exist — no external request, no credential, nobody billed.
+
+**Not activated.** No account was created and no paid service subscribed. `docs/BASEMAP_POLICY.md`
+§7 lists the six steps, of which the first — deciding the account and the plan — is the owner's and
+costs money.

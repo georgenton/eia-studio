@@ -1,4 +1,4 @@
-import { PARCELS, PROJECT, TENANT, test } from "./fixtures";
+import { expect, PARCELS, PROJECT, TENANT, test } from "./fixtures";
 
 /**
  * Implementation screenshots at the golden references' viewport (1440 px wide).
@@ -47,6 +47,23 @@ test.describe("implementation screenshots", () => {
     await page.getByRole("table").waitFor();
     await page.waitForTimeout(1200);
     await page.screenshot({ path: `${OUT2}/01-parcel-explorer.png` });
+  });
+
+  /*
+   * `Sin fondo` — the only background this deployment has, and the only one that can honestly be
+   * pictured here.
+   *
+   * `Mapa`, `Satélite` and `Relieve` are deliberately **not** screenshotted: no reference provider
+   * is configured, and a picture of a background nobody has activated would either be somebody
+   * else's imagery pasted in or a fabrication. `docs/BASEMAP_POLICY.md` §7 records that the other
+   * three are produced at activation, from the real provider, by re-running this spec.
+   */
+  test("parcel explorer, background switcher", async ({ page }) => {
+    await page.goto(`/t/${TENANT}/p/${PROJECT}/gis`);
+    await page.getByRole("table").waitFor();
+    await expect(page.getByLabel("Fondo del mapa")).toHaveValue("none");
+    await page.waitForTimeout(1200);
+    await page.screenshot({ path: `${OUT2}/04-basemap-sin-fondo.png` });
   });
 
   test("parcel explorer with a parcel selected", async ({ page }) => {

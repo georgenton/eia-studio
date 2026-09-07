@@ -17,10 +17,23 @@ areas of influence are deliberately **not** in that extent: the indirect social 
 28 km against the corridor's 4 by 6, and framing it would shrink the road to a smudge. They are
 context, and the toggle beside the legend is where a reader asks for them.
 
-**«Centrar en proyecto»**, top right, re-frames that extent. It is a real button outside the map
+**«Centrar en proyecto»**, bottom left, re-frames that extent. It is a real button outside the map
 canvas — the canvas subtree is `aria-hidden`, so a control inside it would be one a keyboard can
 reach and a screen reader cannot announce — and it is the way back when scrolling has left the
 project off screen.
+
+**«Fondo del mapa»**, beneath it, chooses the geographic reference drawn _underneath_ the study:
+_Sin fondo_ · _Mapa_ · _Satélite_ · _Relieve_. Which of them are available depends on
+configuration, and with no reference provider set only _Sin fondo_ is — the other three are shown
+disabled with one line saying what they need, because "not configured" is a fact and not an error.
+The choice is a view preference: it is remembered in that browser and nowhere else, and it is not
+project data.
+
+**A basemap is context; the study's layers are evidence** (`docs/BASEMAP_POLICY.md`). The reference
+background never enters the layer-provenance legend, never gets a _Ver origen_, and never becomes a
+source in a report. If the provider fails, the neutral ground returns, the surface says so in one
+line, and every layer of the study stays exactly where it was — a third-party outage can cost a
+reader their geographic context and nothing else.
 
 ## Parcel Workspace — `/t/…/p/…/parcels/[code]`
 
@@ -39,6 +52,9 @@ One parcel's file, in tabs:
   exist, both answer 404 — the same answer, so neither confirms anything.
 - **Geometry is stored in EPSG:4326** and measured in the dataset's declared projected CRS. The
   pilot's analysis CRS is a demo assumption until the official GIS package arrives (TD-028).
+- **The reference background is somebody else's cartography and is never the study's.** Imagery
+  that seems to disagree with a parcel boundary is a question for the consultancy, not a licence to
+  edit geometry: the delivered layer is what the product stands behind.
 - **An empty grey map is a camera fault, not missing data.** If it ever happens again, the extent
   is the thing to look at: the read model returns `bounds: null` only when the project has no
   drawable geometry at all, and the viewer then falls back to `[0, 0]` at zoom 1 — the middle of

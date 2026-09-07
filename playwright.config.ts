@@ -14,6 +14,23 @@ import { defineConfig, devices } from "@playwright/test";
 const PORT = Number(process.env.E2E_PORT ?? 3100);
 const baseURL = process.env.E2E_BASE_URL ?? `http://127.0.0.1:${PORT}`;
 
+/*
+ * A second server, configured with a reference basemap, so both sides of the basemap contract are
+ * covered by the same build.
+ *
+ * The default server has **no** provider — which is the deployed truth and the invariant that
+ * matters most: no key, and the GIS surface is untouched. That leaves the configured path
+ * untested, and the most important thing about it is what happens when the provider fails. So
+ * this one is pointed at a tile template on its own origin that answers 404 for every tile: no
+ * external request, no credential, nothing anybody bills — and the exact behaviour a revoked key
+ * or an outage produces.
+ *
+ * It works because the basemap configuration is read at request time rather than inlined at build
+ * time, so one build serves both.
+ */
+const BASEMAP_PORT = Number(process.env.E2E_BASEMAP_PORT ?? 3101);
+const basemapBaseURL = `http://127.0.0.1:${BASEMAP_PORT}`;
+
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: false,
@@ -109,6 +126,17 @@ export default defineConfig({
       },
     },
     {
+      name: "basemap",
+      testMatch: /(^|\/)gis-basemap\.spec\.ts$/,
+      dependencies: ["setup"],
+      use: {
+        ...devices["Desktop Chrome"],
+        baseURL: basemapBaseURL,
+        storageState: "e2e/.auth/coordinator.json",
+        viewport: { width: 1440, height: 940 },
+      },
+    },
+    {
       name: "anonymous",
       // No stored session: these specs sign in for themselves, or test being signed out.
       testMatch: /(^|\/)(anonymous|session)\.spec\.ts$/,
@@ -117,24 +145,48 @@ export default defineConfig({
   ],
   webServer: process.env.E2E_BASE_URL
     ? undefined
-    : {
-        command: `pnpm --filter @eia/web start --port ${PORT}`,
-        url: `${baseURL}/health`,
-        reuseExistingServer: !process.env.CI,
-        timeout: 180_000,
-        stdout: "pipe",
-        stderr: "pipe",
-        // Better Auth binds its cookies and callbacks to an origin, so the server under test must
-        // be told the origin the browser will actually use.
-        env: {
-          APP_ENV: "test",
-          PUBLIC_APP_URL: baseURL,
-          BETTER_AUTH_URL: baseURL,
-          AUTH_TRUSTED_ORIGINS: baseURL,
-          // Explicit, never defaulted (IG4-001): the deterministic classifier is selected here
-          // because this is a test run, and nowhere else selects it for us.
-          SOCIAL_CLASSIFIER: "fake",
-          SOCIAL_CLASSIFIER_MODEL: "fake/deterministic",
+    : [
+        {
+          command: `pnpm --filter @eia/web start --port ${PORT}`,
+          url: `${baseURL}/health`,
+          reuseExistingServer: !process.env.CI,
+          timeout: 180_000,
+          stdout: "pipe",
+          stderr: "pipe",
+          // Better Auth binds its cookies and callbacks to an origin, so the server under test must
+          // be told the origin the browser will actually use.
+          env: {
+            APP_ENV: "test",
+            PUBLIC_APP_URL: baseURL,
+            BETTER_AUTH_URL: baseURL,
+            AUTH_TRUSTED_ORIGINS: baseURL,
+            // Explicit, never defaulted (IG4-001): the deterministic classifier is selected here
+            // because this is a test run, and nowhere else selects it for us.
+            SOCIAL_CLASSIFIER: "fake",
+            SOCIAL_CLASSIFIER_MODEL: "fake/deterministic",
+          },
         },
-      },
+
+        {
+          command: `pnpm --filter @eia/web start --port ${BASEMAP_PORT}`,
+          url: `${basemapBaseURL}/health`,
+          reuseExistingServer: !process.env.CI,
+          timeout: 180_000,
+          stdout: "pipe",
+          stderr: "pipe",
+          env: {
+            APP_ENV: "test",
+            PUBLIC_APP_URL: basemapBaseURL,
+            BETTER_AUTH_URL: basemapBaseURL,
+            AUTH_TRUSTED_ORIGINS: `${basemapBaseURL},${baseURL}`,
+            SOCIAL_CLASSIFIER: "fake",
+            SOCIAL_CLASSIFIER_MODEL: "fake/deterministic",
+            // A self-hosted reference service that is not there: every tile answers 404, which is
+            // what a revoked key, an expired plan or an outage looks like to the browser.
+            BASEMAP_PROVIDER: "custom",
+            BASEMAP_TILE_URL: `${basemapBaseURL}/reference-tiles/{z}/{x}/{y}.png`,
+            BASEMAP_ATTRIBUTION: "Servicio de referencia de prueba",
+          },
+        },
+      ],
 });

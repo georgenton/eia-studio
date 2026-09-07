@@ -1,5 +1,5 @@
 import { loadParcelExplorer, loadWorkspaceHeader } from "@eia/application";
-import { SURFACE_DEFINITIONS } from "@eia/domain";
+import { SURFACE_DEFINITIONS, type BasemapCatalogue } from "@eia/domain";
 import { notFound, redirect } from "next/navigation";
 
 import { ParcelExplorer } from "@/components/gis/parcel-explorer";
@@ -7,6 +7,7 @@ import { ProvenancePanel } from "@/components/provenance-panel";
 import { projectBreadcrumb, projectLabel, WorkspaceShell } from "@/components/workspace-shell";
 import { getSessionUser } from "@/lib/context";
 import { getDb } from "@/lib/db";
+import { getEnv } from "@/lib/env";
 import { projectPath } from "@/lib/navigation";
 import { accessForDomainError, resolveSurfaceAccess } from "@/lib/surface-access";
 import { PermissionDeniedState } from "@/lib/system-state";
@@ -91,7 +92,12 @@ export default async function GisPage({
         prov ? <ProvenancePanel closeHref={basePath} ctx={ctx} provenanceId={prov} /> : undefined
       }
     >
-      <GisSurface basePath={basePath} parcelsPath={parcelsPath} view={view} />
+      <GisSurface
+        basemap={getEnv().basemap}
+        basePath={basePath}
+        parcelsPath={parcelsPath}
+        view={view}
+      />
     </WorkspaceShell>
   );
 }
@@ -100,10 +106,12 @@ function GisSurface({
   view,
   basePath,
   parcelsPath,
+  basemap,
 }: {
   view: Awaited<ReturnType<typeof loadParcelExplorer>>;
   basePath: string;
   parcelsPath: string;
+  basemap: BasemapCatalogue;
 }) {
   // `no GIS yet` (system state 9): the project has the capability but no geometry has been loaded.
   if (view.parcels.length === 0) {
@@ -119,5 +127,7 @@ function GisSurface({
       </div>
     );
   }
-  return <ParcelExplorer basePath={basePath} parcelsPath={parcelsPath} view={view} />;
+  return (
+    <ParcelExplorer basemap={basemap} basePath={basePath} parcelsPath={parcelsPath} view={view} />
+  );
 }

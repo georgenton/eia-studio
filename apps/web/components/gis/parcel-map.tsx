@@ -1,7 +1,17 @@
 "use client";
 
 import type { ParcelExplorerView } from "@eia/application";
-import { collectPositions, PARCEL_STATUS_PRESENTATION, type ParcelStatus } from "@eia/domain";
+import {
+  BASEMAP_MODE_LABEL,
+  BASEMAP_MODES,
+  collectPositions,
+  PARCEL_STATUS_PRESENTATION,
+  basemapSourceFor,
+  resolveInitialBasemapMode,
+  type BasemapCatalogue,
+  type BasemapMode,
+  type ParcelStatus,
+} from "@eia/domain";
 // MapLibre v6 is pure ESM with named exports and no default export.
 import {
   Map as MapLibreMap,
@@ -10,8 +20,9 @@ import {
   type MapLayerMouseEvent,
   type MapMouseEvent,
 } from "maplibre-gl";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
+import { attachBasemap, detachBasemap, probeBasemap } from "./basemap-layer";
 import { ensureMapWorker, keepMapSized, removeMapFromTabOrder } from "./inert-map";
 
 import "maplibre-gl/dist/maplibre-gl.css";
@@ -48,6 +59,106 @@ const STATUS_LINE: Record<ParcelStatus, string> = {
   excluded: "#c8d0d6",
 };
 
+/**
+ * How the project's layers are drawn against the background behind them.
+ *
+ * Only presentation changes here — never geometry, never a colour that carries meaning. Satellite
+ * imagery is dark, saturated and busy, and the palette above was chosen for a pale ground: the
+ * parcel fills disappear into it, the pale halo under the centreline stops separating the road
+ * from what it crosses, and a 1 px boundary is lost in tree canopy. So over imagery the fills step
+ * back, the strokes and the halo step forward, and the areas of influence get an outline heavy
+ * enough to read without becoming the subject.
+ *
+ * `Relieve` and `Mapa` are pale grounds like the neutral one, and keep the original values.
+ */
+interface LayerPresentation {
+  readonly parcelFillOpacity: number;
+  readonly parcelLineWidth: number;
+  readonly selectedLineWidth: number;
+  readonly alignmentHaloColor: string;
+  readonly alignmentHaloWidth: number;
+  readonly alignmentHaloOpacity: number;
+  readonly alignmentLineWidth: number;
+  readonly influenceFillOpacity: number;
+  readonly influenceLineWidth: number;
+}
+
+const OVER_PALE_GROUND: LayerPresentation = {
+  parcelFillOpacity: 0.85,
+  parcelLineWidth: 1,
+  selectedLineWidth: 3,
+  alignmentHaloColor: "#c6d2d6",
+  alignmentHaloWidth: 11,
+  alignmentHaloOpacity: 0.7,
+  alignmentLineWidth: 2.6,
+  influenceFillOpacity: 0.07,
+  influenceLineWidth: 1.2,
+};
+
+const OVER_IMAGERY: LayerPresentation = {
+  parcelFillOpacity: 0.45,
+  parcelLineWidth: 1.4,
+  selectedLineWidth: 4,
+  alignmentHaloColor: "#ffffff",
+  alignmentHaloWidth: 12,
+  alignmentHaloOpacity: 0.85,
+  alignmentLineWidth: 3,
+  influenceFillOpacity: 0.1,
+  influenceLineWidth: 1.8,
+};
+
+function presentationFor(mode: BasemapMode): LayerPresentation {
+  return mode === "satellite" ? OVER_IMAGERY : OVER_PALE_GROUND;
+}
+
+/**
+ * Remembering the chosen background, in this browser and nowhere else.
+ *
+ * `localStorage` because that is exactly what this is: one reader's preference about how they like
+ * to look at a map. It is not project data, so it gets no column, no migration and no provenance
+ * record — and it is read defensively, because a private window, cleared site data or a browser
+ * that refuses storage must all mean "use the default", never an error.
+ */
+const BASEMAP_PREFERENCE_KEY = "eia.gis.basemap";
+
+function readRememberedMode(): string | null {
+  try {
+    return window.localStorage.getItem(BASEMAP_PREFERENCE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function rememberMode(mode: BasemapMode): void {
+  try {
+    window.localStorage.setItem(BASEMAP_PREFERENCE_KEY, mode);
+  } catch {
+    // A reader who blocks storage still gets to change the background; they just get the default
+    // again next time. Losing a preference is not worth an error.
+  }
+}
+
+/** Apply it to whichever of the layers exist; called on load and on every background change. */
+function applyPresentation(map: InstanceType<typeof MapLibreMap>, mode: BasemapMode): void {
+  const p = presentationFor(mode);
+  const set = (
+    layer: string,
+    property: Parameters<InstanceType<typeof MapLibreMap>["setPaintProperty"]>[1],
+    value: number | string,
+  ) => {
+    if (map.getLayer(layer)) map.setPaintProperty(layer, property, value);
+  };
+  set("parcels-fill", "fill-opacity", p.parcelFillOpacity);
+  set("parcels-line", "line-width", p.parcelLineWidth);
+  set("parcels-selected", "line-width", p.selectedLineWidth);
+  set("alignment-halo", "line-color", p.alignmentHaloColor);
+  set("alignment-halo", "line-width", p.alignmentHaloWidth);
+  set("alignment-halo", "line-opacity", p.alignmentHaloOpacity);
+  set("alignment-line", "line-width", p.alignmentLineWidth);
+  set("influence-fill", "fill-opacity", p.influenceFillOpacity);
+  set("influence-line", "line-width", p.influenceLineWidth);
+}
+
 function statusExpression(map: Record<ParcelStatus, string>, fallback: string) {
   return [
     "match",
@@ -62,16 +173,31 @@ export function ParcelMap({
   selectedParcelId,
   onSelect,
   showInfluenceAreas = true,
+  basemap,
 }: {
   view: ParcelExplorerView;
   selectedParcelId: string | null;
   onSelect: (parcelId: string | null) => void;
   /** Whether the delimited areas are drawn. The toggle lives with the legend that names them. */
   showInfluenceAreas?: boolean;
+  /** What this deployment may draw *underneath* the study's layers, if anything. */
+  basemap: BasemapCatalogue;
 }) {
   const container = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<InstanceType<typeof MapLibreMap> | null>(null);
   const boundsRef = useRef(view.bounds);
+  /*
+   * The background is a *view preference*, not project data: no column, no migration, no
+   * provenance record, and nothing about it reaches a report. It is remembered in this browser
+   * only, and a remembered choice this deployment no longer offers quietly becomes the default
+   * rather than an empty map.
+   */
+  const [mode, setMode] = useState<BasemapMode>(() =>
+    resolveInitialBasemapMode(basemap, readRememberedMode()),
+  );
+  /** Set when the provider's tiles will not load: the ground goes neutral and says so. */
+  const [basemapFailed, setBasemapFailed] = useState(false);
+  const modeRef = useRef(mode);
   const onSelectRef = useRef(onSelect);
   const showInfluenceRef = useRef(showInfluenceAreas);
   // The map is built once; the click handler it captures must still call the *current* callback,
@@ -84,6 +210,9 @@ export function ParcelMap({
   useEffect(() => {
     boundsRef.current = view.bounds;
   }, [view.bounds]);
+  useEffect(() => {
+    modeRef.current = mode;
+  }, [mode]);
 
   // The map is built once, so a later toggle changes the layer rather than rebuilding anything.
   useEffect(() => {
@@ -160,32 +289,8 @@ export function ParcelMap({
     map.on("load", () => {
       removeMapFromTabOrder(map, node);
       map.resize();
-      if (view.alignment) {
-        map.addSource("alignment", {
-          type: "geojson",
-          data: { type: "Feature", geometry: view.alignment.geometry, properties: {} } as never,
-        });
-        /*
-         * A solid line. It used to be dashed, because the alignment was a reconstruction and a
-         * solid line would have read as surveyed; the study's own centreline was imported in
-         * ADR-023, so the dashes now understate what the map is showing.
-         */
-        map.addLayer({
-          id: "alignment-halo",
-          type: "line",
-          source: "alignment",
-          paint: { "line-color": "#c6d2d6", "line-width": 11, "line-opacity": 0.7 },
-        });
-        map.addLayer({
-          id: "alignment-line",
-          type: "line",
-          source: "alignment",
-          paint: { "line-color": "#17506b", "line-width": 2.6 },
-        });
-      }
-
       /*
-       * The areas of influence, under everything else (TD-070).
+       * The areas of influence, the lowest of the project's layers (TD-070).
        *
        * They are context: a corridor read against the ground the study delimited. Drawn from the
        * generalised outline the read model produced — the stored polygon is untouched — and behind
@@ -266,6 +371,30 @@ export function ParcelMap({
           "line-width": 1,
         },
       });
+      if (view.alignment) {
+        map.addSource("alignment", {
+          type: "geojson",
+          data: { type: "Feature", geometry: view.alignment.geometry, properties: {} } as never,
+        });
+        /*
+         * A solid line. It used to be dashed, because the alignment was a reconstruction and a
+         * solid line would have read as surveyed; the study's own centreline was imported in
+         * ADR-023, so the dashes now understate what the map is showing.
+         */
+        map.addLayer({
+          id: "alignment-halo",
+          type: "line",
+          source: "alignment",
+          paint: { "line-color": "#c6d2d6", "line-width": 11, "line-opacity": 0.7 },
+        });
+        map.addLayer({
+          id: "alignment-line",
+          type: "line",
+          source: "alignment",
+          paint: { "line-color": "#17506b", "line-width": 2.6 },
+        });
+      }
+
       map.addLayer({
         id: "parcels-selected",
         type: "line",
@@ -273,6 +402,7 @@ export function ParcelMap({
         paint: { "line-color": "#17506b", "line-width": 3 },
         filter: ["==", ["get", "parcelId"], ""],
       });
+      applyPresentation(map, modeRef.current);
       map.getCanvas().setAttribute("aria-hidden", "true");
       node.dataset.mapReady = "true";
       publishCamera();
@@ -300,11 +430,52 @@ export function ParcelMap({
       delete node.dataset["parcelsInView"];
       delete node.dataset["alignmentInView"];
       delete node.dataset["mapIdle"];
+      delete node.dataset["basemapMode"];
       stopSizing();
       map.remove();
       mapRef.current = null;
     };
   }, [view]);
+
+  /*
+   * The background, attached after the project rather than with it.
+   *
+   * Two properties this ordering buys, both of them promises made elsewhere: the study's geometry
+   * is on screen without waiting for anybody's tiles, and changing the background re-fetches
+   * nothing of the project — the features are already in memory and the only thing that moves is
+   * one raster layer underneath them.
+   */
+  useEffect(() => {
+    const map = mapRef.current;
+    const node = container.current;
+    if (!map || !node) return;
+    const controller = new AbortController();
+    const apply = async () => {
+      const wanted = basemapFailed ? "none" : mode;
+      /*
+       * Ask before drawing. A tile that will not load is invisible to MapLibre — no error event,
+       * no failed state, just a background that never appears — so the one request that settles
+       * it is made here, and a provider that cannot answer becomes "no background" rather than an
+       * unexplained empty ground.
+       */
+      const available =
+        wanted === "none" ? false : await probeBasemap(map, basemap, wanted, controller.signal);
+      if (controller.signal.aborted) return;
+      if (wanted !== "none" && !available) {
+        detachBasemap(map);
+        applyPresentation(map, "none");
+        node.dataset["basemapMode"] = "none";
+        setBasemapFailed(true);
+        return;
+      }
+      const attached = attachBasemap(map, basemap, wanted);
+      applyPresentation(map, attached ? wanted : "none");
+      node.dataset["basemapMode"] = attached ? wanted : "none";
+    };
+    if (map.isStyleLoaded()) void apply();
+    else map.once("load", () => void apply());
+    return () => controller.abort();
+  }, [basemap, mode, basemapFailed, view]);
 
   // Selection is applied as a filter rather than a re-render: the map follows the one canonical
   // selection, and moving the viewport is deliberately restrained — it eases to the parcel only
@@ -369,8 +540,8 @@ export function ParcelMap({
   return (
     <div className={styles.wrap}>
       <div className={styles.canvas} data-testid="parcel-map" ref={container} />
-      {view.bounds ? (
-        <div className={styles.controls}>
+      <div className={styles.controls}>
+        {view.bounds ? (
           <button
             className={styles.recentre}
             data-testid="recentre-map"
@@ -379,8 +550,19 @@ export function ParcelMap({
           >
             Centrar en proyecto
           </button>
-        </div>
-      ) : null}
+        ) : null}
+        <BasemapSwitcher
+          catalogue={basemap}
+          failed={basemapFailed}
+          mode={mode}
+          onChange={(next) => {
+            setBasemapFailed(false);
+            setMode(next);
+            rememberMode(next);
+          }}
+        />
+      </div>
+      <BasemapCredits catalogue={basemap} failed={basemapFailed} mode={mode} />
       <div aria-live="polite" className={styles.srOnly} role="status">
         {selectedParcelId
           ? `Predio seleccionado: ${
@@ -394,6 +576,107 @@ export function ParcelMap({
       </p>
       <MapLegends view={view} />
     </div>
+  );
+}
+
+/**
+ * Choosing the background.
+ *
+ * A real `<select>` in the document, **outside** the `aria-hidden` canvas — the same reason the
+ * map carries no MapLibre navigation control (IG2-005): a control inside that subtree is one a
+ * keyboard can reach and a screen reader cannot announce.
+ *
+ * When nothing is configured the control still appears, with the unavailable backgrounds disabled
+ * and one line saying what they need. That is a deliberate choice over hiding them: a consultancy
+ * asking "can it show satellite?" should be able to see that the answer is yes and that this
+ * deployment simply has no reference map switched on — which is a fact about configuration, not
+ * an error, and is not dressed as one.
+ */
+function BasemapSwitcher({
+  catalogue,
+  failed,
+  mode,
+  onChange,
+}: {
+  catalogue: BasemapCatalogue;
+  failed: boolean;
+  mode: BasemapMode;
+  onChange: (mode: BasemapMode) => void;
+}) {
+  const configured = catalogue.provider !== "none";
+  return (
+    <div className={styles.basemap}>
+      <label className={styles.basemapLabel} htmlFor="basemap-mode">
+        Fondo del mapa
+      </label>
+      <select
+        className={styles.basemapSelect}
+        data-testid="basemap-mode"
+        id="basemap-mode"
+        onChange={(event) => onChange(event.target.value as BasemapMode)}
+        value={failed ? "none" : mode}
+      >
+        {BASEMAP_MODES.map((option) => (
+          <option disabled={!catalogue.modes.includes(option)} key={option} value={option}>
+            {BASEMAP_MODE_LABEL[option]}
+          </option>
+        ))}
+      </select>
+      {configured ? null : (
+        <p className={styles.basemapHint}>Requiere mapa de referencia configurado</p>
+      )}
+      {failed ? (
+        // Deliberately not a live region. The canvas is `aria-hidden` and a background is purely
+        // visual, so announcing its absence would interrupt a screen-reader user with news about
+        // something they were never shown — and it would compete with the selection announcement,
+        // which is the one thing on this surface worth interrupting for.
+        <p className={styles.basemapHint} data-testid="basemap-unavailable">
+          El mapa de referencia no está disponible. Se mantiene el fondo neutro; las capas del
+          estudio no cambian.
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * The provider's attribution, and the line that keeps the two kinds of layer apart.
+ *
+ * Rendered by us rather than by MapLibre's own attribution control, for the same accessibility
+ * reason as everything else here: the control lives inside the `aria-hidden` canvas, where its
+ * links are unreachable. This is ordinary document text with ordinary links.
+ *
+ * It is never suppressed while a background is drawn — attribution is a condition of using the
+ * tiles, not a decoration — and it names the background as *reference*, so that nothing on screen
+ * invites a reader to mistake somebody else's cartography for the study's own.
+ */
+function BasemapCredits({
+  catalogue,
+  failed,
+  mode,
+}: {
+  catalogue: BasemapCatalogue;
+  failed: boolean;
+  mode: BasemapMode;
+}) {
+  const source = failed ? null : basemapSourceFor(catalogue, mode);
+  if (!source) return null;
+  return (
+    <p className={styles.credits} data-testid="basemap-credits">
+      <span className={styles.creditsKind}>Mapa de referencia</span>
+      {source.credits.map((credit) => (
+        <span key={credit.label}>
+          {" · "}
+          {credit.href ? (
+            <a href={credit.href} rel="noreferrer noopener" target="_blank">
+              {credit.label}
+            </a>
+          ) : (
+            credit.label
+          )}
+        </span>
+      ))}
+    </p>
   );
 }
 

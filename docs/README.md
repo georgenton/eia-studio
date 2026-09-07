@@ -31,6 +31,7 @@ See [DECISIONS/GATE-1.md](DECISIONS/GATE-1.md) for the conditions (D-013…D-020
 | [CONSULTANCY_DEMO_BRIEF.md](CONSULTANCY_DEMO_BRIEF.md) | One page in non-technical Spanish for the meeting: the problem, what is real, what is simulated, what is not enabled, and the six questions to ask |
 | [THESIS_ALIGNMENT.md](THESIS_ALIGNMENT.md) | What the product preserves for Conditions B and C of a human-in-the-loop coding study, and why Condition A is not possible today |
 | [SECOND_PROJECT_READINESS.md](SECOND_PROJECT_READINESS.md) | Every component classified GENERIC / PROFILE-CONFIGURED / IMPORTER-SPECIFIC / ZAMORA-SPECIFIC, and what the next study would actually cost |
+| [BASEMAP_POLICY.md](BASEMAP_POLICY.md) | The reference basemap: context and never evidence, the four modes, the no-provider floor, the failure invariant, key security, and what activation still requires |
 | [TECH_DEBT.md](TECH_DEBT.md) | Intentional technical debt with owner and removal trigger |
 | [DECISIONS/](DECISIONS/) | GATE-1 record · ADR-001 multi-tenancy · ADR-002 capability resolution · ADR-003 project profiles · ADR-004 RLS · ADR-005 provenance · ADR-006 survey versioning · ADR-007 AI human-in-the-loop · ADR-008 quality gate · ADR-009 client portal isolation · ADR-010 identity provider boundary · ADR-011 release/versioning · ADR-012 deployment topology · ADR-013 Drizzle/PostgreSQL · ADR-014 frontend stack scope · ADR-015 domain/application layering |
 

@@ -7,6 +7,7 @@ import {
   orderLayersForLegend,
   PARCEL_SIDE_LABEL,
   PARCEL_STATUS_PRESENTATION,
+  type BasemapCatalogue,
   type ParcelStatus,
 } from "@eia/domain";
 import {
@@ -41,9 +42,12 @@ export function ParcelExplorer({
   view,
   basePath,
   parcelsPath,
+  basemap,
 }: {
   view: ParcelExplorerView;
   basePath: string;
+  /** What may be drawn under the study's layers here, if anything (`docs/BASEMAP_POLICY.md`). */
+  basemap: BasemapCatalogue;
   /** Prefix of the Parcel Workspace route; a plain string because functions cannot cross the
    * server/client boundary. */
   parcelsPath: string;
@@ -130,6 +134,7 @@ export function ParcelExplorer({
       <div className={styles.split}>
         <div className={styles.mapArea}>
           <ParcelMap
+            basemap={basemap}
             onSelect={selection.select}
             selectedParcelId={selection.selectedParcelId}
             showInfluenceAreas={showInfluenceAreas}

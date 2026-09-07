@@ -3,6 +3,7 @@ import "server-only";
 import {
   appEnvSchema,
   authEnvSchema,
+  basemapEnvSchema,
   emailEnvSchema,
   loadEnv,
   runtimeDatabaseEnvSchema,
@@ -15,7 +16,9 @@ import {
 } from "@eia/contracts";
 import {
   resolveAiAdapterAvailability,
+  resolveBasemapCatalogue,
   resolveClassifierAvailability,
+  type BasemapCatalogue,
   type ClassifierAvailability,
 } from "@eia/domain";
 
@@ -42,6 +45,14 @@ interface WebEnv {
    * configuration plus this deployment's own platform hostnames (`trusted-origins.ts`).
    */
   readonly trustedOrigins: readonly string[];
+  /**
+   * The reference backgrounds the map may offer here (`docs/BASEMAP_POLICY.md`).
+   *
+   * Resolved from configuration and never required: with nothing set this is the neutral
+   * catalogue, and the GIS surface is exactly what it is today — the study's own cartography on
+   * a plain ground. A basemap is geographic context, never project evidence.
+   */
+  readonly basemap: BasemapCatalogue;
 }
 
 let cached: WebEnv | null = null;
@@ -95,6 +106,17 @@ export function getEnv(): WebEnv {
       model: assistant.ASSISTANT_GENERATOR_MODEL,
       credentialPresent: assistant.AI_GATEWAY_API_KEY !== undefined,
     }),
+    basemap: resolveBasemapCatalogue(
+      ((): Parameters<typeof resolveBasemapCatalogue>[0] => {
+        const basemap = loadEnv("basemap", basemapEnvSchema, source);
+        return {
+          provider: basemap.BASEMAP_PROVIDER,
+          maptilerKey: basemap.MAPTILER_KEY,
+          customTileUrl: basemap.BASEMAP_TILE_URL,
+          customAttribution: basemap.BASEMAP_ATTRIBUTION,
+        };
+      })(),
+    ),
     trustedOrigins: resolveTrustedOrigins({
       configured: auth.AUTH_TRUSTED_ORIGINS,
       baseURL: auth.BETTER_AUTH_URL,
