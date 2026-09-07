@@ -1,4 +1,6 @@
-import { PARCELS, expect, PROJECT, TENANT, test } from "./fixtures";
+import type { Page } from "@playwright/test";
+
+import { PARCEL_EXTENT, PARCELS, expect, PROJECT, TENANT, test } from "./fixtures";
 
 /**
  * The Slice 2 acceptance journey: Command Center → GIS / Parcel Explorer → shared selection →
@@ -236,6 +238,159 @@ test.describe("GIS reviewer journey", () => {
     await expect(page.locator(".maplibregl-ctrl-zoom-in")).toHaveCount(0);
     await expect(page.locator(".maplibregl-ctrl-zoom-out")).toHaveCount(0);
     await expect(page.locator(".maplibregl-ctrl-scale")).toHaveCount(1);
+
+    /*
+     * The one control the map does offer is a real button in the document, *outside* the
+     * `aria-hidden` canvas — which is the whole reason it can exist at all. A keyboard reaches it
+     * and a screen reader announces it; the sweep that demotes everything inside the map has not
+     * touched it.
+     */
+    const recentre = page.getByRole("button", { name: "Centrar en proyecto" });
+    await expect(recentre).toBeVisible();
+    await expect(recentre).not.toHaveAttribute("tabindex", "-1");
+    await expect(recentre).toBeEnabled();
+    await recentre.focus();
+    await expect(recentre).toBeFocused();
+  });
+
+  /*
+   * The map is pointed at the project — which nothing asserted until it stopped being true.
+   *
+   * The read model computed the opening extent by walking a parcel's coordinates two levels deep,
+   * which is the shape of a `Polygon`. Every parcel of this study is stored as a `MultiPolygon`,
+   * so `Math.min` was handed a ring, the extent became `NaN` → `null`, and the map opened on
+   * `[0, 0]` at zoom 1: Zamora is roughly 8 700 km from there. Every existing test stayed green —
+   * the table, the selection, the filters and the legends were all correct — because none of them
+   * could see where the camera was.
+   *
+   * These read two data attributes the map publishes: the current viewport and how many parcel
+   * polygons are actually drawn. Not pixels, and not a screenshot comparison; a camera somewhere
+   * near the right coordinates with the project's geometry inside it.
+   */
+  const cameraOf = async (page: Page) => {
+    const map = page.getByTestId("parcel-map");
+    await expect(map).toHaveAttribute("data-map-ready", "true");
+    // The counts are only meaningful once the frame has settled: at `load` the layers exist and
+    // nothing is drawn yet.
+    await expect(map).toHaveAttribute("data-map-idle", "true");
+    const view = (await map.getAttribute("data-map-view"))!.split(",").map(Number);
+    return {
+      west: view[0]!,
+      south: view[1]!,
+      east: view[2]!,
+      north: view[3]!,
+      drawn: Number(await map.getAttribute("data-parcels-in-view")),
+      alignment: Number(await map.getAttribute("data-alignment-in-view")),
+    };
+  };
+
+  /** Somewhere inside the corridor: the parcels span about -78,745…-78,706 by -3,820…-3,770. */
+  const PROJECT_POINT = { lon: -78.726, lat: -3.795 };
+
+  test("the map opens on the project, with its parcels inside the viewport", async ({ page }) => {
+    await page.goto(GIS);
+    const camera = await cameraOf(page);
+
+    // 1 · finite, and an actual rectangle
+    for (const value of [camera.west, camera.south, camera.east, camera.north]) {
+      expect(Number.isFinite(value)).toBe(true);
+    }
+    expect(camera.west).toBeLessThan(camera.east);
+    expect(camera.south).toBeLessThan(camera.north);
+
+    // 2 · the corridor is inside it — the assertion the `[0, 0]` fallback fails
+    expect(camera.west).toBeLessThan(PROJECT_POINT.lon);
+    expect(camera.east).toBeGreaterThan(PROJECT_POINT.lon);
+    expect(camera.south).toBeLessThan(PROJECT_POINT.lat);
+    expect(camera.north).toBeGreaterThan(PROJECT_POINT.lat);
+
+    // 3 · and **all 141** are inside it, not merely the middle of the corridor. This is the
+    //     assertion a count of rendered polygons cannot make: a renderer may cull, and a
+    //     viewport clips. The envelope is the one PostGIS measures over the delivered layer.
+    expect(camera.west).toBeLessThan(PARCEL_EXTENT.west);
+    expect(camera.south).toBeLessThan(PARCEL_EXTENT.south);
+    expect(camera.east).toBeGreaterThan(PARCEL_EXTENT.east);
+    expect(camera.north).toBeGreaterThan(PARCEL_EXTENT.north);
+
+    // 4 · framed rather than merely contained: a view of the whole planet also "contains" it.
+    expect(camera.east - camera.west).toBeLessThan(1);
+    expect(camera.north - camera.south).toBeLessThan(1);
+
+    // 5 · with the parcels actually drawn in it
+    expect(camera.drawn).toBeGreaterThan(0);
+  });
+
+  test("the centreline is drawn, and is the study's own", async ({ page }) => {
+    await page.goto(GIS);
+    const camera = await cameraOf(page);
+    // The alignment is a `MultiLineString` — the same nesting that emptied the parcel extent — and
+    // it is in the opening view rather than merely in the payload.
+    expect(camera.alignment).toBeGreaterThan(0);
+    await expect(page.getByRole("main")).toContainText("Eje vial del estudio");
+
+    // Its measured length is published on the Command Center, against the ~7,4 km the study states.
+    await page.goto(`/t/${TENANT}/p/${PROJECT}`);
+    await expect(page.getByRole("main")).toContainText("7,4");
+  });
+
+  test("selecting a multi-part parcel neither throws nor moves the camera to nowhere", async ({
+    page,
+  }) => {
+    const errors: string[] = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    page.on("console", (message) => {
+      if (message.type() === "error") errors.push(message.text());
+    });
+
+    await page.goto(GIS);
+    const table = page.getByRole("table", { name: /Predios/ });
+    // 023 is one of the 20 parcels the study delivered in more than one piece.
+    await table.getByRole("row").filter({ hasText: "023" }).first().click();
+    await expect(page.getByRole("status")).toContainText("023");
+
+    const camera = await cameraOf(page);
+    for (const value of [camera.west, camera.south, camera.east, camera.north]) {
+      expect(Number.isFinite(value)).toBe(true);
+    }
+    expect(camera.drawn).toBeGreaterThan(0);
+    expect(errors).toEqual([]);
+  });
+
+  test("«Centrar en proyecto» brings the camera back after it has been moved away", async ({
+    page,
+  }) => {
+    await page.goto(GIS);
+    const opening = await cameraOf(page);
+
+    /*
+     * Lose the project, the way a reader does: zoom out until the corridor is a speck. Scroll is
+     * used rather than a drag because it is the gesture the map actually offers — there is no
+     * zoom control (IG2-005) — and it is the one that leaves someone unsure where they are.
+     */
+    const box = (await page.getByTestId("parcel-map").boundingBox())!;
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    for (let i = 0; i < 6; i += 1) await page.mouse.wheel(0, 400);
+
+    const openingWidth = opening.east - opening.west;
+    await expect
+      .poll(async () => (await cameraOf(page)).east - (await cameraOf(page)).west, {
+        timeout: 5000,
+      })
+      .toBeGreaterThan(openingWidth * 2);
+    const moved = await cameraOf(page);
+    expect(moved.east - moved.west).toBeGreaterThan(openingWidth * 2);
+
+    // The control is a real button in the document, not inside the `aria-hidden` canvas.
+    const recentre = page.getByRole("button", { name: "Centrar en proyecto" });
+    await expect(recentre).toBeVisible();
+    await recentre.click();
+
+    await expect
+      .poll(async () => (await cameraOf(page)).west, { timeout: 5000 })
+      .toBeCloseTo(opening.west, 3);
+    const back = await cameraOf(page);
+    expect(back.east).toBeCloseTo(opening.east, 3);
+    expect(back.drawn).toBeGreaterThan(0);
   });
 
   test("a parcel of another project is not reachable by guessing its code", async ({ page }) => {

@@ -1,7 +1,7 @@
 "use client";
 
 import type { ParcelExplorerView } from "@eia/application";
-import { PARCEL_STATUS_PRESENTATION, type ParcelStatus } from "@eia/domain";
+import { collectPositions, PARCEL_STATUS_PRESENTATION, type ParcelStatus } from "@eia/domain";
 // MapLibre v6 is pure ESM with named exports and no default export.
 import {
   Map as MapLibreMap,
@@ -71,6 +71,7 @@ export function ParcelMap({
 }) {
   const container = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<InstanceType<typeof MapLibreMap> | null>(null);
+  const boundsRef = useRef(view.bounds);
   const onSelectRef = useRef(onSelect);
   const showInfluenceRef = useRef(showInfluenceAreas);
   // The map is built once; the click handler it captures must still call the *current* callback,
@@ -78,6 +79,11 @@ export function ParcelMap({
   useEffect(() => {
     onSelectRef.current = onSelect;
   }, [onSelect]);
+  // Same reason: the button is built once and must re-frame the *current* extent, which changes
+  // when the filtered set does.
+  useEffect(() => {
+    boundsRef.current = view.bounds;
+  }, [view.bounds]);
 
   // The map is built once, so a later toggle changes the layer rather than rebuilding anything.
   useEffect(() => {
@@ -120,6 +126,36 @@ export function ParcelMap({
     // they were being taken out of the tab order, which left visible buttons that only a mouse
     // could use. Scroll, drag and pinch still zoom; the scale bar is inert text, not a control.
     map.addControl(new ScaleControl({ unit: "metric" }), "bottom-left");
+
+    /*
+     * Where the camera is, and how much of the project it can see, as data attributes.
+     *
+     * A canvas has no state a test can read, so until now nothing asserted that the project was
+     * actually *in* the viewport — the suite checked the table, the selection and the legends, all
+     * of which stayed perfectly green while the map opened on `[0, 0]` and showed the reader an
+     * empty grey square. These two attributes are the smallest thing that closes that gap.
+     *
+     * They carry map coordinates and a count of drawn polygons: the same figures the payload
+     * already contains, nothing about a person, and nothing a viewer could not read off the screen.
+     */
+    const publishCamera = (): void => {
+      const bounds = map.getBounds();
+      node.dataset["mapView"] =
+        `${bounds.getWest()},${bounds.getSouth()},${bounds.getEast()},${bounds.getNorth()}`;
+      node.dataset["parcelsInView"] = map.getLayer("parcels-fill")
+        ? String(map.queryRenderedFeatures({ layers: ["parcels-fill"] }).length)
+        : "0";
+      node.dataset["alignmentInView"] = map.getLayer("alignment-line")
+        ? String(map.queryRenderedFeatures({ layers: ["alignment-line"] }).length)
+        : "0";
+    };
+    map.on("moveend", publishCamera);
+    // `idle` is the only moment the counts mean anything: at `load` the layers exist and nothing
+    // has been drawn yet, so a reader of these attributes must wait for the frame to settle.
+    map.on("idle", () => {
+      publishCamera();
+      node.dataset["mapIdle"] = "true";
+    });
 
     map.on("load", () => {
       removeMapFromTabOrder(map, node);
@@ -239,6 +275,7 @@ export function ParcelMap({
       });
       map.getCanvas().setAttribute("aria-hidden", "true");
       node.dataset.mapReady = "true";
+      publishCamera();
     });
 
     map.on("click", "parcels-fill", (event: MapLayerMouseEvent) => {
@@ -259,6 +296,10 @@ export function ParcelMap({
 
     return () => {
       delete node.dataset.mapReady;
+      delete node.dataset["mapView"];
+      delete node.dataset["parcelsInView"];
+      delete node.dataset["alignmentInView"];
+      delete node.dataset["mapIdle"];
       stopSizing();
       map.remove();
       mapRef.current = null;
@@ -279,21 +320,12 @@ export function ParcelMap({
      * Positions, however deeply the geometry nests them.
      *
      * A `Polygon` nests coordinates three deep and a `MultiPolygon` four, and 20 of the 141 real
-     * parcels are multi-part (ADR-023). Flattening by a fixed one level worked for the generated
-     * single-part polygons and, on the real ones, handed a *ring* to a destructuring meant for a
-     * position: the centre became `NaN`, MapLibre threw, and the whole page fell over on the first
-     * click. Recursing to the numbers is the only version that cannot care which type it is given.
+     * parcels are multi-part (ADR-023). This used to be an inline recursive walk, written here
+     * after a fixed-depth version handed a *ring* to a destructuring meant for a position and made
+     * the centre `NaN`. The same mistake was still in the read model's extent — where it emptied
+     * the whole map — so the walk is now one shared function and there is no second copy to miss.
      */
-    const positions: Array<readonly [number, number]> = [];
-    const collect = (node: unknown): void => {
-      if (!Array.isArray(node)) return;
-      if (typeof node[0] === "number" && typeof node[1] === "number") {
-        positions.push([node[0], node[1]]);
-        return;
-      }
-      for (const child of node) collect(child);
-    };
-    collect((feature.geometry as { coordinates: unknown }).coordinates);
+    const positions = collectPositions((feature.geometry as { coordinates: unknown }).coordinates);
     if (positions.length === 0) return;
 
     let west = Infinity;
@@ -312,9 +344,43 @@ export function ParcelMap({
     }
   }, [selectedParcelId, view.features]);
 
+  /*
+   * Back to the project.
+   *
+   * A real button, in the document, **outside** the canvas — the canvas subtree is `aria-hidden`
+   * (§26), and a control inside it is one a keyboard can reach and a screen reader cannot
+   * announce, which is why the map carries no MapLibre navigation control (IG2-005).
+   *
+   * It is a way of reading the map and a way out of one: pan far enough and the project is off
+   * screen with no landmark to steer by, and this is the return. It re-frames the extent the read
+   * model computed — parcels and centreline — rather than remembering where the camera started,
+   * so it stays right when the filtered set changes.
+   */
+  const recentre = () => {
+    const map = mapRef.current;
+    const bounds = boundsRef.current;
+    if (!map || !bounds) return;
+    map.fitBounds([...bounds] as [number, number, number, number], {
+      padding: 48,
+      duration: 450,
+    });
+  };
+
   return (
     <div className={styles.wrap}>
       <div className={styles.canvas} data-testid="parcel-map" ref={container} />
+      {view.bounds ? (
+        <div className={styles.controls}>
+          <button
+            className={styles.recentre}
+            data-testid="recentre-map"
+            onClick={recentre}
+            type="button"
+          >
+            Centrar en proyecto
+          </button>
+        </div>
+      ) : null}
       <div aria-live="polite" className={styles.srOnly} role="status">
         {selectedParcelId
           ? `Predio seleccionado: ${
