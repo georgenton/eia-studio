@@ -118,8 +118,20 @@ loading a whole portfolio to draw a breadcrumb and the connection pool no longer
 two products deliberately **not** started are described in `docs/CLIENT_PORTAL_DECISION.md` and
 `docs/ENVIRONMENTAL_AUDIT_PRODUCT_DIRECTION.md`.
 
-The Client Portal is **not** implemented; its route exists only as a capability-guarded placeholder
-until its slice lands.
+**The published client view (7 Sep 2026)** answers the question a consulting firm's customer
+actually has, without giving them the workspace (ADR-027). The rule is that the portal is a
+**publication, not a mirror**: `portal.client_publication` is an immutable, versioned, allowlisted
+snapshot somebody with `portal.publish` decided the client may see, and the client's page reads that
+row and issues no statement against a survey answer, an assignment, a validated coding, a finding, a
+document or a parcel. The payload is *composed* from a closed vocabulary rather than filtered from a
+record, so there is nowhere in it to put a respondent, an owner, a parcel code, a technician, a model
+proposal or a confidence score. `DEMO_SIMULATION` is refused outright — the demonstration field
+campaign never becomes client progress — and the affected-parcel count is withheld by name because
+the corpus says 70 in one place and 71 in another and that review is open. `portal.preview` is new
+beside `portal.publish`: a reviewer checks, a coordinator decides. **External client access is not
+built**: no `ClientPortalGrant`, no portal session, and `eia_portal` is still granted nothing; the
+standalone `/portal/:tenant/:project` requires an internal session and says so above the content
+(TD-005, TD-077, TD-078).
 
 ## Read before acting
 
@@ -148,7 +160,7 @@ Also relevant by task: `docs/DATA_MODEL.md`, `docs/PROVENANCE.md`, `docs/AI_GOVE
 `docs/IMPLEMENTATION_PLAN.md`, `docs/DESIGN_BUNDLE_KNOWN_ISSUES.md`, the delivery docs
 `docs/ENGINEERING_STANDARDS.md`, `docs/RELEASE_POLICY.md`, `docs/CI.md`, `docs/DEPLOYMENT.md`,
 `docs/DEPENDENCIES.md`, `docs/TECH_DEBT.md`, the Gate record `docs/DECISIONS/GATE-1.md`, and
-the ADRs in `docs/DECISIONS/ADR-001` … `ADR-025`. Root `README.md` has the local quick start.
+the ADRs in `docs/DECISIONS/ADR-001` … `ADR-027`. Root `README.md` has the local quick start.
 
 ## Working rules for every session
 

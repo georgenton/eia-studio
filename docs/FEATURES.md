@@ -34,7 +34,7 @@ route or a nav item; a capability never carries a numeric parameter.
 | `quality.document_gate` | quality | `core.projects` | AVAILABLE | ACTIVE | Quality Gate |
 | `quality.rag_assistant` | quality | `core.documents` | AVAILABLE (Slice 6) | ACTIVE | RAG Assistant (embedded in Documents) |
 | `reports.social_generator` | reports | `social.analytics`, `core.documents` | AVAILABLE (Slice 7) | ACTIVE | Reports |
-| `client.portal` | client-portal | `core.projects` | AVAILABLE | ACTIVE | Client Portal, "Client Portal" rail link |
+| `client.portal` | client-portal | `core.projects` | AVAILABLE (ADR-027) | ACTIVE | *Portal del cliente* (prepare, preview, publish, history) and the standalone *Vista del cliente* at `/portal/:tenant/:project` |
 | `climate.analytics` | (ext) | `core.projects` | EXTENSION | HIDDEN | none in workspace |
 | `compliance.pma` | pgas | `core.documents` | AVAILABLE (ADR-024) | ACTIVE | Plan de Manejo |
 | `audit.environmental` | (ext) | `core.projects` | EXTENSION | HIDDEN | none in workspace |
@@ -102,7 +102,8 @@ throws `FeatureDisabled` for it exactly as for a HIDDEN one. The presentation va
 `requireCapability`, route guards, handlers, jobs or the command palette's executable actions
 (the palette may list an ANNOUNCED destination only as a disabled row, never as a command).
 
-Pilot: every AVAILABLE key above is ACTIVE, including `compliance.pma` since ADR-024; Climate
+Pilot: every AVAILABLE key above is ACTIVE, including `compliance.pma` since ADR-024 and
+`client.portal` since ADR-027; Climate
 Analytics and Environmental Audit are navigation HIDDEN (and disabled). No pilot capability is
 ANNOUNCED any more — the rail has no placeholder left.
 

@@ -72,6 +72,7 @@ export const PROJECT_ROLE_PERMISSIONS: Readonly<
     "quality.write",
     "reports.write",
     "deliverables.approve",
+    "portal.preview",
     "portal.publish",
     "pii.read",
     "provenance.read",
@@ -134,6 +135,10 @@ export const PROJECT_ROLE_PERMISSIONS: Readonly<
     "quality.read",
     "quality.review",
     "reports.review",
+    // A reviewer may open what the client would see, and may not publish it. Checking a
+    // publication before it goes out is review work; deciding that it goes out is the
+    // coordinator's.
+    "portal.preview",
     "provenance.read",
   ]),
   VIEWER: new Set<ProjectPermission>(READ_ALL_EXCEPT_PII),

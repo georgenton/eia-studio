@@ -705,3 +705,47 @@ else: not in code, documentation, screenshots or test output.
 
 **CI is unchanged and still provider-independent.** The live run has its own config and its own
 spec, outside every Playwright project, so no test in CI can make a billable request.
+
+## The published client view (7 September 2026)
+
+| | |
+|---|---|
+| Branch / PR | `feat/client-portal-publication` · PR pending |
+| Merge SHA | pending |
+| Migrations | `0029_client_portal_publication` (schema `portal`, table `client_publication`) · `0030_client_portal_rls_and_immutability` |
+| ADR | **ADR-027** — the client portal is a publication, and its payload is an allowlist (amends ADR-009 §3, §5) |
+| Scope | a demonstrable published client view **inside the protected Preview environment**. No external client authentication, no public hostname, no production |
+
+**The shape of the thing.** `CONSULTANCY WORKSPACE → explicit publication → CLIENT VIEW`. The
+client's page loads one immutable row and issues no statement against a survey answer, an
+assignment, a validated coding, a finding, a document or a parcel — asserted by watching the SQL on
+the wire, not by inspection.
+
+**The payload is composed, not filtered.** A `strict()` schema with a closed vocabulary of figure
+keys, so there is nowhere to put a respondent, an owner, a parcel code, a technician, a finding, a
+model proposal or a confidence score. A second scan catches a forbidden concept smuggled into free
+text, which is where a name would actually arrive.
+
+**Two figures are deliberately absent, and the surface says so.** The affected-parcel count, because
+the corpus says 70 in one place and 71 in another and that review is open — publishing either would
+settle it by accident in the firm's name. And the current field operation, because it is a
+`DEMO_SIMULATION` and a client seeing simulated activity as their progress is the worst failure this
+product could have. Both are named on the internal surface with the reason.
+
+**What the first Zamora publication says.** 7,4 km · 141 predios frentistas · 119 fichas
+socioeconómicas · 185 participantes · 9 planes / 20 programas / 86 medidas, plus the corridor and
+the four areas of influence, generalised for drawing. *Seguimiento* and *Entregables* render honest
+empty states, because no milestone or deliverable is modelled yet and inventing one for a
+demonstration is exactly what a customer would be entitled to rely on.
+
+**The programme count is 20, not 21.** Counted from the imported chapter as distinct banner titles
+per plan; the figure in circulation was wrong.
+
+**Preview is preview, and says so.** `Vista previa interna · este enlace aún no está compartido con
+el cliente`, in a strip outside the client content — because the *access mode* is provisional and
+the study's figures are not, and a banner stamped across real historical data would make it look
+like a mock-up.
+
+**A reviewer checks; a coordinator decides.** `portal.preview` is new and sits beside the existing
+`portal.publish`. `eia_portal` is still granted nothing: a role with SELECT and no caller is surface
+with nobody behind it (TD-005, TD-078).

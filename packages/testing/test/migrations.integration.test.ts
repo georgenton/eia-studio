@@ -42,12 +42,12 @@ describe("migrations and database foundation", () => {
     expect((after.rows[0] as { n: number }).n).toBe(journalEntries);
   });
 
-  it("every table in app and audit has RLS enabled, forced, and at least one policy", async () => {
+  it("every table in app, audit and portal has RLS enabled, forced, and at least one policy", async () => {
     const result = await db.migrator.execute(sql`
       select n.nspname as schema, c.relname as table, c.relrowsecurity as enabled, c.relforcerowsecurity as forced,
              (select count(*) from pg_policy p where p.polrelid = c.oid)::int as policies
       from pg_class c join pg_namespace n on n.oid = c.relnamespace
-      where c.relkind = 'r' and n.nspname in ('app', 'audit')
+      where c.relkind = 'r' and n.nspname in ('app', 'audit', 'portal')
       order by 1, 2
     `);
     const rows = result.rows as Array<{

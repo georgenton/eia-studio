@@ -8,6 +8,7 @@ export * as qualitySchema from "./quality";
 export * as documentsSchema from "./documents";
 export * as reportsSchema from "./reports";
 export * as pgasSchema from "./pgas";
+export * as portalSchema from "./portal";
 
 import * as appTables from "./app";
 import * as auditTables from "./audit";
@@ -16,6 +17,7 @@ import * as fieldTables from "./field";
 import * as gisTables from "./gis";
 import * as documentTables from "./documents";
 import * as pgasTables from "./pgas";
+import * as portalTables from "./portal";
 import * as reportTables from "./reports";
 import * as qualityTables from "./quality";
 import * as socialTables from "./social";
@@ -78,4 +80,5 @@ export const schema = {
   pgasImportRun: pgasTables.pgasImportRun,
   pgasPlan: pgasTables.pgasPlan,
   pgasMeasure: pgasTables.pgasMeasure,
+  clientPublication: portalTables.clientPublication,
 };

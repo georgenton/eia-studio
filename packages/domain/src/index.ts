@@ -10,6 +10,7 @@ export * from "./ai/index";
 export * from "./documents/index";
 export * from "./pgas/index";
 export * from "./reports/index";
+export * from "./portal/index";
 export * from "./social/index";
 export * from "./quality/index";
 export * from "./gis/index";

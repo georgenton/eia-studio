@@ -15,5 +15,6 @@ export {
   qualitySchema,
   documentsSchema,
   pgasSchema,
+  portalSchema,
   reportsSchema,
 } from "./schema/index";

@@ -20,6 +20,7 @@ export const WORKSPACE_SURFACES = [
   "documents",
   "pgas",
   "reports",
+  "portal",
 ] as const;
 
 export const workspaceSurfaceSchema = z.enum(WORKSPACE_SURFACES);
@@ -110,6 +111,19 @@ export const SURFACE_DEFINITIONS: Readonly<Record<WorkspaceSurface, SurfaceDefin
     implemented: true,
     plannedIn: null,
   },
+  /**
+   * Preparing and publishing what the client sees. The *client's* page is not this surface and is
+   * not in the rail: it is a separate route group with its own chrome (ADR-009), and this one is
+   * where the firm decides what goes into it.
+   */
+  portal: {
+    key: "portal",
+    capability: "client.portal",
+    label: "Portal del cliente",
+    segment: "portal",
+    implemented: true,
+    plannedIn: null,
+  },
 };
 
 /**
@@ -130,6 +144,9 @@ export const WORKSPACE_RAIL_ORDER: ReadonlyArray<WorkspaceSurface> = [
   "pgas",
   "documents",
   "reports",
+  // Last, because publishing is the last thing that happens: everything above is the work, and
+  // this is the decision to show some of it to the customer.
+  "portal",
 ];
 
 export function isWorkspaceSurface(value: string): value is WorkspaceSurface {

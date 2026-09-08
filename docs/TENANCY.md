@@ -102,7 +102,8 @@ project:   project.configure, project.members.manage, parcels.read, parcels.writ
            media.upload, documents.read, documents.write, social.read, social.write,
            social.ai.run, social.coding.review,
            taxonomy.approve, quality.read, quality.write, quality.review,
-           reports.write, reports.review, deliverables.approve, portal.publish,
+           reports.write, reports.review, deliverables.approve,
+           portal.preview, portal.publish,
            pii.read, pii.export, provenance.read
 portal:    portal.view   (only valid inside PortalContext)
 ```
@@ -191,6 +192,22 @@ rather than a policy: the counts are computed from response rows under RLS, so a
 see those rows would be shown *zeros* rather than a denial — a plausible-looking, entirely false
 tabulation. Denying is the honest outcome; a published aggregate projection that a viewer could
 read without seeing rows is recorded as TD-045.
+
+### 3.4 Portal permissions: preparing is not publishing (ADR-027)
+
+| Key | Grants | Held by |
+|---|---|---|
+| `portal.preview` | build and read the draft, read the publication history, open the standalone client view | COORDINATOR, REVIEWER |
+| `portal.publish` | make a draft the thing the client sees | COORDINATOR |
+
+A REVIEWER checks what would go out and cannot send it, which is the same split the Quality Gate
+makes between running a check and settling a finding. A VIEWER and a FIELD_TECHNICIAN hold neither:
+a portal publication is a statement the firm makes to its customer, and reading the draft is reading
+what the firm is about to say.
+
+There is still no `CLIENT` project role (D-015). Client access remains `ClientPortalGrant`, which is
+modelled and not implemented (TD-005); the internal preview is an internal session, not a stand-in
+for one.
 
 ## 3a. Identity provider boundary (Gate 1 D-016, ADR-010)
 

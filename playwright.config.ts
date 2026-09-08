@@ -51,7 +51,7 @@ export default defineConfig({
     {
       name: "coordinator",
       testMatch:
-        /(^|\/)(journey|mvp-journey|gis|field-coordinator|field-integration|authorization|screenshots|accessibility|documents|documents-accessibility|documents-screenshots|pgas|reports|vocabulary|journey-integrity|reports-accessibility|reports-screenshots)\.spec\.ts$/,
+        /(^|\/)(journey|mvp-journey|gis|field-coordinator|field-integration|authorization|screenshots|accessibility|documents|documents-accessibility|documents-screenshots|pgas|reports|vocabulary|journey-integrity|reports-accessibility|reports-screenshots|portal|portal-accessibility|portal-screenshots)\.spec\.ts$/,
       dependencies: ["setup"],
       use: {
         ...devices["Desktop Chrome"],
@@ -119,6 +119,19 @@ export default defineConfig({
       name: "quality-reviewer",
       testMatch: /(^|\/)quality-review\.spec\.ts$/,
       dependencies: ["setup", "quality-coordinator"],
+      use: {
+        ...devices["Desktop Chrome"],
+        viewport: { width: 1440, height: 940 },
+        storageState: "e2e/.auth/reviewer.json",
+      },
+    },
+    {
+      // The portal splits preparing from publishing, so the reviewer's half needs their session:
+      // the assertion that matters is that the publish button is not on their screen. It depends
+      // on the coordinator project, which is what creates the publication they inspect.
+      name: "portal-reviewer",
+      testMatch: /(^|\/)portal-reviewer\.spec\.ts$/,
+      dependencies: ["setup", "coordinator"],
       use: {
         ...devices["Desktop Chrome"],
         viewport: { width: 1440, height: 940 },

@@ -6,6 +6,7 @@ import {
   appSchema,
   fieldSchema,
   gisSchema,
+  pgasSchema,
   qualitySchema,
   socialSchema,
   type Database,
@@ -220,7 +221,12 @@ export async function createMetricSnapshot(
     tenantId: string;
     projectId: string;
     provenanceId: string;
-    key?: "universe_estimated" | "surveys_complete" | "parcels_pending";
+    key?:
+      | "universe_estimated"
+      | "surveys_complete"
+      | "parcels_pending"
+      | "corridor_length_km"
+      | "consultation_participants";
     value?: number;
   },
 ): Promise<{ id: string }> {
@@ -1086,4 +1092,147 @@ export async function createSpecialistReview(
     reviewerUserId: input.reviewerUserId,
   });
   return { id };
+}
+
+/* ---------------------------------------------------------------------------------------------
+ * Client portal factories: the aggregate, geographic and plan-shaped inputs a publication is
+ * built from. Nothing here resembles a person, a parcel owner or a response.
+ * ------------------------------------------------------------------------------------------- */
+
+/** A short two-segment centreline near the given point. Nobody's road; a valid MultiLineString. */
+export async function createAlignment(
+  db: Database,
+  input: {
+    tenantId: string;
+    projectId: string;
+    datasetVersionId: string;
+    provenanceId: string;
+    label?: string;
+    lon?: number;
+    lat?: number;
+  },
+): Promise<{ id: string }> {
+  const id = randomUUID();
+  const lon = input.lon ?? -78.72;
+  const lat = input.lat ?? -3.79;
+  const wkt = `MULTILINESTRING((${lon} ${lat}, ${lon + 0.01} ${lat + 0.005}, ${lon + 0.02} ${lat + 0.004}))`;
+  await db.execute(sql`
+    insert into app.alignment (id, tenant_id, project_id, dataset_version_id, label, geom, length_m, provenance_id)
+    values (${id}, ${input.tenantId}, ${input.projectId}, ${input.datasetVersionId},
+            ${input.label ?? `Eje factory ${next()}`},
+            ST_Multi(ST_GeomFromText(${wkt}, 4326)), 2500.00, ${input.provenanceId})
+  `);
+  return { id };
+}
+
+export async function createInfluenceArea(
+  db: Database,
+  input: {
+    tenantId: string;
+    projectId: string;
+    datasetVersionId: string;
+    provenanceId: string;
+    kind?: "direct" | "indirect" | "direct_social" | "indirect_social";
+    label?: string;
+    lon?: number;
+    lat?: number;
+    sizeDeg?: number;
+  },
+): Promise<{ id: string }> {
+  const id = randomUUID();
+  const wkt = squareAround(input.lon ?? -78.72, input.lat ?? -3.79, input.sizeDeg ?? 0.02);
+  await db.execute(sql`
+    insert into app.influence_area (id, tenant_id, project_id, dataset_version_id, kind, label, geom, area_m2, provenance_id)
+    values (${id}, ${input.tenantId}, ${input.projectId}, ${input.datasetVersionId},
+            ${input.kind ?? "direct"}::app.influence_area_kind,
+            ${input.label ?? `Área factory ${next()}`},
+            ST_Multi(ST_GeomFromText(${wkt}, 4326)),
+            ST_Area(ST_Transform(ST_GeomFromText(${wkt}, 4326), 32717)),
+            ${input.provenanceId})
+  `);
+  return { id };
+}
+
+/** A minimal imported management plan: one run, its plans, and their measures. */
+export async function createPgasChapter(
+  db: Database,
+  input: {
+    tenantId: string;
+    projectId: string;
+    provenanceId: string;
+    plans?: ReadonlyArray<{
+      code?: string | null;
+      title: string;
+      measures: ReadonlyArray<{ programmeTitle?: string | null }>;
+    }>;
+  },
+): Promise<{ runId: string }> {
+  const plans = input.plans ?? [
+    { code: "PL-01", title: "PLAN DE PRUEBA", measures: [{ programmeTitle: "PROGRAMA A" }] },
+  ];
+  const runId = randomUUID();
+  const measureCount = plans.reduce((total, plan) => total + plan.measures.length, 0);
+  await db.insert(pgasSchema.pgasImportRun).values({
+    id: runId,
+    tenantId: input.tenantId,
+    projectId: input.projectId,
+    sourceFile: `factory-${next()}.json`,
+    sourceSha256: randomUUID().replace(/-/g, "").repeat(2).slice(0, 64),
+    planCount: plans.length,
+    measureCount,
+    importedAt: new Date(),
+    isActive: true,
+    provenanceId: input.provenanceId,
+  });
+  let planOrdinal = 0;
+  for (const plan of plans) {
+    const planId = randomUUID();
+    await db.insert(pgasSchema.pgasPlan).values({
+      id: planId,
+      tenantId: input.tenantId,
+      projectId: input.projectId,
+      importRunId: runId,
+      ordinal: planOrdinal++,
+      code: plan.code ?? null,
+      title: plan.title,
+      objective: null,
+      place: null,
+      // The table has nine columns in the delivered document, and a check constraint says a plan
+      // carries at least eight (ADR-024): a heading row is part of what the import preserves.
+      columnHeadings: [
+        "N°",
+        "ASPECTO AMBIENTAL",
+        "IMPACTO IDENTIFICADO",
+        "MEDIDAS PROPUESTAS",
+        "INDICADORES",
+        "MEDIO DE VERIFICACIÓN",
+        "RESPONSABLE",
+        "FRECUENCIA",
+        "PLAZO",
+      ],
+    });
+    let measureOrdinal = 0;
+    for (const measure of plan.measures) {
+      await db.insert(pgasSchema.pgasMeasure).values({
+        id: randomUUID(),
+        tenantId: input.tenantId,
+        projectId: input.projectId,
+        planId,
+        ordinal: measureOrdinal,
+        measureCode: `${plan.code ?? "PL"}-M${++measureOrdinal}`,
+        statedNumber: String(measureOrdinal),
+        programmeTitle: measure.programmeTitle ?? null,
+        programmeOrdinal: 0,
+        aspect: null,
+        impact: null,
+        measure: "Medida de prueba.",
+        indicator: null,
+        verification: null,
+        responsible: null,
+        frequency: null,
+        deadline: null,
+      });
+    }
+  }
+  return { runId };
 }

@@ -208,5 +208,18 @@ export type {
   ReportVersionSummary,
 } from "./reports/read-models";
 
+// Client portal (ADR-027). A publication, not a mirror: the builder allowlists, the publish
+// use-case writes once, and the client view reads the projection and nothing else.
+export { buildClientPublicationDraft } from "./portal/build";
+export type { PublicationDraft, WithheldFigure } from "./portal/build";
+export { publishClientPublication } from "./portal/publish";
+export type { PublishResult } from "./portal/publish";
+export { loadPortalManagement, loadPublishedClientView } from "./portal/read-models";
+export type {
+  PortalManagementView,
+  PublicationHistoryEntry,
+  PublishedClientView,
+} from "./portal/read-models";
+
 export { supersedeOtherCampaigns } from "./field/campaign-canonicalization";
 export type { CampaignSupersession } from "./field/campaign-canonicalization";

@@ -2,7 +2,7 @@
   "name": "eia-studio",
   "version": "0.0.0",
   "private": true,
-  "description": "EIA Studio \u2014 multi-tenant workspace for environmental and social impact studies",
+  "description": "EIA Studio — multi-tenant workspace for environmental and social impact studies",
   "packageManager": "pnpm@10.33.2",
   "engines": {
     "node": ">=24.0.0 <25",
@@ -37,6 +37,7 @@
     "demo:preflight": "pnpm --filter @eia/application demo:preflight",
     "social:drain": "pnpm --filter @eia/application social:drain",
     "quality:run": "pnpm --filter @eia/application quality:run",
+    "portal:publish": "pnpm --filter @eia/application portal:publish",
     "social:run": "pnpm --filter @eia/application social:run",
     "db:check-seeder-idempotency": "pnpm --filter @eia/db check-seeder-idempotency",
     "provision:identity": "pnpm --filter @eia/web provision:identity",

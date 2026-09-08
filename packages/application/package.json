@@ -14,7 +14,8 @@
     "social:run": "tsx scripts/start-classification-run.ts",
     "quality:run": "tsx scripts/run-quality-check.ts",
     "demo:doctor": "tsx scripts/demo-doctor.ts",
-    "demo:preflight": "tsx scripts/demo-preflight.ts"
+    "demo:preflight": "tsx scripts/demo-preflight.ts",
+    "portal:publish": "tsx scripts/publish-portal.ts"
   },
   "dependencies": {
     "@eia/contracts": "workspace:*",
