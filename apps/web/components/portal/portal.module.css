@@ -1,0 +1,410 @@
+/*
+ * The client's page, and the internal surface that prepares it.
+ *
+ * Deliberately not the workspace. No rail, no dense grid, no monospace codes, no badges: the
+ * reader is a municipal government looking at a study they paid for, not a consultant working on
+ * it. Wide margins, serif headings, one column, and a print stylesheet at the bottom, because
+ * "something I can take to a council session" is what this page is for.
+ */
+
+/* ------------------------------------------------------------------ client view */
+.page {
+  min-height: 100vh;
+  background: var(--eia-canvas);
+  padding: 0 0 60px;
+}
+.masthead {
+  background: var(--eia-surface);
+  border-bottom: 1px solid var(--eia-border);
+}
+.mastheadInner,
+.content {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+.preview {
+  background: var(--eia-warn-bg);
+  border-bottom: 1px solid var(--eia-warn-border);
+  color: var(--eia-warn-text);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+.previewInner {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 8px 24px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: baseline;
+  justify-content: space-between;
+}
+.previewActions {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+}
+.previewLink {
+  color: inherit;
+  font-weight: 600;
+}
+.brand {
+  padding-top: 24px;
+  font-size: var(--eia-size-label);
+  letter-spacing: var(--eia-tracking-label);
+  text-transform: uppercase;
+  color: var(--eia-text-muted);
+  font-weight: 600;
+}
+.title {
+  font-family: var(--eia-font-serif);
+  font-size: 30px;
+  line-height: 1.18;
+  margin: 10px 0 6px;
+  color: var(--eia-ink);
+  font-weight: 600;
+}
+.subtitle {
+  margin: 0;
+  font-size: 13px;
+  color: var(--eia-text-secondary);
+}
+.officialTitle {
+  margin: 12px 0 0;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--eia-text-secondary);
+  max-width: 62ch;
+}
+.published {
+  margin: 16px 0 22px;
+  padding-top: 12px;
+  border-top: 1px solid var(--eia-hairline);
+  font-size: 12px;
+  color: var(--eia-text-secondary);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  align-items: baseline;
+}
+.publishedDate {
+  color: var(--eia-ink);
+  font-weight: 600;
+}
+.printButton {
+  appearance: none;
+  border: 1px solid var(--eia-border-strong);
+  background: var(--eia-surface);
+  color: var(--eia-ink);
+  border-radius: var(--eia-radius-control);
+  padding: 5px 11px;
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.printButton:hover {
+  background: var(--eia-surface-subtle);
+}
+.section {
+  background: var(--eia-surface);
+  border: 1px solid var(--eia-border);
+  border-radius: 6px;
+  padding: 22px 24px;
+  margin-top: 16px;
+}
+.sectionTitle {
+  font-family: var(--eia-font-serif);
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0 0 4px;
+  color: var(--eia-ink);
+}
+.sectionNote {
+  margin: 0 0 16px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--eia-text-secondary);
+  max-width: 66ch;
+}
+.facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+  margin: 0;
+}
+.fact {
+  border-left: 2px solid var(--eia-accent-border);
+  padding-left: 12px;
+}
+.factLabel {
+  font-size: var(--eia-size-label);
+  letter-spacing: var(--eia-tracking-label);
+  text-transform: uppercase;
+  color: var(--eia-text-muted);
+  font-weight: 600;
+  margin: 0;
+}
+.factValue {
+  font-family: var(--eia-font-serif);
+  font-size: 28px;
+  line-height: 1.1;
+  color: var(--eia-ink);
+  margin: 4px 0 0;
+  font-weight: 600;
+}
+.factUnit {
+  font-size: 15px;
+  color: var(--eia-text-secondary);
+  margin-left: 4px;
+}
+.factBasis {
+  margin: 6px 0 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--eia-text-muted);
+}
+.planList {
+  list-style: none;
+  margin: 16px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.planItem {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--eia-hairline);
+  font-size: 12.5px;
+}
+.planTitle {
+  color: var(--eia-ink);
+}
+.planCount {
+  color: var(--eia-text-secondary);
+  white-space: nowrap;
+}
+.empty {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--eia-text-secondary);
+  background: var(--eia-surface-subtle);
+  border: 1px dashed var(--eia-border);
+  border-radius: 5px;
+  padding: 14px 16px;
+}
+.footnotes {
+  margin: 20px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.footnote {
+  font-size: 11.5px;
+  line-height: 1.6;
+  /* Secondary rather than muted: these sit on the canvas, where the muted grey falls under 4.5:1. */
+  color: var(--eia-text-secondary);
+  max-width: 70ch;
+}
+
+/* ------------------------------------------------------------------ map */
+.mapFigure {
+  margin: 0;
+}
+.mapCanvas {
+  height: 380px;
+  border-radius: 5px;
+  overflow: hidden;
+  border: 1px solid var(--eia-border);
+  background: #eef1f2;
+}
+.mapCaption {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--eia-text-muted);
+  line-height: 1.5;
+}
+.mapDescription {
+  max-width: 60ch;
+}
+.mapCredits a {
+  color: inherit;
+}
+
+/* ------------------------------------------------------------------ internal management */
+.surface {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 1000px;
+}
+.lead {
+  margin: 0 0 12px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--eia-text-secondary);
+  max-width: 74ch;
+}
+.primary {
+  appearance: none;
+  border: 1px solid var(--eia-accent);
+  background: var(--eia-accent);
+  color: #ffffff;
+  border-radius: 5px;
+  padding: 6px 12px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.primary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.secondary {
+  display: inline-block;
+  border: 1px solid var(--eia-border-strong);
+  background: var(--eia-surface);
+  border-radius: 5px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--eia-ink);
+}
+.secondary:hover {
+  background: var(--eia-surface-subtle);
+}
+.actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.table caption {
+  text-align: left;
+}
+.table th {
+  text-align: left;
+  font-size: var(--eia-size-label);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--eia-text-muted);
+  padding: 6px 10px 6px 0;
+  border-bottom: 1px solid var(--eia-border);
+}
+.table td {
+  padding: 8px 10px 8px 0;
+  border-bottom: 1px solid var(--eia-hairline);
+  vertical-align: top;
+}
+.version {
+  font-family: var(--eia-font-mono);
+  font-size: var(--eia-size-mono);
+}
+.feedback {
+  margin: 12px 0 0;
+  font-size: 12px;
+  line-height: 1.55;
+  border-radius: 5px;
+  padding: 10px 12px;
+}
+.ok {
+  background: var(--eia-ok-bg);
+  border: 1px solid var(--eia-ok-border);
+  color: var(--eia-ok);
+}
+.bad {
+  background: var(--eia-crit-bg);
+  border: 1px solid var(--eia-crit-border);
+  color: var(--eia-crit-text);
+}
+.withheld {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.withheldItem {
+  font-size: 12px;
+  line-height: 1.55;
+  border-left: 2px solid var(--eia-warn-border);
+  padding-left: 10px;
+  color: var(--eia-text-secondary);
+}
+.withheldLabel {
+  color: var(--eia-ink);
+  font-weight: 600;
+  display: block;
+}
+.draftFacts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.draftFact {
+  font-size: 11.5px;
+  background: var(--eia-chip-neutral);
+  border: 1px solid var(--eia-chip-neutral-border);
+  border-radius: var(--eia-radius-chip);
+  padding: 3px 8px;
+}
+
+/* ------------------------------------------------------------------ print */
+@media print {
+  .preview,
+  .printButton,
+  .mapCredits {
+    display: none !important;
+  }
+  .page {
+    background: #ffffff;
+    padding: 0;
+  }
+  .masthead {
+    border-bottom: 1px solid #000000;
+  }
+  .mastheadInner,
+  .content {
+    max-width: none;
+    padding: 0;
+  }
+  .section {
+    border: none;
+    border-top: 1px solid #cccccc;
+    border-radius: 0;
+    padding: 14px 0 0;
+    margin-top: 14px;
+    break-inside: avoid;
+  }
+  .mapCanvas {
+    height: 240px;
+    break-inside: avoid;
+  }
+  .factValue {
+    font-size: 22px;
+  }
+  a[href]::after {
+    content: "";
+  }
+}

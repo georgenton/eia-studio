@@ -1,7 +1,6 @@
 import "server-only";
 
 import {
-  CAPABILITY_CATALOG,
   navigationPresentation,
   SURFACE_DEFINITIONS,
   WORKSPACE_RAIL_ORDER,
@@ -59,18 +58,13 @@ export function buildWorkspaceNav(
   return { entries, currentKey: currentSurface };
 }
 
-/** The Client Portal is a separate surface (invariant 3); the rail only links out to it. */
-export function portalNavEntry(
-  ctx: RequestContext,
-  tenantSettings: TenantCapabilitySettings,
-): NavEntry | null {
-  const presentation = navigationPresentation("client.portal", ctx.capabilities, tenantSettings);
-  if (presentation === "HIDDEN") return null;
-  return {
-    key: "client-portal",
-    label: CAPABILITY_CATALOG["client.portal"].label,
-    href: null,
-    presentation: "ANNOUNCED",
-    badge: "PRÓXIMAMENTE",
-  };
+/**
+ * The link out to the standalone client view.
+ *
+ * The rail already carries `Portal del cliente` as an ordinary surface — that is where the firm
+ * prepares and publishes. This is the *client's* page, which is a different surface with its own
+ * chrome (invariant 3, ADR-009), so it is reached from that surface rather than from the rail.
+ */
+export function clientViewPath(tenantSlug: string, projectSlug: string): string {
+  return `/portal/${tenantSlug}/${projectSlug}`;
 }

@@ -42,6 +42,10 @@ export const AUDIT_ACTIONS = [
   // model wrote its prose. Never the chapter's text: the version holds it, immutably, once.
   "reports.version.generated",
   "reports.version.downloaded",
+  // The client portal. Publishing is the moment something leaves the firm's own working record
+  // and becomes what a customer is told, so it is audited; opening the preview is ordinary
+  // reading and is not. The row carries the version and the figure count, never the payload.
+  "portal.publication.published",
 ] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];

@@ -277,16 +277,32 @@ What the code base must not do: assert compliance, compute legal conclusions, or
 presence of these records as approval. The compliance owner (tenant and/or EIA Studio) decides;
 the product records.
 
-## 11. Client portal access (ADR-009)
+## 11. Client portal access (ADR-009, ADR-027)
 
 - Separate route group, layout, session cookie, context type and DB role.
-- Served from `portal.publication` rows only; no request-time reads of operational tables.
+- Served from published projection rows only; no request-time reads of operational tables.
 - Allowlist schema for the projection; a denylist test asserts that no forbidden concept
   (PII, phones, individual income, health, vulnerability, parcel codes, internal notes, raw AI
   classifications, quality findings, audit) can appear.
 - Publication is an explicit, audited action by a role with `portal.publish`; withdrawing a
   publication is immediate.
 - Portal PDF is generated from the same projection.
+
+### 11a. What is built, and what the internal preview means (ADR-027)
+
+The published half exists; the external half does not, and the difference is a security boundary
+rather than a milestone.
+
+| Control | Mechanism |
+|---|---|
+| The projection | `portal.client_publication` in its own schema: immutable by `REVOKE UPDATE, DELETE` *and* a trigger, under the ordinary tenant/project/access predicate |
+| The payload | composed from a closed allowlist (`clientPublicationPayloadSchema`), never filtered from an operational record; a second scan refuses a forbidden concept smuggled into free text |
+| Simulated data | `assertPublishableRegime` refuses `DEMO_SIMULATION` outright, and admits `LIVE_OPERATIONAL` only as an aggregate the caller declares publication-safe |
+| No operational read | the client surface issues statements against `portal.client_publication` only; an integration test observes the SQL on the wire |
+| Two grants | `portal.preview` opens the draft and the client view; `portal.publish` decides. A REVIEWER holds the first and not the second |
+| `eia_portal` | **granted nothing.** There is no external client session, so the role has no caller; a role given SELECT to look implemented is surface with nobody behind it (TD-005) |
+| The preview route | `/portal/:tenant/:project` requires an ordinary authenticated **internal** session with `portal.preview`, and says so in a strip outside the client content. No share token, no unguessable URL, no public hostname (TD-078) |
+| Audit | `portal.publication.published` records the version and the figure count. Never the payload |
 - Forecast (D-019): `client.portal.show_forecast = false` by default. When enabled for a
   project, only explicitly published `ForecastSnapshot`s enter the publication, each with its
   provenance record, calculation time, algorithm version, assumptions and clear projection

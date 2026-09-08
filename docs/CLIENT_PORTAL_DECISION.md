@@ -1,7 +1,11 @@
 # The Client Portal: what it would be, and what it must never be
 
-> **Decision support for the next wave. Nothing here is built, and this note does not authorise
-> building it.** Related: ADR-009 (the portal is a separate security surface), `docs/SECURITY.md`
+> **Superseded in part, 7 September 2026.** The owner authorised a *published client view* inside
+> the protected Preview environment, and it is built: see **ADR-027** and §8 below. §2 (what must
+> never be exposed) and §3 (what can be shown) were followed to the letter and are still the
+> contract; §5's three questions were answered; §7's recommendation to wait was overtaken by the
+> demonstration this wave exists for. Related: ADR-009 (the portal is a separate security surface),
+> ADR-027 (the publication and its allowlist), `docs/SECURITY.md`
 > §11, `docs/FEATURES.md` (`client.portal`), Gate 1 decision D-019 (forecast publication),
 > `docs/PRODUCT.md` §4.
 
@@ -103,3 +107,30 @@ and the **compliance review** (SECURITY.md §10a), because the portal is the sur
 data-protection mistake reaches someone outside the firm.
 
 When it is started, start with §3's table and the denylist test — not with the layout.
+
+## 8. What was actually built (7 September 2026, ADR-027)
+
+A **published client view**, not an external portal. The distinction is the whole of it.
+
+| Built | Not built |
+|---|---|
+| `portal.client_publication`: an immutable, versioned, allowlisted snapshot per project | any external client identity, session or invitation |
+| `Portal del cliente`, where the firm prepares, previews, publishes and reads the history | withdrawal of a publication (TD-077) |
+| `/portal/:tenant/:project`, a standalone client page with its own chrome and a print stylesheet | grants for `eia_portal`, which still reads nothing (TD-005) |
+| `portal.preview` beside `portal.publish`: a reviewer checks, a coordinator decides | milestones and deliverables, which have no model yet and render honest empty states |
+| A hard refusal of `DEMO_SIMULATION`, and of live data that is not a safe aggregate | a forecast, which D-019 keeps off and the validator rejects outright |
+
+§5's three questions, answered by what was built:
+
+1. **A number that moves, or a state that changes?** Neither, yet — and deliberately. The first
+   publication carries the concluded study's aggregates and no operational progress at all, because
+   the only progress this environment has is simulated. *Seguimiento* says so in words.
+2. **Who publishes, and how often?** A COORDINATOR, on demand, and the page shows the date. The
+   cadence question is now Carlos's to answer (`docs/CONSULTANCY_FEEDBACK_TEMPLATE.md` §2).
+3. **Does the client get the management plan?** Titles and counts — nine plans, twenty programmes,
+   eighty-six measures — and not the measure text. Exactly the recommendation.
+
+§7's recommendation — *do not start it in the next wave* — was overtaken by a decision to
+demonstrate, not by a change of mind about the two things that should come first. A **second
+project** and the **compliance review** are still what stand between this and a portal a real client
+opens (TD-005, TD-078, SECURITY.md §10a).

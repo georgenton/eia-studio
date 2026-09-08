@@ -1,6 +1,6 @@
 # Showing EIA Studio to the consultancy
 
-> A script for a live walkthrough of roughly 25 minutes, in Spanish, on the study the firm actually
+> A script for a live walkthrough of roughly 28 minutes, in Spanish, on the study the firm actually
 > delivered. The operator's version — every route, every check, every state — is
 > `docs/manual/10-demo-walkthrough.md`; this is what to *say* and in what order.
 >
@@ -32,7 +32,7 @@ session; what they say is the point of the meeting, and it does not survive memo
 > manejo tal como ustedes los entregaron. Lo que vamos a ver es cómo se vería ese expediente si el
 > trabajo se hubiera hecho aquí dentro.»
 
-## The nine beats
+## The ten beats
 
 ### 1 · El proyecto es el suyo — *Centro de control*, 2 min
 
@@ -144,11 +144,56 @@ footer.
 Generate again: a second version appears and the first one is still there, still saying what it
 said.
 
+### 10 · Lo que ve el cliente — *Portal del cliente → Vista del cliente*, 3 min
+
+The strongest beat of the meeting, and the one to leave time for.
+
+**Start where they already are — inside the workspace.**
+
+> «Aquí trabaja la consultora.»
+
+Point at the rail for two seconds: cartografía, campo, análisis, consistencia, plan, informes. Then
+open **Portal del cliente**.
+
+> «La información del cliente no sale directamente de este workspace. La consultora publica una
+> actualización controlada.»
+
+Show the three panels without dwelling: *lo que ve el cliente ahora*, *lo que diría una
+actualización publicada hoy*, y el *historial*. Read one line from **No se publica** out loud — the
+affected-parcel figure:
+
+> «El expediente dice 70 en un sitio y 71 en otro, y esa revisión sigue abierta. El portal no
+> escoge una. La omite y dice por qué.»
+
+Then open **Vista del cliente**.
+
+> «Esto es lo que ve el cliente.»
+
+Let them look before you talk. Then point at five things, in this order:
+
+1. **No hay datos individuales.** Ninguna respuesta, ningún propietario, ningún predio con código.
+2. **No hay contradicciones internas.** Ni hallazgos de consistencia, ni la cifra en disputa.
+3. **No hay operación simulada.** *Seguimiento* dice, literalmente, que todavía no se ha publicado
+   información de avance — porque el avance disponible hoy es una simulación, y un cliente no puede
+   ver actividad simulada como progreso de su proyecto.
+4. **La fecha de publicación**, arriba. Entre publicaciones esto no cambia: no es un espejo.
+5. **El mapa y los indicadores** — el corredor, las áreas de influencia, y las cifras del estudio.
+
+Finish with `Imprimir resumen`, which is the answer to *«¿puedo enseñar esto en una sesión de
+concejo?»*.
+
+Say once, plainly, before anyone asks:
+
+> «Este enlace todavía no está compartido con nadie fuera de la organización. El acceso externo del
+> cliente — su usuario, su clave, su sesión — no está construido. Lo que están viendo es la
+> publicación real, con acceso interno.»
+
 ## Closing
 
 > «Lo que cambia no es que el estudio se escriba solo. Es que al final del proyecto ustedes pueden
-> decir, de cada cifra del capítulo, de dónde salió — y que las contradicciones entre documentos
-> aparecen mientras hay tiempo de resolverlas, no en la revisión del cliente.»
+> decir, de cada cifra del capítulo, de dónde salió — que las contradicciones entre documentos
+> aparecen mientras hay tiempo de resolverlas, y que lo que ve el cliente lo deciden ustedes, con
+> fecha.»
 
 Three sentences, in this order, if they ask "¿y qué gano?":
 
@@ -165,7 +210,7 @@ Three sentences, in this order, if they ask "¿y qué gano?":
 | «¿Esto usa IA?» | En un paso: proponer categorías para respuestas abiertas. Propone; valida una persona; el sistema conserva las dos cosas por separado. Hoy no hay proveedor conectado en este entorno. |
 | «¿Dónde están los datos de las personas?» | No están. Los atributos de propietarios, escrituras y fotografías se eliminaron antes de que el archivo entrara al sistema, y el cuestionario de demostración no recoge datos personales. Antes de manejar datos reales de personas hay una revisión de cumplimiento pendiente. |
 | «¿Podemos ver nuestros datos reales?» | La cartografía y el plan de manejo **son** los suyos. Lo que falta es la ficha socioeconómica editable y las respuestas individuales, que no se han entregado. |
-| «¿El cliente puede entrar?» | Todavía no. Está diseñado como una superficie separada, con su propio acceso y su propia proyección de datos; no está construido (`docs/CLIENT_PORTAL_DECISION.md`). |
+| «¿El cliente puede entrar?» | Todavía no. Lo que ven en el beat 10 es la publicación real, abierta con acceso interno. El acceso externo del cliente — invitación, usuario y sesión propia — es lo que falta (`docs/CLIENT_PORTAL_DECISION.md`, ADR-027, TD-005). |
 | «¿Sirve para la fiscalización de la obra?» | No, y a propósito. Esto es la etapa de estudio. Verificar la ejecución del plan es otro producto, y mezclarlos haría que el sistema afirmara que alguien está cumpliendo algo que nadie ha empezado (`docs/ENVIRONMENTAL_AUDIT_PRODUCT_DIRECTION.md`). |
 | «¿Cuándo está listo?» | Lo que vieron funciona hoy sobre su estudio. Lo que falta para usarlo en un proyecto en curso está en la lista de limitaciones, y la primera es la revisión de protección de datos. |
 

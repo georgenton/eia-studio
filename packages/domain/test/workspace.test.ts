@@ -49,6 +49,7 @@ describe("workspace surface registry", () => {
       "documents",
       "pgas",
       "reports",
+      "portal",
     ]);
   });
 

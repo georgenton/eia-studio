@@ -36,7 +36,7 @@ Two capture rules, because both failures are common and both are expensive:
 | Shown from | (URL / commit) |
 | Preflight | `demo:preflight` __ FAIL · `demo:doctor` __ FAIL (`docs/CONSULTANCY_DEMO_PREFLIGHT.md`) |
 | Assisted coding | configured / not configured |
-| Beats shown | 1 2 3 4 5 6 7 8 9 — circle what was actually reached |
+| Beats shown | 1 2 3 4 5 6 7 8 9 10 — circle what was actually reached |
 | Duration | |
 
 ## 2 · What they said, as they said it
@@ -64,6 +64,25 @@ full, even when the answer is "no sé":
 | 4 | |
 | 5 | |
 | 6 | |
+
+### The client portal: seven questions of its own
+
+Beat 10 is the newest part of the demonstration and the one whose direction is least decided, so its
+questions are asked separately rather than folded into the six. Ask them **after** they have seen
+the client view, and write what they say rather than what it implies.
+
+Nothing here becomes a feature because somebody asked for it once. The point of this table is to
+have the answers written down before anybody designs the next version of the portal.
+
+| # | Question | Answer, verbatim |
+|---|---|---|
+| 1 | ¿Esto se lo mostrarías al GAD durante un proyecto? | |
+| 2 | ¿Qué dato te pediría normalmente el cliente y aquí todavía falta? | |
+| 3 | ¿Publicarías semanalmente o por hitos? | |
+| 4 | ¿El cliente debería poder descargar entregables aprobados? | |
+| 5 | ¿Querrías usar la marca de tu consultora en lugar de EIA Studio? | |
+| 6 | ¿Esto reduciría llamadas o informes manuales de avance? | |
+| 7 | ¿Lo incluirías como valor agregado en una propuesta comercial? | |
 
 ### Anything they asked for that does not exist
 

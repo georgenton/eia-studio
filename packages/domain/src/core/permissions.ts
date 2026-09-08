@@ -60,6 +60,10 @@ export const PROJECT_PERMISSIONS = [
   "reports.write",
   "reports.review",
   "deliverables.approve",
+  // The portal is a publication, and preparing one is not the same act as making it the thing the
+  // client sees. `portal.preview` opens the draft and the standalone client view; `portal.publish`
+  // decides. A reviewer checks what would go out without being able to send it.
+  "portal.preview",
   "portal.publish",
   "pii.read",
   "pii.export",

@@ -30,6 +30,10 @@ const SURFACES: ReadonlyArray<{ name: string; path: string }> = [
   { name: "Documents", path: `/t/${TENANT}/p/${PROJECT}/documents` },
   { name: "Plan de Manejo", path: `/t/${TENANT}/p/${PROJECT}/pgas` },
   { name: "Reports", path: `/t/${TENANT}/p/${PROJECT}/reports` },
+  { name: "Portal del cliente", path: `/t/${TENANT}/p/${PROJECT}/portal` },
+  // The client's page is the surface where leaked internal vocabulary would reach somebody outside
+  // the firm, so it is the one this rule matters most on.
+  { name: "Vista del cliente", path: `/portal/${TENANT}/${PROJECT}` },
   { name: "Social · abiertas", path: `/t/${TENANT}/p/${PROJECT}/social?tab=abiertas` },
   {
     name: "Parcel · visitas",

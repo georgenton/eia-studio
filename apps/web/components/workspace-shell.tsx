@@ -18,7 +18,7 @@ import {
 import type { ReactNode } from "react";
 
 import { getDb } from "@/lib/db";
-import { buildWorkspaceNav, portalNavEntry, projectPath } from "@/lib/navigation";
+import { buildWorkspaceNav, projectPath } from "@/lib/navigation";
 
 export interface ShellProject {
   readonly slug: string;
@@ -74,7 +74,6 @@ export async function WorkspaceShell({
     currentSurface,
     activeProjectSlug,
   );
-  const portal = portalNavEntry(ctx, tenantSettings);
   /*
    * Who the reader is, in their own words. The keys (`MEMBER`, `COORDINATOR`) are what the
    * authorization model checks; the topbar shows what the person actually is on this project.
@@ -111,7 +110,6 @@ export async function WorkspaceShell({
                   presentation: "ACTIVE",
                 },
                 ...entries,
-                ...(portal ? [portal] : []),
               ]}
               currentKey={currentKey}
             />
