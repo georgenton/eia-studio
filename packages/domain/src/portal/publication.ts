@@ -330,12 +330,15 @@ export function assertPublishablePayload(payload: unknown): ClientPublicationPay
 }
 
 /**
- * Deterministic identity of a publication's content.
+ * The canonical serialisation of a publication's content: key order fixed, so two payloads that say
+ * the same thing produce the same string.
  *
- * Used to tell "nothing has changed since v1" from "this is a new statement", so a coordinator
- * who presses publish twice learns that the second one would say exactly the same thing.
+ * It is the *input* to the hash rather than the hash itself, because hashing needs a crypto
+ * primitive and this package depends on nothing but zod (ADR-015). `publishClientPublication`
+ * hashes it, and the stored `content_hash` is therefore a hash rather than a second copy of a
+ * payload that already carries several thousand coordinates.
  */
-export function publicationDigest(payload: ClientPublicationPayload): string {
+export function publicationCanonicalForm(payload: ClientPublicationPayload): string {
   return stableStringify(payload);
 }
 

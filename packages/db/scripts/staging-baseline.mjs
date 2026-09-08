@@ -59,6 +59,10 @@ const ID_QUERIES = {
   // Documents (Slice 6): a chunk whose id moved would break every citation pointing at it.
   documentVersions: `select id || ':' || version_label || ':' || content_hash as v from app.document_version order by id`,
   documentChunks: `select id || ':' || content_hash as v from app.document_chunk order by id`,
+  // Client portal (ADR-027): a publication is what a customer was told on a date. A row that moved
+  // or vanished would rewrite that, which is exactly what the immutability rules out — so the
+  // baseline lists them one by one rather than counting them.
+  clientPublications: `select id || ':v' || sequence || ':' || left(content_hash, 16) as v from portal.client_publication order by sequence`,
 };
 
 const COUNT_QUERY = `
@@ -96,7 +100,8 @@ const COUNT_QUERY = `
     (select count(*) from app.document_version)   as document_versions,
     (select count(*) from app.document_chunk)     as document_chunks,
     (select count(*) from app.provenance_record)  as provenance,
-    (select count(*) from app.metric_snapshot)    as metrics
+    (select count(*) from app.metric_snapshot)    as metrics,
+    (select count(*) from portal.client_publication) as client_publications
 `;
 
 /** Nothing may reference a provenance record that is gone (the Slice 3 regression). */

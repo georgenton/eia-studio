@@ -7,7 +7,7 @@ import {
   clientPublicationPayloadSchema,
   findForbiddenConcepts,
   InvalidInput,
-  publicationDigest,
+  publicationCanonicalForm,
   publicationVersionLabel,
   PUBLICATION_WITHHELD_FIGURES,
   PUBLIC_FACT_KEYS,
@@ -148,12 +148,12 @@ describe("versions", () => {
     expect(publicationVersionLabel(12)).toBe("v12");
   });
 
-  it("gives the same digest to the same content, whatever the key order", () => {
+  it("canonicalises the same content identically, whatever the key order", () => {
     const a = payload();
     const b = payload();
-    expect(publicationDigest(a)).toBe(publicationDigest(b));
-    expect(publicationDigest(a)).not.toBe(
-      publicationDigest(payload({ notes: ["Una nota nueva."] })),
+    expect(publicationCanonicalForm(a)).toBe(publicationCanonicalForm(b));
+    expect(publicationCanonicalForm(a)).not.toBe(
+      publicationCanonicalForm(payload({ notes: ["Una nota nueva."] })),
     );
   });
 });

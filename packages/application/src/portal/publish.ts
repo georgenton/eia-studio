@@ -1,11 +1,11 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 
 import { portalSchema, withDbContext, type Database } from "@eia/db";
 import {
   assertPublishablePayload,
   CLIENT_PUBLICATION_SCHEMA_VERSION,
   InvalidInput,
-  publicationDigest,
+  publicationCanonicalForm,
   publicationVersionLabel,
   requireCapability,
   requirePermission,
@@ -50,7 +50,10 @@ export async function publishClientPublication(
 
   const draft = await buildClientPublicationDraft(db, ctx);
   const payload = assertPublishablePayload(draft.payload);
-  const contentHash = publicationDigest(payload);
+  // A real hash of the canonical form, not the canonical form itself: the payload carries the
+  // corridor and four generalised outlines, and storing a second copy of it under the name
+  // `content_hash` would be both misleading and tens of kilobytes per version.
+  const contentHash = createHash("sha256").update(publicationCanonicalForm(payload)).digest("hex");
 
   const factCount =
     payload.summary.facts.length +

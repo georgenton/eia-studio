@@ -44,7 +44,10 @@ export const clientPublication = portal.table(
     publishedBy: uuid("published_by").notNull(),
     /** The payload's own shape version, so an old row is still renderable by a newer product. */
     schemaVersion: integer("schema_version").notNull(),
-    /** Identity of the content, so "this would say exactly what v2 says" is answerable. */
+    /**
+     * SHA-256 of the payload's canonical form, so "this would say exactly what v2 says" is
+     * answerable without comparing two documents full of coordinates.
+     */
     contentHash: text("content_hash").notNull(),
     /** Validated by `clientPublicationPayloadSchema`; the only thing the client surface reads. */
     payload: jsonb("payload").notNull(),
