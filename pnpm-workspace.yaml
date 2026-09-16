@@ -11,3 +11,30 @@ onlyBuiltDependencies:
   - protobufjs
   - cpu-features
   - ssh2
+
+# Expo SDK 57 ships `expo-router` inside its own CLI, and that path pulls
+# `react-native-worklets@0.12`, which `expo-modules-core@57` still declares a peer range ending at
+# `^0.10`. Nothing in EIA Field uses worklets or reanimated; the mismatch is upstream and inside
+# Expo's own tooling, so it is accepted explicitly rather than left as a warning nobody reads.
+peerDependencyRules:
+  allowedVersions:
+    react-native-worklets: "0.12.2"
+    # The publicly hoisted React Native toolchain below puts one copy of `react-native` and
+    # `metro` at the root, and pnpm then compares *those* against peers declared elsewhere. The
+    # two entries here are that comparison, not a real mismatch: `apps/web` resolves react 19.2.8
+    # beside react-dom 19.2.8, and `apps/field` resolves the pairing Expo SDK 57 ships. Both are
+    # asserted by `apps/field/test/expo-alignment.test.ts`.
+    react: "19.2.3"
+    "@react-native/metro-config": "0.87.1"
+
+# React Native's tooling resolves peers by walking up from its *own* location: `@expo/metro-config`
+# does `require("react-native/rn-get-polyfills")` without declaring react-native as a dependency,
+# which pnpm's strict, isolated layout correctly refuses. Publicly hoisting the React Native
+# toolchain to the workspace root is the standard remedy and is scoped to exactly those packages —
+# the alternative, `node-linker=hoisted`, would abandon strict resolution for the whole monorepo
+# and lose the phantom-dependency protection every other package here relies on.
+publicHoistPattern:
+  - "react-native"
+  - "@react-native/*"
+  - "metro"
+  - "metro-*"

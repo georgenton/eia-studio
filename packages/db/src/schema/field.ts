@@ -5,6 +5,7 @@ import {
   foreignKey,
   index,
   integer,
+  jsonb,
   numeric,
   text,
   timestamp,
@@ -75,7 +76,12 @@ export const questionSensitivity = app.enum("survey_question_sensitivity", [
 
 export const campaignStatus = app.enum("survey_campaign_status", ["DRAFT", "ACTIVE", "CLOSED"]);
 
-export const captureChannel = app.enum("field_capture_channel", ["NATIVE_WEB"]);
+/**
+ * Vocabularies are duplicated from @eia/domain on purpose (db must not depend on domain); a test
+ * asserts the lists stay identical. `EIA_FIELD_MOBILE` arrives with the first-party application
+ * in Production V1 Wave 1 and is the first channel that declares offline support.
+ */
+export const captureChannel = app.enum("field_capture_channel", ["NATIVE_WEB", "EIA_FIELD_MOBILE"]);
 
 export const assignmentStatus = app.enum("field_assignment_status", [
   "PENDING",
@@ -557,5 +563,76 @@ export const surveyAnswerOption = app.table(
       foreignColumns: [project.tenantId, project.id],
     }).onDelete("cascade"),
     index("survey_answer_option_option_idx").on(t.tenantId, t.optionId),
+  ],
+);
+
+/**
+ * What the server has already done for a device, so that doing it again changes nothing.
+ *
+ * ## Why a table and not "make the use-cases idempotent"
+ *
+ * Most of them already are. `startVisit` returns the open visit rather than starting a second;
+ * `submitSurveyInstance` returns an already-submitted response as a result rather than an error;
+ * one `survey_instance` exists per assignment and version by unique constraint. What none of them
+ * can do is tell a *retry* from a *new intent* — and the difference matters in one direction that
+ * a phone in a valley produces constantly: a draft command retried after its own submit succeeded
+ * would otherwise raise `InstanceAlreadySubmitted` for ever, and a queue that can never drain is
+ * how a technician's later work stops arriving.
+ *
+ * So the device names each intent once (`command_id`, generated when the technician acts and never
+ * regenerated), and this table remembers what that intent produced. The second arrival replays the
+ * stored answer. The uniqueness constraint is the guarantee; the rest of the row is what makes an
+ * incident readable afterwards.
+ *
+ * `device_revision` is the other half: it orders one device's edits to one entity, so a draft that
+ * overtook a newer one is recognised as stale and acknowledged as superseded rather than applied
+ * backwards over fresher answers.
+ */
+export const syncCommandType = app.enum("field_sync_command_type", [
+  "visit.start",
+  "survey.upsert_draft",
+  "survey.submit",
+  "visit.finish",
+]);
+
+export const syncCommandOutcome = app.enum("field_sync_outcome", [
+  "applied",
+  "duplicate",
+  "superseded",
+  "conflict",
+  "rejected",
+]);
+
+export const fieldSyncReceipt = app.table(
+  "field_sync_receipt",
+  {
+    id: uuid("id").primaryKey(),
+    tenantId: uuid("tenant_id").notNull(),
+    projectId: uuid("project_id").notNull(),
+    /** The technician the session resolved to. Never a value the device sent. */
+    userId: uuid("user_id").notNull(),
+    /** Generated on the device at the moment of intent; the whole mechanism rests on it. */
+    commandId: uuid("command_id").notNull(),
+    commandType: syncCommandType("command_type").notNull(),
+    outcome: syncCommandOutcome("outcome").notNull(),
+    /** Which local entity the command was about, so a stale revision can be recognised. */
+    entityKind: text("entity_kind").notNull(),
+    entityId: uuid("entity_id"),
+    deviceRevision: integer("device_revision").notNull().default(0),
+    /** The `CommandResult` that was returned, replayed verbatim on a retry. */
+    result: jsonb("result").notNull(),
+    processedAt: timestamp("processed_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    // The guarantee. One command id, one outcome, per project.
+    unique("field_sync_receipt_command_key").on(t.tenantId, t.projectId, t.commandId),
+    index("field_sync_receipt_entity_idx").on(t.tenantId, t.projectId, t.userId, t.entityId),
+    foreignKey({
+      name: "field_sync_receipt_project_fk",
+      columns: [t.tenantId, t.projectId],
+      foreignColumns: [project.tenantId, project.id],
+    }).onDelete("cascade"),
   ],
 );

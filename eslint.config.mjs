@@ -46,6 +46,51 @@ export default [
     },
   },
   {
+    /*
+     * EIA Field is a React Native application, not a Next.js one.
+     *
+     * Two of its files are CommonJS by requirement rather than by choice: Metro and Babel load
+     * `metro.config.js` and `babel.config.js` with `require`, before any bundler or transform is
+     * involved, so they cannot be ES modules and cannot be typechecked as browser code.
+     */
+    files: ["apps/field/*.config.js"],
+    languageOptions: {
+      sourceType: "commonjs",
+      globals: { module: "writable", require: "readonly", __dirname: "readonly" },
+    },
+    rules: { "@typescript-eslint/no-require-imports": "off" },
+  },
+  {
+    // The mobile application never reaches the database or the application layer; its boundary is
+    // the shared contract and the domain's platform-safe entry point, asserted by
+    // `apps/field/test/bundle-safety.test.ts` as well as here.
+    files: ["apps/field/**/*.{ts,tsx}"],
+    plugins: { "react-hooks": reactHooks },
+    rules: {
+      ...reactHooks.configs.recommended.rules,
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["@eia/db", "@eia/db/*", "@eia/application", "@eia/application/*"],
+              message: "EIA Field talks to the server over HTTP, never to the database.",
+            },
+          ],
+          // Exact, not a pattern: `@eia/domain/mobile` is the entry this app must use, and a
+          // prefix rule would forbid the very thing it is steering towards.
+          paths: [
+            {
+              name: "@eia/domain",
+              message:
+                "Use @eia/domain/mobile: the barrel reaches node:crypto and cannot be bundled.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     // Tests and scripts may use console output.
     files: [
       "**/*.test.ts",

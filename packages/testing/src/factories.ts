@@ -649,6 +649,8 @@ export async function createCampaign(
     surveyVersionId: string;
     status?: "DRAFT" | "ACTIVE" | "CLOSED";
     name?: string;
+    /** `EIA_FIELD_MOBILE` is the channel that declares offline support (Production V1 Wave 1). */
+    captureChannel?: "NATIVE_WEB" | "EIA_FIELD_MOBILE";
   },
 ): Promise<{ id: string }> {
   const id = randomUUID();
@@ -660,7 +662,7 @@ export async function createCampaign(
     name: input.name ?? `Campaña ${next()}`,
     surveyVersionId: input.surveyVersionId,
     status,
-    captureChannel: "NATIVE_WEB",
+    captureChannel: input.captureChannel ?? "NATIVE_WEB",
     offlineModeAtActivation: status === "DRAFT" ? null : "disabled",
     activatedAt: status === "DRAFT" ? null : new Date(),
     provenanceId: input.provenanceId,

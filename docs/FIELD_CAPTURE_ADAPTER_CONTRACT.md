@@ -1,6 +1,15 @@
 # Field capture adapter contract
 
-> Status: **specification only. No adapter is implemented, and none is planned for a named slice.**
+> Status: **superseded as a plan for production offline capture, kept as a contract for a future
+> third-party adapter (16 September 2026, ADR-028).** Production V1 builds EIA Studio's own mobile
+> application, `EIA_FIELD_MOBILE`, rather than adapting ODK/Kobo/XLSForm: an external form product
+> would have held the questionnaire, the identities and the raw answers in somebody else's system,
+> and the hard part would have moved from collecting to reconciling — which is the part that loses
+> data. Nothing below is wrong, and none of it is deleted: the day a consultancy arrives already
+> running ODK, this is still the boundary an adapter must respect.
+>
+> Original status: **specification only. No adapter is implemented, and none is planned for a named
+> slice.**
 > This document exists so that the day one is built, the boundary it must respect is already
 > written down — decided while nobody is under delivery pressure to soften it.
 >

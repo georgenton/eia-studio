@@ -65,9 +65,12 @@ describe("offline capture is configuration, not capability (D-020)", () => {
     expect(FIELD_OFFLINE_MODES).toEqual(["disabled", "optional", "required"]);
   });
 
-  it("the only capture channel we built says plainly that it cannot work offline", () => {
-    expect(CAPTURE_CHANNELS).toEqual(["NATIVE_WEB"]);
+  it("each channel states its own offline support, and the web form still has none", () => {
+    // Two channels since Production V1 Wave 1: the web form, which posts to a server and says so,
+    // and EIA Field, which queues and syncs. Neither claims anything the code does not do.
+    expect(CAPTURE_CHANNELS).toEqual(["NATIVE_WEB", "EIA_FIELD_MOBILE"]);
     expect(captureChannel("NATIVE_WEB").supportsOffline).toBe(false);
+    expect(captureChannel("EIA_FIELD_MOBILE").supportsOffline).toBe(true);
   });
 
   it("disabled and optional accept the online-only channel", () => {

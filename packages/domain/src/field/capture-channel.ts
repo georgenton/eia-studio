@@ -15,11 +15,13 @@ import {
  * calls. One channel exists, it is the one we built, and its descriptor states plainly what it
  * cannot do.
  *
- * A future ODK/Kobo/XLSForm adapter becomes a second entry here with `supportsOffline: true` and
- * the mapping contract in `docs/FIELD_CAPTURE_ADAPTER_CONTRACT.md`. Adding it will be a change to
- * this list and an adapter package — not a redesign of the campaign model.
+ * The second entry is **EIA Field**, this product's own mobile application (Wave 1). The earlier
+ * plan — that offline capture would arrive as an ODK/Kobo/XLSForm adapter — is superseded for
+ * Production V1 and kept as history in `docs/FIELD_CAPTURE_ADAPTER_CONTRACT.md`: an external form
+ * product would have put the questionnaire, the identities and the raw answers in somebody else's
+ * system, and the mapping back would have been the hard part rather than the capture.
  */
-export const CAPTURE_CHANNELS = ["NATIVE_WEB"] as const;
+export const CAPTURE_CHANNELS = ["NATIVE_WEB", "EIA_FIELD_MOBILE"] as const;
 export const captureChannelSchema = z.enum(CAPTURE_CHANNELS);
 export type CaptureChannel = z.infer<typeof captureChannelSchema>;
 
@@ -44,6 +46,22 @@ export const CAPTURE_CHANNEL_DESCRIPTORS: Readonly<
     label: "Captura web de EIA Studio",
     supportsOffline: false,
     note: "Formulario web responsivo. Requiere conexión al enviar; no hay cola offline.",
+  },
+  /**
+   * EIA Field, the first-party mobile application (Production V1, Wave 1).
+   *
+   * `supportsOffline: true` is a claim the product now earns rather than asserts: the device holds
+   * a downloaded Field Pack, captures into an encrypted local database, queues domain commands in
+   * an outbox that survives a restart, and replays them idempotently when a signal returns. It is
+   * the reason a project may set `field.surveys.offline_mode = required` and still run a campaign.
+   */
+  EIA_FIELD_MOBILE: {
+    key: "EIA_FIELD_MOBILE",
+    label: "EIA Field (aplicación móvil)",
+    supportsOffline: true,
+    note:
+      "Aplicación Android/iOS. Descarga el trabajo asignado, captura sin conexión y sincroniza " +
+      "cuando vuelve la señal; una orden reenviada no duplica nada.",
   },
 };
 

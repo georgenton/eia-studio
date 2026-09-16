@@ -74,7 +74,10 @@ activation use-case, so it holds for a server action, a future API and a job ali
 row records `offline_mode_at_activation`, so the policy in force when technicians were sent out is
 recoverable afterwards.
 
-**Adding offline later changes this list, not this model.** An ODK/Kobo/XLSForm adapter, or a
+**Adding offline later changes this list, not this model.** *(Settled 16 September 2026 by
+ADR-028: the second channel is `EIA_FIELD_MOBILE`, this product's own React Native application,
+and it changed exactly this list and nothing about the model. The paragraph below stands as
+written.)* An ODK/Kobo/XLSForm adapter, or a
 first-party offline client, becomes a second entry in `CAPTURE_CHANNELS` with
 `supportsOffline: true` and an adapter package. Campaigns, assignments, visits, versions and
 answers are unchanged; `required` starts succeeding for projects that choose that channel. The

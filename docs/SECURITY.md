@@ -249,6 +249,34 @@ Two controls, and neither is about isolation. They protect the record from *us*.
 | No compliance conclusion | the permitted/forbidden vocabulary of invariant 11 is data in the domain, asserted over the rule catalogue's copy, over every generated finding, and — on staging — over whatever is actually stored |
 | No special-category data | the vulnerability rule compares two statements from the **corpus**, never a conclusion against survey records. A vulnerability indicator attached to a household is special-category personal data, the demo questionnaire collects none, and adding a field so a rule could count it would be exactly the "small exception for a demo" the compliance gate exists to prevent |
 
+## 10e. A technician's device (Production V1, Wave 1, ADR-028)
+
+EIA Field is the first EIA Studio client that is not a browser, and the first that holds project
+data on hardware the firm does not control. The controls are about the **device** and the **wire**.
+
+| Control | Mechanism |
+|---|---|
+| No secret in the bundle | A React Native bundle is readable by whoever holds the phone. There is no service token, no signing key and no shared credential: the only credential is a session the technician creates by signing in. `apps/field/test/bundle-safety.test.ts` fails on anything shaped like a key |
+| No server code in the bundle | No driver, no ORM, no application layer, no `node:` builtin. The app imports `@eia/domain/mobile` — a narrow entry point whose import graph is walked by `packages/domain/test/purity.test.ts` — and `@eia/field-sync-contract`, which depends on zod alone |
+| Encrypted at rest | `expo-sqlite` with SQLCipher, keyed by 32 random bytes generated once per installation and held in `expo-secure-store` (Keychain / Android Keystore). Never derived from a password, never transmitted, never logged |
+| Encryption is verified, not assumed | `PRAGMA cipher_version` is read after opening and the application **refuses to continue** if it is empty. On a runtime without the extension `PRAGMA key` silently does nothing, and answers would sit in the clear while the application believed otherwise |
+| Minimal local dataset | One technician's current assignments, the published questionnaire, and their own captures. No other technician, no respondent, no finding, no document, no geometry, no coordinate of anyone's home |
+| Identity is the server's | The device never sends a user id and the server never reads one. `resolveAccessContext` builds the `RequestContext` from the session, exactly as a page does |
+| Authorization is still RLS | Every mobile route goes through the same use-cases and the same row-level policies. A technician holds neither `field.read` nor `field.responses.read`, so a forged request still sees only their own rows |
+| Non-enumeration | A tenant or project the caller cannot see answers **404**, never 403 — the same rule the workspace routes follow (ADR-016) |
+| A receipt is the caller's own | `app.field_sync_receipt` adds `user_id = app.current_user_id()` to the ordinary predicate, is write-once by grant **and** trigger, and cannot be read across technicians |
+| Trusted origins | Better Auth gains exactly one new origin, the literal `eiafield://`. No wildcard scheme, and no scheme we do not control |
+| Logs | The sync error log stores bounded operational text, truncated, and never a payload. The diagnostics screen shows counts and versions — no answers, no identifiers of people, no tokens — so it is safe to photograph and send to support |
+| Sign-out | Discards the session, the database key and the database file. Refused while the outbox is non-empty, because losing a day of field work to a stray tap is not a trade the application makes on somebody's behalf |
+| Environment separation | The API URL is build-time configuration (`EXPO_PUBLIC_API_URL`), not a runtime setting. A field application that can be repointed from its own settings screen is one tap away from writing demo answers into a real study |
+| No model call | This wave has no AI requirement and no code path to one. No survey data leaves for a model from the device or from the sync routes |
+
+**The limitation, recorded rather than mitigated:** a device with no connectivity cannot learn that
+an account was suspended or an assignment reassigned. Revocation takes effect at the next server
+contact. The product's answer is a short, derived, visible window — `min(session expiry, now + 7
+days)` with a one-hour floor — after which the device stops offering *new* capture and keeps
+everything already captured.
+
 ## 10a. Privacy by design and the compliance gate (Gate 1 D-018)
 
 Before **production ingestion of any real personal data**, the project requires a specific

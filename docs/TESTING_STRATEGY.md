@@ -192,6 +192,27 @@ campaign scope reaches it, and the staging suite keeps asserting it separately.
   check fails when real PII ingestion is enabled without a recorded compliance review reference.
 - Withdrawn publication returns the portal's empty state.
 
+## 12a. EIA Field: offline capture and sync tests (ADR-028)
+
+The mobile channel is judged on one sentence — *the same command, sent any number of times,
+produces one result and one set of rows* — so the tests are organised around it rather than around
+the screens.
+
+| Layer | What it proves | Where |
+|---|---|---|
+| Contract | the wire answer union and `@eia/domain`'s are the same set, member for member; a command naming a user is refused; a push is bounded | `packages/field-sync-contract/test/protocol.test.ts` |
+| Device, pure | the local state machine keeps *enviada en el dispositivo* apart from *sincronizada*; a sent survey is not editable; each server outcome maps to one local state; the queue stops on everything except a transport failure | `apps/field/test/{survey-state,outbox-policy,commands}.test.ts` |
+| Device, boundary | the bundle imports no driver, ORM, application code, `node:` builtin or anything shaped like a secret; every Expo pin matches the SDK's own `bundledNativeModules.json` | `apps/field/test/{bundle-safety,expo-alignment}.test.ts` |
+| Domain | the offline window is derived from the session and capped; a pack too short to be useful is refused; EIA Field is the channel that satisfies `offline_mode = required` | `packages/domain/test/field-offline.test.ts` |
+| Server, integration | a pack carries the caller's own assignments and no geometry; the same command twice produces one visit, one response, one set of answers; a replayed batch changes nothing; a stale revision and a draft behind a submit are superseded; each conflict preserves local work; a pull names revoked assignments without deleting | `packages/application/test/field-sync.integration.test.ts` |
+| Row level | a receipt is the caller's own, write-once by grant and trigger, and one command id cannot be recorded twice | `packages/testing/test/rls/slice11-field-sync.integration.test.ts` |
+| Device, on a handset | the whole procedure, including force-quit, aeroplane mode and a second sync | `docs/FIELD_MOBILE_OFFLINE_UAT.md` |
+
+**What is deliberately not automated here.** A native build and a physical device in a corridor with
+no signal. The JavaScript bundle is verified for both platforms in CI-reachable form
+(`expo export`); a signed artefact needs SDKs and developer accounts, and a real radio losing a real
+connection is a field test rather than a laboratory one.
+
 ## 13. E2E and visual regression
 
 Connected flows (README "Interactions & Behavior"):
