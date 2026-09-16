@@ -20,13 +20,7 @@ export const AFFECTATION_CATEGORIES = [
 export const affectationCategorySchema = z.enum(AFFECTATION_CATEGORIES);
 export type AffectationCategory = z.infer<typeof affectationCategorySchema>;
 
-export const AFFECTATION_CATEGORY_LABEL: Readonly<Record<AffectationCategory, string>> = {
-  right_of_way: "Franja de derecho de vía",
-  access: "Acceso",
-  infrastructure: "Infraestructura",
-  crops: "Cultivos",
-  other: "Otra",
-};
+/* Words: `vocabulary.affectationCategory.*` in `@eia/i18n`. */
 
 export interface Affectation {
   readonly id: string;

@@ -1,13 +1,7 @@
 "use client";
 
 import type { ParcelRow } from "@eia/application";
-import {
-  formatChainage,
-  PARCEL_SIDE_LABEL,
-  PARCEL_STATUS_PRESENTATION,
-  type ParcelStatus,
-} from "@eia/domain";
-import { formatDecimal, formatPercent } from "@eia/ui";
+import { formatChainage, PARCEL_STATUS_PRESENTATION, type ParcelStatus } from "@eia/domain";
 import {
   columnFilteringFeature,
   createColumnHelper,
@@ -24,6 +18,9 @@ import {
   type SortingState,
 } from "@tanstack/react-table";
 import { useEffect, useMemo, useRef, useState } from "react";
+
+import { useI18n } from "@/components/i18n/locale-provider";
+import { parcelSideLabel, parcelStatusLabel } from "@/lib/labels";
 
 import styles from "./parcel-table.module.css";
 
@@ -78,6 +75,7 @@ export function ParcelTable({
   onVisibleCountChange?: (count: number) => void;
   workspaceHref: (parcelCode: string) => string;
 }) {
+  const { t, fmt } = useI18n();
   const [sorting, setSorting] = useState<SortingState>([{ id: "chainageM", desc: false }]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const bodyRef = useRef<HTMLTableSectionElement | null>(null);
@@ -88,41 +86,40 @@ export function ParcelTable({
     () =>
       [
         columnHelper.accessor("parcelCode", {
-          header: "Código",
+          header: t("gis.parcelCode"),
           cell: (info) => <span className={styles.code}>{info.getValue()}</span>,
           filterFn: "includesString",
         }),
         columnHelper.accessor("sectorLabel", {
-          header: "Sector",
-          cell: (info) => info.getValue() ?? "—",
+          header: t("gis.sector"),
+          cell: (info) => info.getValue() ?? t("common.missing"),
           filterFn: (row, id, value) => !value || row.getValue(id) === value,
         }),
         columnHelper.accessor("chainageM", {
-          header: "Abscisa",
+          header: t("gis.chainage"),
           cell: (info) => {
             const value = info.getValue();
             return value === null ? (
-              "—"
+              t("common.missing")
             ) : (
               <span className={styles.mono}>{formatChainage(value)}</span>
             );
           },
         }),
         columnHelper.accessor("side", {
-          header: "Lado",
-          cell: (info) => PARCEL_SIDE_LABEL[info.getValue()],
+          header: t("gis.side"),
+          cell: (info) => parcelSideLabel(t, info.getValue()),
         }),
         columnHelper.accessor("status", {
-          header: "Estado",
+          header: t("common.status"),
           cell: (info) => {
             const status = info.getValue();
-            const presentation = PARCEL_STATUS_PRESENTATION[status];
             return (
               <span className={`${styles.state} ${styles[status]}`}>
                 <span aria-hidden="true" className={styles.glyph}>
-                  {presentation.glyph}
+                  {PARCEL_STATUS_PRESENTATION[status].glyph}
                 </span>
-                {presentation.label}
+                {parcelStatusLabel(t, status)}
               </span>
             );
           },
@@ -130,32 +127,30 @@ export function ParcelTable({
             value.length === 0 || value.includes(row.getValue(id)),
         }),
         columnHelper.accessor("areaM2", {
-          header: "Área",
+          header: t("gis.area"),
           cell: (info) => {
             const value = info.getValue();
-            return value === null ? "—" : `${formatDecimal(value / 10_000, 2)} ha`;
+            return value === null ? t("common.missing") : `${fmt.decimal(value / 10_000, 2)} ha`;
           },
         }),
         columnHelper.accessor("affectationRatio", {
-          header: "Afectación",
+          header: t("gis.affectation"),
           cell: (info) => {
             const ratio = info.getValue();
-            if (ratio === null) return "—";
+            if (ratio === null) return t("common.missing");
             const area = info.row.original.affectedAreaM2;
             return (
               <span className={styles.affectation}>
-                <span>{formatPercent(ratio)}</span>
+                <span>{fmt.percent(ratio)}</span>
                 {area === null ? null : (
-                  <span className={styles.affectationArea}>
-                    {formatDecimal(area / 10_000, 2)} ha
-                  </span>
+                  <span className={styles.affectationArea}>{fmt.decimal(area / 10_000, 2)} ha</span>
                 )}
               </span>
             );
           },
         }),
       ] as Array<ColumnDef<typeof tableFeatures, ParcelRow>>,
-    [],
+    [t, fmt],
   );
 
   const table = useTable({
@@ -203,10 +198,8 @@ export function ParcelTable({
   if (rows.length === 0) {
     return (
       <div className={styles.empty} data-system-state="empty">
-        <p className={styles.emptyTitle}>Ningún predio coincide con los filtros</p>
-        <p className={styles.emptyNote}>
-          Ajusta el código, el sector o el estado para volver a ver predios del corredor.
-        </p>
+        <p className={styles.emptyTitle}>{t("gis.noMatchTitle")}</p>
+        <p className={styles.emptyNote}>{t("gis.noMatchBody")}</p>
       </div>
     );
   }
@@ -214,14 +207,12 @@ export function ParcelTable({
   return (
     <div className={styles.scroll}>
       <table className={styles.table}>
-        <caption className={styles.caption}>
-          Predios del corredor. Selecciona un predio para resaltarlo en el mapa.
-        </caption>
+        <caption className={styles.caption}>{t("gis.tableCaption")}</caption>
         <thead>
           {table.getHeaderGroups().map((group) => (
             <tr key={group.id}>
               <th scope="col">
-                <span className={styles.srOnly}>Selección</span>
+                <span className={styles.srOnly}>{t("gis.selection")}</span>
               </th>
               {group.headers.map((header) => {
                 const sorted = header.column.getIsSorted();
@@ -247,7 +238,7 @@ export function ParcelTable({
                 );
               })}
               <th scope="col">
-                <span className={styles.srOnly}>Acciones</span>
+                <span className={styles.srOnly}>{t("common.actions")}</span>
               </th>
             </tr>
           ))}
@@ -278,7 +269,9 @@ export function ParcelTable({
                     type="button"
                   >
                     <span aria-hidden="true">{isSelected ? "●" : "○"}</span>
-                    <span className={styles.srOnly}>Seleccionar {row.original.parcelCode}</span>
+                    <span className={styles.srOnly}>
+                      {t("gis.selectParcel", { code: row.original.parcelCode })}
+                    </span>
                   </button>
                 </td>
                 {/* `getAllCells` rather than `getVisibleCells`: column visibility is a v9
@@ -289,7 +282,7 @@ export function ParcelTable({
                 ))}
                 <td>
                   <a className={styles.open} href={workspaceHref(row.original.parcelCode)}>
-                    Abrir
+                    {t("common.open")}
                     <span className={styles.srOnly}> {row.original.parcelCode}</span>
                   </a>
                 </td>

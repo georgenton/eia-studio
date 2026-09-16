@@ -34,12 +34,7 @@ export const BASEMAP_MODES = ["none", "map", "satellite", "terrain"] as const;
 export type BasemapMode = (typeof BASEMAP_MODES)[number];
 
 /** What a reader sees. Provider internals are never surfaced here (ADR-025). */
-export const BASEMAP_MODE_LABEL: Record<BasemapMode, string> = {
-  none: "Sin fondo",
-  map: "Mapa",
-  satellite: "Satélite",
-  terrain: "Relieve",
-};
+/* Words: `vocabulary.basemapMode.*` in `@eia/i18n`. */
 
 export const BASEMAP_PROVIDERS = ["none", "maptiler", "custom"] as const;
 export type BasemapProviderId = (typeof BASEMAP_PROVIDERS)[number];

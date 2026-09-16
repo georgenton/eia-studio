@@ -362,7 +362,7 @@
       "title": "Hallazgos abiertos en control de consistencia",
       "note": "Posible inconsistencia — requiere revisión de especialista.",
       "surfaceLabel": "Control de consistencia",
-      "surfaceKey": null,
+      "surfaceKey": "quality",
       "actionLabel": "Revisar",
       "displayOrder": 1,
       "provenance": "operations-demo"
@@ -372,7 +372,7 @@
       "title": "Predios sin completar levantamiento",
       "note": "Concentrados en el último tramo del corredor.",
       "surfaceLabel": "Cartografía y predios",
-      "surfaceKey": null,
+      "surfaceKey": "gis",
       "actionLabel": "Abrir mapa",
       "displayOrder": 2,
       "provenance": "operations-demo"
@@ -382,7 +382,7 @@
       "title": "Predios marcados para revisita",
       "note": "Instrumento incompleto o informante ausente.",
       "surfaceLabel": "Cartografía y predios",
-      "surfaceKey": null,
+      "surfaceKey": "gis",
       "actionLabel": "Filtrar",
       "displayOrder": 3,
       "provenance": "operations-demo"
@@ -392,7 +392,7 @@
       "title": "Respuestas abiertas sin validar",
       "note": "Parte con confianza baja del modelo; ninguna entra en los cálculos hasta validarse.",
       "surfaceLabel": "Análisis social",
-      "surfaceKey": null,
+      "surfaceKey": "social",
       "actionLabel": "Ir a la cola",
       "displayOrder": 4,
       "provenance": "operations-demo"
@@ -402,7 +402,7 @@
       "title": "Levantamientos pendientes de sincronizar",
       "note": "Dispositivos en modo offline; no cuentan en el avance hasta sincronizarse.",
       "surfaceLabel": "Trabajo de campo",
-      "surfaceKey": null,
+      "surfaceKey": "field",
       "actionLabel": "Ver bandeja",
       "displayOrder": 5,
       "provenance": "operations-demo"

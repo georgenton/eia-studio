@@ -158,6 +158,11 @@ export function requirementKeys(): ReadonlyArray<string> {
  * two values is not entitled to assert: that a legal obligation was breached, that one of the two
  * values is the error, or that the system reached a conclusion. The Quality Gate detects
  * disagreement; a person decides what it means.
+ *
+ * **Both languages, one list.** Wave 2 gave the product an English surface, and an invariant that
+ * held only in Spanish would not be an invariant — it would be an accident of which catalogue a
+ * reader happened to open. The English entries are the equivalents, not translations of the
+ * Spanish ones: what is forbidden is the claim, in whatever words it is made.
  */
 export const FORBIDDEN_FINDING_WORDS: ReadonlyArray<string> = [
   "incumplimiento",
@@ -172,6 +177,21 @@ export const FORBIDDEN_FINDING_WORDS: ReadonlyArray<string> = [
   "ilegal",
   "sanción",
   "sancion",
+  "non-compliance",
+  "non-compliant",
+  "noncompliant",
+  "breach of",
+  "violation",
+  "violates",
+  "infringement",
+  "unlawful",
+  "illegal",
+  "error detected",
+  "fails to comply",
+  "the system determines",
+  "the system concludes",
+  "penalty",
+  "sanction",
 ];
 
 /** Phrases the approved copy uses instead, kept here so the two lists live together. */
@@ -181,6 +201,11 @@ export const PERMITTED_FINDING_PHRASES: ReadonlyArray<string> = [
   "información faltante",
   "requiere revisión de especialista",
   "evidencia insuficiente",
+  "possible inconsistency",
+  "does not match",
+  "missing information",
+  "specialist review required",
+  "insufficient evidence",
 ];
 
 /** Throws on the first forbidden word. Used by the domain test and by the copy lint. */

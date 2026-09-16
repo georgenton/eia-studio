@@ -15,7 +15,7 @@ import {
   passagesOnlyAnswer,
   renderCitation,
   resolveCitedIndices,
-  RETRIEVAL_SEMANTICS,
+  RETRIEVAL_STRATEGIES,
   type RetrievedPassage,
 } from "../src/index";
 
@@ -219,24 +219,24 @@ describe("the answers that need no model", () => {
     const answer = noEvidenceAnswer("¿Qué dice sobre X?");
     expect(answer.citations).toHaveLength(0);
     expect(answer.narrative).toBeNull();
-    expect(answer.narrativeUnavailable).toMatch(/no hay evidencia|No se encontraron/);
+    // The reason, not a sentence: the words live in the message catalogue, which has them in both
+    // languages and asserts there that neither one apologises for the honest answer.
+    expect(answer.narrativeUnavailable).toBe("no_evidence");
   });
 
   it("passages without a generator are still a complete answer", () => {
-    const answer = passagesOnlyAnswer("¿Y esto?", [passage(1), passage(2)], "sin generador");
+    const answer = passagesOnlyAnswer("¿Y esto?", [passage(1), passage(2)], "not_configured");
     expect(answer.citations).toHaveLength(2);
     expect(answer.narrative).toBeNull();
-    expect(answer.narrativeUnavailable).toBe("sin generador");
+    expect(answer.narrativeUnavailable).toBe("not_configured");
   });
 });
 
 describe("the retrieval strategy is described honestly", () => {
-  it("full-text says it matches words, not meaning", () => {
-    const semantics = RETRIEVAL_SEMANTICS["full-text"];
-    expect(semantics.label).toBe("Búsqueda léxica");
-    expect(semantics.help).toMatch(/palabras/);
-    expect(semantics.help).toMatch(/no por su significado/);
-    // It must not claim to be semantic, or to rank by relevance in the model sense.
-    expect(semantics.help.toLowerCase()).not.toContain("semántic");
+  it("ships exactly one strategy, and it is the lexical one", () => {
+    // ADR-021: there is no semantic retriever, so there is no strategy that could claim to be one.
+    // What the surface *says* about it is `documents.retrievalStrategyHelp.full-text`, which the
+    // catalogue's own test holds to "by the words they contain, not by their meaning".
+    expect([...RETRIEVAL_STRATEGIES]).toEqual(["full-text"]);
   });
 });

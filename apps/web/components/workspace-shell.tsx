@@ -1,7 +1,6 @@
 import { listUserTenants } from "@eia/application";
+import type { Translator } from "@eia/i18n";
 import {
-  PROJECT_ROLE_LABEL,
-  TENANT_ROLE_LABEL,
   type RequestContext,
   type TenantCapabilitySettings,
   type WorkspaceSurface,
@@ -17,7 +16,9 @@ import {
 } from "@/components/navigation";
 import type { ReactNode } from "react";
 
+import { LocaleProvider } from "@/components/i18n/locale-provider";
 import { getDb } from "@/lib/db";
+import { getLocale, getTranslator } from "@/lib/locale";
 import { buildWorkspaceNav, projectPath } from "@/lib/navigation";
 
 export interface ShellProject {
@@ -68,10 +69,13 @@ export async function WorkspaceShell({
   // shell never collapses (invariant 1). The links are ordinary routes: each one rebuilds and
   // re-verifies its own context server-side.
   const activeProjectSlug = ctx.projectSlug ?? projects[0]?.slug ?? null;
+  const t = await getTranslator();
+  const locale = await getLocale();
   const { entries, currentKey } = buildWorkspaceNav(
     ctx,
     tenantSettings,
     currentSurface,
+    t,
     activeProjectSlug,
   );
   /*
@@ -79,75 +83,85 @@ export async function WorkspaceShell({
    * authorization model checks; the topbar shows what the person actually is on this project.
    */
   const roleLabel = ctx.projectRole
-    ? PROJECT_ROLE_LABEL[ctx.projectRole]
-    : TENANT_ROLE_LABEL[ctx.tenantRole];
+    ? t(`vocabulary.projectRole.${ctx.projectRole}` as Parameters<Translator>[0])
+    : t(`vocabulary.tenantRole.${ctx.tenantRole}` as Parameters<Translator>[0]);
 
   return (
-    <AppShell
-      drawer={drawer}
-      rail={
-        <>
-          <RailBrand label="EIA Studio" />
-          <ContextSwitcher
-            label="Organización"
-            options={tenantOptions}
-            value={ctx.tenantSlug}
-            emptyLabel="Sin organizaciones"
-          />
-          <ContextSwitcher
-            label="Proyecto activo"
-            options={projectOptions}
-            value={activeProjectSlug ?? ""}
-            emptyLabel="Sin proyecto seleccionado"
-          />
-          <RailSection label="Espacio de trabajo">
-            <CapabilityNav
-              entries={[
-                {
-                  key: "portfolio",
-                  label: "Cartera de proyectos",
-                  href: `/t/${ctx.tenantSlug}`,
-                  presentation: "ACTIVE",
-                },
-                ...entries,
-              ]}
-              currentKey={currentKey}
+    <LocaleProvider locale={locale}>
+      <AppShell
+        drawer={drawer}
+        rail={
+          <>
+            <RailBrand label="EIA Studio" />
+            <ContextSwitcher
+              label={t("shell.organisation")}
+              options={tenantOptions}
+              value={ctx.tenantSlug}
+              emptyLabel={t("shell.noOrganisations")}
             />
-          </RailSection>
-          <RailFooter>
-            <CapabilityNav
-              entries={[
-                {
-                  key: "tenant-settings",
-                  label: "Configuración de la organización",
-                  href: null,
-                  presentation: "ANNOUNCED",
-                  badge: "PRÓXIMAMENTE",
-                },
-              ]}
-              currentKey={null}
+            <ContextSwitcher
+              label={t("shell.activeProject")}
+              options={projectOptions}
+              value={activeProjectSlug ?? ""}
+              emptyLabel={t("shell.noProjectSelected")}
             />
-          </RailFooter>
-        </>
-      }
-      topbar={
-        <>
-          <Breadcrumb items={[...breadcrumb]} />
-          <TopbarUser
-            name={userName}
-            role={roleLabel}
-            menu={<AccountMenu email={userEmail ?? null} roleLabel={roleLabel} />}
-          />
-        </>
-      }
-    >
-      {children}
-    </AppShell>
+            <RailSection label={t("shell.workspace")}>
+              <CapabilityNav
+                entries={[
+                  {
+                    key: "portfolio",
+                    label: t("shell.portfolio"),
+                    href: `/t/${ctx.tenantSlug}`,
+                    presentation: "ACTIVE",
+                  },
+                  ...entries,
+                ]}
+                currentKey={currentKey}
+              />
+            </RailSection>
+            <RailFooter>
+              <CapabilityNav
+                entries={[
+                  {
+                    key: "tenant-settings",
+                    label: t("shell.tenantSettings"),
+                    href: null,
+                    presentation: "ANNOUNCED",
+                    badge: t("shell.comingSoon"),
+                  },
+                ]}
+                currentKey={null}
+              />
+            </RailFooter>
+          </>
+        }
+        labels={{
+          skipToContent: t("shell.skipToContent"),
+          mainNavigation: t("shell.mainNavigation"),
+        }}
+        topbar={
+          <>
+            <Breadcrumb items={[...breadcrumb]} label={t("shell.breadcrumb")} />
+            <TopbarUser
+              name={userName}
+              role={roleLabel}
+              menu={<AccountMenu email={userEmail ?? null} roleLabel={roleLabel} />}
+              menuLabel={t("auth.accountMenu", { name: userName })}
+            />
+          </>
+        }
+      >
+        {children}
+      </AppShell>
+    </LocaleProvider>
   );
 }
 
-export function tenantBreadcrumb(tenantName: string): Array<{ label: string; href?: string }> {
-  return [{ label: tenantName }, { label: "Cartera de proyectos" }];
+export function tenantBreadcrumb(
+  tenantName: string,
+  t: Translator,
+): Array<{ label: string; href?: string }> {
+  return [{ label: tenantName }, { label: t("shell.portfolio") }];
 }
 
 /**

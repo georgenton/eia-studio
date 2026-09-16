@@ -1,5 +1,5 @@
 import { loadFieldOverview, loadMyWork, loadWorkspaceHeader } from "@eia/application";
-import { can, readFieldOfflineMode, SURFACE_DEFINITIONS } from "@eia/domain";
+import { can, readFieldOfflineMode } from "@eia/domain";
 import { notFound, redirect } from "next/navigation";
 
 import { FieldOverviewSurface } from "@/components/field/field-overview";
@@ -8,6 +8,8 @@ import { ProvenancePanel } from "@/components/provenance-panel";
 import { projectBreadcrumb, projectLabel, WorkspaceShell } from "@/components/workspace-shell";
 import { getSessionUser } from "@/lib/context";
 import { getDb } from "@/lib/db";
+import { surfaceLabel } from "@/lib/labels";
+import { getI18n } from "@/lib/locale";
 import { projectPath } from "@/lib/navigation";
 import { getProjectConfiguration } from "@/lib/queries";
 import { accessForDomainError, resolveSurfaceAccess } from "@/lib/surface-access";
@@ -47,6 +49,8 @@ export default async function FieldPage({
   }
 
   const { ctx, tenantSettings } = access;
+  const i18n = await getI18n();
+  const { t } = i18n;
   const sessionUser = await getSessionUser();
   const header = await loadWorkspaceHeader(getDb(), ctx);
   const basePath = projectPath(ctx.tenantSlug, project, "field");
@@ -56,13 +60,13 @@ export default async function FieldPage({
     tenantSettings,
     projects: header.projects,
     currentSurface: "field" as const,
-    userName: sessionUser?.name ?? sessionUser?.email ?? "Usuario",
+    userName: sessionUser?.name ?? sessionUser?.email ?? t("shell.user"),
     userEmail: sessionUser?.email ?? null,
     breadcrumb: projectBreadcrumb(
       ctx,
       header.tenantName,
       projectLabel(header.projects, project),
-      SURFACE_DEFINITIONS.field.label,
+      surfaceLabel(t, "field"),
     ),
     drawer: prov ? (
       <ProvenancePanel closeHref={basePath} ctx={ctx} provenanceId={prov} />
@@ -117,11 +121,17 @@ export default async function FieldPage({
           backHref={`/t/${tenant}`}
         />
       ) : overview ? (
-        <FieldOverviewSurface basePath={basePath} offlineMode={offlineMode} overview={overview} />
+        <FieldOverviewSurface
+          basePath={basePath}
+          i18n={i18n}
+          offlineMode={offlineMode}
+          overview={overview}
+        />
       ) : (
         <MyWork
           assignments={assignments ?? []}
           assignmentPath={(assignmentId) => `${basePath}/assignments/${assignmentId}`}
+          i18n={i18n}
         />
       )}
     </WorkspaceShell>

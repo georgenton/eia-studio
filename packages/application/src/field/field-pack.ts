@@ -2,7 +2,6 @@ import { appSchema, type Database, type DbTx } from "@eia/db";
 import {
   deriveOfflineWindow,
   formatChainage,
-  PARCEL_SIDE_LABEL,
   requireCapability,
   requirePermission,
   type AssignmentStatus,
@@ -162,6 +161,17 @@ export async function buildFieldPack(
               label: option.label,
               ordinal: option.ordinal,
             })),
+            // Every language the version carries, so a technician can switch with no network.
+            translations: Object.fromEntries(
+              Object.entries(question.translations).map(([locale, translated]) => [
+                locale,
+                {
+                  prompt: translated.prompt,
+                  helpText: translated.helpText,
+                  options: question.optionTranslations[locale] ?? {},
+                },
+              ]),
+            ),
           })),
         },
       },
@@ -286,7 +296,7 @@ export async function readAssignmentsForPull(
       parcelCode: row.parcel_code,
       sectorLabel: row.sector_label,
       chainageLabel: row.chainage_m === null ? null : formatChainage(Number(row.chainage_m)),
-      side: PARCEL_SIDE_LABEL[row.side] ?? null,
+      side: row.side,
     },
     openVisitId: row.open_visit_id,
     instanceId: row.instance_id,

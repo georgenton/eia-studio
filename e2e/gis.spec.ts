@@ -143,7 +143,7 @@ test.describe("GIS reviewer journey", () => {
     await row.getByRole("button", { name: /Seleccionar/ }).click();
 
     // 11 · the parcel is the master territorial workspace (invariant 7)
-    await page.getByRole("link", { name: "Abrir Parcel Workspace" }).click();
+    await page.getByRole("link", { name: "Abrir la ficha del predio" }).click();
     await expect(page).toHaveURL(new RegExp(`/parcels/${PARCELS.a}$`));
     await expect(page.getByRole("heading", { name: PARCELS.a, level: 1 })).toBeVisible();
 
@@ -214,7 +214,7 @@ test.describe("GIS reviewer journey", () => {
     await expect(page.getByRole("status")).toContainText(PARCELS.a);
 
     // Open the Parcel Workspace from the keyboard.
-    const open = page.getByRole("link", { name: "Abrir Parcel Workspace" });
+    const open = page.getByRole("link", { name: "Abrir la ficha del predio" });
     await open.focus();
     await page.keyboard.press("Enter");
     await expect(page).toHaveURL(new RegExp(`/parcels/${PARCELS.a}$`));

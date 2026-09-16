@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { getDb } from "@/lib/db";
+import { getTranslator } from "@/lib/locale";
 import { resolveSurfaceAccess } from "@/lib/surface-access";
 
 /**
@@ -37,20 +38,26 @@ function failureFor(error: unknown): QualityActionResult {
 
 export async function runQualityCheckAction(raw: unknown): Promise<QualityActionResult> {
   const input = scopeSchema.strict().parse(raw);
+  const t = await getTranslator();
   const access = await resolveSurfaceAccess(input.tenant, input.project, "quality");
-  if (access.kind !== "ok") return { ok: false, error: "No tienes acceso a esta superficie." };
+  if (access.kind !== "ok") return { ok: false, error: t("actions.noSurfaceAccess") };
 
   try {
     const result = await runQualityCheck(getDb(), access.ctx);
     revalidatePath(`/t/${input.tenant}/p/${input.project}/quality`, "layout");
-    const parts = [`${result.created} hallazgo(s) nuevo(s)`, `${result.updated} actualizado(s)`];
-    if (result.reopened > 0) parts.push(`${result.reopened} reabierto(s)`);
+    const parts = [
+      t("actions.qualityCreated", { count: result.created }),
+      t("actions.qualityUpdated", { count: result.updated }),
+    ];
+    if (result.reopened > 0) {
+      parts.push(t("actions.qualityReopened", { count: result.reopened }));
+    }
     // Named, not hidden: a rule that could not read its inputs is something a specialist should
     // know about, because it means that comparison was not made at all.
     if (result.skipped.length > 0) {
-      parts.push(`${result.skipped.length} regla(s) sin datos suficientes`);
+      parts.push(t("actions.qualitySkipped", { count: result.skipped.length }));
     }
-    return { ok: true, message: `Revisión ejecutada: ${parts.join(" · ")}.` };
+    return { ok: true, message: t("actions.qualityRun", { parts: parts.join(" · ") }) };
   } catch (error) {
     return failureFor(error);
   }
@@ -68,8 +75,9 @@ export async function decideFindingAction(raw: unknown): Promise<QualityActionRe
     .strict()
     .parse(raw);
 
+  const t = await getTranslator();
   const access = await resolveSurfaceAccess(input.tenant, input.project, "quality");
-  if (access.kind !== "ok") return { ok: false, error: "No tienes acceso a esta superficie." };
+  if (access.kind !== "ok") return { ok: false, error: t("actions.noSurfaceAccess") };
 
   try {
     const result = await decideQualityFinding(getDb(), access.ctx, {
@@ -79,7 +87,10 @@ export async function decideFindingAction(raw: unknown): Promise<QualityActionRe
       justification: input.justification,
     });
     revalidatePath(`/t/${input.tenant}/p/${input.project}/quality`, "layout");
-    return { ok: true, message: `Decisión registrada: ${result.fromState} → ${result.toState}.` };
+    return {
+      ok: true,
+      message: t("actions.qualityDecided", { from: result.fromState, to: result.toState }),
+    };
   } catch (error) {
     return failureFor(error);
   }

@@ -1,9 +1,11 @@
 "use client";
 
 import type { AssistantResponse } from "@eia/application";
+import type { MessageKey } from "@eia/i18n";
 import { Panel, PanelBody, PanelHeader } from "@eia/ui";
 import { useState, useTransition } from "react";
 
+import { useI18n } from "@/components/i18n/locale-provider";
 import { askDocumentsAction } from "@/lib/document-actions";
 
 import styles from "./documents.module.css";
@@ -21,6 +23,7 @@ import styles from "./documents.module.css";
  * these words, not led to believe a model understood the question.
  */
 export function DocumentAssistant({ tenant, project }: { tenant: string; project: string }) {
+  const { t } = useI18n();
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState<AssistantResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -41,16 +44,9 @@ export function DocumentAssistant({ tenant, project }: { tenant: string; project
 
   return (
     <Panel>
-      <PanelHeader
-        label="Consulta al expediente"
-        note="Responde únicamente con pasajes de los documentos del proyecto"
-      />
+      <PanelHeader label={t("documents.assistantTitle")} note={t("documents.assistantNote")} />
       <PanelBody>
-        <p className={styles.note}>
-          El asistente no responde de memoria: busca en los documentos de <strong>este</strong>{" "}
-          proyecto y cita el pasaje exacto, con su documento, su versión y su página. Si no
-          encuentra evidencia, lo dice.
-        </p>
+        <p className={styles.note}>{t("documents.assistantLead")}</p>
         <form
           className={styles.ask}
           onSubmit={(event) => {
@@ -59,7 +55,7 @@ export function DocumentAssistant({ tenant, project }: { tenant: string; project
           }}
         >
           <label className="sr-only" htmlFor="question">
-            Pregunta al expediente
+            {t("documents.questionLabel")}
           </label>
           <input
             className={styles.input}
@@ -67,7 +63,7 @@ export function DocumentAssistant({ tenant, project }: { tenant: string; project
             name="question"
             type="text"
             value={question}
-            placeholder="¿Cuántos predios afectados declara el expediente?"
+            placeholder={t("documents.questionPlaceholder")}
             onChange={(event) => setQuestion(event.target.value)}
           />
           <button
@@ -75,7 +71,7 @@ export function DocumentAssistant({ tenant, project }: { tenant: string; project
             type="submit"
             disabled={pending || question.trim().length < 3}
           >
-            {pending ? "Buscando…" : "Consultar"}
+            {pending ? t("documents.searching") : t("documents.consult")}
           </button>
         </form>
 
@@ -90,7 +86,7 @@ export function DocumentAssistant({ tenant, project }: { tenant: string; project
             {answer.narrative ? <p className={styles.narrative}>{answer.narrative}</p> : null}
             {answer.narrativeUnavailable ? (
               <p className={styles.unavailable} data-system-state="ai-unavailable">
-                {answer.narrativeUnavailable}
+                {t(`documents.narrativeUnavailable.${answer.narrativeUnavailable}` as MessageKey)}
               </p>
             ) : null}
 
@@ -102,7 +98,7 @@ export function DocumentAssistant({ tenant, project }: { tenant: string; project
                       <span className={styles.citationRef}>
                         {citation.documentCode} {citation.versionLabel}
                         {citation.page === null ? "" : ` · p. ${citation.page}`}
-                        {` · pasaje ${citation.passage}`}
+                        {t("documents.citationPassage", { number: citation.passage })}
                       </span>
                       <span className={styles.citationTitle}>{citation.documentTitle}</span>
                     </span>
@@ -113,7 +109,8 @@ export function DocumentAssistant({ tenant, project }: { tenant: string; project
             ) : null}
 
             <p className={styles.strategy} style={{ marginTop: 12 }}>
-              <strong>{answer.strategyLabel}.</strong> {answer.strategyHelp}
+              <strong>{t(`documents.retrievalStrategy.${answer.strategy}` as MessageKey)}.</strong>{" "}
+              {t(`documents.retrievalStrategyHelp.${answer.strategy}` as MessageKey)}
             </p>
           </div>
         ) : null}

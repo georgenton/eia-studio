@@ -1,28 +1,20 @@
 import type { ParcelVisitEntry, ParcelWorkspaceView } from "@eia/application";
-import {
-  AFFECTATION_CATEGORY_LABEL,
-  CHAINAGE_METHOD_LABEL,
-  formatChainage,
-  INSTANCE_STATUS_LABEL,
-  LAYER_LEGEND_COPY,
-  LOCATION_OUTCOME_LABEL,
-  PARCEL_SIDE_LABEL,
-  PARCEL_STATUS_PRESENTATION,
-  VISIT_STATUS_LABEL,
-} from "@eia/domain";
-import {
-  Chip,
-  formatDecimal,
-  formatPercent,
-  formatDateTime,
-  Panel,
-  PanelBody,
-  PanelHeader,
-  ProvenanceBadge,
-  SystemState,
-} from "@eia/ui";
+import { formatChainage, PARCEL_STATUS_PRESENTATION } from "@eia/domain";
+import type { MessageKey } from "@eia/i18n";
+import { Chip, Panel, PanelBody, PanelHeader, ProvenanceBadge, SystemState } from "@eia/ui";
 
 import { ButtonLink, ProvenanceLink } from "@/components/navigation";
+import {
+  affectationCategoryLabel,
+  chainageMethodLabel,
+  instanceStatusLabel,
+  layerLegendLabel,
+  locationOutcomeLabel,
+  parcelSideLabel,
+  parcelStatusLabel,
+  visitStatusLabel,
+} from "@/lib/labels";
+import type { I18n } from "@/lib/locale";
 
 import { ParcelGeometryMap } from "./parcel-geometry-map";
 import styles from "./parcel-workspace.module.css";
@@ -33,13 +25,15 @@ import styles from "./parcel-workspace.module.css";
  * no data yet rather than showing an invented one.
  */
 export const PARCEL_TABS = [
-  { key: "resumen", label: "Resumen" },
-  { key: "afectaciones", label: "Afectaciones" },
-  { key: "visitas", label: "Visitas" },
-  { key: "instrumentos", label: "Instrumentos" },
-  { key: "media", label: "Media" },
-  { key: "calidad", label: "Calidad" },
-] as const;
+  // The key is the URL segment, in Spanish because it is part of an address people bookmark and a
+  // route is not copy; the label beside it is the catalogue key that gives it words.
+  { key: "resumen", label: "parcel.tabSummary" },
+  { key: "afectaciones", label: "parcel.tabAffectations" },
+  { key: "visitas", label: "parcel.tabVisits" },
+  { key: "instrumentos", label: "parcel.tabInstruments" },
+  { key: "media", label: "parcel.tabMedia" },
+  { key: "calidad", label: "parcel.tabQuality" },
+] as const satisfies ReadonlyArray<{ key: string; label: MessageKey }>;
 
 export type ParcelTab = (typeof PARCEL_TABS)[number]["key"];
 
@@ -54,6 +48,7 @@ export function ParcelWorkspace({
   explorerPath,
   visits,
   canReadResponses,
+  i18n,
 }: {
   view: ParcelWorkspaceView;
   tab: ParcelTab;
@@ -62,9 +57,10 @@ export function ParcelWorkspace({
   /** Null when the caller cannot see field data at all; empty when the parcel has no visits. */
   visits: ReadonlyArray<ParcelVisitEntry> | null;
   canReadResponses: boolean;
+  i18n: I18n;
 }) {
+  const { t } = i18n;
   const { parcel } = view;
-  const status = PARCEL_STATUS_PRESENTATION[parcel.status];
 
   return (
     <div>
@@ -72,22 +68,25 @@ export function ParcelWorkspace({
         <div>
           <h1 className={styles.code}>{parcel.parcelCode}</h1>
           <p className={styles.meta}>
-            {parcel.sectorLabel ?? "Sin sector"}
-            {parcel.chainageM === null ? null : ` · ABS ${formatChainage(parcel.chainageM)}`}
-            {` · lado ${PARCEL_SIDE_LABEL[parcel.side].toLowerCase()}`}
+            {parcel.sectorLabel ?? t("gis.noSector")}
+            {parcel.chainageM === null
+              ? null
+              : ` · ${t("gis.chainageAbbrev")} ${formatChainage(parcel.chainageM)}`}
+            {` · ${t("gis.sideLine", { side: parcelSideLabel(t, parcel.side).toLowerCase() })}`}
             {view.alignmentLabel === null ? null : ` · ${view.alignmentLabel}`}
           </p>
         </div>
         <div className={styles.headerRight}>
           <Chip tone={parcel.status === "confirmed" ? "ok" : "neutral"}>
-            <span aria-hidden="true">{status.glyph}</span> {status.label}
+            <span aria-hidden="true">{PARCEL_STATUS_PRESENTATION[parcel.status].glyph}</span>{" "}
+            {parcelStatusLabel(t, parcel.status)}
           </Chip>
-          <ProvenanceBadge facets={parcel.provenance} />
-          <ButtonLink href={explorerPath}>Volver al explorador</ButtonLink>
+          <ProvenanceBadge facets={parcel.provenance} t={t} />
+          <ButtonLink href={explorerPath}>{t("parcel.backToExplorer")}</ButtonLink>
         </div>
       </div>
 
-      <nav aria-label="Secciones del predio">
+      <nav aria-label={t("parcel.sections")}>
         <ul className={styles.tabs}>
           {PARCEL_TABS.map((entry) => (
             <li key={entry.key}>
@@ -96,58 +95,72 @@ export function ParcelWorkspace({
                 className={`${styles.tab} ${entry.key === tab ? styles.tabCurrent : ""}`}
                 href={`${basePath}?tab=${entry.key}`}
               >
-                {entry.label}
+                {t(entry.label)}
               </a>
             </li>
           ))}
         </ul>
       </nav>
 
-      {tab === "resumen" ? <SummaryTab basePath={basePath} view={view} /> : null}
-      {tab === "afectaciones" ? <AffectationsTab basePath={basePath} view={view} /> : null}
-      {tab === "visitas" ? <VisitsTab canReadResponses={canReadResponses} visits={visits} /> : null}
+      {tab === "resumen" ? <SummaryTab basePath={basePath} i18n={i18n} view={view} /> : null}
+      {tab === "afectaciones" ? (
+        <AffectationsTab basePath={basePath} i18n={i18n} view={view} />
+      ) : null}
+      {tab === "visitas" ? (
+        <VisitsTab canReadResponses={canReadResponses} i18n={i18n} visits={visits} />
+      ) : null}
       {tab === "instrumentos" ? (
         <PendingModule
           capability="field.surveys"
-          label="Instrumentos"
-          note="Las fichas socioeconómicas y demás instrumentos se listarán aquí cuando la bandeja de campo esté implementada."
+          label={t("parcel.tabInstruments")}
+          note={t("parcel.instrumentsNote")}
+          t={t}
         />
       ) : null}
       {tab === "media" ? (
         <PendingModule
           capability="field.surveys"
-          label="Media"
-          note="Las fotografías y evidencias de campo llegan con la captura móvil. No hay archivos asociados a este predio."
+          label={t("parcel.tabMedia")}
+          note={t("parcel.mediaNote")}
+          t={t}
         />
       ) : null}
       {tab === "calidad" ? (
         <PendingModule
           capability="quality.document_gate"
-          label="Calidad"
-          note="Los hallazgos del control de calidad referidos a este predio se mostrarán aquí cuando el módulo esté implementado."
+          label={t("parcel.tabQuality")}
+          note={t("parcel.qualityNote")}
+          t={t}
         />
       ) : null}
     </div>
   );
 }
 
-function SummaryTab({ view, basePath }: { view: ParcelWorkspaceView; basePath: string }) {
+function SummaryTab({
+  view,
+  basePath,
+  i18n: { t, fmt },
+}: {
+  view: ParcelWorkspaceView;
+  basePath: string;
+  i18n: I18n;
+}) {
   const { parcel } = view;
   return (
     <div className={styles.grid}>
       <Panel>
         <PanelHeader
-          label="Ubicación"
+          label={t("parcel.location")}
           badge={
-            view.datasetVersion ? <ProvenanceBadge facets={view.datasetVersion.provenance} /> : null
+            view.datasetVersion ? (
+              <ProvenanceBadge facets={view.datasetVersion.provenance} t={t} />
+            ) : null
           }
         />
         <PanelBody>
           {view.geometry === null ? (
-            <p className={styles.muted}>
-              Este predio no tiene geometría activa. Su ficha existe, pero no puede representarse en
-              el mapa hasta que se cargue el polígono.
-            </p>
+            <p className={styles.muted}>{t("parcel.noGeometry")}</p>
           ) : (
             <div className={styles.mapBox}>
               <ParcelGeometryMap
@@ -159,12 +172,14 @@ function SummaryTab({ view, basePath }: { view: ParcelWorkspaceView; basePath: s
           )}
           {view.datasetVersion ? (
             <p className={styles.muted} style={{ marginTop: 10 }}>
-              Capa: {LAYER_LEGEND_COPY[view.datasetVersion.legend].label} ·{" "}
-              {view.datasetVersion.versionLabel}{" "}
+              {t("parcel.layerLine", {
+                layer: layerLegendLabel(t, view.datasetVersion.legend),
+                version: view.datasetVersion.versionLabel,
+              })}{" "}
               <ProvenanceLink
                 href={`${basePath}?tab=resumen&prov=${view.datasetVersion.provenanceId}`}
               >
-                Ver origen de la capa
+                {t("parcel.viewLayerProvenance")}
               </ProvenanceLink>
             </p>
           ) : null}
@@ -172,43 +187,51 @@ function SummaryTab({ view, basePath }: { view: ParcelWorkspaceView; basePath: s
       </Panel>
 
       <Panel>
-        <PanelHeader label="Ficha territorial" />
+        <PanelHeader label={t("parcel.territorialRecord")} />
         <PanelBody>
           <dl className={styles.facts}>
             <div>
-              <dt>Estado</dt>
-              <dd>{PARCEL_STATUS_PRESENTATION[parcel.status].label}</dd>
+              <dt>{t("common.status")}</dt>
+              <dd>{parcelStatusLabel(t, parcel.status)}</dd>
             </div>
             <div>
-              <dt>Abscisa</dt>
-              <dd>{parcel.chainageM === null ? "—" : formatChainage(parcel.chainageM)}</dd>
-            </div>
-            <div>
-              <dt>Método de abscisado</dt>
+              <dt>{t("gis.chainage")}</dt>
               <dd>
-                {parcel.chainageMethod === null
-                  ? "—"
-                  : CHAINAGE_METHOD_LABEL[parcel.chainageMethod]}
+                {parcel.chainageM === null ? t("common.missing") : formatChainage(parcel.chainageM)}
               </dd>
             </div>
             <div>
-              <dt>Lado</dt>
-              <dd>{PARCEL_SIDE_LABEL[parcel.side]}</dd>
-            </div>
-            <div>
-              <dt>Frente sobre la vía</dt>
-              <dd>{parcel.frontageM === null ? "—" : `${formatDecimal(parcel.frontageM)} m`}</dd>
-            </div>
-            <div>
-              <dt>Área total</dt>
+              <dt>{t("parcel.chainageMethod")}</dt>
               <dd>
-                {parcel.areaM2 === null ? "—" : `${formatDecimal(parcel.areaM2 / 10_000, 2)} ha`}
+                {parcel.chainageMethod === null
+                  ? t("common.missing")
+                  : chainageMethodLabel(t, parcel.chainageMethod)}
+              </dd>
+            </div>
+            <div>
+              <dt>{t("gis.side")}</dt>
+              <dd>{parcelSideLabel(t, parcel.side)}</dd>
+            </div>
+            <div>
+              <dt>{t("gis.frontage")}</dt>
+              <dd>
+                {parcel.frontageM === null
+                  ? t("common.missing")
+                  : `${fmt.decimal(parcel.frontageM)} m`}
+              </dd>
+            </div>
+            <div>
+              <dt>{t("gis.totalArea")}</dt>
+              <dd>
+                {parcel.areaM2 === null
+                  ? t("common.missing")
+                  : `${fmt.decimal(parcel.areaM2 / 10_000, 2)} ha`}
               </dd>
             </div>
           </dl>
           <p className={styles.muted} style={{ marginTop: 12 }}>
             <ProvenanceLink href={`${basePath}?tab=resumen&prov=${parcel.provenanceId}`}>
-              Ver origen de los datos del predio
+              {t("parcel.viewParcelProvenance")}
             </ProvenanceLink>
           </p>
         </PanelBody>
@@ -217,46 +240,50 @@ function SummaryTab({ view, basePath }: { view: ParcelWorkspaceView; basePath: s
   );
 }
 
-function AffectationsTab({ view, basePath }: { view: ParcelWorkspaceView; basePath: string }) {
+function AffectationsTab({
+  view,
+  basePath,
+  i18n: { t, fmt },
+}: {
+  view: ParcelWorkspaceView;
+  basePath: string;
+  i18n: I18n;
+}) {
   const { parcel } = view;
   if (view.affectations.length === 0) {
-    return (
-      <p className={styles.muted}>
-        No hay afectaciones registradas para este predio en la versión activa de la capa.
-      </p>
-    );
+    return <p className={styles.muted}>{t("parcel.noAffectations")}</p>;
   }
   return (
     <Panel>
-      <PanelHeader label="Afectaciones estimadas" />
+      <PanelHeader label={t("parcel.affectationsTitle")} />
       <PanelBody>
         <table className={styles.affectations}>
           <caption className={styles.srOnly}>
-            Afectaciones estimadas del predio {parcel.parcelCode}
+            {t("parcel.affectationsCaption", { code: parcel.parcelCode })}
           </caption>
           <thead>
             <tr>
-              <th scope="col">Categoría</th>
+              <th scope="col">{t("parcel.category")}</th>
               <th className={styles.numeric} scope="col">
-                Área afectada
+                {t("parcel.affectedArea")}
               </th>
               <th className={styles.numeric} scope="col">
-                % del predio
+                {t("parcel.shareOfParcel")}
               </th>
-              <th scope="col">Origen</th>
+              <th scope="col">{t("parcel.provenanceColumn")}</th>
             </tr>
           </thead>
           <tbody>
             {view.affectations.map((affectation) => (
               <tr key={affectation.id}>
-                <td>{AFFECTATION_CATEGORY_LABEL[affectation.category]}</td>
+                <td>{affectationCategoryLabel(t, affectation.category)}</td>
                 <td className={styles.numeric}>
-                  {formatDecimal(affectation.affectedAreaM2 / 10_000, 3)} ha
+                  {fmt.decimal(affectation.affectedAreaM2 / 10_000, 3)} ha
                 </td>
                 <td className={styles.numeric}>
                   {affectation.ratioOfParcel === null
-                    ? "—"
-                    : formatPercent(affectation.ratioOfParcel)}
+                    ? t("common.missing")
+                    : fmt.percent(affectation.ratioOfParcel)}
                 </td>
                 <td>
                   <ProvenanceLink
@@ -268,8 +295,7 @@ function AffectationsTab({ view, basePath }: { view: ParcelWorkspaceView; basePa
           </tbody>
         </table>
         <p className={styles.muted} style={{ marginTop: 12 }}>
-          Las áreas se calculan sobre la geometría activa; son una estimación cartográfica, no una
-          medición de campo ni un avalúo.
+          {t("parcel.affectationsNote")}
         </p>
       </PanelBody>
     </Panel>
@@ -287,72 +313,63 @@ function AffectationsTab({ view, basePath }: { view: ParcelWorkspaceView; basePa
 function VisitsTab({
   visits,
   canReadResponses,
+  i18n: { t, fmt },
 }: {
   visits: ReadonlyArray<ParcelVisitEntry> | null;
   canReadResponses: boolean;
+  i18n: I18n;
 }) {
   if (visits === null) {
     return (
       <SystemState
         state="permission denied"
-        title="Visitas: sin acceso al trabajo de campo"
+        title={t("parcel.visitsDeniedTitle")}
         meta="field.surveys"
       >
-        <p>
-          Tu rol puede consultar el predio pero no el trabajo de campo asociado. Acceder al
-          expediente territorial no otorga por sí solo acceso a las visitas.
-        </p>
+        <p>{t("parcel.visitsDeniedBody")}</p>
       </SystemState>
     );
   }
 
   if (visits.length === 0) {
-    return (
-      <p className={styles.muted}>
-        No hay visitas registradas para este predio. Cuando un técnico inicie una visita de una
-        campaña activa, aparecerá aquí.
-      </p>
-    );
+    return <p className={styles.muted}>{t("parcel.noVisits")}</p>;
   }
 
   return (
     <Panel>
-      <PanelHeader label="Visitas de campo" />
+      <PanelHeader label={t("parcel.visitsTitle")} />
       <PanelBody>
         <table className={styles.affectations}>
-          <caption className={styles.srOnly}>
-            Visitas de campo registradas para este predio. Muestra el estado del trabajo, no las
-            respuestas individuales.
-          </caption>
+          <caption className={styles.srOnly}>{t("parcel.visitsCaption")}</caption>
           <thead>
             <tr>
-              <th scope="col">Inicio</th>
-              <th scope="col">Técnico</th>
-              <th scope="col">Estado</th>
-              <th scope="col">Ficha</th>
-              <th scope="col">Origen</th>
+              <th scope="col">{t("parcel.visitStart")}</th>
+              <th scope="col">{t("parcel.technician")}</th>
+              <th scope="col">{t("common.status")}</th>
+              <th scope="col">{t("parcel.form")}</th>
+              <th scope="col">{t("parcel.provenanceColumn")}</th>
             </tr>
           </thead>
           <tbody>
             {visits.map((visit) => (
               <tr key={visit.visitId}>
-                <td>{formatDateTime(visit.startedAt)}</td>
+                <td>{fmt.dateTime(visit.startedAt)}</td>
                 {/* A synthetic display name, never a respondent. */}
                 <td>{visit.technicianLabel}</td>
                 <td>
-                  {VISIT_STATUS_LABEL[visit.status]}
+                  {visitStatusLabel(t, visit.status)}
                   <span className={styles.visitNote}>
-                    {LOCATION_OUTCOME_LABEL[visit.locationOutcome]}
+                    {locationOutcomeLabel(t, visit.locationOutcome)}
                   </span>
                 </td>
                 <td>
                   {visit.instanceStatus === null
-                    ? "—"
-                    : INSTANCE_STATUS_LABEL[visit.instanceStatus]}
+                    ? t("common.missing")
+                    : instanceStatusLabel(t, visit.instanceStatus)}
                   <span className={styles.visitNote}>{visit.surveyVersionLabel}</span>
                 </td>
                 <td>
-                  <ProvenanceBadge facets={visit.provenance} />
+                  <ProvenanceBadge facets={visit.provenance} t={t} />
                 </td>
               </tr>
             ))}
@@ -360,8 +377,8 @@ function VisitsTab({
         </table>
         <p className={styles.muted} style={{ marginTop: 12 }}>
           {canReadResponses
-            ? "Las respuestas individuales se consultan desde el análisis social, que llega en una fase posterior."
-            : "Se muestra el estado del trabajo de campo. Ver una respuesta individual requiere el permiso field.responses.read."}
+            ? t("parcel.visitsNoteWithAccess")
+            : t("parcel.visitsNoteWithoutAccess")}
         </p>
       </PanelBody>
     </Panel>
@@ -372,13 +389,19 @@ function PendingModule({
   label,
   capability,
   note,
+  t,
 }: {
   label: string;
   capability: string;
   note: string;
+  t: I18n["t"];
 }) {
   return (
-    <SystemState state="module not implemented" title={`${label}: aún sin datos`} meta={capability}>
+    <SystemState
+      state="module not implemented"
+      title={t("parcel.pendingTitle", { label })}
+      meta={capability}
+    >
       <p>{note}</p>
     </SystemState>
   );

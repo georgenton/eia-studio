@@ -1,0 +1,38 @@
+.switcher {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.label {
+  font-size: var(--eia-size-label);
+  letter-spacing: var(--eia-tracking-label);
+  text-transform: uppercase;
+  color: var(--eia-text-muted);
+  font-weight: 600;
+}
+.options {
+  display: flex;
+  gap: 4px;
+}
+.option,
+.active {
+  appearance: none;
+  border: 1px solid var(--eia-border);
+  background: var(--eia-surface);
+  color: var(--eia-ink);
+  border-radius: var(--eia-radius-control);
+  padding: 5px 10px;
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+.active {
+  border-color: var(--eia-accent);
+  background: var(--eia-accent-soft);
+  font-weight: 600;
+}
+.option:disabled,
+.active:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

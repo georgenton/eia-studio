@@ -1,0 +1,19 @@
+{
+  "name": "@eia/i18n",
+  "version": "0.0.0",
+  "private": true,
+  "description": "One vocabulary for every surface: locales, message catalogues, fallback and locale-aware formatting",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@eia/config": "workspace:*",
+    "@eia/domain": "workspace:*",
+    "typescript": "5.9.3",
+    "vitest": "4.1.11"
+  }
+}

@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 
 import { getSessionUser } from "@/lib/context";
 import { getDb } from "@/lib/db";
+import { getTranslator } from "@/lib/locale";
 
 import styles from "./entry.module.css";
 
@@ -19,6 +20,7 @@ export const dynamic = "force-dynamic";
 export default async function EntryPage() {
   const user = await getSessionUser();
   if (!user) redirect("/sign-in");
+  const t = await getTranslator();
 
   const tenants = await listUserTenants(getDb(), user.subject);
   if (tenants.length === 1) redirect(`/t/${tenants[0]!.slug}`);
@@ -26,17 +28,14 @@ export default async function EntryPage() {
   return (
     <main className={styles.page}>
       {tenants.length === 0 ? (
-        <SystemState state="empty" title="Todavía no perteneces a ninguna organización">
-          <p>
-            Las membresías las crea un Owner o un Admin de la organización. Pide acceso a quien
-            administre tu consultora.
-          </p>
+        <SystemState state="empty" title={t("shell.noMembershipTitle")}>
+          <p>{t("shell.noMembershipBody")}</p>
         </SystemState>
       ) : (
         <Panel>
-          <PanelHeader label="Organizaciones" />
+          <PanelHeader label={t("shell.organisations")} />
           <PanelBody>
-            <p className={styles.lead}>Selecciona la organización con la que quieres trabajar.</p>
+            <p className={styles.lead}>{t("shell.chooseOrganisation")}</p>
             <ul className={styles.list}>
               {tenants.map((tenant) => (
                 <li key={tenant.id}>

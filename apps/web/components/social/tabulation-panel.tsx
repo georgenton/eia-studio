@@ -1,6 +1,7 @@
 import type { SocialTabulation } from "@eia/application";
-import { DENOMINATOR_COPY } from "@eia/domain";
-import { formatCount, formatPercent, Panel, PanelBody, PanelHeader } from "@eia/ui";
+import { Panel, PanelBody, PanelHeader } from "@eia/ui";
+
+import type { I18n } from "@/lib/locale";
 
 import styles from "./social.module.css";
 
@@ -19,14 +20,20 @@ import styles from "./social.module.css";
  * Bars are two divs and a width. A chart library would add a dependency, a bundle and a rendering
  * mode for something a table already says precisely.
  */
-export function TabulationPanel({ tabulation }: { tabulation: SocialTabulation }) {
+export function TabulationPanel({
+  tabulation,
+  i18n: { t, fmt },
+}: {
+  tabulation: SocialTabulation;
+  i18n: I18n;
+}) {
   if (tabulation.questions.length === 0) {
     return (
       <Panel>
-        <PanelHeader label="Tabulación de preguntas cerradas" />
+        <PanelHeader label={t("social.tabulationTitle")} />
         <PanelBody>
           <p className={styles.note} data-system-state="no-survey-data">
-            Esta versión del cuestionario no tiene preguntas cerradas tabulables.
+            {t("social.noClosedQuestions")}
           </p>
         </PanelBody>
       </Panel>
@@ -36,60 +43,63 @@ export function TabulationPanel({ tabulation }: { tabulation: SocialTabulation }
   return (
     <Panel>
       <PanelHeader
-        label="Tabulación de preguntas cerradas"
-        action={
-          <span className={styles.deterministic}>
-            Cálculo determinista · sin modelo de lenguaje
-          </span>
-        }
+        label={t("social.tabulationTitle")}
+        action={<span className={styles.deterministic}>{t("social.deterministic")}</span>}
       />
       <PanelBody>
         <p className={styles.note}>
-          {tabulation.templateName} · versión <strong>{tabulation.versionLabel}</strong> ·{" "}
-          {formatCount(tabulation.submitted)} respuestas enviadas. Las versiones no se suman entre
-          sí: una respuesta solo se interpreta contra el cuestionario que se le hizo.
+          {t("social.tabulationLead", {
+            template: tabulation.templateName,
+            version: tabulation.versionLabel,
+            submitted: fmt.count(tabulation.submitted),
+          })}
         </p>
 
         <div className={styles.questions}>
           {tabulation.questions.map((question) => {
-            const copy = DENOMINATOR_COPY[question.denominatorRule];
+            const rule = question.denominatorRule;
             return (
               <section key={question.questionId} className={styles.question}>
                 <h3 className={styles.questionPrompt}>{question.prompt}</h3>
                 <p className={styles.denominator}>
-                  {formatCount(question.answered)} respondieron · {formatCount(question.unanswered)}{" "}
-                  sin responder · porcentajes {copy.label}
+                  {t("social.answeredLine", {
+                    answered: fmt.count(question.answered),
+                    unanswered: fmt.count(question.unanswered),
+                    rule: t(`social.denominator.${rule}` as "social.denominator.submitted"),
+                  })}
                 </p>
-                <p className={styles.denominatorHelp}>{copy.help}</p>
+                <p className={styles.denominatorHelp}>
+                  {t(`social.denominatorHelp.${rule}` as "social.denominatorHelp.submitted")}
+                </p>
 
                 {question.numeric ? (
                   <dl className={styles.numeric}>
                     <div>
-                      <dt>Mínimo</dt>
-                      <dd>{question.numeric.min}</dd>
+                      <dt>{t("social.minimum")}</dt>
+                      <dd>{fmt.count(question.numeric.min)}</dd>
                     </div>
                     <div>
-                      <dt>Mediana</dt>
-                      <dd>{question.numeric.median}</dd>
+                      <dt>{t("social.median")}</dt>
+                      <dd>{fmt.count(question.numeric.median)}</dd>
                     </div>
                     <div>
-                      <dt>Promedio</dt>
-                      <dd>{question.numeric.mean.toFixed(1).replace(".", ",")}</dd>
+                      <dt>{t("social.mean")}</dt>
+                      <dd>{fmt.decimal(question.numeric.mean, 1)}</dd>
                     </div>
                     <div>
-                      <dt>Máximo</dt>
-                      <dd>{question.numeric.max}</dd>
+                      <dt>{t("social.maximum")}</dt>
+                      <dd>{fmt.count(question.numeric.max)}</dd>
                     </div>
                   </dl>
                 ) : (
                   <table className={styles.table}>
                     <thead>
                       <tr>
-                        <th scope="col">Opción</th>
-                        <th scope="col">Respuestas</th>
-                        <th scope="col">Porcentaje</th>
+                        <th scope="col">{t("social.option")}</th>
+                        <th scope="col">{t("social.responses")}</th>
+                        <th scope="col">{t("social.percentage")}</th>
                         <th scope="col">
-                          <span className={styles.srOnly}>Distribución</span>
+                          <span className={styles.srOnly}>{t("social.distribution")}</span>
                         </th>
                       </tr>
                     </thead>
@@ -97,8 +107,10 @@ export function TabulationPanel({ tabulation }: { tabulation: SocialTabulation }
                       {question.tallies.map((tally) => (
                         <tr key={tally.code}>
                           <th scope="row">{tally.label}</th>
-                          <td>{formatCount(tally.count)}</td>
-                          <td>{tally.share === null ? "—" : formatPercent(tally.share)}</td>
+                          <td>{fmt.count(tally.count)}</td>
+                          <td>
+                            {tally.share === null ? t("common.missing") : fmt.percent(tally.share)}
+                          </td>
                           <td className={styles.barCell}>
                             <div className={styles.barTrack}>
                               <div

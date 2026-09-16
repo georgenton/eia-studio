@@ -1,15 +1,5 @@
 export { deriveSourceTypeLabel, needsDemoBadge } from "./provenance-label";
 export type { SourceTypeLabel } from "./provenance-label";
-export {
-  formatCount,
-  formatDateTime,
-  formatDayCount,
-  formatDecimal,
-  formatIsoDate,
-  formatIsoDateShort,
-  formatPercent,
-  formatTime,
-} from "./format";
 export { AppShell, RailBrand, RailFooter, RailSection, TopbarUser } from "./components/app-shell";
 export { ActivityTable, AttentionList, AttentionRow } from "./components/attention";
 export type { AttentionTone } from "./components/attention";

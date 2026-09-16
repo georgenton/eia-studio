@@ -24,10 +24,14 @@ export type FieldOfflineMode = z.infer<typeof fieldOfflineModeSchema>;
 /** Default for a project that has never chosen: online capture, which is what we can actually do. */
 export const DEFAULT_FIELD_OFFLINE_MODE: FieldOfflineMode = "disabled";
 
+/**
+ * What a mode *permits*, which is the part that is not language.
+ *
+ * The words — `vocabulary.offlineMode.*` and `vocabulary.offlineModeDescription.*` — live in the
+ * message catalogue; this rule decides whether a campaign may activate, and it decides the same
+ * way for a Spanish and an English reader.
+ */
 export interface OfflineModeSemantics {
-  readonly label: string;
-  /** What the mode means, in the words the settings surface uses. */
-  readonly description: string;
   /** Whether a campaign may activate on a channel that cannot work offline. */
   readonly allowsOnlineOnlyChannel: boolean;
 }
@@ -35,26 +39,9 @@ export interface OfflineModeSemantics {
 export const FIELD_OFFLINE_MODE_SEMANTICS: Readonly<
   Record<FieldOfflineMode, OfflineModeSemantics>
 > = {
-  disabled: {
-    label: "Sin captura offline",
-    description:
-      "El proyecto captura en línea. El canal web de EIA Studio es válido para sus campañas.",
-    allowsOnlineOnlyChannel: true,
-  },
-  optional: {
-    label: "Captura offline opcional",
-    description:
-      "La captura en línea sigue siendo válida. Un canal con soporte offline puede usarse cuando " +
-      "esté configurado, pero no es obligatorio.",
-    allowsOnlineOnlyChannel: true,
-  },
-  required: {
-    label: "Captura offline obligatoria",
-    description:
-      "Una campaña no puede activarse si su canal de captura no declara soporte offline. El canal " +
-      "web de EIA Studio no lo tiene todavía.",
-    allowsOnlineOnlyChannel: false,
-  },
+  disabled: { allowsOnlineOnlyChannel: true },
+  optional: { allowsOnlineOnlyChannel: true },
+  required: { allowsOnlineOnlyChannel: false },
 };
 
 /**

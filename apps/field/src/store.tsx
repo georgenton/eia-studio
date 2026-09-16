@@ -1,9 +1,5 @@
-import { LOCAL_SURVEY_STATE_LABEL, type FieldPack } from "@eia/field-sync-contract";
-import {
-  OFFLINE_ACCESS_STATE_LABEL,
-  offlineAccessState,
-  type OfflineAccessState,
-} from "@eia/domain/mobile";
+import type { FieldPack } from "@eia/field-sync-contract";
+import { offlineAccessState, type OfflineAccessState } from "@eia/domain/mobile";
 import * as Network from "expo-network";
 import type * as SQLite from "expo-sqlite";
 import {
@@ -183,5 +179,3 @@ export function FieldProvider({ children }: { children: ReactNode }) {
 
   return <FieldContext.Provider value={value}>{children}</FieldContext.Provider>;
 }
-
-export { LOCAL_SURVEY_STATE_LABEL, OFFLINE_ACCESS_STATE_LABEL };

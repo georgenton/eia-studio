@@ -1,5 +1,6 @@
 import { withDbContext, type Database } from "@eia/db";
 import {
+  type NarrativeUnavailableReason,
   answerFromPassages,
   ASSISTANT_PROMPT_VERSION,
   noEvidenceAnswer,
@@ -7,7 +8,6 @@ import {
   requireCapability,
   requirePermission,
   retrievalQuerySchema,
-  RETRIEVAL_SEMANTICS,
   NotFound,
   type AssistantAnswer,
   type AssistantGenerator,
@@ -42,9 +42,8 @@ export interface AssistantAsk {
 }
 
 export interface AssistantResponse extends AssistantAnswer {
+  /** The reader's surface turns this into words; this layer renders nothing (ADR-029). */
   readonly strategy: RetrievalStrategy;
-  readonly strategyLabel: string;
-  readonly strategyHelp: string;
   /** The model that wrote the narrative, when one did. */
   readonly model: string | null;
   readonly promptVersion: string | null;
@@ -80,7 +79,6 @@ export async function askDocuments(
   return withDbContext(db, ctx, async (tx) => {
     const retriever = new FullTextRetriever(tx, { tenantId: ctx.tenantId, projectId });
     const result = await retriever.retrieve(query);
-    const semantics = RETRIEVAL_SEMANTICS[result.strategy];
 
     // The question is audited; the passages are not. What was asked of a project's documents is an
     // operational fact worth keeping; copying the document text into the audit log would put the
@@ -103,8 +101,6 @@ export async function askDocuments(
 
     const base = {
       strategy: result.strategy,
-      strategyLabel: semantics.label,
-      strategyHelp: semantics.help,
     };
 
     if (result.passages.length === 0) {
@@ -114,7 +110,7 @@ export async function askDocuments(
     if (config.generator.state !== "AVAILABLE" || !config.create) {
       const reason =
         config.generator.state === "AVAILABLE"
-          ? "El generador de texto no está disponible en este entorno."
+          ? "generator_unavailable"
           : narrativeReason(config.generator.reason);
       return {
         ...passagesOnlyAnswer(query.question, result.passages, reason),
@@ -139,24 +135,14 @@ export async function askDocuments(
   });
 }
 
-/** The three reasons of IG4-001, said in the reader's language rather than the operator's. */
-function narrativeReason(reason: string): string {
+/** The three reasons of IG4-001, as codes the reader's surface puts into words. */
+function narrativeReason(reason: string): NarrativeUnavailableReason {
   switch (reason) {
     case "NOT_CONFIGURED":
-      return (
-        "La redacción asistida no está configurada en este entorno, así que no se genera un " +
-        "párrafo. Los pasajes citados son la evidencia y se muestran completos."
-      );
+      return "not_configured";
     case "FAKE_REFUSED_IN_PERSISTENT_ENVIRONMENT":
-      return (
-        "Este entorno tiene configurado el generador determinista de pruebas, que no puede " +
-        "ejecutarse aquí: su texto sería indistinguible del de un modelo real. Los pasajes " +
-        "citados son la evidencia y se muestran completos."
-      );
+      return "fake_refused";
     default:
-      return (
-        "El proveedor de modelos no está disponible: falta configuración externa. No se sustituye " +
-        "por un generador simulado. Los pasajes citados son la evidencia y se muestran completos."
-      );
+      return "blocked_external_config";
   }
 }

@@ -57,59 +57,21 @@ export interface ProvenanceView extends ProvenanceRecord {
   }>;
 }
 
-/** Spanish labels for the drawer; copy is a product asset (PRODUCT.md §8). */
-export const VALIDATION_STATE_LABEL: Readonly<Record<ValidationState, string>> = {
-  VALIDATED: "VALIDADO",
-  PARTIAL: "PARCIAL",
-  PENDING: "PENDIENTE",
-  NOT_REQUIRED: "NO REQUIERE",
-  SPECIALIST_REQUIRED: "REQUIERE ESPECIALISTA",
-};
-
-export const REGIME_LABEL = {
-  HISTORICAL_OBSERVED: "Histórico observado",
-  LIVE_OPERATIONAL: "Operacional en vivo",
-  DEMO_SIMULATION: "Simulación de demostración",
-} as const;
-
-export const ORIGIN_LABEL = {
-  FIELD_CAPTURE: "Captura en campo",
-  IMPORTED_DOCUMENT: "Documento importado",
-  IMPORTED_DATASET: "Dataset importado",
-  SYSTEM_GENERATED: "Generado por el sistema",
-} as const;
-
-export const TRANSFORMATION_LABEL = {
-  ORIGINAL: "Original",
-  RECONSTRUCTED: "Reconstruido",
-  DERIVED: "Derivado",
-  ANONYMIZED: "Anonimizado",
-} as const;
-
-export const GRANULARITY_LABEL = {
-  INDIVIDUAL: "Individual",
-  AGGREGATE: "Agregado",
-} as const;
+/**
+ * The drawer's words live in `@eia/i18n` under `vocabulary.*`, keyed by these same enum values.
+ *
+ * They used to be Spanish constants here. A domain that holds one language's copy can only ever
+ * have one language, and the rule is older than the second one: *a stored value is never rendered;
+ * a label for it is* (ADR-025, ADR-029). What is stored is `HISTORICAL_OBSERVED`; what a reader
+ * sees is whatever the catalogue says in the locale they chose.
+ *
+ * The one exception is the Spanish report deliverable, which quotes the regime in the language the
+ * document is written in and therefore keeps its own constant beside the generator.
+ */
 
 /**
- * The four SOURCE TYPE badges, in words a consultant reads rather than the enum a developer wrote
- * (ADR-025). The *derivation* is unchanged — `deriveSourceTypeLabel` still returns the four keys of
- * invariant 13 — and this is only how each one is spoken.
- *
- * Each phrase says what the number **is**, not what pipeline produced it: a reader deciding whether
- * they may quote a figure needs to know it came from the file, or that nobody measured it.
+ * The four SOURCE TYPE badges of invariant 13 are `vocabulary.sourceType.*` and their one-line
+ * explanations `vocabulary.sourceTypeNote.*`. The **derivation** stays here, in
+ * `deriveSourceTypeLabel`: which of the four a value is remains a fact about the data, and it does
+ * not change with the reader's language.
  */
-export const SOURCE_TYPE_LABEL = {
-  REAL_AGGREGATE: "Dato histórico",
-  RECONSTRUCTED: "Dato calculado",
-  ANONYMIZED: "Agregado sin datos personales",
-  SYNTHETIC: "Simulación operativa",
-} as const;
-
-/** One line explaining the badge above, shown beside it where there is room. */
-export const SOURCE_TYPE_NOTE = {
-  REAL_AGGREGATE: "Cifra verificable del expediente, sin datos identificables.",
-  RECONSTRUCTED: "Valor derivado de fuentes reales con un método declarado.",
-  ANONYMIZED: "Agregado de registros reales, sin identificadores.",
-  SYNTHETIC: "Generado para la demostración. No es historia del proyecto.",
-} as const;

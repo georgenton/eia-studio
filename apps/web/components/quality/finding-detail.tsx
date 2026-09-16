@@ -1,9 +1,11 @@
 "use client";
 
 import type { FindingDetail } from "@eia/application";
+import type { MessageKey } from "@eia/i18n";
 import { Chip, Panel, PanelBody, PanelHeader } from "@eia/ui";
 import { useState, useTransition } from "react";
 
+import { useI18n } from "@/components/i18n/locale-provider";
 import { decideFindingAction } from "@/lib/quality-actions";
 
 import styles from "./quality.module.css";
@@ -20,48 +22,6 @@ import styles from "./quality.module.css";
  * decision needs a justification, and the history of decisions is on the page rather than behind a
  * toggle: who settled this and on what grounds is the record, not a detail.
  */
-const DECISION_LABEL: Record<string, string> = {
-  START_REVIEW: "Tomar para revisión",
-  ACCEPT: "Aceptar el hallazgo",
-  DISMISS: "Descartar el hallazgo",
-  RESOLVE: "Marcar como resuelto",
-  REQUEST_INTERDISCIPLINARY: "Solicitar revisión interdisciplinaria",
-  REOPEN: "Reabrir",
-};
-
-const DECISION_HELP: Record<string, string> = {
-  START_REVIEW: "Queda a tu nombre mientras lo revisas.",
-  ACCEPT: "La discrepancia es real. Aceptarla no dice cuál de las dos fuentes rige.",
-  DISMISS: "Las fuentes son consistentes, o la regla las leyó mal.",
-  RESOLVE: "Aceptado y ya corregido en el expediente.",
-  REQUEST_INTERDISCIPLINARY: "Necesita el criterio de otra disciplina antes de decidirse.",
-  REOPEN: "Hay información nueva, o la decisión anterior debe revisarse.",
-};
-
-const STATE_LABEL: Record<string, string> = {
-  OPEN: "Abierto",
-  UNDER_REVIEW: "En revisión",
-  ACCEPTED: "Aceptado",
-  DISMISSED: "Descartado",
-  RESOLVED: "Resuelto",
-};
-
-const ROLE_LABEL: Record<string, string> = {
-  SOURCE_A: "Fuente A",
-  SOURCE_B: "Fuente B",
-  CONTEXT: "Contexto",
-};
-
-const dateTime = (iso: string) =>
-  new Intl.DateTimeFormat("es-EC", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    timeZone: "UTC",
-  }).format(new Date(iso));
-
 export function FindingDetailPanel({
   finding,
   tenant,
@@ -73,6 +33,7 @@ export function FindingDetailPanel({
   project: string;
   canDecide: boolean;
 }) {
+  const { t, fmt } = useI18n();
   const [decision, setDecision] = useState(finding.availableDecisions[0] ?? "");
   const [justification, setJustification] = useState("");
   const [message, setMessage] = useState<string | null>(null);
@@ -90,7 +51,7 @@ export function FindingDetailPanel({
         justification,
       });
       setFailed(!result.ok);
-      setMessage(result.ok ? (result.message ?? "Decisión registrada.") : result.error);
+      setMessage(result.ok ? (result.message ?? t("quality.decisionRecorded")) : result.error);
       if (result.ok) setJustification("");
     });
   };
@@ -103,35 +64,37 @@ export function FindingDetailPanel({
       <Panel>
         <PanelHeader
           label={`${finding.code} · ${finding.title}`}
-          badge={<Chip tone="neutral">{STATE_LABEL[finding.state] ?? finding.state}</Chip>}
-          note={`Detectado ${dateTime(finding.detectedAt)} · regla ${finding.requirementKey}@${finding.requirementVersion}`}
+          badge={<Chip tone="neutral">{t(`quality.state.${finding.state}` as MessageKey)}</Chip>}
+          note={t("quality.detectedAt", {
+            when: fmt.dateTime(new Date(finding.detectedAt)),
+            rule: `${finding.requirementKey}@${finding.requirementVersion}`,
+          })}
         />
         <PanelBody>
           <p className={styles.explain}>{finding.explanation}</p>
           {finding.interdisciplinary ? (
             <p className={styles.note}>
-              <Chip tone="accent">Revisión interdisciplinaria</Chip> Este hallazgo contrasta
-              criterios de más de una disciplina y no debería resolverse desde una sola.
+              <Chip tone="accent">{t("quality.interdisciplinary")}</Chip>{" "}
+              {t("quality.interdisciplinaryNote")}
             </p>
           ) : null}
         </PanelBody>
       </Panel>
 
       <Panel>
-        <PanelHeader
-          label="Evidencia"
-          note="Las dos fuentes, tal como están escritas. El sistema no decide cuál rige."
-        />
+        <PanelHeader label={t("quality.evidence")} note={t("quality.evidenceNote")} />
         <PanelBody>
           <div className={styles.sources}>
             {sources.map((item, index) => (
               <div className={styles.source} key={`${item.role}-${index}`}>
-                <span className={styles.sourceRole}>{ROLE_LABEL[item.role] ?? item.role}</span>
+                <span className={styles.sourceRole}>
+                  {t(`quality.evidenceRole.${item.role}` as MessageKey)}
+                </span>
                 <span className={styles.sourceLabel}>{item.label}</span>
                 <blockquote className={styles.quote}>{item.quote}</blockquote>
                 {item.documentRef ? (
                   <span className={styles.sourceRef}>
-                    Transcrito de{" "}
+                    {t("quality.transcribedFrom")}{" "}
                     <a
                       className={styles.documentLink}
                       href={`/t/${tenant}/p/${project}/documents/${item.documentRef.code}${
@@ -144,15 +107,13 @@ export function FindingDetailPanel({
                       {item.documentRef.page === null ? "" : ` · p. ${item.documentRef.page}`}
                     </a>{" "}
                     — {item.documentRef.title}.
-                    {item.documentRef.chunkOrdinal === null
-                      ? " El pasaje exacto no pudo identificarse por coincidencia literal."
-                      : ""}
+                    {item.documentRef.chunkOrdinal === null ? t("quality.passageNotMatched") : ""}
                   </span>
                 ) : (
                   <span className={styles.sourceRef}>
-                    {item.sourceRef
-                      ? "Extracto reconstruido del expediente. Sin número de página: el documento todavía no está en el sistema."
-                      : "Valor declarado en la ficha del proyecto."}
+                    {t(
+                      item.sourceRef ? "quality.reconstructedExtract" : "quality.declaredOnProject",
+                    )}
                   </span>
                 )}
               </div>
@@ -172,30 +133,26 @@ export function FindingDetailPanel({
       </Panel>
 
       <Panel>
-        <PanelHeader label="Por qué se señaló" />
+        <PanelHeader label={t("quality.whyFlagged")} />
         <PanelBody>
           <p className={styles.explain}>{finding.whyFlagged}</p>
           <p className={styles.note} style={{ marginTop: 10 }}>
-            <strong>Acción sugerida.</strong> {finding.suggestedAction}
+            <strong>{t("quality.suggestedAction")}</strong> {finding.suggestedAction}
           </p>
         </PanelBody>
       </Panel>
 
       <Panel>
         <PanelHeader
-          label="Decisión de especialista"
-          note={
-            canDecide
-              ? "Toda decisión exige una justificación y queda registrada de forma permanente."
-              : "Tu rol puede consultar los hallazgos; decidirlos corresponde a un revisor."
-          }
+          label={t("quality.decisionTitle")}
+          note={t(canDecide ? "quality.decisionNoteCanDecide" : "quality.decisionNoteReadOnly")}
         />
         <PanelBody>
           {canDecide && finding.availableDecisions.length > 0 ? (
             <>
               <div className={styles.field}>
                 <label className={styles.label} htmlFor="decision">
-                  Decisión
+                  {t("quality.decision")}
                 </label>
                 <select
                   className={styles.select}
@@ -205,26 +162,26 @@ export function FindingDetailPanel({
                 >
                   {finding.availableDecisions.map((option) => (
                     <option key={option} value={option}>
-                      {DECISION_LABEL[option] ?? option}
+                      {t(`quality.decisionOption.${option}` as MessageKey)}
                     </option>
                   ))}
                 </select>
-                <span className={styles.sourceRef}>{DECISION_HELP[decision] ?? ""}</span>
+                <span className={styles.sourceRef}>
+                  {decision ? t(`quality.decisionHelp.${decision}` as MessageKey) : ""}
+                </span>
               </div>
               <div className={styles.field}>
                 <label className={styles.label} htmlFor="justification">
-                  Justificación
+                  {t("quality.justification")}
                 </label>
                 <textarea
                   className={styles.textarea}
                   id="justification"
                   value={justification}
                   onChange={(event) => setJustification(event.target.value)}
-                  placeholder="Qué se contrastó y con qué criterio se decide."
+                  placeholder={t("quality.justificationPlaceholder")}
                 />
-                <span className={styles.sourceRef}>
-                  Mínimo 12 caracteres. Se conserva de forma permanente y con tu nombre.
-                </span>
+                <span className={styles.sourceRef}>{t("quality.justificationHint")}</span>
               </div>
               <div className={styles.actions}>
                 <button
@@ -233,15 +190,13 @@ export function FindingDetailPanel({
                   onClick={submit}
                   disabled={pending || justification.trim().length < 12}
                 >
-                  {pending ? "Registrando…" : "Registrar decisión"}
+                  {pending ? t("quality.recording") : t("quality.recordDecision")}
                 </button>
               </div>
             </>
           ) : (
             <p className={styles.note}>
-              {canDecide
-                ? "Este hallazgo no admite más transiciones desde su estado actual."
-                : "Solo un rol con permiso de revisión puede registrar una decisión."}
+              {t(canDecide ? "quality.noTransitions" : "quality.reviewerOnly")}
             </p>
           )}
           {message ? (
@@ -258,30 +213,28 @@ export function FindingDetailPanel({
 
       <Panel>
         <PanelHeader
-          label="Historial de decisiones"
+          label={t("quality.historyTitle")}
           note={
             finding.reviews.length === 0
-              ? "Todavía nadie ha decidido sobre este hallazgo"
-              : `${finding.reviews.length} decisión(es)`
+              ? t("quality.historyEmptyNote")
+              : t("quality.historyCount", { count: fmt.count(finding.reviews.length) })
           }
         />
         <PanelBody>
           {finding.reviews.length === 0 ? (
-            <p className={styles.note}>
-              Cuando alguien decida, la decisión y su justificación quedarán aquí. No se editan ni
-              se borran: un cambio de criterio es una decisión nueva.
-            </p>
+            <p className={styles.note}>{t("quality.historyEmptyBody")}</p>
           ) : (
             <ol className={styles.history}>
               {finding.reviews.map((review, index) => (
                 <li className={styles.historyItem} key={index}>
                   <span className={styles.historyHead}>
-                    {DECISION_LABEL[review.decision] ?? review.decision} ·{" "}
-                    {STATE_LABEL[review.fromState] ?? review.fromState} →{" "}
-                    {STATE_LABEL[review.toState] ?? review.toState}
+                    {t(`quality.decisionOption.${review.decision}` as MessageKey)} ·{" "}
+                    {t(`quality.state.${review.fromState}` as MessageKey)} →{" "}
+                    {t(`quality.state.${review.toState}` as MessageKey)}
                   </span>
                   <span className={styles.historyMeta}>
-                    {review.reviewerName ?? "Revisor"} · {dateTime(review.reviewedAt)}
+                    {review.reviewerName ?? t("quality.reviewer")} ·{" "}
+                    {fmt.dateTime(new Date(review.reviewedAt))}
                   </span>
                   <p className={styles.historyText}>{review.justification}</p>
                 </li>

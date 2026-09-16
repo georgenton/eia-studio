@@ -43,9 +43,12 @@ export function AttentionList({ children }: { children: ReactNode }) {
 
 export function ActivityTable({
   caption,
+  headers,
   rows,
 }: {
   caption: string;
+  /** Column names, from the caller's catalogue: this package holds no copy. */
+  headers: { time: string; actor: string; action: string; object: string };
   rows: ReadonlyArray<{
     id: string;
     time: string;
@@ -59,10 +62,10 @@ export function ActivityTable({
       <caption className={styles.caption}>{caption}</caption>
       <thead>
         <tr>
-          <th scope="col">Hora</th>
-          <th scope="col">Actor</th>
-          <th scope="col">Acción</th>
-          <th scope="col">Objeto</th>
+          <th scope="col">{headers.time}</th>
+          <th scope="col">{headers.actor}</th>
+          <th scope="col">{headers.action}</th>
+          <th scope="col">{headers.object}</th>
         </tr>
       </thead>
       <tbody>

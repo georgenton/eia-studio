@@ -1,20 +1,20 @@
 import type { MetricSnapshot } from "@eia/domain";
+import type { Format } from "@eia/i18n";
 import type { ReactNode } from "react";
 
-import { formatCount, formatDecimal, formatIsoDateShort } from "../format";
 import styles from "./metric.module.css";
 
 export type MetricTone = "default" | "warn" | "crit";
 
 /** Render a metric's value with the precision its kind implies; never invent decimals. */
-export function formatMetricValue(metric: MetricSnapshot): string {
+export function formatMetricValue(metric: MetricSnapshot, fmt: Format): string {
   if (metric.definition.kind === "date") {
-    return metric.dateValue ? formatIsoDateShort(metric.dateValue) : "—";
+    return metric.dateValue ? fmt.isoDateShort(metric.dateValue) : "—";
   }
   if (metric.numericValue === null) return "—";
   return metric.definition.kind === "decimal"
-    ? formatDecimal(metric.numericValue)
-    : formatCount(metric.numericValue);
+    ? fmt.decimal(metric.numericValue)
+    : fmt.count(metric.numericValue);
 }
 
 /**

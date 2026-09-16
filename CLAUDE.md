@@ -3,7 +3,7 @@
 EIA Studio is a multi-tenant B2B SaaS for environmental consulting firms: field capture, parcels,
 surveys, social analysis with human-in-the-loop AI, quality review and client reporting.
 
-**Current phase: REAL DATA + PRODUCTIZATION WAVE (authorised 4 Sep 2026).** The sustained MVP
+**Current phase: PRODUCTION V1 (authorised 15 Sep 2026); the real-data and productization wave that preceded it is logged in `docs/DEVELOPMENT_WAVE_LOG.md`.** The sustained MVP
 development wave that preceded it (authorised 3 Sep 2026) delivered Slice 0 (SaaS
 foundation), Slice 0.5 (staging foundation), Slice 1 (product shell, Portfolio, Command Center,
 provenance drawer), Slice 2 (GIS / Parcel Explorer, Parcel Workspace), Slice 3 (FieldFlow, versioned
@@ -154,6 +154,24 @@ capture (TD-037), background sync, a correction workflow, any model call. The ea
 ODK/Kobo is superseded and kept as history in `docs/FIELD_CAPTURE_ADAPTER_CONTRACT.md`. What still
 stands between this and eight production projects is in `docs/PRODUCTION_V1_GO_LIVE.md`.
 
+**Production V1 Wave 2 — the product is bilingual (16 Sep 2026)** adds English beside Spanish, on
+the web and on the phone, from one message catalogue (ADR-029, amending ADR-025). ADR-025's rule is
+unchanged — *a stored value is never rendered; a label for it is* — but the words moved out of
+`@eia/domain` and into `@eia/i18n`: the domain keeps the enum, the **glyph** beside a status, the
+derivation of the four SOURCE TYPE badges, `allowsOnlineOnlyChannel`, `lowThreshold` and the quality
+rules; the catalogue keeps everything a reader sees. `@eia/ui` holds no copy and no formatter. A
+surface resolves the locale once and passes `{ locale, t, fmt }` down, so no component decides for
+itself how a figure reads. An **abscissa** stays `2+840` in both languages, because it is surveying
+notation and not a number. A **bilingual questionnaire is one `SurveyVersion`**: translations are
+rows keyed by question and option id, frozen by the same trigger as the definition, and answers
+still point at codes — one definition hash, one denominator, one response. **Invariant 11 and
+invariant 10 now hold in both languages**, asserted over every message in both catalogues. What is
+**not** translated is project source data: delivered documents, the management plan's own spellings,
+a taxonomy's categories, a generated finding's stored text (TD-086), a report version, and the
+client publication, which is rendered in the language it was published in (TD-085). The reader's
+choice is a cookie, and the default is `es-EC`: a consultant whose browser is configured in English
+did not ask for an English product. `docs/I18N_ARCHITECTURE.md` is the map.
+
 ## Read before acting
 
 Approved design bundle (source of truth; precedence: README → prototype → spec v0.2 → screenshots):
@@ -174,7 +192,7 @@ Architecture documentation:
 Also relevant by task: `docs/DATA_MODEL.md`, `docs/PROVENANCE.md`, `docs/AI_GOVERNANCE.md`,
 `docs/DEMO_ZAMORA.md`, `docs/DESIGN_SYSTEM.md`, `docs/TESTING_STRATEGY.md`,
 `docs/GIS_IMPORT_CONTRACT.md`, `docs/FIELD_CAPTURE_ADAPTER_CONTRACT.md`, `docs/PGAS_MODEL.md`,
-`docs/PRODUCT_LANGUAGE_ES.md`, `docs/ZAMORA_WORKSPACE.md`,
+`docs/PRODUCT_LANGUAGE_ES.md`, `docs/I18N_ARCHITECTURE.md`, `docs/ZAMORA_WORKSPACE.md`,
 `docs/PRODUCT_VALUE_AND_DIRECTION.md`, `docs/CONSULTANCY_DEMO_SCRIPT.md`,
 `docs/CLIENT_PORTAL_DECISION.md`, `docs/ENVIRONMENTAL_AUDIT_PRODUCT_DIRECTION.md`,
 `docs/REAL_DATA_INTAKE.md`, `docs/FIELD_MOBILE_ARCHITECTURE.md`,
@@ -183,7 +201,7 @@ Also relevant by task: `docs/DATA_MODEL.md`, `docs/PROVENANCE.md`, `docs/AI_GOVE
 `docs/IMPLEMENTATION_PLAN.md`, `docs/DESIGN_BUNDLE_KNOWN_ISSUES.md`, the delivery docs
 `docs/ENGINEERING_STANDARDS.md`, `docs/RELEASE_POLICY.md`, `docs/CI.md`, `docs/DEPLOYMENT.md`,
 `docs/DEPENDENCIES.md`, `docs/TECH_DEBT.md`, the Gate record `docs/DECISIONS/GATE-1.md`, and
-the ADRs in `docs/DECISIONS/ADR-001` … `ADR-028`. Root `README.md` has the local quick start.
+the ADRs in `docs/DECISIONS/ADR-001` … `ADR-029`. Root `README.md` has the local quick start.
 
 ## Working rules for every session
 

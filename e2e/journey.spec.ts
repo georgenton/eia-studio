@@ -54,7 +54,7 @@ test.describe("reviewer journey", () => {
     await expect(main).toContainText("operational-forecast@1");
 
     // 9 · demo values declare the scenario they belong to, not "today"
-    await expect(main).toContainText("Escenario demo · fecha de corte: 17 sep 2026");
+    await expect(main).toContainText("Escenario demo · fecha de corte: 17 sept 2026");
   });
 
   test("the provenance drawer opens from a KPI, shows real facets and closes with Escape", async ({

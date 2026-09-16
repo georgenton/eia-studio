@@ -26,16 +26,11 @@ import { InvalidInput } from "../core/errors";
 export const RETRIEVAL_STRATEGIES = ["full-text"] as const;
 export type RetrievalStrategy = (typeof RETRIEVAL_STRATEGIES)[number];
 
-/** What the surface says about each strategy, so a result is never over-claimed. */
-export const RETRIEVAL_SEMANTICS: Record<RetrievalStrategy, { label: string; help: string }> = {
-  "full-text": {
-    label: "Búsqueda léxica",
-    help:
-      "Los pasajes se seleccionan por las palabras que contienen, no por su significado. Una " +
-      "pregunta formulada con otras palabras que el documento puede no encontrar nada, aunque el " +
-      "documento lo diga.",
-  },
-};
+/*
+ * What the surface says about each strategy is `documents.retrievalStrategy.*` and
+ * `documents.retrievalStrategyHelp.*` in `@eia/i18n`. The strategy *name* is the claim that must
+ * not be over-stated, and it is the enum above; the sentence explaining it is copy.
+ */
 
 export const retrievalQuerySchema = z
   .object({

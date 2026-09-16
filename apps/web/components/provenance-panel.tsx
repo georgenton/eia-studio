@@ -1,18 +1,8 @@
 import { loadProvenanceView } from "@eia/application";
-import {
-  GRANULARITY_LABEL,
-  NotFound,
-  ORIGIN_LABEL,
-  REGIME_LABEL,
-  SOURCE_TYPE_NOTE,
-  TRANSFORMATION_LABEL,
-  VALIDATION_STATE_LABEL,
-  type RequestContext,
-} from "@eia/domain";
+import { NotFound, type RequestContext } from "@eia/domain";
 import {
   Chip,
   deriveSourceTypeLabel,
-  formatDateTime,
   ProvenanceBadge,
   ProvenanceField,
   ProvenanceSection,
@@ -21,6 +11,15 @@ import {
 import { RouteDrawer } from "@/components/navigation";
 
 import { getDb } from "@/lib/db";
+import {
+  granularityLabel,
+  originLabel,
+  regimeLabel,
+  sourceTypeNote,
+  transformationLabel,
+  validationStateLabel,
+} from "@/lib/labels";
+import { getI18n } from "@/lib/locale";
 
 /**
  * Server-rendered content of the Data Provenance drawer. The record is loaded with the verified
@@ -39,18 +38,16 @@ export async function ProvenancePanel({
   provenanceId: string;
   closeHref: string;
 }) {
+  const { t, fmt } = await getI18n();
   let view;
   try {
     view = await loadProvenanceView(getDb(), ctx, provenanceId);
   } catch (error) {
     if (!(error instanceof NotFound)) throw error;
     return (
-      <RouteDrawer title="Registro no disponible" closeHref={closeHref}>
+      <RouteDrawer title={t("provenance.notFoundTitle")} closeHref={closeHref}>
         <ProvenanceSection>
-          <p>
-            No existe un registro de procedencia con ese identificador en este proyecto, o no tienes
-            acceso a él.
-          </p>
+          <p>{t("provenance.notFoundBody")}</p>
         </ProvenanceSection>
       </RouteDrawer>
     );
@@ -58,22 +55,24 @@ export async function ProvenancePanel({
 
   const { facets } = view;
   const sourceType = deriveSourceTypeLabel(facets);
-  const transformations = facets.transformations.map((t) => TRANSFORMATION_LABEL[t]).join(" → ");
+  const transformations = facets.transformations
+    .map((value) => transformationLabel(t, value))
+    .join(" → ");
 
   return (
     <RouteDrawer title={view.title} closeHref={closeHref}>
       <ProvenanceSection>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          <ProvenanceBadge facets={facets} />
+          <ProvenanceBadge facets={facets} t={t} />
           {/*
             The badge is a summary of the four fields below it, and this line says what it means
             here rather than shouting that it was derived. A reader opens this drawer to decide
-            whether they may quote a figure; «Cifra verificable del expediente» answers that, and
-            «ETIQUETA DERIVADA DE LAS FACETAS» answered a question nobody asked (ADR-025).
+            whether they may quote a figure; "a verifiable figure from the corpus" answers that,
+            and "LABEL DERIVED FROM THE FACETS" answered a question nobody asked (ADR-025).
           */}
           {sourceType ? (
             <span style={{ fontSize: 11, color: "var(--eia-text-muted)" }}>
-              {SOURCE_TYPE_NOTE[sourceType]}
+              {sourceTypeNote(t, sourceType)}
             </span>
           ) : null}
         </div>
@@ -89,15 +88,21 @@ export async function ProvenancePanel({
         </p>
       </ProvenanceSection>
 
-      <ProvenanceField label="Régimen">{REGIME_LABEL[facets.regime]}</ProvenanceField>
-      <ProvenanceField label="Origen">{ORIGIN_LABEL[facets.origin]}</ProvenanceField>
-      <ProvenanceField label="Transformaciones">{transformations}</ProvenanceField>
-      <ProvenanceField label="Granularidad">
-        {facets.granularity ? GRANULARITY_LABEL[facets.granularity] : "No aplica"}
+      <ProvenanceField label={t("provenance.regime")}>
+        {regimeLabel(t, facets.regime)}
+      </ProvenanceField>
+      <ProvenanceField label={t("provenance.origin")}>
+        {originLabel(t, facets.origin)}
+      </ProvenanceField>
+      <ProvenanceField label={t("provenance.transformations")}>{transformations}</ProvenanceField>
+      <ProvenanceField label={t("provenance.granularity")}>
+        {facets.granularity
+          ? granularityLabel(t, facets.granularity)
+          : t("provenance.notApplicable")}
       </ProvenanceField>
 
       {view.sourceLabel ? (
-        <ProvenanceField label="Fuente / dataset">
+        <ProvenanceField label={t("provenance.sourceDataset")}>
           {view.sourceLabel}
           {view.sourceReference ? (
             <>
@@ -110,16 +115,18 @@ export async function ProvenancePanel({
         </ProvenanceField>
       ) : null}
       {view.sourceVersion ? (
-        <ProvenanceField label="Versión">{view.sourceVersion}</ProvenanceField>
+        <ProvenanceField label={t("common.version")}>{view.sourceVersion}</ProvenanceField>
       ) : null}
       {view.capturedAt ? (
-        <ProvenanceField label="Capturado / importado">
-          {formatDateTime(view.capturedAt)}
+        <ProvenanceField label={t("provenance.capturedOrImported")}>
+          {fmt.dateTime(view.capturedAt)}
         </ProvenanceField>
       ) : null}
-      {view.method ? <ProvenanceField label="Método">{view.method}</ProvenanceField> : null}
+      {view.method ? (
+        <ProvenanceField label={t("provenance.method")}>{view.method}</ProvenanceField>
+      ) : null}
       {view.inputs.length > 0 ? (
-        <ProvenanceField label="Calculado a partir de">
+        <ProvenanceField label={t("provenance.derivedFrom")}>
           <ul style={{ margin: 0, paddingLeft: 16 }}>
             {view.inputs.map((input) => (
               <li key={input.id}>{input.title}</li>
@@ -127,13 +134,13 @@ export async function ProvenancePanel({
           </ul>
         </ProvenanceField>
       ) : null}
-      <ProvenanceField label="Registrado en EIA Studio">
-        {formatDateTime(view.recordedAt)}
+      <ProvenanceField label={t("provenance.recordedIn")}>
+        {fmt.dateTime(view.recordedAt)}
       </ProvenanceField>
-      <ProvenanceField label="Validación humana">
+      <ProvenanceField label={t("provenance.validation")}>
         <span style={{ display: "inline-flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <Chip tone={view.validationState === "VALIDATED" ? "ok" : "warn"}>
-            {VALIDATION_STATE_LABEL[view.validationState]}
+            {validationStateLabel(t, view.validationState)}
           </Chip>
           {view.validationNote ? (
             <span style={{ fontSize: 11.5, color: "var(--eia-text-secondary)" }}>

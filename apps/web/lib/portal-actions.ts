@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { getDb } from "@/lib/db";
+import { getTranslator } from "@/lib/locale";
 import { resolveSurfaceAccess } from "@/lib/surface-access";
 
 /**
@@ -25,13 +26,11 @@ export async function publishPublicationAction(raw: unknown): Promise<PortalActi
     .strict()
     .parse(raw);
 
+  const t = await getTranslator();
   const access = await resolveSurfaceAccess(input.tenant, input.project, "portal");
-  if (access.kind !== "ok") return { ok: false, error: "No tienes acceso a esta superficie." };
+  if (access.kind !== "ok") return { ok: false, error: t("actions.noSurfaceAccess") };
   if (!can(access.ctx, "portal.publish")) {
-    return {
-      ok: false,
-      error: "Tu rol permite revisar la publicación, pero no publicarla.",
-    };
+    return { ok: false, error: t("actions.portalPublishDenied") };
   }
 
   try {
@@ -41,13 +40,16 @@ export async function publishPublicationAction(raw: unknown): Promise<PortalActi
     return {
       ok: true,
       versionLabel: result.versionLabel,
-      message: result.unchangedFromPrevious
-        ? `Publicada la actualización ${result.versionLabel}. Dice exactamente lo mismo que la anterior: los datos publicables no han cambiado.`
-        : `Publicada la actualización ${result.versionLabel}. Es lo que el cliente ve desde ahora.`,
+      message: t(
+        result.unchangedFromPrevious
+          ? "actions.portalPublishedUnchanged"
+          : "actions.portalPublished",
+        { version: result.versionLabel },
+      ),
     };
   } catch (error) {
     if (error instanceof DomainError) return { ok: false, error: error.message };
-    if (error instanceof z.ZodError) return { ok: false, error: "Revisa los datos enviados." };
+    if (error instanceof z.ZodError) return { ok: false, error: t("actions.checkPayload") };
     throw error;
   }
 }

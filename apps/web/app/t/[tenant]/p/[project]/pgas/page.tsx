@@ -1,5 +1,5 @@
 import { loadPgasPlan, loadWorkspaceHeader } from "@eia/application";
-import { can, SURFACE_DEFINITIONS } from "@eia/domain";
+import { can } from "@eia/domain";
 import { notFound, redirect } from "next/navigation";
 
 import { PgasOverview } from "@/components/pgas/pgas-overview";
@@ -7,6 +7,8 @@ import { ProvenancePanel } from "@/components/provenance-panel";
 import { projectBreadcrumb, projectLabel, WorkspaceShell } from "@/components/workspace-shell";
 import { getSessionUser } from "@/lib/context";
 import { getDb } from "@/lib/db";
+import { surfaceLabel } from "@/lib/labels";
+import { getI18n } from "@/lib/locale";
 import { projectPath } from "@/lib/navigation";
 import { accessForDomainError, resolveSurfaceAccess } from "@/lib/surface-access";
 import { PermissionDeniedState } from "@/lib/system-state";
@@ -46,6 +48,8 @@ export default async function PgasPage({
   }
 
   const { ctx, tenantSettings } = access;
+  const i18n = await getI18n();
+  const { t } = i18n;
   const sessionUser = await getSessionUser();
   const header = await loadWorkspaceHeader(getDb(), ctx);
 
@@ -54,13 +58,13 @@ export default async function PgasPage({
     tenantSettings,
     projects: header.projects,
     currentSurface: "pgas" as const,
-    userName: sessionUser?.name ?? sessionUser?.email ?? "Usuario",
+    userName: sessionUser?.name ?? sessionUser?.email ?? t("shell.user"),
     userEmail: sessionUser?.email ?? null,
     breadcrumb: projectBreadcrumb(
       ctx,
       header.tenantName,
       projectLabel(header.projects, project),
-      SURFACE_DEFINITIONS.pgas.label,
+      surfaceLabel(t, "pgas"),
     ),
   };
 
@@ -100,7 +104,7 @@ export default async function PgasPage({
         ) : undefined
       }
     >
-      <PgasOverview view={view} />
+      <PgasOverview i18n={i18n} view={view} />
     </WorkspaceShell>
   );
 }

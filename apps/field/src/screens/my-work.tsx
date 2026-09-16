@@ -1,8 +1,8 @@
-import { LOCAL_SURVEY_STATE_LABEL } from "@eia/field-sync-contract";
 import { useState } from "react";
 import { RefreshControl, ScrollView, StyleSheet, TextInput, View } from "react-native";
 
 import { refreshFieldPack } from "../sync/engine";
+import { useT } from "../i18n";
 import { useField } from "../store";
 import { theme } from "../theme";
 import { Body, Button, Card, Chip, Heading, Label, Notice, Screen, Title } from "../ui";
@@ -17,6 +17,7 @@ import type { LocalAssignmentRow } from "../db/repo";
  * application exists.
  */
 export function MyWorkScreen({ onOpen }: { onOpen: (assignmentId: string) => void }) {
+  const t = useT();
   const { pack, assignments, pending, online, syncing, sync, refresh, db, offlineState } =
     useField();
   const [query, setQuery] = useState("");
@@ -28,7 +29,7 @@ export function MyWorkScreen({ onOpen }: { onOpen: (assignmentId: string) => voi
       tenantSlug: pack.project.tenantSlug,
       projectSlug: pack.project.projectSlug,
     });
-    setMessage(result.ok ? "Trabajo actualizado." : result.message);
+    setMessage(result.ok ? t("mobile.workUpdated") : result.message);
     await refresh();
   };
 
@@ -48,46 +49,42 @@ export function MyWorkScreen({ onOpen }: { onOpen: (assignmentId: string) => voi
         refreshControl={<RefreshControl onRefresh={() => void sync()} refreshing={syncing} />}
       >
         <View style={styles.header}>
-          <Label>{pack?.project.projectName ?? "Sin proyecto descargado"}</Label>
-          <Title>Mi trabajo</Title>
+          <Label>{pack?.project.projectName ?? t("mobile.downloadedWork")}</Label>
+          <Title>{t("mobile.myWork")}</Title>
           <View style={styles.chips}>
-            <Chip text={online ? "Con conexión" : "Sin conexión"} tone={online ? "ok" : "warn"} />
             <Chip
-              text={pending === 0 ? "Todo sincronizado" : `${pending} por sincronizar`}
+              text={online ? t("systemState.online") : t("systemState.offline")}
+              tone={online ? "ok" : "warn"}
+            />
+            <Chip
+              text={
+                pending === 0 ? t("mobile.allSynced") : t("mobile.pendingCount", { count: pending })
+              }
               tone={pending === 0 ? "ok" : "warn"}
             />
           </View>
         </View>
 
         {offlineState === "expired" ? (
-          <Notice
-            text="El trabajo descargado venció. Conéctate para renovarlo; lo que ya capturaste sigue guardado y se sincronizará."
-            tone="crit"
-          />
+          <Notice text={t("mobile.offlineExpired")} tone="crit" />
         ) : offlineState === "expiring" ? (
-          <Notice
-            text="El trabajo descargado vence pronto. Conéctate antes de salir a campo."
-            tone="warn"
-          />
+          <Notice text={t("mobile.offlineExpiring")} tone="warn" />
         ) : null}
 
         {message ? <Notice text={message} tone="ok" /> : null}
 
         <TextInput
-          accessibilityLabel="Buscar predio"
+          accessibilityLabel={t("common.search")}
           onChangeText={setQuery}
-          placeholder="Buscar por predio, sector o abscisa"
+          placeholder={t("mobile.searchPlaceholder")}
           style={styles.search}
           value={query}
         />
 
         {visible.length === 0 ? (
           <Card>
-            <Heading>Sin predios asignados</Heading>
-            <Body muted>
-              Descarga tu trabajo cuando tengas señal. Si crees que deberías tener predios
-              asignados, habla con la coordinación del proyecto.
-            </Body>
+            <Heading>{t("mobile.noAssignments")}</Heading>
+            <Body muted>{t("mobile.noAssignmentsBody")}</Body>
           </Card>
         ) : (
           visible.map((assignment) => (
@@ -98,13 +95,13 @@ export function MyWorkScreen({ onOpen }: { onOpen: (assignmentId: string) => voi
         <View style={styles.actions}>
           <Button
             disabled={!online || syncing}
-            hint="Envía lo capturado y descarga los cambios del servidor."
-            label={syncing ? "Sincronizando…" : "Sincronizar ahora"}
+            hint={t("mobile.syncNow")}
+            label={syncing ? t("mobile.syncing") : t("mobile.syncNow")}
             onPress={() => void sync()}
           />
           <Button
             disabled={!online}
-            label="Actualizar trabajo asignado"
+            label={t("mobile.refreshWork")}
             onPress={() => void download()}
             tone="secondary"
           />
@@ -121,22 +118,31 @@ function AssignmentRow({
   assignment: LocalAssignmentRow;
   onOpen: (id: string) => void;
 }) {
+  const t = useT();
   const revoked = assignment.revokedAt !== null;
   return (
     <Card onPress={() => onOpen(assignment.id)}>
-      <Heading>Predio {assignment.parcelCode}</Heading>
+      <Heading>
+        {t("mobile.parcel")} {assignment.parcelCode}
+      </Heading>
       <Body muted>
         {[
           assignment.sectorLabel,
-          assignment.chainageLabel ? `ABS ${assignment.chainageLabel}` : null,
-          assignment.side,
+          assignment.chainageLabel
+            ? `${t("mobile.chainageAbbrev")} ${assignment.chainageLabel}`
+            : null,
+          assignment.side
+            ? t(`vocabulary.parcelSide.${assignment.side}` as "vocabulary.parcelSide.left")
+            : null,
         ]
           .filter(Boolean)
-          .join(" · ") || "Sin contexto adicional"}
+          .join(" · ") || t("mobile.noContext")}
       </Body>
       <View style={styles.chips}>
         <Chip
-          text={LOCAL_SURVEY_STATE_LABEL[assignment.surveyState]}
+          text={t(
+            `mobile.localSurveyState.${assignment.surveyState}` as "mobile.localSurveyState.DRAFT",
+          )}
           tone={
             assignment.surveyState === "SYNCED"
               ? "ok"
@@ -147,7 +153,7 @@ function AssignmentRow({
                   : "warn"
           }
         />
-        {revoked ? <Chip text="Requiere revisión" tone="crit" /> : null}
+        {revoked ? <Chip text={t("mobile.localSurveyState.CONFLICT")} tone="crit" /> : null}
       </View>
     </Card>
   );

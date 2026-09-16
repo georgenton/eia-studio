@@ -30,6 +30,14 @@ export interface SurfaceDefinition {
   readonly key: WorkspaceSurface;
   /** The capability that governs the surface; the rail and the route both consult it. */
   readonly capability: CapabilityKey;
+  /**
+   * The Spanish name, kept as the domain's own word for the surface.
+   *
+   * Since the product became bilingual (Wave 2) the *rendered* name comes from the message
+   * catalogue under `surface.<key>`; this stays because a domain that cannot say what a surface is
+   * called is a domain that has to be joined to a catalogue to be read in a test or a log. The two
+   * are asserted identical for `es-EC` by `packages/i18n/test/i18n.test.ts`.
+   */
   readonly label: string;
   /** URL segment under `/t/:tenant/p/:project`; empty for the project root. */
   readonly segment: string;
@@ -162,16 +170,28 @@ export function surfaceForSegment(segment: string): SurfaceDefinition | null {
   return null;
 }
 
+/**
+ * Where a project is in its life, as the database stores it (`app.project_lifecycle`).
+ *
+ * Declared here as well so that the words for these values — `vocabulary.lifecycle.*` — can be
+ * checked against the set rather than against whatever a surface happened to handle.
+ */
+export const PROJECT_LIFECYCLES = [
+  "planning",
+  "field",
+  "analysis",
+  "review",
+  "delivered",
+  "closed",
+] as const;
+export type ProjectLifecycle = (typeof PROJECT_LIFECYCLES)[number];
+
 /** Severity of an item in "Requiere atención hoy"; always rendered with a label, not colour alone. */
 export const ATTENTION_SEVERITIES = ["high", "medium", "low"] as const;
 export const attentionSeveritySchema = z.enum(ATTENTION_SEVERITIES);
 export type AttentionSeverity = z.infer<typeof attentionSeveritySchema>;
 
-export const ATTENTION_SEVERITY_LABEL: Readonly<Record<AttentionSeverity, string>> = {
-  high: "Alta",
-  medium: "Media",
-  low: "Baja",
-};
+/* Words: `vocabulary.attentionSeverity.*` in `@eia/i18n`. */
 
 export interface AttentionItem {
   readonly id: string;

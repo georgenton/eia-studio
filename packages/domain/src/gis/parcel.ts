@@ -41,11 +41,7 @@ export const PARCEL_SIDES = ["left", "right", "both"] as const;
 export const parcelSideSchema = z.enum(PARCEL_SIDES);
 export type ParcelSide = z.infer<typeof parcelSideSchema>;
 
-export const PARCEL_SIDE_LABEL: Readonly<Record<ParcelSide, string>> = {
-  left: "Izquierdo",
-  right: "Derecho",
-  both: "Ambos",
-};
+/* A side's words are `vocabulary.parcelSide.*` in `@eia/i18n`; the value is what is stored. */
 
 /**
  * What GIS itself can say about a parcel. It is deliberately **not** the survey state of the
@@ -57,35 +53,23 @@ export const PARCEL_STATUSES = ["confirmed", "estimated", "not_located", "exclud
 export const parcelStatusSchema = z.enum(PARCEL_STATUSES);
 export type ParcelStatus = z.infer<typeof parcelStatusSchema>;
 
+/**
+ * What is *not* language about a parcel status.
+ *
+ * The glyph is the accessibility guarantee — state is never communicated by colour alone — and it
+ * is the same mark in every language, so it belongs to the domain. The words beside it
+ * (`vocabulary.parcelStatus.*`, `vocabulary.parcelStatusNote.*`) belong to the catalogue.
+ */
 export interface ParcelStatusPresentation {
-  readonly label: string;
-  /** Shown next to the colour: state is never communicated by colour alone. */
   readonly glyph: string;
-  readonly note: string;
 }
 
 export const PARCEL_STATUS_PRESENTATION: Readonly<Record<ParcelStatus, ParcelStatusPresentation>> =
   {
-    confirmed: {
-      label: "Confirmado",
-      glyph: "✓",
-      note: "Predio frentista confirmado en el universo del estudio",
-    },
-    estimated: {
-      label: "En verificación",
-      glyph: "○",
-      note: "Geometría estimada; el predio aún no se confirma",
-    },
-    not_located: {
-      label: "No localizado",
-      glyph: "?",
-      note: "No se pudo ubicar el predio en el corredor",
-    },
-    excluded: {
-      label: "Excluido",
-      glyph: "—",
-      note: "Fuera del universo de análisis",
-    },
+    confirmed: { glyph: "✓" },
+    estimated: { glyph: "○" },
+    not_located: { glyph: "?" },
+    excluded: { glyph: "—" },
   };
 
 /**

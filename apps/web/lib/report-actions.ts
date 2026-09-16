@@ -10,6 +10,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { getDb } from "@/lib/db";
+import { getTranslator } from "@/lib/locale";
 import { getEnv } from "@/lib/env";
 import { resolveSurfaceAccess } from "@/lib/surface-access";
 
@@ -29,6 +30,7 @@ export type ReportActionResult =
   | { readonly ok: false; readonly error: string };
 
 export async function generateChapterAction(raw: unknown): Promise<ReportActionResult> {
+  const t = await getTranslator();
   const input = z
     .object({ tenant: z.string().min(1).max(80), project: z.string().min(1).max(80) })
     .strict()
@@ -45,9 +47,7 @@ export async function generateChapterAction(raw: unknown): Promise<ReportActionR
     if (!chosen) {
       return {
         ok: false,
-        error:
-          "No hay respuestas enviadas que reportar. El capítulo se construye sobre fichas " +
-          "enviadas; los borradores de campo no participan en ninguna cifra.",
+        error: t("actions.reportNoResponses"),
       };
     }
 
@@ -66,13 +66,14 @@ export async function generateChapterAction(raw: unknown): Promise<ReportActionR
     return {
       ok: true,
       versionLabel: result.versionLabel,
-      message: result.unchangedFromPrevious
-        ? `Versión ${result.versionLabel} generada. Los datos no han cambiado desde la versión anterior: el contenido es idéntico.`
-        : `Versión ${result.versionLabel} generada a partir de los datos validados actuales.`,
+      message: t(
+        result.unchangedFromPrevious ? "actions.reportUnchanged" : "actions.reportGenerated",
+        { version: result.versionLabel },
+      ),
     };
   } catch (error) {
     if (error instanceof DomainError) return { ok: false, error: error.message };
-    if (error instanceof z.ZodError) return { ok: false, error: "Revisa los datos enviados." };
+    if (error instanceof z.ZodError) return { ok: false, error: t("actions.checkPayload") };
     throw error;
   }
 }

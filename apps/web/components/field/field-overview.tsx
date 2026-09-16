@@ -1,23 +1,10 @@
 import type { FieldOverview } from "@eia/application";
-import {
-  CAMPAIGN_STATUS_LABEL,
-  captureChannel,
-  FIELD_OFFLINE_MODE_SEMANTICS,
-  type FieldOfflineMode,
-} from "@eia/domain";
-import {
-  Chip,
-  formatCount,
-  formatIsoDate,
-  formatPercent,
-  Panel,
-  PanelBody,
-  PanelHeader,
-  ProgressBar,
-  ProvenanceBadge,
-} from "@eia/ui";
+import { captureChannel, type FieldOfflineMode } from "@eia/domain";
+import { Chip, Panel, PanelBody, PanelHeader, ProgressBar, ProvenanceBadge } from "@eia/ui";
 
 import { ProvenanceLink } from "@/components/navigation";
+import { campaignStatusLabel, captureChannelLabel, offlineModeLabel } from "@/lib/labels";
+import type { I18n } from "@/lib/locale";
 
 import styles from "./field-overview.module.css";
 
@@ -26,14 +13,15 @@ function CampaignPanel({
   campaign,
   basePath,
   offlineMode,
+  i18n: { t, fmt },
 }: {
   campaign: FieldOverview["campaigns"][number];
   basePath: string;
   offlineMode: FieldOfflineMode;
+  i18n: I18n;
 }) {
   const channel = captureChannel(campaign.captureChannel);
   const mode = campaign.offlineModeAtActivation ?? offlineMode;
-  const semantics = FIELD_OFFLINE_MODE_SEMANTICS[mode];
   return (
     <Panel>
       <PanelHeader
@@ -42,11 +30,11 @@ function CampaignPanel({
          * ran; only one of them is what "pendientes" means today, and a reader should not
          * have to compare dates to work out which.
          */
-        label={campaign.isCurrent ? "Operativo actual" : "Operativo anterior"}
-        badge={<ProvenanceBadge facets={campaign.provenance} />}
+        label={t(campaign.isCurrent ? "field.currentOperation" : "field.previousOperation")}
+        badge={<ProvenanceBadge facets={campaign.provenance} t={t} />}
         action={
           <ProvenanceLink href={`${basePath}?prov=${campaign.provenanceId}`}>
-            Ver origen
+            {t("field.viewProvenance")}
           </ProvenanceLink>
         }
       />
@@ -59,37 +47,40 @@ function CampaignPanel({
               {/* The version label is traceability, not decoration: a response resolves
                         against exactly this definition, for ever. */}
               <span className={styles.version}>{campaign.surveyVersionLabel}</span>
-              {campaign.startsOn ? ` · desde ${formatIsoDate(campaign.startsOn)}` : ""}
-              {campaign.targetOn ? ` · meta ${formatIsoDate(campaign.targetOn)}` : ""}
+              {campaign.startsOn
+                ? t("field.fromDate", { date: fmt.isoDate(campaign.startsOn) })
+                : ""}
+              {campaign.targetOn
+                ? t("field.targetDate", { date: fmt.isoDate(campaign.targetOn) })
+                : ""}
             </p>
           </div>
           <Chip tone={campaign.status === "ACTIVE" ? "ok" : "neutral"}>
-            {CAMPAIGN_STATUS_LABEL[campaign.status]}
+            {campaignStatusLabel(t, campaign.status)}
           </Chip>
         </div>
 
         {campaign.isCurrent ? null : (
-          <p className={styles.historyNote}>
-            Operativo cerrado. Se conserva completo — sus asignaciones, visitas y fichas enviadas
-            siguen aquí — y no cuenta en el avance ni en las cifras del operativo actual.
-          </p>
+          <p className={styles.historyNote}>{t("field.closedOperationNote")}</p>
         )}
 
         <dl className={styles.channel}>
           <div>
-            <dt>Canal de captura</dt>
-            <dd>{channel.label}</dd>
+            <dt>{t("field.captureChannel")}</dt>
+            <dd>{captureChannelLabel(t, channel.key)}</dd>
           </div>
           <div>
-            <dt>Captura offline</dt>
+            <dt>{t("field.offlineCapture")}</dt>
             {/* Stated as it is. Saying "offline disponible" for a channel that posts to the
                       server would cost a technician a day of work in a valley with no signal. */}
             <dd>
-              {semantics.label}
+              {offlineModeLabel(t, mode)}
               <span className={styles.channelNote}>
-                {channel.supportsOffline
-                  ? "El canal declara soporte offline."
-                  : "El canal web requiere conexión al enviar; no hay cola offline."}
+                {t(
+                  channel.supportsOffline
+                    ? "field.channelSupportsOffline"
+                    : "field.channelOnlineOnly",
+                )}
               </span>
             </dd>
           </div>
@@ -98,35 +89,36 @@ function CampaignPanel({
         <div className={styles.progress}>
           <ProgressBar
             ratio={campaign.progress.completionRatio ?? 0}
-            label="Avance de la campaña"
-            valueLabel={`${formatCount(campaign.submittedCount)} / ${formatCount(
-              campaign.progress.total,
-            )} enviadas${
+            label={t("field.campaignProgress")}
+            valueLabel={`${t("field.submittedOf", {
+              submitted: fmt.count(campaign.submittedCount),
+              total: fmt.count(campaign.progress.total),
+            })}${
               campaign.progress.completionRatio === null
                 ? ""
-                : ` · ${formatPercent(campaign.progress.completionRatio)}`
+                : ` · ${fmt.percent(campaign.progress.completionRatio)}`
             }`}
           />
           <ul className={styles.counts}>
             <li>
-              <span>Asignadas</span>
-              <strong>{formatCount(campaign.progress.total)}</strong>
+              <span>{t("field.assigned")}</span>
+              <strong>{fmt.count(campaign.progress.total)}</strong>
             </li>
             <li>
-              <span>Pendientes</span>
-              <strong>{formatCount(campaign.progress.pending)}</strong>
+              <span>{t("field.pending")}</span>
+              <strong>{fmt.count(campaign.progress.pending)}</strong>
             </li>
             <li>
-              <span>En curso</span>
-              <strong>{formatCount(campaign.progress.inProgress)}</strong>
+              <span>{t("field.inProgress")}</span>
+              <strong>{fmt.count(campaign.progress.inProgress)}</strong>
             </li>
             <li>
-              <span>Completadas</span>
-              <strong>{formatCount(campaign.progress.completed)}</strong>
+              <span>{t("field.completed")}</span>
+              <strong>{fmt.count(campaign.progress.completed)}</strong>
             </li>
             <li>
-              <span>Enviadas</span>
-              <strong>{formatCount(campaign.submittedCount)}</strong>
+              <span>{t("field.submitted")}</span>
+              <strong>{fmt.count(campaign.submittedCount)}</strong>
             </li>
           </ul>
         </div>
@@ -152,19 +144,19 @@ export function FieldOverviewSurface({
   overview,
   basePath,
   offlineMode,
+  i18n,
 }: {
   overview: FieldOverview;
   basePath: string;
   offlineMode: FieldOfflineMode;
+  i18n: I18n;
 }) {
+  const { t, fmt } = i18n;
   if (overview.campaigns.length === 0) {
     return (
       <div className={styles.empty} data-system-state="empty">
-        <h1 className={styles.emptyTitle}>Todavía no hay campañas de campo</h1>
-        <p className={styles.emptyNote}>
-          Una campaña conecta un cuestionario publicado con las asignaciones de campo. Hasta que
-          exista una, no hay avance que mostrar: esta superficie no inventa cifras.
-        </p>
+        <h1 className={styles.emptyTitle}>{t("field.noCampaignsTitle")}</h1>
+        <p className={styles.emptyNote}>{t("field.noCampaignsBody")}</p>
       </div>
     );
   }
@@ -179,6 +171,7 @@ export function FieldOverviewSurface({
           key={campaign.id}
           campaign={campaign}
           basePath={basePath}
+          i18n={i18n}
           offlineMode={offlineMode}
         />
       ))}
@@ -195,18 +188,16 @@ export function FieldOverviewSurface({
         <details className={styles.history}>
           <summary className={styles.historySummary}>
             {history.length === 1
-              ? "Ver el operativo anterior"
-              : `Ver los ${history.length} operativos anteriores`}
+              ? t("field.showPreviousOne")
+              : t("field.showPreviousMany", { count: fmt.count(history.length) })}
           </summary>
-          <p className={styles.historyNote}>
-            Operativos cerrados. Se conservan completos — sus asignaciones, visitas y fichas
-            enviadas siguen aquí — y no cuentan en el avance ni en las cifras del operativo actual.
-          </p>
+          <p className={styles.historyNote}>{t("field.closedOperationsNote")}</p>
           {history.map((campaign) => (
             <CampaignPanel
               key={campaign.id}
               campaign={campaign}
               basePath={basePath}
+              i18n={i18n}
               offlineMode={offlineMode}
             />
           ))}
@@ -214,40 +205,34 @@ export function FieldOverviewSurface({
       ) : null}
 
       <Panel>
-        <PanelHeader label="Carga por técnico" />
+        <PanelHeader label={t("field.workloadTitle")} />
         <PanelBody>
           {overview.workload.length === 0 ? (
-            <p className={styles.emptyNote}>Todavía no hay asignaciones repartidas.</p>
+            <p className={styles.emptyNote}>{t("field.noAssignments")}</p>
           ) : (
             <table className={styles.workload}>
-              <caption className={styles.srOnly}>
-                Asignaciones por técnico. Son recuentos: esta vista no muestra respuestas
-                individuales.
-              </caption>
+              <caption className={styles.srOnly}>{t("field.workloadCaption")}</caption>
               <thead>
                 <tr>
-                  <th scope="col">Técnico</th>
-                  <th scope="col">Pendientes</th>
-                  <th scope="col">En curso</th>
-                  <th scope="col">Completadas</th>
+                  <th scope="col">{t("field.technician")}</th>
+                  <th scope="col">{t("field.pending")}</th>
+                  <th scope="col">{t("field.inProgress")}</th>
+                  <th scope="col">{t("field.completed")}</th>
                 </tr>
               </thead>
               <tbody>
                 {overview.workload.map((row) => (
                   <tr key={row.userId}>
                     <td>{row.displayName}</td>
-                    <td className={styles.numeric}>{formatCount(row.pending)}</td>
-                    <td className={styles.numeric}>{formatCount(row.inProgress)}</td>
-                    <td className={styles.numeric}>{formatCount(row.completed)}</td>
+                    <td className={styles.numeric}>{fmt.count(row.pending)}</td>
+                    <td className={styles.numeric}>{fmt.count(row.inProgress)}</td>
+                    <td className={styles.numeric}>{fmt.count(row.completed)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           )}
-          <p className={styles.footnote}>
-            Recuentos de trabajo, no respuestas. Abrir una ficha concreta requiere el permiso de
-            lectura de respuestas individuales, que no todos los roles tienen.
-          </p>
+          <p className={styles.footnote}>{t("field.workloadFootnote")}</p>
         </PanelBody>
       </Panel>
     </div>

@@ -6,6 +6,7 @@ import { ScrollView, StyleSheet, View } from "react-native";
 import { visitStartCommand } from "../core/commands";
 import { enqueue, insertVisit, upsertSurvey } from "../db/repo";
 import { fieldConfig } from "../config";
+import { useT } from "../i18n";
 import { useField } from "../store";
 import { theme } from "../theme";
 import { Body, Button, Card, Chip, Heading, Label, Notice, Screen, Title } from "../ui";
@@ -30,6 +31,7 @@ export function AssignmentScreen({
   onOpenSurvey: (assignmentId: string) => void;
   onBack: () => void;
 }) {
+  const t = useT();
   const { db, pack, assignments, refresh, offlineState } = useField();
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -39,8 +41,8 @@ export function AssignmentScreen({
     return (
       <Screen>
         <ScrollView contentContainerStyle={styles.content}>
-          <Title>Predio no disponible</Title>
-          <Button label="Volver" onPress={onBack} tone="secondary" />
+          <Title>{t("mobile.parcelUnavailable")}</Title>
+          <Button label={t("common.back")} onPress={onBack} tone="secondary" />
         </ScrollView>
       </Screen>
     );
@@ -97,7 +99,7 @@ export function AssignmentScreen({
       await refresh();
       onOpenSurvey(assignment.id);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "No se pudo iniciar la visita.");
+      setMessage(error instanceof Error ? error.message : t("mobile.startVisit"));
     } finally {
       setBusy(false);
     }
@@ -110,50 +112,55 @@ export function AssignmentScreen({
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.header}>
           <Label>{pack.campaign.name}</Label>
-          <Title>Predio {assignment.parcelCode}</Title>
+          <Title>
+            {t("mobile.parcel")} {assignment.parcelCode}
+          </Title>
           <Body muted>
             {[
               assignment.sectorLabel,
-              assignment.chainageLabel ? `ABS ${assignment.chainageLabel}` : null,
-              assignment.side,
+              assignment.chainageLabel
+                ? `${t("mobile.chainageAbbrev")} ${assignment.chainageLabel}`
+                : null,
+              assignment.side
+                ? t(`vocabulary.parcelSide.${assignment.side}` as "vocabulary.parcelSide.left")
+                : null,
             ]
               .filter(Boolean)
-              .join(" · ") || "Sin contexto adicional"}
+              .join(" · ") || t("mobile.noContext")}
           </Body>
         </View>
 
-        {assignment.revokedAt ? (
-          <Notice
-            text="Esta asignación ya no aparece en tu trabajo del servidor. Lo que capturaste aquí se conservó y la coordinación debe revisarlo."
-            tone="crit"
-          />
-        ) : null}
+        {assignment.revokedAt ? <Notice text={t("mobile.assignmentRevoked")} tone="crit" /> : null}
         {offlineState === "expired" ? (
-          <Notice
-            text="El trabajo descargado venció. Conéctate para renovarlo antes de iniciar una visita nueva."
-            tone="crit"
-          />
+          <Notice text={t("mobile.offlineExpired")} tone="crit" />
         ) : null}
         {message ? <Notice text={message} tone="crit" /> : null}
 
         <Card>
           <Heading>{pack.campaign.surveyVersion.templateName}</Heading>
-          <Body muted>Versión {pack.campaign.surveyVersion.versionLabel}</Body>
-          <Chip text={`${pack.campaign.surveyVersion.questions.length} preguntas`} />
+          <Body muted>
+            {t("common.version")} {pack.campaign.surveyVersion.versionLabel}
+          </Body>
+          <Chip
+            text={t("mobile.questions", { count: pack.campaign.surveyVersion.questions.length })}
+          />
         </Card>
 
         <View style={styles.actions}>
           {hasLocalWork ? (
-            <Button label="Continuar ficha" onPress={() => onOpenSurvey(assignment.id)} />
+            <Button
+              label={t("mobile.continueSurvey")}
+              onPress={() => onOpenSurvey(assignment.id)}
+            />
           ) : (
             <Button
               disabled={busy || offlineState === "expired"}
-              hint="Registra tu posición si lo autorizas; nunca se inventa una ubicación."
-              label={busy ? "Iniciando…" : "Iniciar visita"}
+              hint={t("vocabulary.locationOutcome.captured")}
+              label={busy ? t("mobile.startingVisit") : t("mobile.startVisit")}
               onPress={() => void startVisit()}
             />
           )}
-          <Button label="Volver" onPress={onBack} tone="secondary" />
+          <Button label={t("common.back")} onPress={onBack} tone="secondary" />
         </View>
       </ScrollView>
     </Screen>

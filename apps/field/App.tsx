@@ -10,6 +10,7 @@ import { SettingsScreen } from "./src/screens/settings";
 import { SignInScreen } from "./src/screens/sign-in";
 import { SurveyScreen } from "./src/screens/survey";
 import { SyncCenterScreen } from "./src/screens/sync-center";
+import { LocaleGate, useT } from "./src/i18n";
 import { FieldProvider, useField } from "./src/store";
 import { theme } from "./src/theme";
 import { Body, Button, Notice, Screen, Title } from "./src/ui";
@@ -40,6 +41,16 @@ export default function App() {
 
 function Root() {
   const { data: session, isPending } = authClient.useSession();
+  const { db: database } = useField();
+  return (
+    <LocaleGate db={database}>
+      <Routed session={session} sessionPending={isPending} />
+    </LocaleGate>
+  );
+}
+
+function Routed({ session, sessionPending }: { session: unknown; sessionPending: boolean }) {
+  const t = useT();
   const [route, setRoute] = useState<Route>({ name: "my-work" });
   const { db, openError, sync, online, pending } = useField();
 
@@ -57,7 +68,7 @@ function Root() {
     attempt();
   }, [attempt]);
 
-  if (isPending) {
+  if (sessionPending) {
     return (
       <SafeAreaView style={styles.centre}>
         <ActivityIndicator color={theme.accent} size="large" />
@@ -79,7 +90,7 @@ function Root() {
       <SafeAreaView style={styles.flex}>
         <Screen>
           <View style={styles.centreContent}>
-            <Title>No se pudo abrir el almacenamiento local</Title>
+            <Title>{t("mobile.storageFailedTitle")}</Title>
             <Notice text={openError} tone="crit" />
             <Body muted>
               EIA Field guarda el trabajo de campo cifrado en el dispositivo. Si no puede cifrarlo,
@@ -126,17 +137,17 @@ function Root() {
       )}
       <View style={styles.tabs}>
         <Button
-          label="Mi trabajo"
+          label={t("mobile.myWork")}
           onPress={() => setRoute({ name: "my-work" })}
           tone={route.name === "my-work" ? "primary" : "secondary"}
         />
         <Button
-          label={pending > 0 ? `Sincronizar (${pending})` : "Sincronizar"}
+          label={pending > 0 ? `${t("mobile.syncNow")} (${pending})` : t("mobile.syncNow")}
           onPress={() => setRoute({ name: "sync" })}
           tone={route.name === "sync" ? "primary" : "secondary"}
         />
         <Button
-          label="Ajustes"
+          label={t("mobile.settings")}
           onPress={() => setRoute({ name: "settings" })}
           tone={route.name === "settings" ? "primary" : "secondary"}
         />

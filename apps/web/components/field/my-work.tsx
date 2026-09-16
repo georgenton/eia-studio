@@ -1,6 +1,8 @@
 import type { MyAssignment } from "@eia/application";
-import { ASSIGNMENT_STATUS_PRESENTATION, formatChainage, INSTANCE_STATUS_LABEL } from "@eia/domain";
-import { formatCount } from "@eia/ui";
+import { ASSIGNMENT_STATUS_PRESENTATION, formatChainage } from "@eia/domain";
+
+import { assignmentStatusLabel, instanceStatusLabel } from "@/lib/labels";
+import type { I18n } from "@/lib/locale";
 
 import styles from "./my-work.module.css";
 
@@ -19,18 +21,17 @@ import styles from "./my-work.module.css";
 export function MyWork({
   assignments,
   assignmentPath,
+  i18n: { t, fmt },
 }: {
   assignments: ReadonlyArray<MyAssignment>;
   assignmentPath: (assignmentId: string) => string;
+  i18n: I18n;
 }) {
   if (assignments.length === 0) {
     return (
       <div className={styles.empty} data-system-state="empty">
-        <h1 className={styles.title}>Mi trabajo</h1>
-        <p className={styles.emptyNote}>
-          No tienes asignaciones en campañas activas. Cuando el coordinador te asigne predios,
-          aparecerán aquí.
-        </p>
+        <h1 className={styles.title}>{t("field.myWorkTitle")}</h1>
+        <p className={styles.emptyNote}>{t("field.myWorkEmptyNote")}</p>
       </div>
     );
   }
@@ -40,23 +41,25 @@ export function MyWork({
   return (
     <div className={styles.surface}>
       <header className={styles.header}>
-        <h1 className={styles.title}>Mi trabajo</h1>
+        <h1 className={styles.title}>{t("field.myWorkTitle")}</h1>
         <p className={styles.summary}>
-          {formatCount(assignments.length)} asignaciones · {formatCount(pending)} por completar
+          {t("field.myWorkSummary", {
+            total: fmt.count(assignments.length),
+            pending: fmt.count(pending),
+          })}
         </p>
       </header>
 
       <ul className={styles.list}>
         {assignments.map((assignment) => {
-          const status = ASSIGNMENT_STATUS_PRESENTATION[assignment.status];
           const action =
             assignment.status === "COMPLETED"
-              ? "Ver ficha enviada"
+              ? t("field.viewSubmittedForm")
               : assignment.instanceId
-                ? "Continuar ficha"
+                ? t("field.continueForm")
                 : assignment.openVisitId && assignment.visitStatus === "IN_PROGRESS"
-                  ? "Continuar visita"
-                  : "Iniciar visita";
+                  ? t("field.continueVisit")
+                  : t("field.startVisit");
           return (
             <li key={assignment.id}>
               {/* The whole card is the target: a 44 px minimum is not enough on a phone held in
@@ -65,18 +68,23 @@ export function MyWork({
                 <div className={styles.cardHead}>
                   <span className={styles.code}>{assignment.parcelCode}</span>
                   <span className={`${styles.state} ${styles[assignment.status]}`}>
-                    <span aria-hidden="true">{status.glyph}</span> {status.label}
+                    <span aria-hidden="true">
+                      {ASSIGNMENT_STATUS_PRESENTATION[assignment.status].glyph}
+                    </span>{" "}
+                    {assignmentStatusLabel(t, assignment.status)}
                   </span>
                 </div>
                 <p className={styles.context}>
-                  {assignment.sectorLabel ?? "Sin sector"}
+                  {assignment.sectorLabel ?? t("gis.noSector")}
                   {assignment.chainageM === null
                     ? ""
-                    : ` · ABS ${formatChainage(assignment.chainageM)}`}
+                    : ` · ${t("gis.chainageAbbrev")} ${formatChainage(assignment.chainageM)}`}
                 </p>
                 {assignment.instanceStatus ? (
                   <p className={styles.instance}>
-                    Ficha: {INSTANCE_STATUS_LABEL[assignment.instanceStatus]}
+                    {t("field.formLine", {
+                      status: instanceStatusLabel(t, assignment.instanceStatus),
+                    })}
                   </p>
                 ) : null}
                 <span className={styles.action}>{action}</span>

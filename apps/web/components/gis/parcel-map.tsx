@@ -2,7 +2,6 @@
 
 import type { ParcelExplorerView } from "@eia/application";
 import {
-  BASEMAP_MODE_LABEL,
   BASEMAP_MODES,
   collectPositions,
   PARCEL_STATUS_PRESENTATION,
@@ -21,6 +20,9 @@ import {
   type MapMouseEvent,
 } from "maplibre-gl";
 import { useEffect, useRef, useState } from "react";
+
+import { useI18n } from "@/components/i18n/locale-provider";
+import { basemapModeLabel, parcelStatusLabel } from "@/lib/labels";
 
 import { attachBasemap, detachBasemap, probeBasemap } from "./basemap-layer";
 import { ensureMapWorker, keepMapSized, removeMapFromTabOrder } from "./inert-map";
@@ -193,6 +195,7 @@ export function ParcelMap({
   /** What this deployment may draw *underneath* the study's layers, if anything. */
   basemap: BasemapCatalogue;
 }) {
+  const { t } = useI18n();
   const container = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<InstanceType<typeof MapLibreMap> | null>(null);
   const boundsRef = useRef(view.bounds);
@@ -591,7 +594,7 @@ export function ParcelMap({
             onClick={recentre}
             type="button"
           >
-            Centrar en proyecto
+            {t("gis.recentre")}
           </button>
         ) : null}
         <BasemapSwitcher
@@ -608,15 +611,12 @@ export function ParcelMap({
       <BasemapCredits catalogue={basemap} failed={basemapFailed} mode={mode} />
       <div aria-live="polite" className={styles.srOnly} role="status">
         {selectedParcelId
-          ? `Predio seleccionado: ${
-              view.parcels.find((p) => p.id === selectedParcelId)?.parcelCode ?? ""
-            }`
-          : "Ningún predio seleccionado"}
+          ? t("gis.parcelSelected", {
+              code: view.parcels.find((p) => p.id === selectedParcelId)?.parcelCode ?? "",
+            })
+          : t("gis.noParcelSelected")}
       </div>
-      <p className={styles.srOnly}>
-        El mapa es una representación visual de la tabla de predios. Toda la información está
-        disponible en la tabla, que es navegable con el teclado.
-      </p>
+      <p className={styles.srOnly}>{t("gis.mapIsVisual")}</p>
       <MapLegends view={view} />
     </div>
   );
@@ -646,11 +646,12 @@ function BasemapSwitcher({
   mode: BasemapMode;
   onChange: (mode: BasemapMode) => void;
 }) {
+  const { t } = useI18n();
   const configured = catalogue.provider !== "none";
   return (
     <div className={styles.basemap}>
       <label className={styles.basemapLabel} htmlFor="basemap-mode">
-        Fondo del mapa
+        {t("gis.basemapLabel")}
       </label>
       <select
         className={styles.basemapSelect}
@@ -661,21 +662,18 @@ function BasemapSwitcher({
       >
         {BASEMAP_MODES.map((option) => (
           <option disabled={!catalogue.modes.includes(option)} key={option} value={option}>
-            {BASEMAP_MODE_LABEL[option]}
+            {basemapModeLabel(t, option)}
           </option>
         ))}
       </select>
-      {configured ? null : (
-        <p className={styles.basemapHint}>Requiere mapa de referencia configurado</p>
-      )}
+      {configured ? null : <p className={styles.basemapHint}>{t("gis.basemapNotConfigured")}</p>}
       {failed ? (
         // Deliberately not a live region. The canvas is `aria-hidden` and a background is purely
         // visual, so announcing its absence would interrupt a screen-reader user with news about
         // something they were never shown — and it would compete with the selection announcement,
         // which is the one thing on this surface worth interrupting for.
         <p className={styles.basemapHint} data-testid="basemap-unavailable">
-          El mapa de referencia no está disponible. Se mantiene el fondo neutro; las capas del
-          estudio no cambian.
+          {t("gis.basemapUnavailable")}
         </p>
       ) : null}
     </div>
@@ -702,11 +700,12 @@ function BasemapCredits({
   failed: boolean;
   mode: BasemapMode;
 }) {
+  const { t } = useI18n();
   const source = failed ? null : basemapSourceFor(catalogue, mode);
   if (!source) return null;
   return (
     <p className={styles.credits} data-testid="basemap-credits">
-      <span className={styles.creditsKind}>Mapa de referencia</span>
+      <span className={styles.creditsKind}>{t("gis.basemapCredits")}</span>
       {source.credits.map((credit) => (
         <span key={credit.label}>
           {" · "}
@@ -724,6 +723,7 @@ function BasemapCredits({
 }
 
 function MapLegends({ view }: { view: ParcelExplorerView }) {
+  const { t } = useI18n();
   const counts = view.parcels.reduce<Record<string, number>>((acc, parcel) => {
     acc[parcel.status] = (acc[parcel.status] ?? 0) + 1;
     return acc;
@@ -734,7 +734,7 @@ function MapLegends({ view }: { view: ParcelExplorerView }) {
   return (
     <div className={styles.legends}>
       <div className={styles.legend}>
-        <div className={styles.legendTitle}>Estado del predio</div>
+        <div className={styles.legendTitle}>{t("gis.parcelStatusLegend")}</div>
         <ul className={styles.legendList}>
           {present.map((status) => (
             <li className={styles.legendRow} key={status}>
@@ -745,7 +745,7 @@ function MapLegends({ view }: { view: ParcelExplorerView }) {
               >
                 {PARCEL_STATUS_PRESENTATION[status].glyph}
               </span>
-              <span className={styles.legendLabel}>{PARCEL_STATUS_PRESENTATION[status].label}</span>
+              <span className={styles.legendLabel}>{parcelStatusLabel(t, status)}</span>
               <span className={styles.legendCount}>{counts[status]}</span>
             </li>
           ))}

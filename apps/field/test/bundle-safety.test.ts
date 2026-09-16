@@ -84,7 +84,7 @@ describe("the mobile bundle", () => {
       dependencies: Record<string, string>;
     };
     const workspace = Object.keys(manifest.dependencies).filter((name) => name.startsWith("@eia/"));
-    expect(workspace.sort()).toEqual(["@eia/domain", "@eia/field-sync-contract"]);
+    expect(workspace.sort()).toEqual(["@eia/domain", "@eia/field-sync-contract", "@eia/i18n"]);
   });
 
   it("carries no secret: nothing in the source looks like a key or a token", () => {

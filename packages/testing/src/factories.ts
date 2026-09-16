@@ -422,6 +422,15 @@ export async function createPublishedSurvey(
      * factory must not work around.
      */
     openTextCode?: string;
+    /**
+     * Publish the same questions in a second language. Also before the flip: a translation is part
+     * of the definition (ADR-029), so the same trigger refuses it afterwards.
+     */
+    translations?: {
+      locale: string;
+      questions: Readonly<Record<string, { prompt: string; helpText?: string | null }>>;
+      options?: Readonly<Record<string, string>>;
+    };
   },
 ): Promise<SeededQuestionnaire> {
   const templateId = input.templateId ?? randomUUID();
@@ -534,6 +543,25 @@ export async function createPublishedSurvey(
       })
     : null;
 
+  const questionIds = {
+    [questionCode]: choiceId,
+    has_concern: requiredId,
+    services_present: multiId,
+    ...(openText && input.openTextCode ? { [input.openTextCode]: openText.questionId } : {}),
+  };
+
+  if (input.translations) {
+    await addSurveyTranslations(db, {
+      tenantId: input.tenantId,
+      projectId: input.projectId,
+      locale: input.translations.locale,
+      questions: input.translations.questions,
+      options: input.translations.options ?? {},
+      questionIds,
+      optionIds,
+    });
+  }
+
   await db
     .update(fieldSchema.surveyVersion)
     .set({ status: "PUBLISHED", publishedAt: new Date(), definitionHash: `hash_${next()}` })
@@ -542,12 +570,7 @@ export async function createPublishedSurvey(
   return {
     templateId,
     versionId,
-    questionIds: {
-      [questionCode]: choiceId,
-      has_concern: requiredId,
-      services_present: multiId,
-      ...(openText && input.openTextCode ? { [input.openTextCode]: openText.questionId } : {}),
-    },
+    questionIds,
     optionIds,
   };
 }
@@ -1102,6 +1125,52 @@ export async function createSpecialistReview(
  * ------------------------------------------------------------------------------------------- */
 
 /** A short two-segment centreline near the given point. Nobody's road; a valid MultiLineString. */
+/**
+ * Publish a questionnaire in a second language.
+ *
+ * Must run **before** the version is published: a translation is part of the definition and the
+ * `survey_definition_frozen` trigger refuses it afterwards (ADR-029). A factory that worked around
+ * that would be testing a database nobody runs.
+ */
+export async function addSurveyTranslations(
+  db: Database,
+  input: {
+    tenantId: string;
+    projectId: string;
+    locale: string;
+    questions: Readonly<Record<string, { prompt: string; helpText?: string | null }>>;
+    options?: Readonly<Record<string, string>>;
+    questionIds: Readonly<Record<string, string>>;
+    optionIds?: Readonly<Record<string, string>>;
+  },
+): Promise<void> {
+  for (const [code, text] of Object.entries(input.questions)) {
+    const questionId = input.questionIds[code];
+    if (!questionId) continue;
+    await db.insert(fieldSchema.surveyQuestionTranslation).values({
+      id: randomUUID(),
+      tenantId: input.tenantId,
+      projectId: input.projectId,
+      questionId,
+      locale: input.locale,
+      prompt: text.prompt,
+      helpText: text.helpText ?? null,
+    });
+  }
+  for (const [code, label] of Object.entries(input.options ?? {})) {
+    const optionId = input.optionIds?.[code];
+    if (!optionId) continue;
+    await db.insert(fieldSchema.surveyOptionTranslation).values({
+      id: randomUUID(),
+      tenantId: input.tenantId,
+      projectId: input.projectId,
+      optionId,
+      locale: input.locale,
+      label,
+    });
+  }
+}
+
 export async function createAlignment(
   db: Database,
   input: {

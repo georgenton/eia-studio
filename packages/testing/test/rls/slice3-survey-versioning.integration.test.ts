@@ -68,13 +68,19 @@ beforeAll(async () => {
     role: "FIELD_TECHNICIAN",
   });
 
-  // v1: one single-choice question with options X and Y.
+  // v1: one single-choice question with options X and Y, published in two languages. The English
+  // wording is part of *this* version's definition, not a second questionnaire (ADR-029).
   v1 = await createPublishedSurvey(db.migrator, {
     tenantId: w.tenantA.id,
     projectId: w.projectX.id,
     provenanceId: prov,
     versionLabel: "v1",
     optionCodes: ["option_x", "option_y"],
+    translations: {
+      locale: "en",
+      questions: { tenure_category: { prompt: "Relationship to the parcel?" } },
+      options: { option_x: "Owner-occupier" },
+    },
   });
 
   const datasetVersion = await createSpatialDatasetVersion(db.migrator, {
@@ -258,6 +264,75 @@ describe("Slice 3 · a published questionnaire is frozen", () => {
         required: false,
         sensitivity: "NON_PERSONAL",
       }),
+    );
+    expect(error).toMatch(/survey_definition_frozen/i);
+  });
+});
+
+describe("Wave 2 · a translation is part of the frozen definition", () => {
+  it("one question carries two languages rather than becoming two questions", async () => {
+    const questions = await db.migrator.execute(sql`
+      select count(*)::int as n from app.survey_question where version_id = ${v1.versionId}
+    `);
+    expect((questions.rows[0] as { n: number }).n).toBe(3);
+
+    const translations = await db.migrator.execute(sql`
+      select locale, prompt from app.survey_question_translation
+      where question_id = ${v1.questionIds.tenure_category!}
+    `);
+    expect(translations.rows).toEqual([{ locale: "en", prompt: "Relationship to the parcel?" }]);
+  });
+
+  it("an answer still points at the question, whatever language it was read in", async () => {
+    const rows = await db.migrator.execute(sql`
+      select question_id, option_id from app.survey_answer
+      where instance_id = ${instanceOnV1} and question_id = ${v1.questionIds.tenure_category!}
+    `);
+    expect(rows.rows[0]).toMatchObject({
+      question_id: v1.questionIds.tenure_category!,
+      option_id: v1.optionIds.option_x!,
+    });
+  });
+
+  it("adding a language to a published version is refused", async () => {
+    const error = await attempt(
+      db.migrator.insert(fieldSchema.surveyQuestionTranslation).values({
+        id: randomUUID(),
+        tenantId: w.tenantA.id,
+        projectId: w.projectX.id,
+        questionId: v1.questionIds.has_concern!,
+        locale: "en",
+        prompt: "Do you have any concern?",
+        helpText: null,
+      }),
+    );
+    expect(error).toMatch(/survey_definition_frozen/i);
+  });
+
+  it("rewording a published translation is refused", async () => {
+    const update = await attempt(
+      db.migrator.execute(sql`
+        update app.survey_question_translation set prompt = 'Something else entirely'
+        where question_id = ${v1.questionIds.tenure_category!}
+      `),
+    );
+    expect(update).toMatch(/survey_definition_frozen/i);
+
+    const remove = await attempt(
+      db.migrator.execute(sql`
+        delete from app.survey_question_translation
+        where question_id = ${v1.questionIds.tenure_category!}
+      `),
+    );
+    expect(remove).toMatch(/survey_definition_frozen/i);
+  });
+
+  it("relabelling a published option translation is refused", async () => {
+    const error = await attempt(
+      db.migrator.execute(sql`
+        update app.survey_option_translation set label = 'Something else entirely'
+        where option_id = ${v1.optionIds.option_x!}
+      `),
     );
     expect(error).toMatch(/survey_definition_frozen/i);
   });

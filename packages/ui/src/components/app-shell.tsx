@@ -12,18 +12,21 @@ export function AppShell({
   topbar,
   children,
   drawer,
+  labels,
 }: {
   rail: ReactNode;
   topbar: ReactNode;
   children: ReactNode;
   drawer?: ReactNode;
+  /** Copy for the two things a screen reader hears before anything else. */
+  labels: { skipToContent: string; mainNavigation: string };
 }) {
   return (
     <div className={styles.shell}>
       <a className={styles.skipLink} href="#contenido">
-        Saltar al contenido
+        {labels.skipToContent}
       </a>
-      <nav className={styles.rail} aria-label="Navegación principal">
+      <nav className={styles.rail} aria-label={labels.mainNavigation}>
         {rail}
       </nav>
       <div className={styles.column}>
@@ -68,7 +71,18 @@ export function RailFooter({ children }: { children: ReactNode }) {
  * keyboard, announces its expanded state and works before hydration; the menu's contents are
  * supplied by the application, because this package knows nothing about sessions.
  */
-export function TopbarUser({ name, role, menu }: { name: string; role: string; menu?: ReactNode }) {
+export function TopbarUser({
+  name,
+  role,
+  menu,
+  menuLabel,
+}: {
+  name: string;
+  role: string;
+  menu?: ReactNode;
+  /** Accessible name of the disclosure, from the caller's catalogue. */
+  menuLabel?: string;
+}) {
   const initials = name
     .split(/\s+/)
     .filter(Boolean)
@@ -92,7 +106,7 @@ export function TopbarUser({ name, role, menu }: { name: string; role: string; m
   return (
     // The label is on the <details>, which is the element that carries the group role and the
     // open state; the <summary> is its handle.
-    <details className={styles.userMenu} aria-label={`Cuenta de ${name}`}>
+    <details className={styles.userMenu} aria-label={menuLabel ?? name}>
       <summary className={styles.userSummary}>
         {identity}
         <span aria-hidden="true" className={styles.caret}>

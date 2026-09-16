@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { getDb } from "@/lib/db";
+import { getTranslator } from "@/lib/locale";
 import { getEnv } from "@/lib/env";
 import { resolveSurfaceAccess } from "@/lib/surface-access";
 
@@ -47,6 +48,7 @@ function failureFor(error: unknown): SocialActionResult {
 }
 
 export async function startClassificationRunAction(raw: unknown): Promise<SocialActionResult> {
+  const t = await getTranslator();
   const input = z
     .object({
       tenant: z.string(),
@@ -60,7 +62,7 @@ export async function startClassificationRunAction(raw: unknown): Promise<Social
 
   const { access } = await resolveSocialContext(input);
   if (access.kind !== "ok") {
-    return { ok: false, error: "No tienes acceso a esta superficie." };
+    return { ok: false, error: t("actions.noSurfaceAccess") };
   }
 
   const env = getEnv();
@@ -83,9 +85,11 @@ export async function startClassificationRunAction(raw: unknown): Promise<Social
     revalidatePath(`/t/${input.tenant}/p/${input.project}/social`, "layout");
     return {
       ok: true,
-      message: `Ejecución creada: ${started.queued} respuestas en cola${
-        started.skipped > 0 ? `, ${started.skipped} omitidas` : ""
-      }.`,
+      message: t("actions.socialRunCreated", {
+        queued: started.queued,
+        skipped:
+          started.skipped > 0 ? t("actions.socialRunSkipped", { count: started.skipped }) : "",
+      }),
     };
   } catch (error) {
     return failureFor(error);
@@ -93,6 +97,7 @@ export async function startClassificationRunAction(raw: unknown): Promise<Social
 }
 
 export async function submitReviewAction(raw: unknown): Promise<SocialActionResult> {
+  const t = await getTranslator();
   const input = z
     .object({
       tenant: z.string(),
@@ -106,7 +111,7 @@ export async function submitReviewAction(raw: unknown): Promise<SocialActionResu
 
   const { access } = await resolveSocialContext(input);
   if (access.kind !== "ok") {
-    return { ok: false, error: "No tienes acceso a esta superficie." };
+    return { ok: false, error: t("actions.noSurfaceAccess") };
   }
 
   try {
@@ -120,8 +125,11 @@ export async function submitReviewAction(raw: unknown): Promise<SocialActionResu
       ok: true,
       message:
         result.decision === "ACCEPTED"
-          ? "Propuesta aceptada y registrada como codificación validada."
-          : `Codificación corregida: ${result.added.length} añadida(s), ${result.removed.length} retirada(s).`,
+          ? t("actions.socialAccepted")
+          : t("actions.socialCorrected", {
+              added: result.added.length,
+              removed: result.removed.length,
+            }),
     };
   } catch (error) {
     return failureFor(error);

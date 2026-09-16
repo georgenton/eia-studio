@@ -1,10 +1,12 @@
 "use client";
 
 import type { QualityOverview } from "@eia/application";
+import type { MessageKey } from "@eia/i18n";
 import { Chip, Panel, PanelBody, PanelHeader, StatusChip, type ChipTone } from "@eia/ui";
 import Link from "next/link";
 import { useState, useTransition } from "react";
 
+import { useI18n } from "@/components/i18n/locale-provider";
 import { runQualityCheckAction } from "@/lib/quality-actions";
 
 import styles from "./quality.module.css";
@@ -21,16 +23,8 @@ import styles from "./quality.module.css";
  * **Colour never carries the meaning alone.** Severity and state are words first; the chip's tone
  * is a second channel (design v0.2, accessibility baseline).
  */
-const SEVERITY_LABEL: Record<string, string> = { high: "Alta", medium: "Media", low: "Baja" };
 const SEVERITY_TONE: Record<string, ChipTone> = { high: "crit", medium: "warn", low: "neutral" };
 
-const STATE_LABEL: Record<string, string> = {
-  OPEN: "Abierto",
-  UNDER_REVIEW: "En revisión",
-  ACCEPTED: "Aceptado",
-  DISMISSED: "Descartado",
-  RESOLVED: "Resuelto",
-};
 const STATE_TONE: Record<string, ChipTone> = {
   OPEN: "warn",
   UNDER_REVIEW: "accent",
@@ -38,25 +32,6 @@ const STATE_TONE: Record<string, ChipTone> = {
   DISMISSED: "neutral",
   RESOLVED: "ok",
 };
-
-const TYPE_LABEL: Record<string, string> = {
-  NUMERICAL_MISMATCH: "Numérica",
-  GEOGRAPHICAL_MISMATCH: "Geográfica",
-  TEMPORAL_MISMATCH: "Temporal",
-  DOCUMENT_COMPLETENESS: "Completitud",
-  CROSS_DOCUMENT_INCONSISTENCY: "Entre documentos",
-  MISSING_EVIDENCE: "Evidencia insuficiente",
-};
-
-const dateTime = (iso: string) =>
-  new Intl.DateTimeFormat("es-EC", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    timeZone: "UTC",
-  }).format(new Date(iso));
 
 export function QualityOverviewPanel({
   overview,
@@ -69,6 +44,7 @@ export function QualityOverviewPanel({
   project: string;
   canRun: boolean;
 }) {
+  const { t, fmt } = useI18n();
   const [message, setMessage] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -78,7 +54,7 @@ export function QualityOverviewPanel({
     startTransition(async () => {
       const result = await runQualityCheckAction({ tenant, project });
       setFailed(!result.ok);
-      setMessage(result.ok ? (result.message ?? "Revisión ejecutada.") : result.error);
+      setMessage(result.ok ? (result.message ?? t("quality.runDone")) : result.error);
     });
   };
 
@@ -86,34 +62,31 @@ export function QualityOverviewPanel({
     <>
       <Panel>
         <PanelHeader
-          label="Control de consistencia"
+          label={t("quality.title")}
           note={
             overview.lastRun?.finishedAt
-              ? `Última revisión: ${dateTime(overview.lastRun.finishedAt)}`
-              : "Todavía no se ha ejecutado ninguna revisión"
+              ? t("quality.lastRun", {
+                  when: fmt.dateTime(new Date(overview.lastRun.finishedAt)),
+                })
+              : t("quality.neverRun")
           }
           action={
             canRun ? (
               <button className={styles.primary} type="button" onClick={run} disabled={pending}>
-                {pending ? "Ejecutando…" : "Ejecutar revisión"}
+                {pending ? t("quality.running") : t("quality.run")}
               </button>
             ) : null
           }
         />
         <PanelBody>
-          <p className={styles.note}>
-            El control de consistencia señala <strong>discrepancias entre dos fuentes</strong> del
-            expediente. No determina cuál de las dos es correcta, ni declara conformidad: esa
-            decisión, con su justificación, es de un especialista y queda registrada de forma
-            permanente.
-          </p>
+          <p className={styles.note}>{t("quality.lead")}</p>
           <dl className={styles.kpis}>
-            <Kpi label="Abiertos" value={overview.counts.open} />
-            <Kpi label="En revisión" value={overview.counts.underReview} />
-            <Kpi label="Severidad alta" value={overview.counts.high} />
-            <Kpi label="Aceptados" value={overview.counts.accepted} />
-            <Kpi label="Resueltos" value={overview.counts.resolved} />
-            <Kpi label="Descartados" value={overview.counts.dismissed} />
+            <Kpi label={t("quality.open")} value={fmt.count(overview.counts.open)} />
+            <Kpi label={t("quality.underReview")} value={fmt.count(overview.counts.underReview)} />
+            <Kpi label={t("quality.highSeverity")} value={fmt.count(overview.counts.high)} />
+            <Kpi label={t("quality.accepted")} value={fmt.count(overview.counts.accepted)} />
+            <Kpi label={t("quality.resolved")} value={fmt.count(overview.counts.resolved)} />
+            <Kpi label={t("quality.dismissed")} value={fmt.count(overview.counts.dismissed)} />
           </dl>
           {message ? (
             <p
@@ -128,27 +101,25 @@ export function QualityOverviewPanel({
       </Panel>
 
       <Panel>
-        <PanelHeader label="Hallazgos" note={`${overview.findings.length} en total`} />
+        <PanelHeader
+          label={t("quality.findings")}
+          note={t("quality.findingsCount", { count: fmt.count(overview.findings.length) })}
+        />
         <PanelBody>
           {overview.findings.length === 0 ? (
             <p className={styles.note} data-system-state="no-findings">
-              {overview.lastRun
-                ? "La última revisión no encontró discrepancias entre las fuentes que compara el " +
-                  "conjunto de reglas vigente."
-                : "Todavía no se ha ejecutado ninguna revisión sobre este proyecto."}
+              {t(overview.lastRun ? "quality.noFindingsAfterRun" : "quality.neverRunOnProject")}
             </p>
           ) : (
             <table className={styles.table}>
-              <caption className="sr-only">
-                Hallazgos de calidad, ordenados por estado y severidad
-              </caption>
+              <caption className="sr-only">{t("quality.findingsCaption")}</caption>
               <thead>
                 <tr>
-                  <th scope="col">Código</th>
-                  <th scope="col">Hallazgo</th>
-                  <th scope="col">Tipo</th>
-                  <th scope="col">Severidad</th>
-                  <th scope="col">Estado</th>
+                  <th scope="col">{t("quality.findingCode")}</th>
+                  <th scope="col">{t("quality.finding")}</th>
+                  <th scope="col">{t("quality.type")}</th>
+                  <th scope="col">{t("quality.severity")}</th>
+                  <th scope="col">{t("common.status")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -167,19 +138,19 @@ export function QualityOverviewPanel({
                       {finding.interdisciplinary ? (
                         <>
                           {" "}
-                          <Chip tone="accent">Revisión interdisciplinaria</Chip>
+                          <Chip tone="accent">{t("quality.interdisciplinary")}</Chip>
                         </>
                       ) : null}
                     </td>
-                    <td>{TYPE_LABEL[finding.type] ?? finding.type}</td>
+                    <td>{t(`quality.findingType.${finding.type}` as MessageKey)}</td>
                     <td>
                       <Chip tone={SEVERITY_TONE[finding.severity] ?? "neutral"}>
-                        {SEVERITY_LABEL[finding.severity] ?? finding.severity}
+                        {t(`quality.severityLabel.${finding.severity}` as MessageKey)}
                       </Chip>
                     </td>
                     <td>
                       <StatusChip
-                        label={STATE_LABEL[finding.state] ?? finding.state}
+                        label={t(`quality.state.${finding.state}` as MessageKey)}
                         tone={STATE_TONE[finding.state] ?? "neutral"}
                       />
                     </td>
@@ -192,10 +163,7 @@ export function QualityOverviewPanel({
       </Panel>
 
       <Panel>
-        <PanelHeader
-          label="Reglas vigentes"
-          note="Lo que esta revisión comprueba, haya encontrado algo o no"
-        />
+        <PanelHeader label={t("quality.rulesTitle")} note={t("quality.rulesNote")} />
         <PanelBody>
           <ul className={styles.ruleList}>
             {overview.requirements.map((requirement) => (
@@ -207,10 +175,18 @@ export function QualityOverviewPanel({
                   reads to know what was checked.
                 */}
                 <span className={styles.ruleName}>
-                  {requirement.title}{" "}
-                  <span className={styles.code}>versión {requirement.version}</span>
+                  {t(
+                    `vocabulary.requirement.${requirement.key.replace(/\./g, "_")}.title` as MessageKey,
+                  )}{" "}
+                  <span className={styles.code}>
+                    {t("quality.ruleVersion", { version: requirement.version })}
+                  </span>
                 </span>
-                <span className={styles.ruleWhat}>{requirement.what}</span>
+                <span className={styles.ruleWhat}>
+                  {t(
+                    `vocabulary.requirement.${requirement.key.replace(/\./g, "_")}.what` as MessageKey,
+                  )}
+                </span>
               </li>
             ))}
           </ul>
@@ -220,11 +196,11 @@ export function QualityOverviewPanel({
   );
 }
 
-function Kpi({ label, value }: { label: string; value: number }) {
+function Kpi({ label, value }: { label: string; value: string }) {
   return (
     <div className={styles.kpi}>
       <dt className={styles.kpiLabel}>{label}</dt>
-      <dd className={styles.kpiValue}>{new Intl.NumberFormat("es-EC").format(value)}</dd>
+      <dd className={styles.kpiValue}>{value}</dd>
     </div>
   );
 }

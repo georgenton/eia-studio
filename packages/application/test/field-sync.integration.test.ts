@@ -133,6 +133,14 @@ beforeAll(async () => {
     tenantId: w.tenantA.id,
     projectId: w.projectX.id,
     provenanceId: prov,
+    translations: {
+      locale: "en",
+      questions: {
+        tenure_category: { prompt: "Relationship to the parcel?" },
+        has_concern: { prompt: "Do you have any concern?" },
+      },
+      options: { owner_occupier: "Owner-occupier" },
+    },
   });
 
   const dataset = await createSpatialDatasetVersion(db.migrator, {
@@ -256,6 +264,36 @@ describe("the Field Pack a technician downloads", () => {
     // document, because the questionnaire's own option codes legitimately include words like
     // `owner_occupier` — an answer a household gives, not an owner's identity.
     expect(JSON.stringify(parcel).toLowerCase()).not.toMatch(/owner|propietario|name|nombre/);
+  });
+
+  it("carries both languages of the one questionnaire", async () => {
+    const ctx = await contextFor(technician);
+    const response = await buildFieldPack(db.runtime, ctx, {
+      sessionExpiresAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
+      technician: { email: technician.email, name: null },
+    });
+    if (response.kind !== "pack") throw new Error("expected a pack");
+
+    const questions = response.pack.campaign.surveyVersion.questions;
+    const tenure = questions.find((q) => q.code === "tenure_category");
+    expect(tenure?.prompt).toBe("¿Relación con el predio?");
+    expect(tenure?.translations.en?.prompt).toBe("Relationship to the parcel?");
+    expect(tenure?.translations.en?.options.owner_occupier).toBe("Owner-occupier");
+
+    // The codes are the same in both languages, because they are what an answer points at. A pack
+    // that shipped an English question under an English code would produce answers no Spanish
+    // reader of the study could join back to anything.
+    expect(questions.map((q) => q.code)).toEqual([
+      "tenure_category",
+      "has_concern",
+      "services_present",
+    ]);
+
+    // A question nobody translated keeps its Spanish wording rather than disappearing from the
+    // English questionnaire: a missing translation is a gap in the wording, never a gap in the form.
+    const services = questions.find((q) => q.code === "services_present");
+    expect(services?.translations.en).toBeUndefined();
+    expect(services?.prompt).toBe("¿Qué servicios hay en el sector?");
   });
 
   it("stamps a window that cannot outlive the session behind it", async () => {

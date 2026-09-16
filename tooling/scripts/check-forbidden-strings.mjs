@@ -25,8 +25,14 @@ const FORBIDDEN = [
   /\b185\s+participantes\b/i,
   /\broad_eia_social\b/, // profile key lives in fixtures/domain profile registry only
 ];
-// The profile key is allowed exactly where the profile registry declares it.
-const ALLOWLIST = [/packages\/domain\/src\/core\/profiles\//, /\.test\.ts$/];
+// The profile key is allowed exactly where the profile registry declares it, and in the message
+// catalogues, which give that registry's system profiles their words (ADR-029). Both are the
+// product's own profile vocabulary; neither names the pilot project.
+const ALLOWLIST = [
+  /packages\/domain\/src\/core\/profiles\//,
+  /packages\/i18n\/src\/messages\//,
+  /\.test\.ts$/,
+];
 
 function walk(dir, out) {
   for (const entry of readdirSync(dir)) {

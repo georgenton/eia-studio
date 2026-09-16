@@ -50,6 +50,23 @@ export const packOptionSchema = z
   .strict();
 export type PackOption = z.infer<typeof packOptionSchema>;
 
+/**
+ * A question in every language the version was published in.
+ *
+ * `prompt` and the options' `label` are the canonical `es-EC` wording; `translations` carries the
+ * rest, keyed by locale and — for options — by **option code**. That keying is the whole point: a
+ * technician switching language offline changes what the screen says and nothing about what an
+ * answer means, because an answer points at a code that no translation touches (ADR-029).
+ */
+export const packQuestionTranslationSchema = z
+  .object({
+    prompt: z.string().min(1).max(500),
+    helpText: z.string().max(500).nullable(),
+    options: z.record(z.string().min(1).max(40), z.string().min(1).max(200)),
+  })
+  .strict();
+export type PackQuestionTranslation = z.infer<typeof packQuestionTranslationSchema>;
+
 export const packQuestionSchema = z
   .object({
     code: z.string().min(1).max(40),
@@ -60,6 +77,7 @@ export const packQuestionSchema = z
     required: z.boolean(),
     sensitivity: z.string().min(1).max(40),
     options: z.array(packOptionSchema),
+    translations: z.record(z.string().min(2).max(10), packQuestionTranslationSchema),
   })
   .strict();
 export type PackQuestion = z.infer<typeof packQuestionSchema>;
@@ -88,9 +106,15 @@ export const packParcelContextSchema = z
     parcelId: uuid,
     parcelCode: z.string().min(1).max(40),
     sectorLabel: z.string().max(120).nullable(),
-    /** Metres along the alignment, already formatted (`2+840`) by the server. */
+    /**
+     * Metres along the alignment, already formatted (`2+840`) by the server.
+     *
+     * Formatted, unlike `side`, because an abscissa is surveying notation rather than language: it
+     * is written the same way for either reader, so there is nothing for the phone to decide.
+     */
     chainageLabel: z.string().max(40).nullable(),
-    side: z.string().max(40).nullable(),
+    /** The stored value (`left` / `right` / `both`); the phone puts it into its own language. */
+    side: z.enum(["left", "right", "both"]).nullable(),
   })
   .strict();
 export type PackParcelContext = z.infer<typeof packParcelContextSchema>;
@@ -426,20 +450,10 @@ export const LOCAL_SURVEY_STATES = [
 export const localSurveyStateSchema = z.enum(LOCAL_SURVEY_STATES);
 export type LocalSurveyState = z.infer<typeof localSurveyStateSchema>;
 
-export const LOCAL_SURVEY_STATE_LABEL: Readonly<Record<LocalSurveyState, string>> = {
-  NOT_STARTED: "Sin empezar",
-  DRAFT: "Borrador en el dispositivo",
-  READY_TO_SYNC: "Enviada en el dispositivo · pendiente de sincronización",
-  SYNCING: "Sincronizando",
-  SYNCED: "Sincronizada",
-  SYNC_ERROR: "Error de sincronización",
-  CONFLICT: "Requiere revisión",
-};
-
-export const CONFLICT_REASON_LABEL: Readonly<Record<ConflictReason, string>> = {
-  assignment_reassigned: "La asignación ya no es tuya. Tu trabajo local se conservó.",
-  assignment_cancelled: "La asignación fue cancelada. Tu trabajo local se conservó.",
-  survey_version_changed: "El cuestionario cambió en el servidor después de tu descarga.",
-  campaign_closed: "La campaña fue cerrada.",
-  submitted_server_side: "Esta ficha ya estaba enviada en el servidor.",
-};
+/*
+ * The words for a local state or a conflict reason live in `@eia/i18n`
+ * (`mobile.localSurveyState.*`, `mobile.conflictReason.*`), not on the wire. This package is the
+ * contract between a phone and a server, and a contract that carried one language's copy would
+ * make the protocol version change every time a sentence was reworded — and would leave the
+ * English half of the product speaking Spanish.
+ */
