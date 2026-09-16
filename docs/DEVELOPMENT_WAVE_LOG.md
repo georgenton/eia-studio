@@ -843,3 +843,49 @@ Spanish **interface** copy and deliberately does not forbid Spanish content.
 
 **Tests**: unit 403 → **466** (the catalogue's own suite is 25 of them), integration 452 → **458**.
 `e2e/vocabulary.spec.ts` now checks every surface twice. Both mobile bundles still build.
+
+## Production V1 · Wave 2 · PR 2 — preparing a project, without a script (16 September 2026)
+
+Eight studies cannot each be a developer task. *Preparar proyecto* is where an authorised person
+fills in what EIA Studio needs to run a project, and where the product says what is still missing
+(ADR-030).
+
+**A new project role, because a "permission bundle" would have been a role without a name.**
+`PROJECT_DATA_MANAGER` — *Gestor de información* — prepares a project: its identity and settings,
+its cartography, its corpus, and the readiness report. What it **does not** hold is the role:
+no `field.responses.read`, so a person who loads a project's files never reads what a household
+answered; no `pii.read`; no `quality.review` or `social.coding.review`, so they settle nothing; no
+`portal.publish`, so they make no statement to the client; no `project.configure`, so they cannot
+turn a module on or off. Every absence is asserted by name in a test, so a later convenience cannot
+quietly add one.
+
+**Two permissions, and the line between them.** `project.configure` is the write side of the
+capability resolver — turning a module off hides routes for everybody on the project. Preparing a
+project is filling in what the product needs to run it. `project.intake.read` and
+`project.intake.write` are that second act.
+
+**Eight stages and no workflow engine.** No stage table, no transition graph, no stored position.
+A wizard remembers where somebody got to, which is a second story about the project and the one
+that goes stale; these stages show the project **as it is**, and *Preparación* is the single place
+that says what is missing.
+
+**Readiness is a pure function of a snapshot read in one transaction** — no clock, no I/O, so the
+same picture gives the same report and a test states a project in ten lines. Seven rules, three
+outcomes (`satisfied` / `blocked` / `not_applicable`) and two severities, because a project without
+`field.surveys` has no questionnaire to publish and blocking every project for the weeks a GIS
+package takes to arrive would teach a reader to ignore the report.
+
+**The D-020 gate is stated twice, on purpose.** `project.offline_channel` *reports* that a project
+requiring offline capture has no offline-capable channel, during preparation, before anybody drives
+to a valley; `assertCaptureChannelSatisfiesOfflineMode` still *refuses* it at campaign activation.
+They share the predicate, so they cannot disagree.
+
+**And what it refuses to say.** Readiness means *EIA Studio can operate this project* — not that
+the study is complete, and not that it complies. The copy says so at the top of the stage and again
+beside the verdict, because a green tick is exactly the artefact somebody would otherwise quote.
+
+**Not built and not pretended**: questionnaire and template authoring (TD-088), document upload,
+and the object-storage readiness rule, which joins the set with the adapter rather than being a
+green tick with nothing behind it (TD-089).
+
+**Tests**: unit 466 → **482**, integration 458 → **471**. Migration 0036 adds one enum value.

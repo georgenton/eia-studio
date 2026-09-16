@@ -21,6 +21,7 @@ export const WORKSPACE_SURFACES = [
   "pgas",
   "reports",
   "portal",
+  "intake",
 ] as const;
 
 export const workspaceSurfaceSchema = z.enum(WORKSPACE_SURFACES);
@@ -132,6 +133,21 @@ export const SURFACE_DEFINITIONS: Readonly<Record<WorkspaceSurface, SurfaceDefin
     implemented: true,
     plannedIn: null,
   },
+  /**
+   * *Preparar proyecto* — what the product needs before it can operate this project (ADR-030).
+   *
+   * Governed by `core.projects` rather than a fifteenth capability key: preparing a project is
+   * not a module a tenant buys, it is the project itself. The catalogue still holds exactly the
+   * 14 approved keys.
+   */
+  intake: {
+    key: "intake",
+    capability: "core.projects",
+    label: "Preparar proyecto",
+    segment: "intake",
+    implemented: true,
+    plannedIn: null,
+  },
 };
 
 /**
@@ -155,6 +171,10 @@ export const WORKSPACE_RAIL_ORDER: ReadonlyArray<WorkspaceSurface> = [
   // Last, because publishing is the last thing that happens: everything above is the work, and
   // this is the decision to show some of it to the customer.
   "portal",
+  // And then the project's own preparation, which is the place a reader goes *back* to rather
+  // than the place they start: what the product needs to operate this project, and what is still
+  // missing. It sits outside the flow above for the same reason settings do.
+  "intake",
 ];
 
 export function isWorkspaceSurface(value: string): value is WorkspaceSurface {

@@ -39,7 +39,8 @@ describe("workspace surface registry", () => {
   it("every surface a slice has built is marked implemented, and no other", () => {
     const implemented = WORKSPACE_SURFACES.filter((k) => SURFACE_DEFINITIONS[k].implemented);
     // Every workspace surface the catalogue ships is implemented, and the registry says so — a
-    // surface added later starts false and this assertion notices. `pgas` joined with ADR-024.
+    // surface added later starts false and this assertion notices. `pgas` joined with ADR-024,
+    // `intake` with ADR-030.
     expect(implemented).toEqual([
       "command-center",
       "gis",
@@ -50,6 +51,7 @@ describe("workspace surface registry", () => {
       "pgas",
       "reports",
       "portal",
+      "intake",
     ]);
   });
 

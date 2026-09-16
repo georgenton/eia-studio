@@ -506,6 +506,109 @@ export const messages: Messages = {
     qualityNote:
       "Consistency-control findings about this parcel will be shown here once the module is implemented.",
   },
+  intake: {
+    title: "Project setup",
+    lead: "What EIA Studio needs in order to operate this project. It says nothing about whether the study is complete or whether anything complies: that is a specialist's judgement, not a checklist's.",
+    stageProject: "Project",
+    stageTeam: "Team",
+    stageGis: "Cartography",
+    stageDocuments: "Documents",
+    stageSurveys: "Questionnaires",
+    stageTemplates: "Templates",
+    stageReadiness: "Readiness",
+    stageActivation: "Activation",
+    save: "Save",
+    saving: "Saving…",
+    saved: "Changes saved.",
+    readOnly: "Your role can read this project's preparation, not edit it.",
+    projectName: "Short name",
+    officialTitle: "Official title of the study",
+    programmeReference: "Programme / reference",
+    locationLabel: "Location",
+    profile: "Profile",
+    lifecycle: "State",
+    offlineMode: "Offline capture",
+    teamEmpty: "Nobody is assigned to this project yet.",
+    teamNote:
+      "Who is on the project and in what role. Assigning people is the coordinator's action; this reads it.",
+    teamRole: "Role",
+    teamMember: "Person",
+    gisNote: "The project's active layers, as the import left them.",
+    gisDatasets: "{count} active layer version(s)",
+    gisParcels: "{count} parcel(s) with geometry",
+    gisEmpty:
+      "No cartography has been imported yet. Importing uses the product's own import contract; this screen converts no formats.",
+    documentsNote:
+      "Uploaded is not the same as processed: an uploaded document exists in the corpus, and only once its processing finishes can its passages be cited.",
+    documentsEmpty: "There are no documents in this project's corpus yet.",
+    surveysNote:
+      "A campaign resolves its answers against a published version, for ever. A draft is not something anyone may be sent to the field with.",
+    surveysEmpty: "There are no questionnaires on this project yet.",
+    surveyPublished: "Published",
+    surveyDraft: "Draft",
+    surveyLanguages: "Languages: {languages}",
+    templatesNote:
+      "What the project's profile brings with it: the instruments it declares and the consistency rule set that will run.",
+    templatesInstruments: "Instruments declared by the profile",
+    templatesRules: "Consistency rules",
+    templatesPending:
+      "Editing questionnaires and templates inside the product arrives in a later phase. Until then a questionnaire is published with the provisioning tools, and this screen reports what exists.",
+    readinessOperable: "EIA Studio can operate this project.",
+    readinessBlocked: "Something is missing before this project can be operated.",
+    readinessScopeNote:
+      "This check says whether the product has what it needs. It does not say the study is complete, or that it complies with anything.",
+    required: "Required",
+    advisory: "Advisory",
+    outcomeSatisfied: "Satisfied",
+    outcomeBlocked: "Missing",
+    outcomeNotApplicable: "Not applicable",
+    activationNote:
+      "Activating moves the project from planning to field work. It changes the project's state and nothing else: it activates no campaign, assigns no work and publishes nothing to the client.",
+    activate: "Activate the project",
+    activating: "Activating…",
+    activated: "Project activated. Its state is now “in the field”.",
+    activationBlocked: "It cannot be activated yet: required checks are unmet.",
+    alreadyActive: "This project has already left planning.",
+    /*
+     * Keys carry no dots: a lookup walks the dotted path, so `project.identity` would be
+     * unreachable. The rule key is flattened at the call site, as capability keys are.
+     */
+    rule: {
+      project_identity: "Project identity",
+      project_coordinator: "A coordinator is assigned",
+      project_cartography: "Cartography imported",
+      project_questionnaire: "A questionnaire is published",
+      project_capture_channel: "Capture channel configured",
+      project_offline_channel: "Channel compatible with the offline policy",
+      project_corpus: "Corpus documents",
+    },
+    ruleWhat: {
+      project_identity:
+        "The project states a short name, an official title and a location, which is how it is recognised on a deliverable.",
+      project_coordinator:
+        "At least one person in a coordinating role: whoever publishes to the client, approves deliverables and hands out field work.",
+      project_cartography:
+        "There is an active layer version with parcels that have geometry. Advisory: a study begins before its GIS package arrives.",
+      project_questionnaire:
+        "At least one published questionnaire version. Answers resolve against a published version, not against a draft.",
+      project_capture_channel:
+        "The project's campaign states where capture happens. Advisory: a project may be prepared before it has a campaign.",
+      project_offline_channel:
+        "If the project requires capture without a connection, its channel must support it. EIA Studio's web channel does not.",
+      project_corpus:
+        "There is at least one document in the corpus. Advisory: documents arrive over the life of a study.",
+    },
+    ruleDetail: {
+      missing: "Missing: {missing}",
+      parcels: "{parcels} parcel(s) with geometry",
+      datasets: "{datasets} active layer(s)",
+      published: "{published} published version(s)",
+      drafts: "{drafts} draft(s), none published",
+      channel: "Channel: {channel}",
+      offlineMode: "Policy: {offlineMode}",
+      documents: "{documents} document(s)",
+    },
+  },
   pgas: {
     title: "Environmental and Social Management Plan",
     notImported:
@@ -847,6 +950,7 @@ export const messages: Messages = {
     },
     projectRole: {
       COORDINATOR: "Project coordination",
+      PROJECT_DATA_MANAGER: "Project Data Manager",
       SOCIAL_SPECIALIST: "Social specialist",
       ENVIRONMENTAL_SPECIALIST: "Environmental specialist",
       GIS_SPECIALIST: "Mapping / GIS",

@@ -512,6 +512,109 @@ export const messages = {
     qualityNote:
       "Los hallazgos del control de consistencia referidos a este predio se mostrarán aquí cuando el módulo esté implementado.",
   },
+  intake: {
+    title: "Preparar proyecto",
+    lead: "Lo que EIA Studio necesita para operar este proyecto. No dice nada sobre si el estudio está completo ni sobre su conformidad: eso lo decide un especialista, no una lista de comprobación.",
+    stageProject: "Proyecto",
+    stageTeam: "Equipo",
+    stageGis: "Cartografía",
+    stageDocuments: "Documentos",
+    stageSurveys: "Formularios",
+    stageTemplates: "Plantillas",
+    stageReadiness: "Preparación",
+    stageActivation: "Activación",
+    save: "Guardar",
+    saving: "Guardando…",
+    saved: "Cambios guardados.",
+    readOnly: "Tu rol puede leer la preparación de este proyecto, no editarla.",
+    projectName: "Nombre corto",
+    officialTitle: "Título oficial del estudio",
+    programmeReference: "Programa / referencia",
+    locationLabel: "Ubicación",
+    profile: "Perfil",
+    lifecycle: "Estado",
+    offlineMode: "Captura offline",
+    teamEmpty: "Todavía no hay nadie asignado a este proyecto.",
+    teamNote:
+      "Quién está en el proyecto y con qué rol. Asignar personas es una acción de la coordinación; aquí se lee.",
+    teamRole: "Rol",
+    teamMember: "Persona",
+    gisNote: "Las capas activas del proyecto, tal como las dejó la importación.",
+    gisDatasets: "{count} versión(es) de capa activa(s)",
+    gisParcels: "{count} predio(s) con geometría",
+    gisEmpty:
+      "Todavía no se ha importado cartografía. La importación se hace con el contrato de importación del producto; esta pantalla no convierte formatos.",
+    documentsNote:
+      "Cargado no es lo mismo que procesado: un documento cargado existe en el expediente, y sólo cuando termina su procesamiento pueden citarse sus pasajes.",
+    documentsEmpty: "Todavía no hay documentos en el expediente de este proyecto.",
+    surveysNote:
+      "Una campaña resuelve sus respuestas contra una versión publicada, para siempre. Un borrador no es algo con lo que se pueda salir a campo.",
+    surveysEmpty: "Todavía no hay cuestionarios en este proyecto.",
+    surveyPublished: "Publicada",
+    surveyDraft: "Borrador",
+    surveyLanguages: "Idiomas: {languages}",
+    templatesNote:
+      "Lo que el perfil del proyecto trae consigo: los instrumentos que declara y el conjunto de reglas de consistencia que se ejecutará.",
+    templatesInstruments: "Instrumentos declarados por el perfil",
+    templatesRules: "Reglas de consistencia",
+    templatesPending:
+      "La edición de cuestionarios y plantillas dentro del producto llega en una fase posterior. Hasta entonces, un cuestionario se publica con las herramientas de aprovisionamiento y esta pantalla informa de lo que existe.",
+    readinessOperable: "EIA Studio puede operar este proyecto.",
+    readinessBlocked: "Falta algo antes de poder operar este proyecto.",
+    readinessScopeNote:
+      "Esta comprobación dice si el producto tiene lo que necesita. No dice que el estudio esté completo ni que cumpla nada.",
+    required: "Obligatorio",
+    advisory: "Informativo",
+    outcomeSatisfied: "Cumplido",
+    outcomeBlocked: "Falta",
+    outcomeNotApplicable: "No aplica",
+    activationNote:
+      "Activar mueve el proyecto de planificación a trabajo de campo. Sólo cambia el estado del proyecto: no activa campañas, no asigna trabajo y no publica nada al cliente.",
+    activate: "Activar el proyecto",
+    activating: "Activando…",
+    activated: "Proyecto activado. Su estado es ahora «en campo».",
+    activationBlocked: "No se puede activar todavía: hay comprobaciones obligatorias sin cumplir.",
+    alreadyActive: "Este proyecto ya salió de planificación.",
+    /*
+     * Keys carry no dots: a lookup walks the dotted path, so `project.identity` would be
+     * unreachable. The rule key is flattened at the call site, as capability keys are.
+     */
+    rule: {
+      project_identity: "Identificación del proyecto",
+      project_coordinator: "Coordinación asignada",
+      project_cartography: "Cartografía importada",
+      project_questionnaire: "Cuestionario publicado",
+      project_capture_channel: "Canal de captura configurado",
+      project_offline_channel: "Canal compatible con la política offline",
+      project_corpus: "Documentos del expediente",
+    },
+    ruleWhat: {
+      project_identity:
+        "El proyecto declara nombre corto, título oficial y ubicación, que es como se le reconoce en un entregable.",
+      project_coordinator:
+        "Al menos una persona con rol de coordinación: quien publica al cliente, aprueba entregables y reparte el trabajo de campo.",
+      project_cartography:
+        "Hay una versión de capa activa con predios con geometría. Informativo: un estudio empieza antes de que llegue su paquete GIS.",
+      project_questionnaire:
+        "Al menos una versión de cuestionario publicada. Las respuestas se resuelven contra una versión publicada, no contra un borrador.",
+      project_capture_channel:
+        "La campaña del proyecto declara por dónde se captura. Informativo: un proyecto puede prepararse antes de tener campaña.",
+      project_offline_channel:
+        "Si el proyecto exige captura sin conexión, su canal debe soportarla. El canal web de EIA Studio no la soporta.",
+      project_corpus:
+        "Hay al menos un documento en el expediente. Informativo: los documentos llegan a lo largo del estudio.",
+    },
+    ruleDetail: {
+      missing: "Falta: {missing}",
+      parcels: "{parcels} predio(s) con geometría",
+      datasets: "{datasets} capa(s) activa(s)",
+      published: "{published} versión(es) publicada(s)",
+      drafts: "{drafts} borrador(es), ninguna publicada",
+      channel: "Canal: {channel}",
+      offlineMode: "Política: {offlineMode}",
+      documents: "{documents} documento(s)",
+    },
+  },
   pgas: {
     title: "Plan de Manejo Ambiental y Social",
     notImported:
@@ -853,6 +956,7 @@ export const messages = {
     },
     projectRole: {
       COORDINATOR: "Coordinación de proyecto",
+      PROJECT_DATA_MANAGER: "Gestor de información",
       SOCIAL_SPECIALIST: "Especialista social",
       ENVIRONMENTAL_SPECIALIST: "Especialista ambiental",
       GIS_SPECIALIST: "Cartografía / SIG",

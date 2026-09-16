@@ -1,0 +1,13 @@
+-- The Project Data Manager (Production V1 Wave 2, ADR-030).
+--
+-- One value on one enum, and nothing else. The role's *permissions* are code — `PROJECT_ROLE_
+-- PERMISSIONS` in `@eia/domain` — because that is where every other role's are, and a permission
+-- set that lived half in a table and half in TypeScript would be a set nothing keeps in agreement
+-- (the same argument ADR-020 makes for the quality rule catalogue).
+--
+-- Additive and forward-only. `ALTER TYPE … ADD VALUE` appends; no row changes, nothing is dropped,
+-- and a database that has not run this simply has one fewer role a membership could name.
+--
+-- `IF NOT EXISTS` because this migration is also applied to environments that were re-created from
+-- a later snapshot, where the value is already there.
+ALTER TYPE app.project_role ADD VALUE IF NOT EXISTS 'PROJECT_DATA_MANAGER' AFTER 'COORDINATOR';

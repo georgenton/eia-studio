@@ -4,6 +4,7 @@ import type { ProjectPermission, TenantPermission } from "./permissions";
 export const TENANT_ROLES = ["OWNER", "ADMIN", "MEMBER"] as const;
 export const PROJECT_ROLES = [
   "COORDINATOR",
+  "PROJECT_DATA_MANAGER",
   "SOCIAL_SPECIALIST",
   "ENVIRONMENTAL_SPECIALIST",
   "GIS_SPECIALIST",
@@ -43,6 +44,7 @@ export const TENANT_ROLE_PERMISSIONS: Readonly<Record<TenantRole, ReadonlySet<Te
   };
 
 const READ_ALL_EXCEPT_PII: readonly ProjectPermission[] = [
+  "project.intake.read",
   "parcels.read",
   "field.read",
   "documents.read",
@@ -57,6 +59,8 @@ export const PROJECT_ROLE_PERMISSIONS: Readonly<
   COORDINATOR: new Set<ProjectPermission>([
     "project.configure",
     "project.members.manage",
+    "project.intake.read",
+    "project.intake.write",
     "parcels.read",
     "parcels.write",
     "field.read",
@@ -75,6 +79,32 @@ export const PROJECT_ROLE_PERMISSIONS: Readonly<
     "portal.preview",
     "portal.publish",
     "pii.read",
+    "provenance.read",
+  ]),
+  /**
+   * *Gestor de información* / Project Data Manager (ADR-030).
+   *
+   * The role that prepares a project so it can be operated: its identity and settings, its
+   * cartography, its corpus, and the readiness report that says what is still missing. Every grant
+   * below is there because a stage of the intake needs it.
+   *
+   * What is **absent** is the point of the role. No `field.responses.read`, so they never read a
+   * household's answers; no `social.coding.review` or `quality.review`, so they settle nothing; no
+   * `portal.publish`, so they make no statement to the client; no `project.configure`, so they
+   * cannot turn a module on or off; and nothing tenant-wide. A person who loads a project's files
+   * is not thereby a person who may read what a family said to a technician.
+   */
+  PROJECT_DATA_MANAGER: new Set<ProjectPermission>([
+    "project.intake.read",
+    "project.intake.write",
+    "parcels.read",
+    "parcels.write",
+    "geometry.import",
+    // The operational workflow — campaigns, assignments, counts — which the readiness report and
+    // the intake's field stage read. Deliberately *not* `field.responses.read` (SECURITY.md §10b).
+    "field.read",
+    "documents.read",
+    "documents.write",
     "provenance.read",
   ]),
   SOCIAL_SPECIALIST: new Set<ProjectPermission>([
@@ -125,6 +155,8 @@ export const PROJECT_ROLE_PERMISSIONS: Readonly<
     "provenance.read",
   ]),
   REVIEWER: new Set<ProjectPermission>([
+    // A reviewer may read how far a project's preparation has got; they do not do the preparing.
+    "project.intake.read",
     "documents.read",
     "field.read",
     "field.responses.read",
