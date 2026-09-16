@@ -139,3 +139,86 @@ for (const surface of SURFACES) {
     expect(english, `${surface.name} renders leaked English`).toEqual([]);
   });
 }
+
+/* ---------------------------------------------------------------------------------------------
+ * The same surfaces, in English (ADR-029)
+ * ------------------------------------------------------------------------------------------ */
+
+/**
+ * A bilingual product that only ever gets checked in one language has one language and a menu.
+ *
+ * The rule is the mirror of the one above: with the locale cookie set to `en`, no surface may show
+ * Spanish interface copy, and none may show an identifier either. What it deliberately does *not*
+ * forbid is Spanish **content** — the project's name, a parcel's sector, a document's title, the
+ * management plan's measures, and the client publication, which is rendered in the language it was
+ * published in. Those are the study's own words and translating them would be inventing a document
+ * nobody wrote.
+ */
+const LEAKED_SPANISH = [
+  // The rail, in the words the Spanish product uses.
+  "Centro de control",
+  "Cartografía y predios",
+  "Trabajo de campo",
+  "Análisis social",
+  "Control de consistencia",
+  "Documentos",
+  "Informes",
+  "Portal del cliente",
+  // The four SOURCE TYPE badges and the drawer's own fields.
+  "Dato histórico",
+  "Dato calculado",
+  "Agregado sin datos personales",
+  "Simulación operativa",
+  "ORIGEN DEL DATO",
+  "Validación humana",
+  // Copy that used to be a domain constant, which is where a regression would come from.
+  "Confirmado",
+  "En verificación",
+  "Predios simulados",
+  "Coincidencia IA",
+  "Confianza del modelo",
+  "Borrador, no entregable",
+];
+
+/** Surfaces whose content is the study's own; the interface around it is still checked. */
+const ENGLISH_SURFACES = SURFACES.filter(
+  (surface) => surface.name !== "Vista del cliente" && surface.name !== "Plan de Manejo",
+);
+
+for (const surface of ENGLISH_SURFACES) {
+  test(`${surface.name} speaks English when the reader chose English`, async ({ page }) => {
+    // The choice is a cookie, so it is set on the origin the app is served from and the surface
+    // then renders in English on the *server* — there is no flash and nothing to hydrate.
+    await page.goto(surface.path);
+    await page.context().addCookies([{ name: "eia.locale", value: "en", url: page.url() }]);
+    const response = await page.reload();
+    expect(response?.status(), `${surface.name} should render`).toBeLessThan(400);
+    const text = (await page.getByRole("main").innerText()) ?? "";
+
+    expect(
+      [...new Set(text.match(IDENTIFIER_SHAPE) ?? [])],
+      `${surface.name} renders stored identifiers in English`,
+    ).toEqual([]);
+    expect(
+      LEAKED_SPANISH.filter((term) => text.includes(term)),
+      `${surface.name} still renders Spanish interface copy`,
+    ).toEqual([]);
+  });
+}
+
+test("the rail, the drawer and the switcher all follow the reader", async ({ page }) => {
+  await page.goto(`/t/${TENANT}/p/${PROJECT}`);
+  const rail = page.getByRole("navigation").first();
+  await expect(rail).toContainText("Centro de control");
+
+  // The switcher is inside the account menu, named in its own language on purpose.
+  await page.getByRole("group", { name: /Cuenta de/ }).click();
+  await page.getByRole("button", { name: "English" }).click();
+  await expect(rail).toContainText("Command Centre");
+  await expect(rail).not.toContainText("Centro de control");
+
+  // And the choice survives a navigation, because it is a cookie rather than page state.
+  await page.goto(`/t/${TENANT}/p/${PROJECT}/quality`);
+  await expect(page.getByRole("navigation").first()).toContainText("Consistency control");
+  await expect(page.getByRole("main")).toContainText("Consistency control");
+});

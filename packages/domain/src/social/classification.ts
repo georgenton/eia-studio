@@ -52,13 +52,12 @@ export type ClassifierOutput = z.infer<typeof classifierOutputSchema>;
 /**
  * What a model score is and is not (design v0.2 invariant 10, AI_GOVERNANCE.md).
  *
- * Stated as data so the UI copy and the documentation cannot drift apart from each other.
+ * The *threshold* is the part that is not language: below it the queue offers the response for
+ * review first. The words — `social.confidenceLabel` and `social.confidenceHelp` — are in the
+ * message catalogue, where the vocabulary test asserts in both languages that neither of them
+ * calls this an accuracy or a calibrated probability.
  */
 export const CONFIDENCE_SEMANTICS = {
-  label: "Confianza del modelo",
-  help:
-    "Valor heurístico que el modelo reporta para priorizar la revisión. No es una probabilidad " +
-    "calibrada, no es un porcentaje de acierto y no sustituye la validación de un especialista.",
   /** Below this, the queue offers the response for review first and the UI says why. */
   lowThreshold: 0.6,
 } as const;

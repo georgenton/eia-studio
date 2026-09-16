@@ -101,7 +101,7 @@ export function getEnv(): WebEnv {
       appEnv: app.APP_ENV,
       variable: "ASSISTANT_GENERATOR",
       modelVariable: "ASSISTANT_GENERATOR_MODEL",
-      feature: "la redacción asistida",
+      feature: "assisted prose",
       adapter: assistant.ASSISTANT_GENERATOR,
       model: assistant.ASSISTANT_GENERATOR_MODEL,
       credentialPresent: assistant.AI_GATEWAY_API_KEY !== undefined,

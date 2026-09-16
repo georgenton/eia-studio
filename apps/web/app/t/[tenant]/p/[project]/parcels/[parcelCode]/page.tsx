@@ -7,6 +7,8 @@ import { ProvenancePanel } from "@/components/provenance-panel";
 import { projectBreadcrumb, projectLabel, WorkspaceShell } from "@/components/workspace-shell";
 import { getSessionUser } from "@/lib/context";
 import { getDb } from "@/lib/db";
+import { surfaceLabel } from "@/lib/labels";
+import { getI18n } from "@/lib/locale";
 import { projectPath } from "@/lib/navigation";
 import { accessForDomainError, resolveSurfaceAccess } from "@/lib/surface-access";
 import { PermissionDeniedState } from "@/lib/system-state";
@@ -44,6 +46,8 @@ export default async function ParcelWorkspacePage({
   }
 
   const { ctx, tenantSettings } = access;
+  const i18n = await getI18n();
+  const { t } = i18n;
   const sessionUser = await getSessionUser();
   const header = await loadWorkspaceHeader(getDb(), ctx);
   const explorerPath = projectPath(ctx.tenantSlug, project, "gis");
@@ -55,14 +59,14 @@ export default async function ParcelWorkspacePage({
     tenantSettings,
     projects: header.projects,
     currentSurface: "gis" as const,
-    userName: sessionUser?.name ?? sessionUser?.email ?? "Usuario",
+    userName: sessionUser?.name ?? sessionUser?.email ?? t("shell.user"),
     userEmail: sessionUser?.email ?? null,
     breadcrumb: [
       ...projectBreadcrumb(
         ctx,
         header.tenantName,
         projectLabel(header.projects, project),
-        "GIS & Predios",
+        surfaceLabel(t, "gis"),
         explorerPath,
       ),
       { label: parcelCode },
@@ -107,6 +111,7 @@ export default async function ParcelWorkspacePage({
         basePath={basePath}
         canReadResponses={can(ctx, "field.responses.read")}
         explorerPath={explorerPath}
+        i18n={i18n}
         tab={tab}
         view={view}
         visits={visits}

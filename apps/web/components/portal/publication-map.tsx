@@ -11,6 +11,7 @@ import { Map as MapLibreMap, ScaleControl } from "maplibre-gl";
 import { useEffect, useRef, useState } from "react";
 
 import { attachBasemap, detachBasemap, probeBasemap } from "@/components/gis/basemap-layer";
+import { createTranslator, DEFAULT_LOCALE } from "@eia/i18n";
 import { ensureMapWorker, keepMapSized, removeMapFromTabOrder } from "@/components/gis/inert-map";
 
 import "maplibre-gl/dist/maplibre-gl.css";
@@ -189,13 +190,20 @@ export function PublicationMap({
     return () => controller.abort();
   }, [basemap, mode]);
 
+  // The publication's own language, not the reader's: this map is part of the client's page, and
+  // the payload's labels were composed when it was published (see `ClientPublicationView`).
+  const t = createTranslator(DEFAULT_LOCALE);
   const described =
     territory.alignment === null && territory.influenceAreas.length === 0
-      ? "No se ha publicado cartografía del proyecto."
+      ? t("portal.noCartography")
       : [
-          territory.alignment ? `Trazado: ${territory.alignment.label}.` : null,
+          territory.alignment
+            ? t("portal.mapAlignment", { label: territory.alignment.label })
+            : null,
           territory.influenceAreas.length > 0
-            ? `Áreas delimitadas: ${territory.influenceAreas.map((a) => a.label).join(", ")}.`
+            ? t("portal.mapAreas", {
+                labels: territory.influenceAreas.map((area) => area.label).join(", "),
+              })
             : null,
         ]
           .filter(Boolean)

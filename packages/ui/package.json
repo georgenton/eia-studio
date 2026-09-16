@@ -12,7 +12,8 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@eia/domain": "workspace:*"
+    "@eia/domain": "workspace:*",
+    "@eia/i18n": "workspace:*"
   },
   "devDependencies": {
     "@eia/config": "workspace:*",

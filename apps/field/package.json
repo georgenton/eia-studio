@@ -17,6 +17,7 @@
     "@better-auth/expo": "1.7.2",
     "@eia/domain": "workspace:*",
     "@eia/field-sync-contract": "workspace:*",
+    "@eia/i18n": "workspace:*",
     "better-auth": "1.7.2",
     "expo": "57.0.23",
     "expo-constants": "57.0.18",

@@ -10,6 +10,8 @@ import {
 
 import { authClient } from "../auth/client";
 import { fieldConfig } from "../config";
+import { useT } from "../i18n";
+import { LanguageToggle } from "../language-toggle";
 import { theme } from "../theme";
 import { Body, Button, Label, Notice, Screen, Title } from "../ui";
 
@@ -21,6 +23,7 @@ import { Body, Button, Label, Notice, Screen, Title } from "../ui";
  * the device will keep working without a signal until the downloaded window lapses.
  */
 export function SignInScreen({ onSignedIn }: { onSignedIn: () => void }) {
+  const t = useT();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -33,7 +36,7 @@ export function SignInScreen({ onSignedIn }: { onSignedIn: () => void }) {
     const result = await authClient.signIn.email({ email: email.trim(), password });
     setBusy(false);
     if (result.error) {
-      setError("No pudimos iniciar sesión. Revisa el correo y la contraseña.");
+      setError(t("auth.failed"));
       return;
     }
     onSignedIn();
@@ -48,17 +51,14 @@ export function SignInScreen({ onSignedIn }: { onSignedIn: () => void }) {
         <ScrollView contentContainerStyle={styles.content}>
           <View style={styles.header}>
             <Label>EIA Studio</Label>
-            <Title>EIA Field</Title>
-            <Body muted>
-              Inicia sesión con conexión una vez. Después podrás trabajar sin señal hasta que venza
-              el trabajo descargado.
-            </Body>
+            <Title>{t("mobile.appName")}</Title>
+            <Body muted>{t("mobile.signInHint")}</Body>
           </View>
 
           <View style={styles.field}>
-            <Label>Correo institucional</Label>
+            <Label>{t("auth.email")}</Label>
             <TextInput
-              accessibilityLabel="Correo institucional"
+              accessibilityLabel={t("auth.email")}
               autoCapitalize="none"
               autoComplete="email"
               inputMode="email"
@@ -68,9 +68,9 @@ export function SignInScreen({ onSignedIn }: { onSignedIn: () => void }) {
             />
           </View>
           <View style={styles.field}>
-            <Label>Contraseña</Label>
+            <Label>{t("auth.password")}</Label>
             <TextInput
-              accessibilityLabel="Contraseña"
+              accessibilityLabel={t("auth.password")}
               autoCapitalize="none"
               onChangeText={setPassword}
               secureTextEntry
@@ -83,9 +83,10 @@ export function SignInScreen({ onSignedIn }: { onSignedIn: () => void }) {
 
           <Button
             disabled={busy || email.trim() === "" || password === ""}
-            label={busy ? "Entrando…" : "Entrar"}
+            label={busy ? t("auth.signingIn") : t("auth.signIn")}
             onPress={() => void submit()}
           />
+          <LanguageToggle />
           <Body muted>{config.environmentLabel}</Body>
         </ScrollView>
       </KeyboardAvoidingView>

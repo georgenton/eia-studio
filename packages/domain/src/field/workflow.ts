@@ -26,11 +26,7 @@ export const CAMPAIGN_STATUSES = ["DRAFT", "ACTIVE", "CLOSED"] as const;
 export const campaignStatusSchema = z.enum(CAMPAIGN_STATUSES);
 export type CampaignStatus = z.infer<typeof campaignStatusSchema>;
 
-export const CAMPAIGN_STATUS_LABEL: Readonly<Record<CampaignStatus, string>> = {
-  DRAFT: "Borrador",
-  ACTIVE: "En campo",
-  CLOSED: "Cerrada",
-};
+/* Words: `vocabulary.campaignStatus.*` in `@eia/i18n`. */
 
 export class CampaignNotActivatable extends InvalidInput {
   constructor(reason: string) {
@@ -122,14 +118,17 @@ export const ASSIGNMENT_STATUSES = ["PENDING", "IN_PROGRESS", "COMPLETED", "CANC
 export const assignmentStatusSchema = z.enum(ASSIGNMENT_STATUSES);
 export type AssignmentStatus = z.infer<typeof assignmentStatusSchema>;
 
-export const ASSIGNMENT_STATUS_PRESENTATION: Readonly<
-  Record<AssignmentStatus, { label: string; glyph: string }>
-> = {
-  PENDING: { label: "Pendiente", glyph: "○" },
-  IN_PROGRESS: { label: "En curso", glyph: "◐" },
-  COMPLETED: { label: "Completada", glyph: "✓" },
-  CANCELLED: { label: "Cancelada", glyph: "—" },
-};
+/**
+ * The glyph beside a status, which is the same mark in every language and is what keeps the state
+ * legible without colour. The words are `vocabulary.assignmentStatus.*`.
+ */
+export const ASSIGNMENT_STATUS_PRESENTATION: Readonly<Record<AssignmentStatus, { glyph: string }>> =
+  {
+    PENDING: { glyph: "○" },
+    IN_PROGRESS: { glyph: "◐" },
+    COMPLETED: { glyph: "✓" },
+    CANCELLED: { glyph: "—" },
+  };
 
 const ASSIGNMENT_TRANSITIONS: Readonly<Record<AssignmentStatus, ReadonlyArray<AssignmentStatus>>> =
   {
@@ -162,10 +161,7 @@ export const VISIT_STATUSES = ["IN_PROGRESS", "COMPLETED"] as const;
 export const visitStatusSchema = z.enum(VISIT_STATUSES);
 export type VisitStatus = z.infer<typeof visitStatusSchema>;
 
-export const VISIT_STATUS_LABEL: Readonly<Record<VisitStatus, string>> = {
-  IN_PROGRESS: "En curso",
-  COMPLETED: "Completada",
-};
+/* Words: `vocabulary.visitStatus.*` in `@eia/i18n`. */
 
 /**
  * Geolocation captured by the browser, when the technician allows it.
@@ -193,12 +189,7 @@ export const LOCATION_OUTCOMES = ["captured", "denied", "unavailable", "not_atte
 export const locationOutcomeSchema = z.enum(LOCATION_OUTCOMES);
 export type LocationOutcome = z.infer<typeof locationOutcomeSchema>;
 
-export const LOCATION_OUTCOME_LABEL: Readonly<Record<LocationOutcome, string>> = {
-  captured: "Ubicación capturada",
-  denied: "Permiso de ubicación denegado",
-  unavailable: "Ubicación no disponible en el dispositivo",
-  not_attempted: "Ubicación no solicitada",
-};
+/* Words: `vocabulary.locationOutcome.*` in `@eia/i18n`. */
 
 /* ---------------------------------------------------------------------------------------------
  * Survey instance
@@ -219,10 +210,7 @@ export const INSTANCE_STATUSES = ["IN_PROGRESS", "SUBMITTED"] as const;
 export const instanceStatusSchema = z.enum(INSTANCE_STATUSES);
 export type InstanceStatus = z.infer<typeof instanceStatusSchema>;
 
-export const INSTANCE_STATUS_LABEL: Readonly<Record<InstanceStatus, string>> = {
-  IN_PROGRESS: "Borrador",
-  SUBMITTED: "Enviada",
-};
+/* Words: `vocabulary.instanceStatus.*` in `@eia/i18n`. */
 
 export class InstanceAlreadySubmitted extends InvalidInput {
   constructor(readonly instanceId: string) {

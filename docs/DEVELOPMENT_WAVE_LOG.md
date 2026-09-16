@@ -800,3 +800,46 @@ imports `node:crypto`.
 **Tests**: unit 358 → **403**, integration 427 → **452**, plus the reproducible handset procedure in
 `docs/FIELD_MOBILE_OFFLINE_UAT.md`. Both platform bundles build (`expo export`); native builds need
 SDKs this machine does not have, which is recorded rather than glossed.
+
+## Production V1 · Wave 2 · PR 1 — the product is bilingual (16 September 2026)
+
+Spanish and English, from the same catalogue, across the web workspace and EIA Field — and a
+questionnaire that is **one version in two languages** rather than two questionnaires (ADR-029,
+amending ADR-025).
+
+**The rule was already right; the implementation had one language built in.** ADR-025 said *a
+stored value is never rendered; a label for it is*, and implemented it with Spanish constants
+beside the values: `PARCEL_STATUS_PRESENTATION.confirmed.label`, `REGIME_LABEL`,
+`LAYER_LEGEND_COPY`, `AGREEMENT_SEMANTICS.help`, `DENOMINATOR_COPY`, the six quality rules' titles,
+about thirty tables in all. Those label fields are gone from `@eia/domain`. What stayed is what is
+not language: the enum, the **glyph** beside a status (the same mark for either reader, and the
+accessibility guarantee), `deriveSourceTypeLabel`, `allowsOnlineOnlyChannel`, `lowThreshold`, the
+rules themselves. `@eia/ui` now holds no copy and no formatter at all.
+
+**Nothing below a surface decides how something reads.** A surface resolves the locale once and
+passes `{ locale, t, fmt }` down; there is no `locale === "en" ? … : …` in any component. `7,4`
+against `7.4`, `28 ago 2026` against `28 Aug 2026` — and an **abscissa** stays `2+840` in both,
+because it is surveying notation rather than a number.
+
+**One questionnaire.** `survey_question_translation` and `survey_option_translation` are part of the
+definition, frozen by the same trigger that freezes the questions (migrations 0034/0035). Answers
+still point at codes, so a form filled in English and a tabulation read in Spanish are the same
+response, with one definition hash and one denominator. A question nobody translated keeps its
+Spanish wording: a missing translation is a gap in the wording, never a gap in the instrument. The
+Field Pack carries the translations, so a phone three days offline can still switch language.
+
+**Invariant 11 now holds in English too.** `FORBIDDEN_FINDING_WORDS` gained the equivalents —
+*non-compliance*, *violation*, *breach of*, *unlawful*, *the system determines* — and the
+catalogue's test asserts every message in both languages against the whole list. So does invariant
+10: no message calls a model score an accuracy, and *calibrated probability* may appear only inside
+a sentence that denies it. That test caught the approved copy on its first run, which is the right
+kind of failure: the denial is the copy, and the check now knows the difference.
+
+**What is deliberately not translated** is project source data — delivered documents, the management
+plan in the study's own spellings, a taxonomy's categories, a generated finding's stored text
+(TD-086), a report version, and the client publication, which is rendered in the language it was
+published in (TD-085). The e2e vocabulary suite encodes the distinction: the English pass forbids
+Spanish **interface** copy and deliberately does not forbid Spanish content.
+
+**Tests**: unit 403 → **466** (the catalogue's own suite is 25 of them), integration 452 → **458**.
+`e2e/vocabulary.spec.ts` now checks every surface twice. Both mobile bundles still build.

@@ -1,11 +1,13 @@
 import { loadDocumentVersion, loadWorkspaceHeader } from "@eia/application";
-import { can, SURFACE_DEFINITIONS } from "@eia/domain";
+import { can } from "@eia/domain";
 import { Panel, PanelBody, PanelHeader } from "@eia/ui";
 import { notFound, redirect } from "next/navigation";
 
 import { projectBreadcrumb, projectLabel, WorkspaceShell } from "@/components/workspace-shell";
 import { getSessionUser } from "@/lib/context";
 import { getDb } from "@/lib/db";
+import { surfaceLabel } from "@/lib/labels";
+import { getI18n } from "@/lib/locale";
 import { projectPath } from "@/lib/navigation";
 import { accessForDomainError, resolveSurfaceAccess } from "@/lib/surface-access";
 import { PermissionDeniedState } from "@/lib/system-state";
@@ -47,6 +49,8 @@ export default async function DocumentPage({
   }
 
   const { ctx, tenantSettings } = access;
+  const i18n = await getI18n();
+  const { t } = i18n;
   const sessionUser = await getSessionUser();
   const header = await loadWorkspaceHeader(getDb(), ctx);
 
@@ -55,13 +59,13 @@ export default async function DocumentPage({
     tenantSettings,
     projects: header.projects,
     currentSurface: "documents" as const,
-    userName: sessionUser?.name ?? sessionUser?.email ?? "Usuario",
+    userName: sessionUser?.name ?? sessionUser?.email ?? t("shell.user"),
     userEmail: sessionUser?.email ?? null,
     breadcrumb: projectBreadcrumb(
       ctx,
       header.tenantName,
       projectLabel(header.projects, project),
-      `${SURFACE_DEFINITIONS.documents.label} · ${code}`,
+      `${surfaceLabel(t, "documents")} · ${code}`,
       projectPath(ctx.tenantSlug, project, "documents"),
     ),
   };
@@ -95,37 +99,40 @@ export default async function DocumentPage({
         <Panel>
           <PanelHeader
             label={`${document.code} ${document.versionLabel} · ${document.title}`}
-            note={`${document.kindLabel} · ${document.pageCount} página(s) · ${document.chunkCount} pasajes`}
+            note={t("documents.detailNote", {
+              kind: document.kindLabel,
+              pages: i18n.fmt.count(document.pageCount),
+              passages: i18n.fmt.count(document.chunkCount),
+            })}
           />
           <PanelBody>
             {document.superseded ? (
-              <p className={styles.superseded}>
-                Esta es una versión anterior del documento. Se conserva porque las citas hechas
-                contra ella siguen apuntando a estas palabras; la versión vigente puede decir otra
-                cosa.
-              </p>
+              <p className={styles.superseded}>{t("documents.supersededNote")}</p>
             ) : null}
             <p className={styles.note}>
               <strong>{document.textSourceLabel}.</strong> {document.sourceNote}
             </p>
             <p className={styles.strategy}>
-              Segmentación <code>{document.chunkingStrategy}</code>. Los pasajes son la unidad que
-              una cita nombra; no cambian mientras exista esta versión.
+              {t("documents.chunkingStrategy")} <code>{document.chunkingStrategy}</code>.{" "}
+              {t("documents.chunkingNote")}
             </p>
           </PanelBody>
         </Panel>
 
         <Panel>
-          <PanelHeader label="Pasajes" note="En el orden en que aparecen en el documento" />
+          <PanelHeader label={t("documents.passages")} note={t("documents.passagesNote")} />
           <PanelBody>
             <ol className={styles.passages}>
               {document.passages.map((passage) => (
                 <li className={styles.passage} key={passage.chunkId} id={`p-${passage.ordinal}`}>
                   <span className={styles.passageMeta}>
-                    Pasaje {passage.ordinal + 1}
+                    {t("documents.passage", { number: i18n.fmt.count(passage.ordinal + 1) })}
                     {passage.pageFrom === passage.pageTo
-                      ? ` · p. ${passage.pageFrom}`
-                      : ` · pp. ${passage.pageFrom}–${passage.pageTo}`}
+                      ? t("documents.passagePage", { page: i18n.fmt.count(passage.pageFrom) })
+                      : t("documents.passagePages", {
+                          from: i18n.fmt.count(passage.pageFrom),
+                          to: i18n.fmt.count(passage.pageTo),
+                        })}
                   </span>
                   <p className={styles.passageText}>{passage.text}</p>
                 </li>

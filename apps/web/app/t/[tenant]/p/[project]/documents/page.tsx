@@ -1,5 +1,5 @@
 import { loadDocuments, loadWorkspaceHeader } from "@eia/application";
-import { can, SURFACE_DEFINITIONS } from "@eia/domain";
+import { can } from "@eia/domain";
 import { Panel, PanelBody, PanelHeader } from "@eia/ui";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
@@ -8,6 +8,8 @@ import { DocumentAssistant } from "@/components/documents/document-assistant";
 import { projectBreadcrumb, projectLabel, WorkspaceShell } from "@/components/workspace-shell";
 import { getSessionUser } from "@/lib/context";
 import { getDb } from "@/lib/db";
+import { surfaceLabel } from "@/lib/labels";
+import { getI18n } from "@/lib/locale";
 import { projectPath } from "@/lib/navigation";
 import { accessForDomainError, resolveSurfaceAccess } from "@/lib/surface-access";
 import { PermissionDeniedState } from "@/lib/system-state";
@@ -46,6 +48,8 @@ export default async function DocumentsPage({
   }
 
   const { ctx, tenantSettings } = access;
+  const i18n = await getI18n();
+  const { t } = i18n;
   const sessionUser = await getSessionUser();
   const header = await loadWorkspaceHeader(getDb(), ctx);
 
@@ -54,13 +58,13 @@ export default async function DocumentsPage({
     tenantSettings,
     projects: header.projects,
     currentSurface: "documents" as const,
-    userName: sessionUser?.name ?? sessionUser?.email ?? "Usuario",
+    userName: sessionUser?.name ?? sessionUser?.email ?? t("shell.user"),
     userEmail: sessionUser?.email ?? null,
     breadcrumb: projectBreadcrumb(
       ctx,
       header.tenantName,
       projectLabel(header.projects, project),
-      SURFACE_DEFINITIONS.documents.label,
+      surfaceLabel(t, "documents"),
     ),
   };
 
@@ -96,26 +100,28 @@ export default async function DocumentsPage({
 
         <Panel>
           <PanelHeader
-            label="Documentos del proyecto"
-            note={`${documents.length} documento(s) · ${documents.reduce((sum, d) => sum + d.chunkCount, 0)} pasajes`}
+            label={t("documents.projectDocuments")}
+            note={t("documents.documentsNote", {
+              documents: i18n.fmt.count(documents.length),
+              passages: i18n.fmt.count(documents.reduce((sum, d) => sum + d.chunkCount, 0)),
+            })}
           />
           <PanelBody>
             {documents.length === 0 ? (
               <p className={styles.note} data-system-state="empty">
-                Este proyecto todavía no tiene documentos cargados. El asistente responde únicamente
-                a partir de ellos, así que no tiene nada que consultar.
+                {t("documents.emptyBody")}
               </p>
             ) : (
               <table className={styles.table}>
-                <caption className="sr-only">Documentos del expediente, por código</caption>
+                <caption className="sr-only">{t("documents.tableCaption")}</caption>
                 <thead>
                   <tr>
-                    <th scope="col">Código</th>
-                    <th scope="col">Documento</th>
-                    <th scope="col">Tipo</th>
-                    <th scope="col">Versión</th>
-                    <th scope="col">Páginas</th>
-                    <th scope="col">Pasajes</th>
+                    <th scope="col">{t("documents.code")}</th>
+                    <th scope="col">{t("documents.document")}</th>
+                    <th scope="col">{t("documents.kind")}</th>
+                    <th scope="col">{t("common.version")}</th>
+                    <th scope="col">{t("documents.pages")}</th>
+                    <th scope="col">{t("documents.passages")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -136,10 +142,14 @@ export default async function DocumentsPage({
                       <td>{document.kindLabel}</td>
                       <td className={styles.code}>
                         {document.versionLabel}
-                        {document.versionCount > 1 ? ` de ${document.versionCount}` : ""}
+                        {document.versionCount > 1
+                          ? t("documents.ofVersions", {
+                              count: i18n.fmt.count(document.versionCount),
+                            })
+                          : ""}
                       </td>
-                      <td>{document.pageCount}</td>
-                      <td>{document.chunkCount}</td>
+                      <td>{i18n.fmt.count(document.pageCount)}</td>
+                      <td>{i18n.fmt.count(document.chunkCount)}</td>
                     </tr>
                   ))}
                 </tbody>

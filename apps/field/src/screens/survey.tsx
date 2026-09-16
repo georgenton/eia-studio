@@ -4,8 +4,10 @@ import { useEffect, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Switch, TextInput, View } from "react-native";
 
 import { validateSubmission, type FieldIssue } from "../core/answers";
+import { localizeQuestion, type LocalizedQuestion } from "../core/localized-question";
 import { surveyDraftCommand, surveySubmitCommand } from "../core/commands";
 import { fieldConfig } from "../config";
+import { useLocaleState, useT } from "../i18n";
 import { bumpDeviceRevision, enqueue, readAnswers, saveAnswer, setSurveyState } from "../db/repo";
 import { isLocallyEditable } from "../core/survey-state";
 import { useField } from "../store";
@@ -32,6 +34,8 @@ export function SurveyScreen({
   assignmentId: string;
   onBack: () => void;
 }) {
+  const t = useT();
+  const { locale } = useLocaleState();
   const { db, pack, assignments, refresh } = useField();
   const assignment = assignments.find((row) => row.id === assignmentId);
   const [answers, setAnswers] = useState<Record<string, WireAnswer>>({});
@@ -65,9 +69,9 @@ export function SurveyScreen({
     return (
       <Screen>
         <ScrollView contentContainerStyle={styles.content}>
-          <Title>Ficha no disponible</Title>
-          <Body muted>Inicia la visita desde el predio para abrir la ficha.</Body>
-          <Button label="Volver" onPress={onBack} tone="secondary" />
+          <Title>{t("mobile.surveyUnavailable")}</Title>
+          <Body muted>{t("mobile.surveyUnavailableBody")}</Body>
+          <Button label={t("common.back")} onPress={onBack} tone="secondary" />
         </ScrollView>
       </Screen>
     );
@@ -95,7 +99,7 @@ export function SurveyScreen({
         },
       ),
     });
-    setMessage("Borrador guardado en el dispositivo.");
+    setMessage(t("mobile.draftSaved"));
     await refresh();
   };
 
@@ -127,9 +131,7 @@ export function SurveyScreen({
         },
       ),
     });
-    setMessage(
-      "Enviada en el dispositivo. Queda pendiente de sincronización hasta que haya señal.",
-    );
+    setMessage(t("mobile.submittedOnDevice"));
     await refresh();
   };
 
@@ -137,23 +139,20 @@ export function SurveyScreen({
     <Screen>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <View style={styles.header}>
-          <Label>Predio {assignment.parcelCode}</Label>
+          <Label>
+            {t("mobile.parcel")} {assignment.parcelCode}
+          </Label>
           <Title>{pack.campaign.surveyVersion.templateName}</Title>
-          <Chip text={`Versión ${pack.campaign.surveyVersion.versionLabel}`} />
+          <Chip text={`${t("common.version")} ${pack.campaign.surveyVersion.versionLabel}`} />
         </View>
 
-        {!editable ? (
-          <Notice
-            text="Esta ficha ya fue enviada en el dispositivo. No se edita aquí: una corrección es una decisión de la coordinación, no un cambio silencioso en el teléfono."
-            tone="warn"
-          />
-        ) : null}
+        {!editable ? <Notice text={t("mobile.readOnlyNotice")} tone="warn" /> : null}
         {message ? <Notice text={message} tone="ok" /> : null}
         {issues.length > 0 ? (
           <Notice
-            text={`Faltan respuestas o hay valores no válidos: ${issues
-              .map((issue) => issue.message)
-              .join(" ")}`}
+            text={t("mobile.validationFailed", {
+              details: issues.map((issue) => issue.message).join(" "),
+            })}
             tone="crit"
           />
         ) : null}
@@ -164,6 +163,7 @@ export function SurveyScreen({
                 answer={answers[question.code]}
                 editable={editable}
                 key={question.code}
+                localized={localizeQuestion(question, locale)}
                 onChange={(value) => void setAnswer(question, value)}
                 question={question}
               />
@@ -172,15 +172,19 @@ export function SurveyScreen({
 
         {editable ? (
           <View style={styles.actions}>
-            <Button label="Guardar borrador" onPress={() => void saveDraft()} tone="secondary" />
             <Button
-              hint="Valida la ficha completa y la deja lista para sincronizar."
-              label="Enviar en el dispositivo"
+              label={t("mobile.saveDraft")}
+              onPress={() => void saveDraft()}
+              tone="secondary"
+            />
+            <Button
+              hint={t("mobile.submitOnDevice")}
+              label={t("mobile.submitOnDevice")}
               onPress={() => void submitLocally()}
             />
           </View>
         ) : null}
-        <Button label="Volver" onPress={onBack} tone="secondary" />
+        <Button label={t("common.back")} onPress={onBack} tone="secondary" />
       </ScrollView>
     </Screen>
   );
@@ -188,11 +192,13 @@ export function SurveyScreen({
 
 function QuestionField({
   question,
+  localized,
   answer,
   editable,
   onChange,
 }: {
   question: PackQuestion;
+  localized: LocalizedQuestion;
   answer: WireAnswer | undefined;
   editable: boolean;
   onChange: (answer: WireAnswer) => void;
@@ -200,17 +206,18 @@ function QuestionField({
   return (
     <Card>
       <Heading>
-        {question.prompt}
+        {localized.prompt}
         {question.required ? " *" : ""}
       </Heading>
-      {question.helpText ? <Body muted>{question.helpText}</Body> : null}
-      {renderControl(question, answer, editable, onChange)}
+      {localized.helpText ? <Body muted>{localized.helpText}</Body> : null}
+      {renderControl(question, localized, answer, editable, onChange)}
     </Card>
   );
 }
 
 function renderControl(
   question: PackQuestion,
+  localized: LocalizedQuestion,
   answer: WireAnswer | undefined,
   editable: boolean,
   onChange: (answer: WireAnswer) => void,
@@ -219,7 +226,7 @@ function renderControl(
     case "BOOLEAN":
       return (
         <Switch
-          accessibilityLabel={question.prompt}
+          accessibilityLabel={localized.prompt}
           disabled={!editable}
           onValueChange={(value) => onChange({ kind: "boolean", value })}
           value={answer?.kind === "boolean" ? answer.value : false}
@@ -229,7 +236,7 @@ function renderControl(
     case "DECIMAL":
       return (
         <TextInput
-          accessibilityLabel={question.prompt}
+          accessibilityLabel={localized.prompt}
           editable={editable}
           inputMode="numeric"
           onChangeText={(text) => {
@@ -247,7 +254,7 @@ function renderControl(
     case "SINGLE_CHOICE":
       return (
         <View style={styles.options}>
-          {question.options.map((option) => {
+          {localized.options.map((option) => {
             const selected = answer?.kind === "option" && answer.optionCode === option.code;
             return (
               <Pressable
@@ -268,7 +275,7 @@ function renderControl(
       const chosen = answer?.kind === "options" ? answer.optionCodes : [];
       return (
         <View style={styles.options}>
-          {question.options.map((option) => {
+          {localized.options.map((option) => {
             const selected = chosen.includes(option.code);
             return (
               <Pressable
@@ -296,7 +303,7 @@ function renderControl(
     case "DATE":
       return (
         <TextInput
-          accessibilityLabel={`${question.prompt} (AAAA-MM-DD)`}
+          accessibilityLabel={`${localized.prompt} (AAAA-MM-DD)`}
           editable={editable}
           onChangeText={(text) =>
             onChange(text.trim() === "" ? { kind: "blank" } : { kind: "date", value: text.trim() })
@@ -309,7 +316,7 @@ function renderControl(
     default:
       return (
         <TextInput
-          accessibilityLabel={question.prompt}
+          accessibilityLabel={localized.prompt}
           editable={editable}
           multiline={question.type === "LONG_TEXT"}
           onChangeText={(text) => onChange({ kind: "text", value: text })}

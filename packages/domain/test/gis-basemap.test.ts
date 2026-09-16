@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  BASEMAP_MODE_LABEL,
   BASEMAP_MODES,
   basemapSourceFor,
   isBasemapModeAvailable,
@@ -122,21 +121,6 @@ describe("which background a reader opens on", () => {
   it("never offers a mode the catalogue does not have", () => {
     for (const mode of BASEMAP_MODES) {
       if (isBasemapModeAvailable(neutral, mode)) expect(mode).toBe("none");
-    }
-  });
-});
-
-describe("what a reader is told", () => {
-  it("names each background in the product's own language, never the provider's", () => {
-    expect(BASEMAP_MODE_LABEL).toEqual({
-      none: "Sin fondo",
-      map: "Mapa",
-      satellite: "Satélite",
-      terrain: "Relieve",
-    });
-    for (const label of Object.values(BASEMAP_MODE_LABEL)) {
-      expect(label.toLowerCase()).not.toContain("maptiler");
-      expect(label.toLowerCase()).not.toContain("tile");
     }
   });
 });

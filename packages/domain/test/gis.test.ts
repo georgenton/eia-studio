@@ -6,7 +6,6 @@ import {
   CORRIDOR_GENERATOR_VERSION,
   corridorGeneratorInputSchema,
   deriveLayerLegend,
-  LAYER_LEGEND_COPY,
   DESIGN_SURVEY_STATES_PENDING_FIELD,
   formatChainage,
   generateCorridor,
@@ -17,6 +16,7 @@ import {
   CANONICAL_SRID,
   epsgLabel,
   LAYER_LEGEND_ORDER,
+  LAYER_PROVENANCE_LEGENDS,
   orderLayersForLegend,
   parseChainage,
   PRESENTATION_SRID,
@@ -75,10 +75,10 @@ describe("parcel identity", () => {
   });
 
   it("gives every status a glyph, so state never rests on colour alone", () => {
+    // The glyph is the part that is not language, which is why it stayed here when the words moved
+    // to the message catalogue: it is the same mark for a Spanish and an English reader.
     for (const status of PARCEL_STATUSES) {
-      const presentation = PARCEL_STATUS_PRESENTATION[status];
-      expect(presentation.glyph.length).toBeGreaterThan(0);
-      expect(presentation.label.length).toBeGreaterThan(0);
+      expect(PARCEL_STATUS_PRESENTATION[status].glyph.length).toBeGreaterThan(0);
     }
   });
 });
@@ -157,18 +157,12 @@ describe("layer provenance legend", () => {
     }
   });
 
-  it("every legend key the derivation can return has copy", () => {
-    // A key without copy renders as an empty badge on a map that is required to carry one
-    // (invariant 13), and the omission is invisible until a reviewer looks at the legend.
-    for (const key of Object.keys(LAYER_LEGEND_COPY)) {
-      expect(LAYER_LEGEND_COPY[key as keyof typeof LAYER_LEGEND_COPY].label.length).toBeGreaterThan(
-        0,
-      );
-      expect(LAYER_LEGEND_COPY[key as keyof typeof LAYER_LEGEND_COPY].note.length).toBeGreaterThan(
-        0,
-      );
-    }
-    expect(Object.keys(LAYER_LEGEND_COPY)).toHaveLength(8);
+  it("declares every legend the derivation can return", () => {
+    // The words live in the message catalogue since Wave 2, and `i18n.test.ts` asserts that every
+    // one of these keys has them in both languages. What stays here is the set itself: a legend the
+    // derivation can return but nobody declared renders as an empty badge on a map that is required
+    // to carry one (invariant 13).
+    expect(LAYER_PROVENANCE_LEGENDS).toHaveLength(8);
   });
 });
 

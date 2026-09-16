@@ -1,8 +1,14 @@
 # The words this product uses
 
-> Related: ADR-025 (the product speaks Spanish), PRODUCT.md §8 (language and locale), CLAUDE.md
-> "Product language rules", invariants 4, 10, 11 and 13. Enforced by `e2e/vocabulary.spec.ts` and
-> `tooling/scripts/check-forbidden-strings.mjs`.
+> Related: ADR-025 (the product speaks Spanish), ADR-029 (the product is bilingual),
+> `docs/I18N_ARCHITECTURE.md`, PRODUCT.md §8 (language and locale), CLAUDE.md
+> "Product language rules", invariants 4, 10, 11 and 13. Enforced by `e2e/vocabulary.spec.ts`,
+> `packages/i18n/test/i18n.test.ts` and `tooling/scripts/check-forbidden-strings.mjs`.
+>
+> **Since ADR-029 this page is the Spanish half of a bilingual catalogue.** The words below are
+> `packages/i18n/src/messages/es-EC.ts`, which is still the source of truth — the English catalogue
+> is type-checked against it and is a rendering of it. Rule 1 below is unchanged; what changed is
+> where the label lives, which is the catalogue rather than a constant beside the type.
 
 The reader is an environmental consultant in Ecuador who has a study to deliver. Everything below
 follows from that one fact.
@@ -10,8 +16,9 @@ follows from that one fact.
 ## 1. The three rules
 
 1. **A stored value is never rendered; a label for it is.** `DEMO_SIMULATION` is a database value.
-   *Simulación operativa* is what a person reads. Every enum that reaches a screen goes through a
-   label constant declared beside its type.
+   *Simulación operativa* is what a person reads. Every enum that reaches a screen goes through
+   `vocabulary.<namespace>.<value>` in the message catalogue, and a test asserts that every value
+   of every rendered enum has a word there in **both** languages (ADR-029).
 2. **Say what the datum is, not how the pipeline produced it.** A reader opening the provenance
    drawer is deciding whether they may quote a figure in a document that will be submitted to an
    authority. *Cifra verificable del expediente* answers that. *Etiqueta derivada de las facetas*

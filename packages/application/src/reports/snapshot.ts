@@ -1,6 +1,5 @@
 import { type DbTx } from "@eia/db";
 import {
-  DENOMINATOR_COPY,
   NotFound,
   SECTION_TITLES,
   type ReportFact,
@@ -177,7 +176,7 @@ export async function buildSocialSnapshot(tx: DbTx, input: SnapshotInput): Promi
           answered === 0
             ? "—"
             : `${count(Number(option.n))} (${percent(Number(option.n) / answered)})`,
-        basis: `${DENOMINATOR_COPY[rule].label}: ${count(answered)}. ${DENOMINATOR_COPY[rule].help}`,
+        basis: `${denominator(rule).label}: ${count(answered)}. ${denominator(rule).help}`,
         source: {
           kind: "metric",
           metric: `social.tabulation.${row.code}`,
@@ -407,6 +406,37 @@ const STATE_LABEL: Record<string, string> = {
   DISMISSED: "Descartado",
   RESOLVED: "Resuelto",
 };
+/**
+ * The denominator, in the language the deliverable is written in.
+ *
+ * Deliberately local rather than read from the message catalogue: a report snapshot is a Spanish
+ * document, and its wording must not change because a reviewer happened to have the interface in
+ * English when they pressed generate. The interface's own words for the same rules are
+ * `social.denominator.*` (ADR-029 §5).
+ */
+const DENOMINATOR_COPY: Readonly<
+  Record<string, { readonly label: string; readonly help: string }>
+> = {
+  submitted: {
+    label: "sobre respuestas enviadas",
+    help: "Base: todas las respuestas enviadas de esta versión del cuestionario.",
+  },
+  answered: {
+    label: "sobre quienes respondieron la pregunta",
+    help: "Base: respuestas enviadas que contestaron esta pregunta. Los porcentajes suman 100 %.",
+  },
+  answered_multi: {
+    label: "sobre quienes respondieron la pregunta (selección múltiple)",
+    help:
+      "Base: respuestas enviadas que contestaron esta pregunta. Cada persona puede elegir varias " +
+      "opciones, así que la suma de los porcentajes puede superar el 100 %.",
+  },
+};
+
+function denominator(rule: string): { readonly label: string; readonly help: string } {
+  return DENOMINATOR_COPY[rule] ?? DENOMINATOR_COPY.submitted!;
+}
+
 const SEVERITY_LABEL: Record<string, string> = { high: "alta", medium: "media", low: "baja" };
 const REGIME_LABEL: Record<string, string> = {
   HISTORICAL_OBSERVED: "Dato histórico observado",

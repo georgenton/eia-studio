@@ -172,18 +172,4 @@ export function isProjectRole(value: string): value is ProjectRole {
  * The keys are the authorization model's; these are the words. `COORDINATOR` is what the code
  * checks and *Coordinador de proyecto* is what the person reading the topbar is.
  */
-export const TENANT_ROLE_LABEL: Readonly<Record<TenantRole, string>> = {
-  OWNER: "Titular de la organización",
-  ADMIN: "Administración",
-  MEMBER: "Equipo",
-};
-
-export const PROJECT_ROLE_LABEL: Readonly<Record<ProjectRole, string>> = {
-  COORDINATOR: "Coordinación de proyecto",
-  SOCIAL_SPECIALIST: "Especialista social",
-  ENVIRONMENTAL_SPECIALIST: "Especialista ambiental",
-  GIS_SPECIALIST: "Cartografía / SIG",
-  FIELD_TECHNICIAN: "Técnico de campo",
-  REVIEWER: "Revisión",
-  VIEWER: "Consulta",
-};
+/* A role's words are `vocabulary.tenantRole.*` and `vocabulary.projectRole.*` in `@eia/i18n`. */

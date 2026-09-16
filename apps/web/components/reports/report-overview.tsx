@@ -5,6 +5,7 @@ import { Panel, PanelBody, PanelHeader } from "@eia/ui";
 import Link from "next/link";
 import { useState, useTransition } from "react";
 
+import { useI18n } from "@/components/i18n/locale-provider";
 import { generateChapterAction } from "@/lib/report-actions";
 
 import styles from "./reports.module.css";
@@ -16,16 +17,6 @@ import styles from "./reports.module.css";
  * previous keeps exactly what it said. The list is the chapter's history, not a stack of drafts to
  * clean up.
  */
-const dateTime = (iso: string) =>
-  new Intl.DateTimeFormat("es-EC", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    timeZone: "UTC",
-  }).format(new Date(iso));
-
 export function ReportOverviewPanel({
   overview,
   tenant,
@@ -37,6 +28,7 @@ export function ReportOverviewPanel({
   project: string;
   canGenerate: boolean;
 }) {
+  const { t, fmt } = useI18n();
   const [message, setMessage] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -56,29 +48,20 @@ export function ReportOverviewPanel({
         label={overview.title}
         note={
           overview.versions.length === 0
-            ? "Todavía no se ha generado ninguna versión"
-            : `${overview.versions.length} versión(es)`
+            ? t("reports.noVersions")
+            : t("reports.versionsCount", { count: fmt.count(overview.versions.length) })
         }
         action={
           canGenerate ? (
             <button className={styles.primary} type="button" onClick={generate} disabled={pending}>
-              {pending ? "Generando…" : "Generar versión"}
+              {pending ? t("reports.generating") : t("reports.generate")}
             </button>
           ) : null
         }
       />
       <PanelBody>
-        <p className={styles.draftBanner}>
-          <strong>Borrador, no entregable.</strong> Cada versión se construye a partir de datos
-          validados — tabulación determinista, codificaciones validadas por especialista, hallazgos
-          de calidad decididos y documentos citados por versión — y ninguna afirmación constituye
-          una conclusión de cumplimiento normativo. Las propuestas automáticas sin validar no entran
-          en ninguna cifra.
-        </p>
-        <p className={styles.note}>
-          Una versión no se edita. Cuando cambian los datos validados se genera una versión nueva, y
-          la anterior conserva exactamente lo que decía.
-        </p>
+        <p className={styles.draftBanner}>{t("reports.draftBannerFull")}</p>
+        <p className={styles.note}>{t("reports.immutableNote")}</p>
 
         {message ? (
           <p
@@ -92,15 +75,15 @@ export function ReportOverviewPanel({
 
         {overview.versions.length > 0 ? (
           <table className={styles.table} style={{ marginTop: 12 }}>
-            <caption className="sr-only">Versiones del capítulo social</caption>
+            <caption className="sr-only">{t("reports.versionsCaption")}</caption>
             <thead>
               <tr>
-                <th scope="col">Versión</th>
-                <th scope="col">Generada</th>
-                <th scope="col">Cuestionario</th>
-                <th scope="col">Cifras</th>
-                <th scope="col">Redacción</th>
-                <th scope="col">Descarga</th>
+                <th scope="col">{t("common.version")}</th>
+                <th scope="col">{t("reports.generatedAt")}</th>
+                <th scope="col">{t("reports.questionnaire")}</th>
+                <th scope="col">{t("reports.figures")}</th>
+                <th scope="col">{t("reports.narrative")}</th>
+                <th scope="col">{t("reports.downloadColumn")}</th>
               </tr>
             </thead>
             <tbody>
@@ -113,17 +96,17 @@ export function ReportOverviewPanel({
                     >
                       {version.versionLabel}
                     </Link>
-                    {version.current ? " · vigente" : ""}
+                    {version.current ? t("reports.current") : ""}
                   </td>
                   <td>
-                    {dateTime(version.generatedAt)}
+                    {fmt.dateTime(new Date(version.generatedAt))}
                     {version.generatedBy ? (
                       <div className={styles.factSource}>{version.generatedBy}</div>
                     ) : null}
                   </td>
                   <td className={styles.code}>{version.surveyVersionLabel}</td>
-                  <td>{version.factCount}</td>
-                  <td>{version.narrativeModel ?? "sin redacción"}</td>
+                  <td>{fmt.count(version.factCount)}</td>
+                  <td>{version.narrativeModel ?? t("reports.noNarrative")}</td>
                   <td>
                     <a
                       className={styles.download}

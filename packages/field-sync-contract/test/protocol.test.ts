@@ -3,11 +3,9 @@ import { describe, expect, it } from "vitest";
 
 import {
   COMMAND_OUTCOMES,
-  CONFLICT_REASON_LABEL,
   CONFLICT_REASONS,
   FIELD_PACK_SCHEMA_VERSION,
   FIELD_SYNC_PROTOCOL_VERSION,
-  LOCAL_SURVEY_STATE_LABEL,
   LOCAL_SURVEY_STATES,
   syncCommandSchema,
   syncPushRequestSchema,
@@ -158,19 +156,13 @@ describe("a push", () => {
 });
 
 describe("the vocabularies both sides read", () => {
-  it("every local state and every conflict reason has Spanish a technician can act on", () => {
-    for (const state of LOCAL_SURVEY_STATES) {
-      expect(LOCAL_SURVEY_STATE_LABEL[state], state).toBeTruthy();
-    }
-    for (const reason of CONFLICT_REASONS) {
-      expect(CONFLICT_REASON_LABEL[reason], reason).toBeTruthy();
-    }
-  });
-
-  it("keeps the one distinction the product exists to make", () => {
-    expect(LOCAL_SURVEY_STATE_LABEL.READY_TO_SYNC).toContain("dispositivo");
-    expect(LOCAL_SURVEY_STATE_LABEL.READY_TO_SYNC).toContain("pendiente");
-    expect(LOCAL_SURVEY_STATE_LABEL.SYNCED).toBe("Sincronizada");
+  it("names the states and reasons the phone puts into words", () => {
+    // The words are `mobile.localSurveyState.*` and `mobile.conflictReason.*` in `@eia/i18n`, in
+    // both languages; a protocol that carried one language's copy would change version every time
+    // a sentence was reworded. What the wire owns is the set, and the catalogue is checked
+    // against it.
+    expect([...LOCAL_SURVEY_STATES]).toContain("READY_TO_SYNC");
+    expect([...CONFLICT_REASONS]).toContain("assignment_reassigned");
   });
 
   it("names five outcomes, and only three of them settle a command", () => {

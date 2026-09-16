@@ -53,15 +53,17 @@ export interface SpatialDatasetVersion {
  * It is **derived**, never stored: dataset kind plus the facets of the version's provenance
  * record. A new canonical SOURCE_TYPE enum is exactly what ADR-005 forbids.
  */
-export type LayerProvenanceLegend =
-  | "REAL_BASE_MAP"
-  | "RECONSTRUCTED_ALIGNMENT"
-  | "SYNTHETIC_PARCELS"
-  | "OFFICIAL_IMPORTED_ALIGNMENT"
-  | "OFFICIAL_CADASTRE"
-  | "FIELD_CAPTURED"
-  | "IMPORTED_STUDY_LAYER"
-  | "STUDY_DELIMITED_AREA";
+export const LAYER_PROVENANCE_LEGENDS = [
+  "REAL_BASE_MAP",
+  "RECONSTRUCTED_ALIGNMENT",
+  "SYNTHETIC_PARCELS",
+  "OFFICIAL_IMPORTED_ALIGNMENT",
+  "OFFICIAL_CADASTRE",
+  "FIELD_CAPTURED",
+  "IMPORTED_STUDY_LAYER",
+  "STUDY_DELIMITED_AREA",
+] as const;
+export type LayerProvenanceLegend = (typeof LAYER_PROVENANCE_LEGENDS)[number];
 
 export function deriveLayerLegend(
   kind: SpatialDatasetKind,
@@ -91,42 +93,7 @@ export function deriveLayerLegend(
 }
 
 /** Spanish copy of the legend, and the disclaimer each key carries (design v0.2 §3). */
-export const LAYER_LEGEND_COPY: Readonly<
-  Record<LayerProvenanceLegend, { label: string; note: string }>
-> = {
-  REAL_BASE_MAP: {
-    label: "Cartografía base real",
-    note: "hidrografía, poblados y localización general",
-  },
-  RECONSTRUCTED_ALIGNMENT: {
-    label: "Eje reconstruido",
-    note: "eje aproximado, dibujado hasta recibir el GIS oficial",
-  },
-  SYNTHETIC_PARCELS: {
-    label: "Predios simulados",
-    note: "polígonos generados · no es catastro",
-  },
-  OFFICIAL_IMPORTED_ALIGNMENT: {
-    label: "Eje vial del estudio",
-    note: "eje vial del paquete GIS oficial",
-  },
-  OFFICIAL_CADASTRE: {
-    label: "Catastro oficial",
-    note: "capa catastral oficial importada",
-  },
-  FIELD_CAPTURED: {
-    label: "Levantado en campo",
-    note: "geometría levantada en campo",
-  },
-  IMPORTED_STUDY_LAYER: {
-    label: "Capa del estudio",
-    note: "levantamiento predial del estudio · no es catastro oficial",
-  },
-  STUDY_DELIMITED_AREA: {
-    label: "Área delimitada por el estudio",
-    note: "área de influencia delimitada por el estudio",
-  },
-};
+/* A layer legend's words are `vocabulary.layerLegend.*` / `vocabulary.layerLegendNote.*`. */
 
 /**
  * Only one version of a dataset may be active in a project at a time. Activation is the moment an

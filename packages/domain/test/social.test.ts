@@ -196,10 +196,8 @@ describe("confidence is a heuristic, and says so", () => {
     expect(confidenceBand(CONFIDENCE_SEMANTICS.lowThreshold - 0.001)).toBe("low");
   });
 
-  it("carries copy that denies calibration", () => {
-    expect(CONFIDENCE_SEMANTICS.help).toMatch(/no es una probabilidad calibrada/i);
-    expect(CONFIDENCE_SEMANTICS.help).not.toMatch(/acierto del|precisión del/i);
-  });
+  // The copy that denies calibration is `social.confidenceHelp` in `@eia/i18n`, where the
+  // catalogue's test asserts in both languages that the phrase only ever appears inside a denial.
 });
 
 describe("eligibility for classification", () => {

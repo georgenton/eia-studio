@@ -1,15 +1,19 @@
 "use client";
 
 import type { AnswerView, AssignmentDetail, SurveyQuestionView } from "@eia/application";
-import { isChoiceQuestion, LOCATION_OUTCOME_LABEL, type LocationOutcome } from "@eia/domain";
+import { isChoiceQuestion, type LocationOutcome } from "@eia/domain";
+import type { Locale, Translator } from "@eia/i18n";
 import { useCallback, useId, useRef, useState, useTransition } from "react";
 
+import { useI18n } from "@/components/i18n/locale-provider";
 import {
   saveDraftAction,
   startVisitAction,
   submitSurveyAction,
   type FieldActionResult,
 } from "@/lib/field-actions";
+import { locationOutcomeLabel } from "@/lib/labels";
+import { localizeQuestion } from "@/lib/survey-locale";
 
 import styles from "./survey-form.module.css";
 
@@ -80,12 +84,16 @@ export function SurveyForm({
   tenant,
   project,
   backHref,
+  locale,
 }: {
   detail: AssignmentDetail;
   tenant: string;
   project: string;
   backHref: string;
+  /** Resolved by the page; the questionnaire is rendered in it, the answers are not. */
+  locale: Locale;
 }) {
+  const { t } = useI18n();
   const [answers, setAnswers] = useState<AnswerState>(() => initialAnswers(detail));
   const [result, setResult] = useState<FieldActionResult | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -149,7 +157,7 @@ export function SurveyForm({
         if (target) {
           setFieldErrors((current) => ({
             ...current,
-            ...Object.fromEntries(missing.map((code) => [code, "Esta pregunta es obligatoria."])),
+            ...Object.fromEntries(missing.map((code) => [code, t("field.questionRequired")])),
           }));
           formRef.current
             ?.querySelector<HTMLElement>(`[data-question="${target}"] :is(input,textarea,select)`)
@@ -171,33 +179,30 @@ export function SurveyForm({
     >
       <section aria-labelledby={`${statusId}-visit`} className={styles.visitBlock}>
         <h2 className={styles.sectionTitle} id={`${statusId}-visit`}>
-          Visita
+          {t("field.visit")}
         </h2>
         {detail.visit === null ? (
           <>
-            <p className={styles.hint}>
-              Al iniciar la visita se pedirá tu ubicación. Puedes continuar sin ella: la ficha no
-              queda bloqueada.
-            </p>
+            <p className={styles.hint}>{t("field.visitLocationHint")}</p>
             <button
               className={styles.primary}
               disabled={pending}
               onClick={beginVisit}
               type="button"
             >
-              {pending ? "Iniciando…" : "Iniciar visita"}
+              {pending ? t("field.startingVisit") : t("field.startVisit")}
             </button>
           </>
         ) : (
           <dl className={styles.visitFacts}>
             <div>
-              <dt>Estado</dt>
-              <dd>{visitDone ? "Completada" : "En curso"}</dd>
+              <dt>{t("common.status")}</dt>
+              <dd>{t(visitDone ? "field.visitCompleted" : "field.visitInProgress")}</dd>
             </div>
             <div>
-              <dt>Ubicación</dt>
+              <dt>{t("field.locationOutcome")}</dt>
               <dd>
-                {LOCATION_OUTCOME_LABEL[detail.visit.locationOutcome]}
+                {locationOutcomeLabel(t, detail.visit.locationOutcome)}
                 {detail.visit.locationOutcome === "captured" && detail.visit.accuracyM !== null ? (
                   <span className={styles.accuracy}>
                     {" "}
@@ -219,8 +224,7 @@ export function SurveyForm({
 
           {submitted ? (
             <p className={styles.submittedNote} role="status">
-              Esta ficha fue enviada y ya no puede editarse. Una corrección será un flujo revisado,
-              no una edición silenciosa.
+              {t("field.submittedNote")}
             </p>
           ) : null}
 
@@ -232,7 +236,8 @@ export function SurveyForm({
                 error={fieldErrors[question.code]}
                 key={question.id}
                 onChange={setAnswer}
-                question={question}
+                question={localizeQuestion(question, locale)}
+                t={t}
               />
             ))}
           </ol>
@@ -241,7 +246,7 @@ export function SurveyForm({
 
       <div aria-live="polite" className={styles.status} id={statusId}>
         {result === null ? null : result.ok ? (
-          <span className={styles.ok}>{result.message ?? "Guardado."}</span>
+          <span className={styles.ok}>{result.message ?? t("field.saved")}</span>
         ) : (
           <span className={styles.error}>{result.error}</span>
         )}
@@ -249,7 +254,7 @@ export function SurveyForm({
 
       {detail.visit === null || submitted ? (
         <a className={styles.secondary} href={backHref}>
-          Volver a mi trabajo
+          {t("field.backToMyWork")}
         </a>
       ) : (
         <div className={styles.actions}>
@@ -261,10 +266,10 @@ export function SurveyForm({
             onClick={() => run(saveDraftAction, false)}
             type="button"
           >
-            Guardar borrador
+            {t("field.saveDraft")}
           </button>
           <button className={styles.primary} disabled={pending} type="submit">
-            {pending ? "Enviando…" : "Enviar ficha"}
+            {pending ? t("field.submitting") : t("field.submitForm")}
           </button>
         </div>
       )}
@@ -302,12 +307,14 @@ function QuestionField({
   error,
   disabled,
   onChange,
+  t,
 }: {
   question: SurveyQuestionView;
   answer: AnswerView | undefined;
   error: string | undefined;
   disabled: boolean;
   onChange: (code: string, value: AnswerView | undefined) => void;
+  t: Translator;
 }) {
   const id = `q-${question.code}`;
   const helpId = question.helpText ? `${id}-help` : undefined;
@@ -325,7 +332,7 @@ function QuestionField({
       {question.prompt}
       {question.required ? (
         // Not colour alone: the word is the signal, and it is part of the accessible name.
-        <span className={styles.required}> (obligatoria)</span>
+        <span className={styles.required}> ({t("common.required").toLowerCase()})</span>
       ) : null}
     </>
   );
@@ -346,6 +353,7 @@ function QuestionField({
         invalid={error !== undefined}
         onChange={onChange}
         question={question}
+        t={t}
       />
 
       {error ? (
@@ -383,6 +391,7 @@ function QuestionControl({
   invalid,
   disabled,
   onChange,
+  t,
 }: {
   question: SurveyQuestionView;
   answer: AnswerView | undefined;
@@ -391,6 +400,7 @@ function QuestionControl({
   invalid: boolean;
   disabled: boolean;
   onChange: (code: string, value: AnswerView | undefined) => void;
+  t: Translator;
 }) {
   const common = {
     id,
@@ -461,8 +471,8 @@ function QuestionControl({
       return (
         <div className={styles.choices} role="radiogroup" aria-describedby={describedBy}>
           {[
-            { value: true, label: "Sí" },
-            { value: false, label: "No" },
+            { value: true, label: t("common.yes") },
+            { value: false, label: t("common.no") },
           ].map((option) => (
             <label className={styles.choice} key={String(option.value)}>
               <input

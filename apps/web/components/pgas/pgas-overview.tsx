@@ -1,7 +1,9 @@
 import type { PgasPlanView } from "@eia/application";
+import type { MessageKey } from "@eia/i18n";
 import { Panel, PanelBody, PanelHeader } from "@eia/ui";
 
 import { ProvenanceLink } from "@/components/navigation/nav";
+import type { I18n } from "@/lib/locale";
 
 import styles from "./pgas.module.css";
 
@@ -22,19 +24,13 @@ import styles from "./pgas.module.css";
  * **It says which identifiers are ours.** The `N°` column is the document's own, repeats included.
  * The code beside it was minted here so a measure can be linked to at all, and the note says so.
  */
-const FIELD_LABEL: Record<string, string> = {
-  indicator: "indicador",
-  verification: "medio de verificación",
-  responsible: "responsable",
-  frequency: "frecuencia",
-  deadline: "plazo",
-};
-
 /** «3 programas · 11 medidas», which is what the plan actually contains. */
-function planNote(plan: PgasPlanView["plans"][number]): string {
+function planNote(plan: PgasPlanView["plans"][number], { t, fmt }: I18n): string {
   const programmes = new Set(plan.measures.map((m) => m.programmeTitle ?? "—")).size;
-  const measures = plan.measures.length;
-  return `${programmes} programa(s) · ${measures} medida(s)`;
+  return t("pgas.planNote", {
+    programmes: fmt.count(programmes),
+    measures: fmt.count(plan.measures.length),
+  });
 }
 
 /** The measures of a plan, in the document's own programme groupings and order. */
@@ -60,13 +56,18 @@ function Field({ label, value }: { label: string; value: string }) {
   );
 }
 
-function Completeness({ plan }: { plan: PgasPlanView["plans"][number] }) {
+function Completeness({
+  plan,
+  i18n: { t, fmt },
+}: {
+  plan: PgasPlanView["plans"][number];
+  i18n: I18n;
+}) {
   const gaps = Object.entries(plan.completeness.missing).filter(([, count]) => count > 0);
   if (gaps.length === 0) {
     return (
       <p className={styles.complete}>
-        Las {plan.completeness.measures} medidas declaran indicador, medio de verificación,
-        responsable, frecuencia y plazo.
+        {t("pgas.complete", { count: fmt.count(plan.completeness.measures) })}
       </p>
     );
   }
@@ -74,22 +75,26 @@ function Completeness({ plan }: { plan: PgasPlanView["plans"][number] }) {
     <ul className={styles.gaps}>
       {gaps.map(([field, count]) => (
         <li key={field}>
-          {count} de {plan.completeness.measures} medidas no indican {FIELD_LABEL[field] ?? field}
+          {t("pgas.gap", {
+            count: fmt.count(count),
+            total: fmt.count(plan.completeness.measures),
+            field: t(`pgas.field.${field}` as MessageKey),
+          })}
         </li>
       ))}
     </ul>
   );
 }
 
-export function PgasOverview({ view }: { view: PgasPlanView }) {
+export function PgasOverview({ view, i18n }: { view: PgasPlanView; i18n: I18n }) {
+  const { t, fmt } = i18n;
   if (!view.imported) {
     return (
       <Panel>
-        <PanelHeader label="Plan de Manejo Ambiental y Social" />
+        <PanelHeader label={t("pgas.title")} />
         <PanelBody>
           <p className={styles.note} data-system-state="empty">
-            Este proyecto todavía no tiene cargado el capítulo del plan de manejo. Cuando se cargue,
-            aquí aparecen sus planes, programas y medidas tal como los redactó la consultora.
+            {t("pgas.notImported")}
           </p>
         </PanelBody>
       </Panel>
@@ -103,39 +108,42 @@ export function PgasOverview({ view }: { view: PgasPlanView }) {
     <div className={styles.surface}>
       <Panel>
         <PanelHeader
-          label="Plan de Manejo Ambiental y Social"
-          note={`${view.plans.length} planes · ${measures} medidas`}
+          label={t("pgas.title")}
+          note={t("pgas.countNote", {
+            plans: fmt.count(view.plans.length),
+            measures: fmt.count(measures),
+          })}
         />
         <PanelBody>
-          <p className={styles.intro}>
-            Este es el plan que <strong>propone</strong> el estudio, leído del capítulo que entregó
-            la consultora. EIA Studio no registra aquí su ejecución ni su cumplimiento: muestra qué
-            medidas contiene, qué declara cada una y qué deja en blanco.
-          </p>
+          <p className={styles.intro}>{t("pgas.intro")}</p>
           <p className={styles.source}>
-            Fuente: {view.imported.file} · {view.imported.measures} medidas en {view.imported.plans}{" "}
-            planes ·{" "}
+            {t("pgas.sourceLine", {
+              file: view.imported.file,
+              measures: fmt.count(view.imported.measures),
+              plans: fmt.count(view.imported.plans),
+            })}
             <ProvenanceLink href={`?prov=${view.imported.provenanceId}`}>
-              Ver origen del dato
+              {t("pgas.viewProvenance")}
             </ProvenanceLink>
           </p>
 
           {withoutCode.length > 0 ? (
             <p className={styles.observation}>
               {withoutCode.length === 1
-                ? "Un plan del capítulo no trae código: "
-                : `${withoutCode.length} planes del capítulo no traen código: `}
+                ? t("pgas.onePlanWithoutCode")
+                : t("pgas.plansWithoutCode", { count: fmt.count(withoutCode.length) })}
               {withoutCode.map((p) => p.title).join(" · ")}
             </p>
           ) : null}
 
           {view.headingVariants.length > 0 ? (
             <p className={styles.observation}>
-              El capítulo nombra {view.headingVariants.length} columna(s) de más de una forma:{" "}
-              {view.headingVariants
-                .map((v) => v.spellings.map((s) => `«${s}»`).join(" / "))
-                .join(" · ")}
-              . Se conservan tal como aparecen en el documento.
+              {t("pgas.headingVariants", {
+                count: fmt.count(view.headingVariants.length),
+                variants: view.headingVariants
+                  .map((v) => v.spellings.map((spelling) => `«${spelling}»`).join(" / "))
+                  .join(" · "),
+              })}
             </p>
           ) : null}
         </PanelBody>
@@ -145,12 +153,12 @@ export function PgasOverview({ view }: { view: PgasPlanView }) {
         <Panel key={`${plan.code ?? plan.title}`}>
           <PanelHeader
             label={plan.code ? `${plan.code} · ${plan.title}` : plan.title}
-            note={planNote(plan)}
+            note={planNote(plan, i18n)}
           />
           <PanelBody>
             {plan.objective ? <p className={styles.objective}>{plan.objective}</p> : null}
             {plan.place ? <p className={styles.place}>{plan.place}</p> : null}
-            <Completeness plan={plan} />
+            <Completeness i18n={i18n} plan={plan} />
 
             {/*
               The document's own second level. A programme is a banner row with a title and nothing
@@ -159,27 +167,28 @@ export function PgasOverview({ view }: { view: PgasPlanView }) {
             */}
             {groupByProgramme(plan.measures).map((group) => (
               <section className={styles.programme} key={group.title ?? "sin-programa"}>
-                <h3 className={styles.programmeTitle}>
-                  {group.title ?? "Medidas sin programa declarado"}
-                </h3>
+                <h3 className={styles.programmeTitle}>{group.title ?? t("pgas.noProgramme")}</h3>
                 <ol className={styles.measures}>
                   {group.measures.map((m) => (
                     <li className={styles.measure} key={m.measureCode}>
-                      <p className={styles.measureText}>{m.measure || "—"}</p>
+                      <p className={styles.measureText}>{m.measure || t("common.missing")}</p>
                       <dl className={styles.fields}>
-                        <Field label="Aspecto ambiental" value={m.aspect} />
-                        <Field label="Impacto identificado" value={m.impact} />
-                        <Field label="Indicador" value={m.indicator} />
-                        <Field label="Medio de verificación" value={m.verification} />
-                        <Field label="Responsable" value={m.responsible} />
-                        <Field label="Frecuencia" value={m.frequency} />
-                        <Field label="Plazo" value={m.deadline} />
+                        <Field label={t("pgas.aspect")} value={m.aspect} />
+                        <Field label={t("pgas.impact")} value={m.impact} />
+                        <Field label={t("pgas.indicator")} value={m.indicator} />
+                        <Field label={t("pgas.verification")} value={m.verification} />
+                        <Field label={t("pgas.responsible")} value={m.responsible} />
+                        <Field label={t("pgas.frequency")} value={m.frequency} />
+                        <Field label={t("pgas.deadline")} value={m.deadline} />
                       </dl>
                       <p className={styles.measureIds}>
                         <span>
-                          N° del documento: <strong>{m.statedNumber || "—"}</strong>
+                          {t("pgas.documentNumber")}{" "}
+                          <strong>{m.statedNumber || t("common.missing")}</strong>
                         </span>
-                        <span className={styles.code}>Código EIA Studio: {m.measureCode}</span>
+                        <span className={styles.code}>
+                          {t("pgas.studioCode", { code: m.measureCode })}
+                        </span>
                       </p>
                     </li>
                   ))}
@@ -193,22 +202,18 @@ export function PgasOverview({ view }: { view: PgasPlanView }) {
               they are what is stored.
             */}
             <details className={styles.headings}>
-              <summary>Cómo nombra este plan sus columnas</summary>
+              <summary>{t("pgas.columnsSummary")}</summary>
               <p>
-                Los rótulos de arriba están normalizados para poder leer el plan. El capítulo, en
-                este plan, escribe: {plan.columns.map((c) => `«${c}»`).join(" · ")}. Se conserva tal
-                cual en el dato almacenado.
+                {t("pgas.columnsBody", {
+                  columns: plan.columns.map((column) => `«${column}»`).join(" · "),
+                })}
               </p>
             </details>
           </PanelBody>
         </Panel>
       ))}
 
-      <p className={styles.footnote}>
-        El «N° del documento» reproduce la numeración del capítulo, incluidas las repeticiones. El
-        «Código EIA Studio» lo genera este producto para poder referenciar una medida; no es una
-        referencia de la consultora.
-      </p>
+      <p className={styles.footnote}>{t("pgas.footnote")}</p>
     </div>
   );
 }

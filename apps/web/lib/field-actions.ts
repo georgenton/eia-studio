@@ -11,6 +11,9 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { getDb } from "@/lib/db";
+import { getTranslator } from "@/lib/locale";
+
+const noAccess = async () => (await getTranslator())("actions.noAssignmentAccess");
 import { resolveSurfaceAccess } from "@/lib/surface-access";
 
 /**
@@ -85,7 +88,7 @@ export async function startVisitAction(raw: unknown): Promise<FieldActionResult>
 
   const { access } = await resolveFieldContext(input);
   if (access.kind !== "ok") {
-    return { ok: false, error: "No tienes acceso a esta asignación." };
+    return { ok: false, error: await noAccess() };
   }
 
   try {
@@ -142,7 +145,7 @@ export async function saveDraftAction(raw: unknown): Promise<FieldActionResult> 
   const input = answerActionSchema.parse(raw);
   const { access } = await resolveFieldContext(input);
   if (access.kind !== "ok") {
-    return { ok: false, error: "No tienes acceso a esta asignación." };
+    return { ok: false, error: await noAccess() };
   }
 
   try {
@@ -166,7 +169,7 @@ export async function submitSurveyAction(raw: unknown): Promise<FieldActionResul
   const input = answerActionSchema.parse(raw);
   const { access } = await resolveFieldContext(input);
   if (access.kind !== "ok") {
-    return { ok: false, error: "No tienes acceso a esta asignación." };
+    return { ok: false, error: await noAccess() };
   }
 
   try {

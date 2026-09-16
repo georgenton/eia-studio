@@ -567,6 +567,86 @@ export const surveyAnswerOption = app.table(
 );
 
 /**
+ * A questionnaire in more than one language, without becoming more than one questionnaire.
+ *
+ * ## The identity rule
+ *
+ * A question is its `code`. Its `type`, its options' codes, its ordinal and its required-ness are
+ * language-neutral, and an answer points at the **option code**, never at a label. So a bilingual
+ * form is one `survey_version` with one set of questions, plus a row here per language — not
+ * `pregunta_es` and `question_en`, which would double every tabulation, split every coding and make
+ * "the same question" a judgement call.
+ *
+ * ## The canonical text stays where it is
+ *
+ * `survey_question.prompt` remains the `es-EC` wording: the language the questionnaires were
+ * written in, and the one every existing version already holds. A translation row is an *addition*
+ * for another locale, so nothing had to be migrated and a version with no translations behaves
+ * exactly as it did before.
+ *
+ * ## A translation is part of the definition (ADR-029)
+ *
+ * Which means it is frozen when the version is published, by the same trigger that freezes the
+ * questions themselves. Adding a translation to a questionnaire technicians are already answering
+ * would change what a respondent was asked *after* they answered it — the precise failure
+ * ADR-006's immutability exists to prevent, and it does not become acceptable because the change is
+ * "only a translation".
+ */
+export const surveyQuestionTranslation = app.table(
+  "survey_question_translation",
+  {
+    id: uuid("id").primaryKey(),
+    tenantId: uuid("tenant_id").notNull(),
+    projectId: uuid("project_id").notNull(),
+    questionId: uuid("question_id").notNull(),
+    /** A BCP-47 tag from `@eia/i18n`'s closed list; text, so a new locale needs no migration. */
+    locale: text("locale").notNull(),
+    prompt: text("prompt").notNull(),
+    helpText: text("help_text"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [
+    unique("survey_question_translation_key").on(t.tenantId, t.questionId, t.locale),
+    foreignKey({
+      name: "survey_question_translation_question_fk",
+      columns: [t.tenantId, t.questionId],
+      foreignColumns: [surveyQuestion.tenantId, surveyQuestion.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "survey_question_translation_project_fk",
+      columns: [t.tenantId, t.projectId],
+      foreignColumns: [project.tenantId, project.id],
+    }).onDelete("cascade"),
+  ],
+);
+
+export const surveyOptionTranslation = app.table(
+  "survey_option_translation",
+  {
+    id: uuid("id").primaryKey(),
+    tenantId: uuid("tenant_id").notNull(),
+    projectId: uuid("project_id").notNull(),
+    optionId: uuid("option_id").notNull(),
+    locale: text("locale").notNull(),
+    label: text("label").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [
+    unique("survey_option_translation_key").on(t.tenantId, t.optionId, t.locale),
+    foreignKey({
+      name: "survey_option_translation_option_fk",
+      columns: [t.tenantId, t.optionId],
+      foreignColumns: [surveyOption.tenantId, surveyOption.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "survey_option_translation_project_fk",
+      columns: [t.tenantId, t.projectId],
+      foreignColumns: [project.tenantId, project.id],
+    }).onDelete("cascade"),
+  ],
+);
+
+/**
  * What the server has already done for a device, so that doing it again changes nothing.
  *
  * ## Why a table and not "make the use-cases idempotent"

@@ -1,10 +1,12 @@
 "use client";
 
 import type { OpenResponseRow, TaxonomyVersionSummary } from "@eia/application";
-import { AGREEMENT_SEMANTICS, CONFIDENCE_SEMANTICS, REVIEW_DECISION_LABEL } from "@eia/domain";
-import { Chip, formatCount, formatPercent, Panel, PanelBody, PanelHeader } from "@eia/ui";
+import type { MessageKey, Translator } from "@eia/i18n";
+import { Chip, Panel, PanelBody, PanelHeader } from "@eia/ui";
 import { useMemo, useState, useTransition } from "react";
 
+import { useI18n } from "@/components/i18n/locale-provider";
+import { reviewDecisionLabel } from "@/lib/labels";
 import { submitReviewAction } from "@/lib/social-actions";
 
 import styles from "./social.module.css";
@@ -27,13 +29,13 @@ import styles from "./social.module.css";
  */
 type Filter = "all" | "pending-ai" | "failed" | "pending-review" | "reviewed" | "low-confidence";
 
-const FILTER_LABEL: Readonly<Record<Filter, string>> = {
-  all: "Todas",
-  "pending-ai": "Pendientes de IA",
-  failed: "IA fallida",
-  "pending-review": "Pendientes de revisión",
-  reviewed: "Revisadas",
-  "low-confidence": "Confianza baja",
+const FILTER_KEY: Readonly<Record<Filter, MessageKey>> = {
+  all: "social.filterAll",
+  "pending-ai": "social.filterPendingAi",
+  failed: "social.filterFailed",
+  "pending-review": "social.filterPendingReview",
+  reviewed: "social.filterReviewed",
+  "low-confidence": "social.filterLowConfidence",
 };
 
 export function OpenResponseQueue({
@@ -47,6 +49,7 @@ export function OpenResponseQueue({
   tenant: string;
   project: string;
 }) {
+  const { t, fmt } = useI18n();
   const [filter, setFilter] = useState<Filter>("all");
   const [openId, setOpenId] = useState<string | null>(null);
 
@@ -58,11 +61,10 @@ export function OpenResponseQueue({
   if (responses.length === 0) {
     return (
       <Panel>
-        <PanelHeader label="Respuestas abiertas" />
+        <PanelHeader label={t("social.openAnswers")} />
         <PanelBody>
           <p className={styles.note} data-system-state="no-survey-data">
-            No hay respuestas abiertas enviadas en esta versión del cuestionario. La codificación
-            asistida solo lee respuestas enviadas con texto.
+            {t("social.noOpenAnswers")}
           </p>
         </PanelBody>
       </Panel>
@@ -72,14 +74,16 @@ export function OpenResponseQueue({
   return (
     <Panel>
       <PanelHeader
-        label="Respuestas abiertas"
+        label={t("social.openAnswers")}
         action={
-          <span className={styles.deterministic}>{formatCount(filtered.length)} en vista</span>
+          <span className={styles.deterministic}>
+            {t("social.inView", { count: fmt.count(filtered.length) })}
+          </span>
         }
       />
       <PanelBody>
-        <div className={styles.filters} role="group" aria-label="Filtrar respuestas">
-          {(Object.keys(FILTER_LABEL) as Filter[]).map((key) => (
+        <div className={styles.filters} role="group" aria-label={t("social.filterResponses")}>
+          {(Object.keys(FILTER_KEY) as Filter[]).map((key) => (
             <button
               key={key}
               type="button"
@@ -87,7 +91,7 @@ export function OpenResponseQueue({
               aria-pressed={filter === key}
               onClick={() => setFilter(key)}
             >
-              {FILTER_LABEL[key]}
+              {t(FILTER_KEY[key])}
             </button>
           ))}
         </div>
@@ -98,31 +102,32 @@ export function OpenResponseQueue({
               <article>
                 <p className={styles.responseText}>{row.text}</p>
                 <p className={styles.rowMeta}>
-                  {row.questionPrompt} · versión {row.surveyVersionLabel}
+                  {t("social.rowMeta", {
+                    question: row.questionPrompt,
+                    version: row.surveyVersionLabel,
+                  })}
                 </p>
 
                 <div className={styles.rowChips}>
-                  <StatusChip row={row} />
+                  <StatusChip row={row} t={t} />
                   {row.confidence !== null ? (
                     <span
                       className={styles.confidence}
                       data-band={row.confidenceBand}
-                      title={CONFIDENCE_SEMANTICS.help}
+                      title={t("social.confidenceHelp")}
                     >
-                      {CONFIDENCE_SEMANTICS.label}: {formatPercent(row.confidence)}
-                      {row.confidenceBand === "low" ? " · revisar primero" : ""}
+                      {t("social.confidenceLabel")}: {fmt.percent(row.confidence)}
+                      {row.confidenceBand === "low" ? t("social.reviewFirst") : ""}
                     </span>
                   ) : null}
                   {row.needsReview ? (
-                    <Chip tone="warn">El modelo pidió revisión humana</Chip>
+                    <Chip tone="warn">{t("social.modelAskedForReview")}</Chip>
                   ) : null}
                 </div>
 
                 {row.proposed.length > 0 ? (
                   <div className={styles.proposalBlock}>
-                    <p className={styles.proposalLabel}>
-                      Propuesta de la IA · <strong>provisional, sin validar</strong>
-                    </p>
+                    <p className={styles.proposalLabel}>{t("social.proposalLabel")}</p>
                     <ul className={styles.chipList}>
                       {row.proposed.map((category) => (
                         <li key={category.code} className={styles.provisionalChip}>
@@ -136,8 +141,9 @@ export function OpenResponseQueue({
                 {row.reviewId ? (
                   <div className={styles.validatedBlock}>
                     <p className={styles.validatedLabel}>
-                      Codificación validada por especialista ·{" "}
-                      {REVIEW_DECISION_LABEL[row.reviewDecision ?? "ACCEPTED"]}
+                      {t("social.validatedLabel", {
+                        decision: reviewDecisionLabel(t, row.reviewDecision ?? "ACCEPTED"),
+                      })}
                     </p>
                     <ul className={styles.chipList}>
                       {row.finalCategories.map((category) => (
@@ -158,7 +164,9 @@ export function OpenResponseQueue({
                     onClick={() => setOpenId(openId === row.answerId ? null : row.answerId)}
                     aria-expanded={openId === row.answerId}
                   >
-                    {openId === row.answerId ? "Cerrar revisión" : "Revisar y decidir"}
+                    {openId === row.answerId
+                      ? t("social.closeReview")
+                      : t("social.reviewAndDecide")}
                   </button>
                 ) : null}
 
@@ -180,23 +188,27 @@ export function OpenResponseQueue({
             misread — an uncalibrated heuristic printed beside a category — has to be legible to a
             screen reader and to someone who never hovers. */}
         <p className={styles.agreementNote}>
-          <strong>{CONFIDENCE_SEMANTICS.label}.</strong> {CONFIDENCE_SEMANTICS.help}
+          <strong>{t("social.confidenceLabel")}.</strong> {t("social.confidenceHelp")}
         </p>
         <p className={styles.agreementNote}>
-          <strong>{AGREEMENT_SEMANTICS.label}.</strong> {AGREEMENT_SEMANTICS.help}
+          <strong>{t("social.agreementLabel")}.</strong> {t("social.agreementHelp")}
         </p>
       </PanelBody>
     </Panel>
   );
 }
 
-function StatusChip({ row }: { row: OpenResponseRow }) {
-  if (row.reviewId) return <Chip tone="ok">Validada</Chip>;
-  if (row.classificationStatus === "SUCCEEDED") return <Chip tone="neutral">Propuesta lista</Chip>;
-  if (row.classificationStatus === "FAILED") return <Chip tone="warn">Clasificación fallida</Chip>;
-  if (row.classificationStatus === "PROCESSING") return <Chip tone="neutral">Procesando</Chip>;
-  if (row.classificationStatus === "PENDING") return <Chip tone="neutral">En cola</Chip>;
-  return <Chip tone="neutral">Sin propuesta</Chip>;
+function StatusChip({ row, t }: { row: OpenResponseRow; t: Translator }) {
+  if (row.reviewId) return <Chip tone="ok">{t("social.statusValidated")}</Chip>;
+  if (row.classificationStatus === "SUCCEEDED")
+    return <Chip tone="neutral">{t("social.statusProposalReady")}</Chip>;
+  if (row.classificationStatus === "FAILED")
+    return <Chip tone="warn">{t("social.statusFailed")}</Chip>;
+  if (row.classificationStatus === "PROCESSING")
+    return <Chip tone="neutral">{t("social.statusProcessing")}</Chip>;
+  if (row.classificationStatus === "PENDING")
+    return <Chip tone="neutral">{t("social.statusQueued")}</Chip>;
+  return <Chip tone="neutral">{t("social.statusNoProposal")}</Chip>;
 }
 
 /**
@@ -221,6 +233,7 @@ function ReviewWorkspace({
   project: string;
   onDone: () => void;
 }) {
+  const { t } = useI18n();
   const proposedCodes = row.proposed.map((category) => category.code);
   const [selected, setSelected] = useState<ReadonlyArray<string>>(proposedCodes);
   const [message, setMessage] = useState<string | null>(null);
@@ -245,7 +258,7 @@ function ReviewWorkspace({
         reviewStartedAt: openedAt,
       });
       if (result.ok) {
-        setMessage(result.message ?? "Revisión registrada.");
+        setMessage(result.message ?? t("social.reviewRecorded"));
         onDone();
       } else {
         setMessage(result.error);
@@ -256,11 +269,14 @@ function ReviewWorkspace({
   return (
     <div className={styles.review}>
       <p className={styles.reviewVersion}>
-        Esquema <strong>{taxonomy.versionLabel}</strong> · {taxonomy.sourceNote}
+        {t("social.reviewScheme", {
+          version: taxonomy.versionLabel,
+          note: taxonomy.sourceNote ?? "",
+        })}
       </p>
 
       <fieldset className={styles.categoryFieldset}>
-        <legend className={styles.categoryLegend}>Categorías de esta versión</legend>
+        <legend className={styles.categoryLegend}>{t("social.categoriesOfVersion")}</legend>
         {taxonomy.categories.map((category) => {
           const checked = selected.includes(category.code);
           const wasProposed = proposedCodes.includes(category.code);
@@ -276,7 +292,7 @@ function ReviewWorkspace({
                 <span className={styles.categoryLabel}>
                   {category.label}
                   {wasProposed ? (
-                    <span className={styles.proposedMark}> · propuesta por la IA</span>
+                    <span className={styles.proposedMark}>{t("social.proposedMark")}</span>
                   ) : null}
                 </span>
                 <span className={styles.categoryDescription}>{category.description}</span>
@@ -293,16 +309,16 @@ function ReviewWorkspace({
           onClick={submit}
           disabled={pending || selected.length === 0}
         >
-          {sameSet(selected, proposedCodes) ? "Aceptar propuesta" : "Guardar corrección"}
+          {sameSet(selected, proposedCodes)
+            ? t("social.acceptProposal")
+            : t("social.saveCorrection")}
         </button>
         <button type="button" className={styles.secondary} onClick={onDone} disabled={pending}>
-          Cancelar
+          {t("common.cancel")}
         </button>
       </div>
       {selected.length === 0 ? (
-        <p className={styles.error}>
-          Una revisión mantiene al menos una categoría. Si nada aplica, elige la categoría residual.
-        </p>
+        <p className={styles.error}>{t("social.atLeastOneCategory")}</p>
       ) : null}
       {message ? <p className={styles.message}>{message}</p> : null}
     </div>

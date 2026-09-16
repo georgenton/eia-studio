@@ -1,11 +1,13 @@
 import { loadFindingDetail, loadWorkspaceHeader } from "@eia/application";
-import { can, SURFACE_DEFINITIONS } from "@eia/domain";
+import { can } from "@eia/domain";
 import { notFound, redirect } from "next/navigation";
 
 import { FindingDetailPanel } from "@/components/quality/finding-detail";
 import { projectBreadcrumb, projectLabel, WorkspaceShell } from "@/components/workspace-shell";
 import { getSessionUser } from "@/lib/context";
 import { getDb } from "@/lib/db";
+import { surfaceLabel } from "@/lib/labels";
+import { getI18n } from "@/lib/locale";
 import { projectPath } from "@/lib/navigation";
 import { accessForDomainError, resolveSurfaceAccess } from "@/lib/surface-access";
 import { PermissionDeniedState } from "@/lib/system-state";
@@ -44,6 +46,8 @@ export default async function FindingPage({
   }
 
   const { ctx, tenantSettings } = access;
+  const i18n = await getI18n();
+  const { t } = i18n;
   const sessionUser = await getSessionUser();
   const header = await loadWorkspaceHeader(getDb(), ctx);
 
@@ -52,13 +56,13 @@ export default async function FindingPage({
     tenantSettings,
     projects: header.projects,
     currentSurface: "quality" as const,
-    userName: sessionUser?.name ?? sessionUser?.email ?? "Usuario",
+    userName: sessionUser?.name ?? sessionUser?.email ?? t("shell.user"),
     userEmail: sessionUser?.email ?? null,
     breadcrumb: projectBreadcrumb(
       ctx,
       header.tenantName,
       projectLabel(header.projects, project),
-      `${SURFACE_DEFINITIONS.quality.label} · ${findingCode}`,
+      `${surfaceLabel(t, "quality")} · ${findingCode}`,
       projectPath(ctx.tenantSlug, project, "quality"),
     ),
   };
@@ -69,7 +73,7 @@ export default async function FindingPage({
         <div style={{ padding: "8px 0" }}>
           <PermissionDeniedState
             role={ctx.projectRole ?? ctx.tenantRole}
-            restrictedData="la revisión de calidad del expediente"
+            restrictedData={t("quality.restrictedData")}
             backHref={projectPath(ctx.tenantSlug, project, "")}
           />
         </div>

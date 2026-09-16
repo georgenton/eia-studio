@@ -1,11 +1,14 @@
 import { loadWorkspaceHeader, loadReportVersion } from "@eia/application";
-import { can, SURFACE_DEFINITIONS } from "@eia/domain";
+import { can } from "@eia/domain";
+import type { MessageKey, Translator } from "@eia/i18n";
 import { Panel, PanelBody, PanelHeader } from "@eia/ui";
 import { notFound, redirect } from "next/navigation";
 
 import { projectBreadcrumb, projectLabel, WorkspaceShell } from "@/components/workspace-shell";
 import { getSessionUser } from "@/lib/context";
 import { getDb } from "@/lib/db";
+import { regimeLabel, surfaceLabel } from "@/lib/labels";
+import { getI18n } from "@/lib/locale";
 import { projectPath } from "@/lib/navigation";
 import { accessForDomainError, resolveSurfaceAccess } from "@/lib/surface-access";
 import { PermissionDeniedState } from "@/lib/system-state";
@@ -14,38 +17,48 @@ import styles from "@/components/reports/reports.module.css";
 
 export const dynamic = "force-dynamic";
 
-const SOURCE_LABEL: Record<string, string> = {
-  metric: "Cálculo determinista",
-  human_review: "Codificación validada por especialista",
-  quality_finding: "Hallazgo de calidad",
-  document_chunk: "Pasaje citado del expediente",
-  provenance: "Registro de procedencia",
-};
-
-const REGIME_LABEL: Record<string, string> = {
-  HISTORICAL_OBSERVED: "Dato histórico observado",
-  LIVE_OPERATIONAL: "Operación en curso",
-  DEMO_SIMULATION: "Simulación de demostración",
-};
-
-/** One line naming where a figure came from. The same text the .docx prints under each fact. */
-function sourceLine(source: Record<string, unknown>): string {
+/**
+ * One line naming where a figure came from.
+ *
+ * The snapshot's own prose is Spanish because a report is a Spanish deliverable (ADR-029 §5); this
+ * line is interface chrome around it, so it follows the reader.
+ */
+function sourceLine(source: Record<string, unknown>, t: Translator): string {
   const kind = String(source.kind);
-  const label = SOURCE_LABEL[kind] ?? kind;
+  const label = t(`reports.sourceKind.${kind}` as MessageKey);
   switch (kind) {
     case "metric":
-      return `${label} · ${String(source.metric)} — ${String(source.method)}`;
+      return t("reports.sourceMetric", {
+        label,
+        metric: String(source.metric),
+        method: String(source.method),
+      });
     case "human_review":
-      return `${label} · ${String(source.reviews)} codificación(es) validada(s), taxonomía ${String(source.taxonomyVersionLabel)}`;
+      return t("reports.sourceHumanReview", {
+        label,
+        reviews: String(source.reviews),
+        taxonomy: String(source.taxonomyVersionLabel),
+      });
     case "quality_finding":
-      return `${label} · ${String(source.findingCode)} (${String(source.state)})`;
-    case "document_chunk": {
-      const page = source.page === null ? "" : ` · p. ${String(source.page)}`;
-      return `${label} · ${String(source.documentCode)} ${String(source.versionLabel)}${page}`;
-    }
+      return t("reports.sourceFinding", {
+        label,
+        code: String(source.findingCode),
+        state: String(source.state),
+      });
+    case "document_chunk":
+      return t("reports.sourceDocument", {
+        label,
+        code: String(source.documentCode),
+        version: String(source.versionLabel),
+        page: source.page === null ? "" : t("reports.sourcePage", { page: String(source.page) }),
+      });
     case "provenance": {
       const facets = source.facets as { regime: string; transformations: string[] };
-      return `${label} · ${REGIME_LABEL[facets.regime] ?? facets.regime} · ${facets.transformations.join(" → ")}`;
+      return t("reports.sourceProvenance", {
+        label,
+        regime: regimeLabel(t, facets.regime),
+        transformations: facets.transformations.join(" → "),
+      });
     }
     default:
       return label;
@@ -82,6 +95,8 @@ export default async function ReportVersionPage({
   }
 
   const { ctx, tenantSettings } = access;
+  const i18n = await getI18n();
+  const { t } = i18n;
   const sessionUser = await getSessionUser();
   const header = await loadWorkspaceHeader(getDb(), ctx);
 
@@ -90,13 +105,13 @@ export default async function ReportVersionPage({
     tenantSettings,
     projects: header.projects,
     currentSurface: "reports" as const,
-    userName: sessionUser?.name ?? sessionUser?.email ?? "Usuario",
+    userName: sessionUser?.name ?? sessionUser?.email ?? t("shell.user"),
     userEmail: sessionUser?.email ?? null,
     breadcrumb: projectBreadcrumb(
       ctx,
       header.tenantName,
       projectLabel(header.projects, project),
-      `${SURFACE_DEFINITIONS.reports.label} · ${versionLabel}`,
+      `${surfaceLabel(t, "reports")} · ${versionLabel}`,
       projectPath(ctx.tenantSlug, project, "reports"),
     ),
   };
@@ -107,7 +122,7 @@ export default async function ReportVersionPage({
         <div style={{ padding: "8px 0" }}>
           <PermissionDeniedState
             role={ctx.projectRole ?? ctx.tenantRole}
-            restrictedData="los borradores de informe del proyecto"
+            restrictedData={t("reports.restrictedData")}
             backHref={projectPath(ctx.tenantSlug, project, "")}
           />
         </div>
@@ -129,34 +144,34 @@ export default async function ReportVersionPage({
       <div className={styles.surface}>
         <Panel>
           <PanelHeader
-            label={`Capítulo social · ${version.versionLabel}`}
-            note={`Cuestionario ${version.surveyVersionLabel} · ${version.factCount} cifras`}
+            label={t("reports.versionTitle", { version: version.versionLabel })}
+            note={t("reports.versionNote", {
+              questionnaire: version.surveyVersionLabel,
+              facts: i18n.fmt.count(version.factCount),
+            })}
             action={
               <a
                 className={styles.download}
                 href={`/t/${ctx.tenantSlug}/p/${project}/reports/${version.versionLabel}/docx`}
               >
-                Descargar .docx
+                {t("reports.downloadDocx")}
               </a>
             }
           />
           <PanelBody>
-            <p className={styles.draftBanner}>
-              <strong>Borrador, no entregable.</strong> Ninguna afirmación de esta versión
-              constituye una conclusión de cumplimiento normativo.
-            </p>
+            <p className={styles.draftBanner}>{t("reports.draftShort")}</p>
             {version.superseded ? (
-              <p className={styles.draftBanner}>
-                Esta es una versión anterior. Se conserva porque dice lo que decía cuando se generó;
-                la versión vigente puede decir otra cosa.
-              </p>
+              <p className={styles.draftBanner}>{t("reports.supersededNote")}</p>
             ) : null}
             <p className={styles.note}>
-              Regímenes presentes:{" "}
-              {version.snapshot.regimes.map((r) => REGIME_LABEL[r] ?? r).join(" · ")}.
+              {t("reports.regimesPresent", {
+                regimes: version.snapshot.regimes
+                  .map((regime) => regimeLabel(t, regime))
+                  .join(" · "),
+              })}
               {version.narrativeModel
-                ? ` Redacción asistida: ${version.narrativeModel}.`
-                : " Sin redacción asistida: las cifras y sus fuentes son el contenido de esta versión."}
+                ? t("reports.narrativeModel", { model: version.narrativeModel })
+                : t("reports.noNarrativeModel")}
             </p>
           </PanelBody>
         </Panel>
@@ -177,7 +192,7 @@ export default async function ReportVersionPage({
                     </span>
                     {fact.basis ? <span className={styles.factBasis}>{fact.basis}</span> : null}
                     <span className={styles.factSource}>
-                      {sourceLine(fact.source as unknown as Record<string, unknown>)}
+                      {sourceLine(fact.source as unknown as Record<string, unknown>, t)}
                     </span>
                   </li>
                 ))}

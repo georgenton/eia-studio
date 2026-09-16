@@ -3,6 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { LanguageSwitcher } from "@/components/i18n/language-switcher";
+import { useTranslator } from "@/components/i18n/locale-provider";
 import { authClient } from "@/lib/auth-client";
 
 import styles from "./account-menu.module.css";
@@ -20,6 +22,7 @@ import styles from "./account-menu.module.css";
  * signing in as someone else, and the hint says so.
  */
 export function AccountMenu({ email, roleLabel }: { email: string | null; roleLabel: string }) {
+  const t = useTranslator();
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -30,7 +33,7 @@ export function AccountMenu({ email, roleLabel }: { email: string | null; roleLa
     const result = await authClient.signOut();
     if (result.error) {
       setBusy(false);
-      setError("No pudimos cerrar la sesión. Inténtalo de nuevo.");
+      setError(t("auth.signOutFailed"));
       return;
     }
     // `replace`, not `push`: the workspace must not be one Back press away from a closed session.
@@ -42,14 +45,12 @@ export function AccountMenu({ email, roleLabel }: { email: string | null; roleLa
     <>
       <div className={styles.identity}>
         {email ? <span className={styles.email}>{email}</span> : null}
-        <span className={styles.hint}>Sesión iniciada como {roleLabel}.</span>
+        <span className={styles.hint}>{t("auth.signedInAs", { role: roleLabel })}</span>
       </div>
-      <p className={styles.hint}>
-        Para revisar el producto con otro rol, cierra sesión e inicia con la identidad
-        correspondiente.
-      </p>
+      <p className={styles.hint}>{t("auth.roleSwitchHint")}</p>
+      <LanguageSwitcher />
       <button className={styles.signOut} type="button" onClick={signOut} disabled={busy}>
-        {busy ? "Cerrando sesión…" : "Cerrar sesión"}
+        {busy ? t("auth.signingOut") : t("auth.signOut")}
       </button>
       {error ? (
         <p className={styles.error} role="alert">

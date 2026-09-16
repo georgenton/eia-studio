@@ -460,3 +460,39 @@ wrong.
 asserts that the performance hook counts statements inside transactions — where nearly all of them
 are — and that it is handed a duration and nothing else. A counter that silently sees nothing
 reports zero, and zero round trips is indistinguishable from a page that touched no database.
+
+## 12b. Two languages, one product (ADR-029)
+
+A bilingual product that only ever gets checked in one language has one language and a menu. Three
+layers hold the guarantee, and each catches something the others cannot.
+
+**The catalogue's own suite** (`packages/i18n/test/i18n.test.ts`, 25 tests) is where the structural
+facts live, because they are properties of the data rather than of a rendered page:
+
+| Assertion | The failure it prevents |
+|---|---|
+| the two catalogues hold exactly the same keys | a blank where a sentence should be |
+| no message is empty, and none matches an identifier shape | ADR-025's failure, in either language |
+| every enum the product renders has a word for every value, in both languages | a status added without a label, which reaches a screen as `NOT_LOCATED` |
+| no namespace has a word for a value nothing can produce | dead copy a reader takes for a state the product has |
+| every message, in both languages, against `FORBIDDEN_FINDING_WORDS` | invariant 11 holding only in Spanish |
+| *calibrated probability* appears only inside a denial | invariant 10 read backwards |
+| the domain's own Spanish for a surface, a capability and a quality rule matches the catalogue | a rail and a log line naming the same thing differently |
+| `READY_TO_SYNC` says both *on the device* and *pending*, in both languages | a technician leaving a valley believing the work arrived |
+
+**The e2e vocabulary suite** (`e2e/vocabulary.spec.ts`) checks the rendered product twice: every
+surface in Spanish with no identifier and no leaked English, and every surface in English with no
+identifier and no leaked **interface** Spanish. The English pass deliberately does not forbid
+Spanish *content* — the project's name, a document's title, the management plan's measures, the
+client publication — because translating the study's own words would be inventing a document nobody
+wrote. It also drives the switcher: choose English, and the rail changes and the choice survives a
+navigation, because it is a cookie rather than page state.
+
+**The bilingual questionnaire** is proved in the database and on the wire, not in a component:
+`packages/testing/test/rls/slice3-survey-versioning.integration.test.ts` asserts that one question
+carries two languages rather than becoming two questions, that an answer still points at the
+question whatever language it was read in, and that adding, rewording or deleting a translation
+**after publication is refused by the trigger** — the same guarantee the questions themselves have.
+`packages/application/test/field-sync.integration.test.ts` asserts the Field Pack carries both
+languages, that the codes are identical in both, and that an untranslated question keeps its
+Spanish wording rather than vanishing from the English form.

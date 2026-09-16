@@ -51,12 +51,7 @@ export const CHAINAGE_METHODS = [
 export const chainageMethodSchema = z.enum(CHAINAGE_METHODS);
 export type ChainageMethod = z.infer<typeof chainageMethodSchema>;
 
-export const CHAINAGE_METHOD_LABEL: Readonly<Record<ChainageMethod, string>> = {
-  frontage_midpoint: "Punto medio del frente sobre la vía",
-  centroid_projection: "Proyección del centroide sobre el eje",
-  access_point: "Punto de acceso declarado",
-  declared: "Declarada en ficha de campo",
-};
+/* Words: `vocabulary.chainageMethod.*` in `@eia/i18n`. */
 
 /** `2840` → `2+840`. Metres below the hectometre are not shown; the design uses whole metres. */
 export function formatChainage(metres: number): string {

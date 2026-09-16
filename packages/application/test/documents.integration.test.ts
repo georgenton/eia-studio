@@ -280,7 +280,7 @@ describe("the assistant answers from the project's documents, and only those", (
     );
     expect(answer.citations).toHaveLength(0);
     expect(answer.narrative).toBeNull();
-    expect(answer.narrativeUnavailable).toMatch(/No se encontraron/);
+    expect(answer.narrativeUnavailable).toBe("no_evidence");
   });
 
   it("without a generator it still answers, and says why there is no paragraph", async () => {
@@ -291,7 +291,7 @@ describe("the assistant answers from the project's documents, and only those", (
       { generator: unavailable() },
     );
     expect(answer.narrative).toBeNull();
-    expect(answer.narrativeUnavailable).toMatch(/no está configurada/);
+    expect(answer.narrativeUnavailable).toBe("not_configured");
     expect(answer.citations.length).toBeGreaterThan(0);
     expect(answer.model).toBeNull();
   });

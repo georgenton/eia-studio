@@ -70,9 +70,16 @@ export function CapabilityNav({
   );
 }
 
-export function Breadcrumb({ items }: { items: ReadonlyArray<{ label: string; href?: string }> }) {
+export function Breadcrumb({
+  items,
+  label,
+}: {
+  items: ReadonlyArray<{ label: string; href?: string }>;
+  /** The trail's own accessible name, from the caller's catalogue. */
+  label: string;
+}) {
   return (
-    <nav aria-label="Ruta de navegación" className={styles.breadcrumb}>
+    <nav aria-label={label} className={styles.breadcrumb}>
       <ol className={styles.breadcrumbList}>
         {items.map((item, index) => (
           <li key={`${item.label}-${index}`} className={styles.breadcrumbItem}>

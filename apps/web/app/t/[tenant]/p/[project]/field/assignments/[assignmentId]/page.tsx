@@ -1,10 +1,5 @@
 import { loadAssignmentDetail, loadWorkspaceHeader } from "@eia/application";
-import {
-  ASSIGNMENT_STATUS_PRESENTATION,
-  formatChainage,
-  INSTANCE_STATUS_LABEL,
-  SURFACE_DEFINITIONS,
-} from "@eia/domain";
+import { ASSIGNMENT_STATUS_PRESENTATION, formatChainage } from "@eia/domain";
 import { Chip } from "@eia/ui";
 import { notFound, redirect } from "next/navigation";
 
@@ -12,6 +7,8 @@ import { SurveyForm } from "@/components/field/survey-form";
 import { projectBreadcrumb, projectLabel, WorkspaceShell } from "@/components/workspace-shell";
 import { getSessionUser } from "@/lib/context";
 import { getDb } from "@/lib/db";
+import { assignmentStatusLabel, instanceStatusLabel, surfaceLabel } from "@/lib/labels";
+import { getI18n } from "@/lib/locale";
 import { projectPath } from "@/lib/navigation";
 import { accessForDomainError, resolveSurfaceAccess } from "@/lib/surface-access";
 import { PermissionDeniedState } from "@/lib/system-state";
@@ -51,6 +48,8 @@ export default async function AssignmentPage({
   }
 
   const { ctx, tenantSettings } = access;
+  const i18n = await getI18n();
+  const { t } = i18n;
   const sessionUser = await getSessionUser();
   const header = await loadWorkspaceHeader(getDb(), ctx);
   const fieldPath = projectPath(ctx.tenantSlug, project, "field");
@@ -65,22 +64,20 @@ export default async function AssignmentPage({
     throw error;
   }
 
-  const status = ASSIGNMENT_STATUS_PRESENTATION[detail.assignment.status];
-
   return (
     <WorkspaceShell
       ctx={ctx}
       tenantSettings={tenantSettings}
       projects={header.projects}
       currentSurface="field"
-      userName={sessionUser?.name ?? sessionUser?.email ?? "Usuario"}
+      userName={sessionUser?.name ?? sessionUser?.email ?? t("shell.user")}
       userEmail={sessionUser?.email ?? null}
       breadcrumb={[
         ...projectBreadcrumb(
           ctx,
           header.tenantName,
           projectLabel(header.projects, project),
-          SURFACE_DEFINITIONS.field.label,
+          surfaceLabel(t, "field"),
           fieldPath,
         ),
         { label: detail.assignment.parcelCode },
@@ -93,19 +90,22 @@ export default async function AssignmentPage({
             {/* Parcel context, by code and position. Never an owner's name: an assignment is
                 addressed by where it is, not by who lives there. */}
             <p className={styles.context}>
-              {detail.assignment.sectorLabel ?? "Sin sector"}
+              {detail.assignment.sectorLabel ?? t("gis.noSector")}
               {detail.assignment.chainageM === null
                 ? ""
-                : ` · ABS ${formatChainage(detail.assignment.chainageM)}`}
+                : ` · ${t("gis.chainageAbbrev")} ${formatChainage(detail.assignment.chainageM)}`}
             </p>
           </div>
           <div className={styles.badges}>
             <Chip tone={detail.assignment.status === "COMPLETED" ? "ok" : "neutral"}>
-              <span aria-hidden="true">{status.glyph}</span> {status.label}
+              <span aria-hidden="true">
+                {ASSIGNMENT_STATUS_PRESENTATION[detail.assignment.status].glyph}
+              </span>{" "}
+              {assignmentStatusLabel(t, detail.assignment.status)}
             </Chip>
             {detail.assignment.instanceStatus ? (
               <Chip tone={detail.assignment.instanceStatus === "SUBMITTED" ? "ok" : "neutral"}>
-                {INSTANCE_STATUS_LABEL[detail.assignment.instanceStatus]}
+                {instanceStatusLabel(t, detail.assignment.instanceStatus)}
               </Chip>
             ) : null}
           </div>
@@ -114,6 +114,7 @@ export default async function AssignmentPage({
         <SurveyForm
           backHref={fieldPath}
           detail={detail}
+          locale={i18n.locale}
           project={project}
           tenant={ctx.tenantSlug}
         />

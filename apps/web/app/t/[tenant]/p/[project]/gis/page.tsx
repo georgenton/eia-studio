@@ -1,5 +1,5 @@
 import { loadParcelExplorer, loadWorkspaceHeader } from "@eia/application";
-import { SURFACE_DEFINITIONS, type BasemapCatalogue } from "@eia/domain";
+import { type BasemapCatalogue } from "@eia/domain";
 import { notFound, redirect } from "next/navigation";
 
 import { ParcelExplorer } from "@/components/gis/parcel-explorer";
@@ -7,6 +7,9 @@ import { ProvenancePanel } from "@/components/provenance-panel";
 import { projectBreadcrumb, projectLabel, WorkspaceShell } from "@/components/workspace-shell";
 import { getSessionUser } from "@/lib/context";
 import { getDb } from "@/lib/db";
+import { surfaceLabel } from "@/lib/labels";
+import { getI18n } from "@/lib/locale";
+import type { Translator } from "@eia/i18n";
 import { getEnv } from "@/lib/env";
 import { projectPath } from "@/lib/navigation";
 import { accessForDomainError, resolveSurfaceAccess } from "@/lib/surface-access";
@@ -45,6 +48,8 @@ export default async function GisPage({
   }
 
   const { ctx, tenantSettings } = access;
+  const i18n = await getI18n();
+  const { t } = i18n;
   const sessionUser = await getSessionUser();
   const header = await loadWorkspaceHeader(getDb(), ctx);
   const basePath = projectPath(ctx.tenantSlug, project, "gis");
@@ -55,13 +60,13 @@ export default async function GisPage({
     tenantSettings,
     projects: header.projects,
     currentSurface: "gis" as const,
-    userName: sessionUser?.name ?? sessionUser?.email ?? "Usuario",
+    userName: sessionUser?.name ?? sessionUser?.email ?? t("shell.user"),
     userEmail: sessionUser?.email ?? null,
     breadcrumb: projectBreadcrumb(
       ctx,
       header.tenantName,
       projectLabel(header.projects, project),
-      SURFACE_DEFINITIONS.gis.label,
+      surfaceLabel(t, "gis"),
     ),
   };
 
@@ -96,6 +101,7 @@ export default async function GisPage({
         basemap={getEnv().basemap}
         basePath={basePath}
         parcelsPath={parcelsPath}
+        t={t}
         view={view}
       />
     </WorkspaceShell>
@@ -107,22 +113,23 @@ function GisSurface({
   basePath,
   parcelsPath,
   basemap,
+  t,
 }: {
   view: Awaited<ReturnType<typeof loadParcelExplorer>>;
   basePath: string;
   parcelsPath: string;
   basemap: BasemapCatalogue;
+  t: Translator;
 }) {
   // `no GIS yet` (system state 9): the project has the capability but no geometry has been loaded.
   if (view.parcels.length === 0) {
     return (
       <div style={{ padding: "24px 0" }}>
         <h1 style={{ fontFamily: "var(--eia-font-serif)", fontSize: 23, margin: 0 }}>
-          Este proyecto aún no tiene geometría
+          {t("gis.noGeometryTitle")}
         </h1>
         <p style={{ fontSize: 12.5, color: "var(--eia-text-secondary)", maxWidth: 560 }}>
-          Carga el eje vial y los predios para activar el explorador. Hasta entonces no se muestran
-          capas: no hay cartografía que representar.
+          {t("gis.noGeometryBody")}
         </p>
       </div>
     );

@@ -3,26 +3,22 @@
 import type { ParcelExplorerView } from "@eia/application";
 import {
   formatChainage,
-  LAYER_LEGEND_COPY,
   orderLayersForLegend,
-  PARCEL_SIDE_LABEL,
   PARCEL_STATUS_PRESENTATION,
   type BasemapCatalogue,
   type ParcelStatus,
 } from "@eia/domain";
-import {
-  Chip,
-  formatCount,
-  formatDecimal,
-  formatPercent,
-  Panel,
-  PanelBody,
-  PanelHeader,
-  ProvenanceBadge,
-} from "@eia/ui";
+import { Chip, Panel, PanelBody, PanelHeader, ProvenanceBadge } from "@eia/ui";
 import { useMemo, useState } from "react";
 
+import { useI18n } from "@/components/i18n/locale-provider";
 import { ButtonLink, ProvenanceLink } from "@/components/navigation";
+import {
+  layerLegendLabel,
+  layerLegendNote,
+  parcelSideLabel,
+  parcelStatusLabel,
+} from "@/lib/labels";
 
 import styles from "./parcel-explorer.module.css";
 import { ParcelMap } from "./parcel-map";
@@ -52,6 +48,7 @@ export function ParcelExplorer({
    * server/client boundary. */
   parcelsPath: string;
 }) {
+  const { t, fmt } = useI18n();
   const workspacePath = (parcelCode: string) => `${parcelsPath}/${encodeURIComponent(parcelCode)}`;
   const selection = useParcelSelection(null);
   const [search, setSearch] = useState("");
@@ -86,18 +83,18 @@ export function ParcelExplorer({
     <div className={styles.surface}>
       <div className={styles.filters} role="search">
         <label className={styles.searchLabel} htmlFor="parcel-search">
-          Buscar predio
+          {t("gis.searchParcel")}
         </label>
         <input
           className={styles.search}
           id="parcel-search"
           onChange={(event) => setSearch(event.target.value)}
-          placeholder="Código, sector o abscisa"
+          placeholder={t("gis.searchPlaceholder")}
           type="search"
           value={search}
         />
         <label className={styles.selectLabel} htmlFor="parcel-sector">
-          Sector
+          {t("gis.sector")}
         </label>
         <select
           className={styles.select}
@@ -105,7 +102,7 @@ export function ParcelExplorer({
           onChange={(event) => setSector(event.target.value || null)}
           value={sector ?? ""}
         >
-          <option value="">Todos</option>
+          <option value="">{t("common.all")}</option>
           {sectors.map((s) => (
             <option key={s} value={s}>
               {s}
@@ -113,7 +110,7 @@ export function ParcelExplorer({
           ))}
         </select>
         <fieldset className={styles.statusGroup}>
-          <legend className={styles.selectLabel}>Estado</legend>
+          <legend className={styles.selectLabel}>{t("common.status")}</legend>
           {presentStatuses.map((status) => (
             <label className={styles.statusOption} key={status}>
               <input
@@ -122,12 +119,15 @@ export function ParcelExplorer({
                 type="checkbox"
               />
               <span aria-hidden="true">{PARCEL_STATUS_PRESENTATION[status].glyph}</span>
-              {PARCEL_STATUS_PRESENTATION[status].label}
+              {parcelStatusLabel(t, status)}
             </label>
           ))}
         </fieldset>
         <p className={styles.count}>
-          {formatCount(view.parcels.length)} predios · {formatCount(visibleCount)} en vista
+          {t("gis.parcelCount", {
+            total: fmt.count(view.parcels.length),
+            visible: fmt.count(visibleCount),
+          })}
         </p>
       </div>
 
@@ -141,21 +141,18 @@ export function ParcelExplorer({
             view={view}
           />
           <div className={styles.layerLegend}>
-            <div className={styles.layerTitle}>Procedencia de la capa</div>
+            <div className={styles.layerTitle}>{t("gis.layerProvenance")}</div>
             <ul className={styles.layerList}>
               {/* Two dataset versions can share a legend (parcels and affectations are both
                   synthetic polygons); the legend describes the *layers on the map*, so it is
                   keyed by legend and shown once. */}
-              {legendRows.map((layer) => {
-                const copy = LAYER_LEGEND_COPY[layer.legend];
-                return (
-                  <li className={styles.layerRow} key={layer.legend}>
-                    <span className={styles.layerKey}>{copy.label}</span>
-                    <span className={styles.layerNote}>{copy.note}</span>
-                    <ProvenanceLink href={`${basePath}?prov=${layer.provenanceId}`} />
-                  </li>
-                );
-              })}
+              {legendRows.map((layer) => (
+                <li className={styles.layerRow} key={layer.legend}>
+                  <span className={styles.layerKey}>{layerLegendLabel(t, layer.legend)}</span>
+                  <span className={styles.layerNote}>{layerLegendNote(t, layer.legend)}</span>
+                  <ProvenanceLink href={`${basePath}?prov=${layer.provenanceId}`} />
+                </li>
+              ))}
             </ul>
 
             {/*
@@ -171,22 +168,17 @@ export function ParcelExplorer({
                     onChange={(event) => setShowInfluenceAreas(event.currentTarget.checked)}
                     type="checkbox"
                   />
-                  Áreas de influencia del estudio
+                  {t("gis.influenceAreas")}
                 </label>
                 <ul className={styles.influenceList}>
                   {view.influenceAreas.map((area) => (
                     <li key={area.kind}>
                       <span>{area.label}</span>
-                      <span className={styles.influenceArea}>
-                        {formatDecimal(area.areaHa, 0)} ha
-                      </span>
+                      <span className={styles.influenceArea}>{fmt.decimal(area.areaHa, 0)} ha</span>
                     </li>
                   ))}
                 </ul>
-                <p className={styles.influenceNote}>
-                  Contorno generalizado para el dibujo; la geometría almacenada es la que entregó el
-                  estudio.
-                </p>
+                <p className={styles.influenceNote}>{t("gis.influenceNote")}</p>
               </div>
             ) : null}
           </div>
@@ -196,67 +188,69 @@ export function ParcelExplorer({
           {selected ? (
             <Panel>
               <PanelHeader
-                label="Predio seleccionado"
-                badge={<ProvenanceBadge facets={selected.provenance} />}
+                label={t("gis.selectedParcel")}
+                badge={<ProvenanceBadge facets={selected.provenance} t={t} />}
               />
               <PanelBody>
                 <h2 className={styles.parcelCode}>{selected.parcelCode}</h2>
                 <p className={styles.parcelMeta}>
-                  {selected.sectorLabel ?? "Sin sector"}
+                  {selected.sectorLabel ?? t("gis.noSector")}
                   {selected.chainageM === null
                     ? null
-                    : ` · ABS ${formatChainage(selected.chainageM)}`}
-                  {` · lado ${PARCEL_SIDE_LABEL[selected.side].toLowerCase()}`}
+                    : ` · ${t("gis.chainageAbbrev")} ${formatChainage(selected.chainageM)}`}
+                  {` · ${t("gis.sideLine", {
+                    side: parcelSideLabel(t, selected.side).toLowerCase(),
+                  })}`}
                 </p>
                 <div className={styles.chipRow}>
                   <Chip tone={selected.status === "confirmed" ? "ok" : "neutral"}>
                     <span aria-hidden="true">
                       {PARCEL_STATUS_PRESENTATION[selected.status].glyph}
                     </span>
-                    {PARCEL_STATUS_PRESENTATION[selected.status].label}
+                    {parcelStatusLabel(t, selected.status)}
                   </Chip>
                 </div>
                 <dl className={styles.facts}>
                   <div>
-                    <dt>Área total</dt>
+                    <dt>{t("gis.totalArea")}</dt>
                     <dd>
                       {selected.areaM2 === null
-                        ? "—"
-                        : `${formatDecimal(selected.areaM2 / 10_000, 2)} ha`}
+                        ? t("common.missing")
+                        : `${fmt.decimal(selected.areaM2 / 10_000, 2)} ha`}
                     </dd>
                   </div>
                   <div>
-                    <dt>Frente sobre la vía</dt>
+                    <dt>{t("gis.frontage")}</dt>
                     <dd>
-                      {selected.frontageM === null ? "—" : `${formatDecimal(selected.frontageM)} m`}
+                      {selected.frontageM === null
+                        ? t("common.missing")
+                        : `${fmt.decimal(selected.frontageM)} m`}
                     </dd>
                   </div>
                   <div>
-                    <dt>Afectación estimada</dt>
+                    <dt>{t("gis.estimatedAffectation")}</dt>
                     <dd>
                       {selected.affectationRatio === null || selected.affectedAreaM2 === null
-                        ? "—"
-                        : `${formatDecimal(selected.affectedAreaM2 / 10_000, 2)} ha · ${formatPercent(selected.affectationRatio)}`}
+                        ? t("common.missing")
+                        : `${fmt.decimal(selected.affectedAreaM2 / 10_000, 2)} ha · ${fmt.percent(selected.affectationRatio)}`}
                     </dd>
                   </div>
                 </dl>
                 <div className={styles.panelActions}>
                   <ButtonLink href={workspacePath(selected.parcelCode)} variant="primary">
-                    Abrir Parcel Workspace
+                    {t("gis.openWorkspace")}
                   </ButtonLink>
                   <ProvenanceLink href={`${basePath}?prov=${selected.provenanceId}`}>
-                    Ver origen de los datos
+                    {t("gis.viewProvenance")}
                   </ProvenanceLink>
                 </div>
               </PanelBody>
             </Panel>
           ) : (
             <Panel>
-              <PanelHeader label="Predio seleccionado" />
+              <PanelHeader label={t("gis.selectedParcel")} />
               <PanelBody>
-                <p className={styles.muted}>
-                  Selecciona un predio en el mapa o en la tabla para ver su ficha territorial.
-                </p>
+                <p className={styles.muted}>{t("gis.selectPrompt")}</p>
               </PanelBody>
             </Panel>
           )}

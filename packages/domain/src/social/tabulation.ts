@@ -30,24 +30,10 @@ import type { QuestionType } from "../field/survey";
 export const DENOMINATOR_RULES = ["submitted", "answered", "answered_multi"] as const;
 export type DenominatorRule = (typeof DENOMINATOR_RULES)[number];
 
-export const DENOMINATOR_COPY: Readonly<
-  Record<DenominatorRule, { readonly label: string; readonly help: string }>
-> = {
-  submitted: {
-    label: "sobre respuestas enviadas",
-    help: "Base: todas las respuestas enviadas de esta versión del cuestionario.",
-  },
-  answered: {
-    label: "sobre quienes respondieron la pregunta",
-    help: "Base: respuestas enviadas que contestaron esta pregunta. Los porcentajes suman 100 %.",
-  },
-  answered_multi: {
-    label: "sobre quienes respondieron la pregunta (selección múltiple)",
-    help:
-      "Base: respuestas enviadas que contestaron esta pregunta. Cada persona puede elegir varias " +
-      "opciones, así que la suma de los porcentajes puede superar el 100 %.",
-  },
-};
+/*
+ * The words for a denominator rule are `social.denominator.*` and `social.denominatorHelp.*` in
+ * `@eia/i18n`. The *rule* is what the arithmetic obeys and stays here; naming it is presentation.
+ */
 
 export interface CategoryTally {
   readonly code: string;

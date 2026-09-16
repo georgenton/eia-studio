@@ -1,19 +1,13 @@
 import type { CommandCenterView, FieldProgressSummary, TerritorialSummary } from "@eia/application";
 import {
-  ATTENTION_SEVERITY_LABEL,
   demoScenarioDate,
-  LAYER_LEGEND_COPY,
   PARCEL_STATUS_PRESENTATION,
-  profileLabel,
-  PROJECT_ROLE_LABEL,
-  TENANT_ROLE_LABEL,
   selectLayerByKind,
   SURFACE_DEFINITIONS,
   type MetricKey,
   type MetricSnapshot,
   type ParcelStatus,
   type ProvenanceFacets,
-  type TenantRole,
   type RequestContext,
 } from "@eia/domain";
 import {
@@ -34,15 +28,21 @@ import {
   Stack,
   StatusChip,
   SystemState,
-  formatCount,
-  formatDayCount,
-  formatDecimal,
-  formatIsoDate,
   formatMetricValue,
-  formatTime,
 } from "@eia/ui";
 import { ProvenanceLink } from "@/components/navigation";
 
+import type { I18n } from "@/lib/locale";
+import {
+  attentionSeverityLabel,
+  dayCount,
+  layerLegendLabel,
+  layerLegendNote,
+  parcelStatusLabel,
+  surfaceLabel,
+  projectRoleLabel,
+  tenantRoleLabel,
+} from "@/lib/labels";
 import { projectPath } from "@/lib/navigation";
 
 import styles from "./command-center.module.css";
@@ -72,6 +72,7 @@ function metricTone(metric: MetricSnapshot): "default" | "warn" | "crit" {
 
 export function CommandCenter({
   ctx,
+  i18n,
   view,
   basePath,
   lifecycleLabel,
@@ -81,6 +82,7 @@ export function CommandCenter({
   fieldPath,
 }: {
   ctx: RequestContext;
+  i18n: I18n;
   view: CommandCenterView;
   basePath: string;
   lifecycleLabel: string;
@@ -91,6 +93,7 @@ export function CommandCenter({
   fieldProgress: FieldProgressSummary | null;
   fieldPath: string | null;
 }) {
+  const { t, fmt } = i18n;
   const byKey = new Map(view.metrics.map((m) => [m.key, m]));
   const strip = STRIP_ORDER.map((key) => byKey.get(key)).filter(
     (m): m is MetricSnapshot => m !== undefined,
@@ -104,7 +107,7 @@ export function CommandCenter({
   // carries no demo state.
   const scenarioDate = forecast ? demoScenarioDate(forecast, forecast.provenance) : null;
   const scenarioLabel = scenarioDate
-    ? `Escenario demo · fecha de corte: ${formatIsoDate(scenarioDate)}`
+    ? t("commandCenter.scenarioBadge", { date: fmt.isoDate(scenarioDate) })
     : null;
 
   return (
@@ -117,7 +120,9 @@ export function CommandCenter({
               <StatusChip label={lifecycleLabel} tone="ok" />
               {forecast && forecast.delayDays > 0 ? (
                 <StatusChip
-                  label={`Retraso proyectado ${formatDayCount(forecast.delayDays)}`}
+                  label={t("commandCenter.delayChip", {
+                    days: dayCount(t, forecast.delayDays, fmt.count(Math.abs(forecast.delayDays))),
+                  })}
                   tone="warn"
                 />
               ) : null}
@@ -140,34 +145,46 @@ export function CommandCenter({
             <p className={styles.subtitle}>
               {view.project.locationLabel ? <span>{view.project.locationLabel}</span> : null}
               {length && length.numericValue !== null ? (
-                <span>{formatDecimal(length.numericValue)} km</span>
+                <span>{fmt.decimal(length.numericValue)} km</span>
               ) : null}
-              <span>perfil {profileLabel(view.project.profileKey)}</span>
+              <span>
+                {t("commandCenter.profileLine", {
+                  profile: t(
+                    `vocabulary.profile.${view.project.profileKey}` as Parameters<typeof t>[0],
+                  ),
+                })}
+              </span>
             </p>
           </div>
           {forecast ? (
             <dl className={styles.meta}>
               <div>
-                <dt>Fecha objetivo</dt>
-                <dd>{formatIsoDate(forecast.targetDate)}</dd>
+                <dt>{t("commandCenter.targetDate")}</dt>
+                <dd>{fmt.isoDate(forecast.targetDate)}</dd>
               </div>
               <div>
-                <dt>Proyección</dt>
+                <dt>{t("commandCenter.projection")}</dt>
                 <dd className={forecast.delayDays > 0 ? styles.late : undefined}>
-                  {formatIsoDate(forecast.projectedCloseDate)}
+                  {fmt.isoDate(forecast.projectedCloseDate)}
                 </dd>
               </div>
               <div>
-                <dt>Rol en el proyecto</dt>
+                <dt>{t("commandCenter.projectRole")}</dt>
                 <dd>
                   {view.projectRole
-                    ? PROJECT_ROLE_LABEL[view.projectRole]
-                    : `${TENANT_ROLE_LABEL[view.tenantRole as TenantRole]} · acceso implícito`}
+                    ? projectRoleLabel(t, view.projectRole)
+                    : t("commandCenter.implicitAccess", {
+                        role: tenantRoleLabel(t, view.tenantRole),
+                      })}
                 </dd>
               </div>
               <div>
-                <dt>{scenarioLabel ? "Fecha de corte del escenario" : "Última actualización"}</dt>
-                <dd>{formatIsoDate(forecast.calculatedAt.toISOString().slice(0, 10))}</dd>
+                <dt>
+                  {scenarioLabel
+                    ? t("commandCenter.scenarioCutoff")
+                    : t("commandCenter.lastUpdated")}
+                </dt>
+                <dd>{fmt.isoDate(forecast.calculatedAt.toISOString().slice(0, 10))}</dd>
               </div>
             </dl>
           ) : null}
@@ -175,33 +192,33 @@ export function CommandCenter({
       </Panel>
 
       {strip.length === 0 ? (
-        <SystemState state="empty" title="Sin métricas todavía">
-          <p>Cuando el equipo registre avance, el control de ejecución aparecerá aquí.</p>
+        <SystemState state="empty" title={t("commandCenter.noMetricsTitle")}>
+          <p>{t("commandCenter.noMetricsBody")}</p>
         </SystemState>
       ) : (
         <Panel>
           <PanelHeader
-            label="Control de ejecución"
+            label={t("commandCenter.executionControl")}
             badge={
               <>
-                <DemoBadge facets={stripFacets} />
+                <DemoBadge facets={stripFacets} t={t} />
                 {scenarioLabel ? <Chip tone="demo">{scenarioLabel}</Chip> : null}
               </>
             }
-            note="Universo, levantamientos y consulta son cifras reales del estudio; el resto son métricas operativas de demostración, fijadas a la fecha de corte del escenario."
+            note={t("commandCenter.executionNote")}
           />
-          <MetricStrip label="Control de ejecución">
+          <MetricStrip label={t("commandCenter.executionControl")}>
             {strip.map((metric) => (
               <MetricCell
                 key={metric.id}
                 label={metric.definition.label}
-                value={formatMetricValue(metric)}
+                value={formatMetricValue(metric, fmt)}
                 tone={metricTone(metric)}
                 note={
                   <>
                     {metric.note ? <span>{metric.note}</span> : null}
                     <span className={styles.badgeRow}>
-                      <ProvenanceBadge facets={metric.provenance} />
+                      <ProvenanceBadge facets={metric.provenance} t={t} />
                     </span>
                   </>
                 }
@@ -217,68 +234,87 @@ export function CommandCenter({
           {forecast ? (
             <Panel>
               <PanelHeader
-                label="Proyección operativa"
-                note="cálculo aritmético sobre el ritmo observado · sin modelo predictivo"
+                label={t("commandCenter.forecastTitle")}
+                note={t("commandCenter.forecastNote")}
                 action={<ProvenanceLink href={provHref(basePath, forecast.provenanceId)} />}
               />
               <PanelBody>
-                <p className={styles.statement}>
-                  Al ritmo de los últimos {forecast.windowDays} días, el levantamiento concluiría{" "}
-                  {forecast.delayDays > 0 ? (
-                    <strong className={styles.late}>
-                      {formatDayCount(forecast.delayDays)} después
-                    </strong>
-                  ) : forecast.delayDays < 0 ? (
-                    <strong>{formatDayCount(forecast.delayDays)} antes</strong>
-                  ) : (
-                    <strong>el mismo día</strong>
-                  )}{" "}
-                  de la fecha objetivo.
+                {/*
+                  One sentence per outcome rather than a sentence assembled from fragments: word
+                  order differs between the two languages, and a phrase glued together in the
+                  middle of a clause reads as a translation in at least one of them.
+                */}
+                <p
+                  className={`${styles.statement} ${forecast.delayDays > 0 ? styles.late : ""}`}
+                  data-forecast-delay={forecast.delayDays}
+                >
+                  {forecast.delayDays === 0
+                    ? t("commandCenter.forecastStatementOnTime", { days: forecast.windowDays })
+                    : t(
+                        forecast.delayDays > 0
+                          ? "commandCenter.forecastStatementLate"
+                          : "commandCenter.forecastStatementEarly",
+                        {
+                          days: forecast.windowDays,
+                          delay: dayCount(
+                            t,
+                            forecast.delayDays,
+                            fmt.count(Math.abs(forecast.delayDays)),
+                          ),
+                        },
+                      )}
                 </p>
                 <div className={styles.forecastGrid}>
                   <div className={styles.forecastCells}>
                     <ForecastCell
-                      label="Ritmo actual"
-                      value={formatDecimal(forecast.movingAveragePerDay)}
-                      unit="pred/día"
+                      label={t("commandCenter.currentRate")}
+                      value={fmt.decimal(forecast.movingAveragePerDay)}
+                      unit={t("commandCenter.perDay")}
                     />
                     <ForecastCell
-                      label="Ritmo necesario"
+                      label={t("commandCenter.requiredRate")}
                       value={
                         forecast.requiredRatePerDay === null
-                          ? "—"
-                          : formatDecimal(forecast.requiredRatePerDay)
+                          ? t("common.missing")
+                          : fmt.decimal(forecast.requiredRatePerDay)
                       }
-                      unit="pred/día"
+                      unit={t("commandCenter.perDay")}
                       highlight
                     />
                     <ForecastCell
-                      label="Técnicos activos"
-                      value={formatCount(forecast.activeTechnicians)}
-                      unit={`de ${formatCount(forecast.assignedTechnicians)} asignados`}
+                      label={t("commandCenter.activeTechnicians")}
+                      value={fmt.count(forecast.activeTechnicians)}
+                      unit={t("commandCenter.ofAssigned", {
+                        count: fmt.count(forecast.assignedTechnicians),
+                      })}
                     />
                     <ForecastCell
-                      label="Pendientes"
-                      value={formatCount(forecast.pending)}
-                      unit="predios"
+                      label={t("commandCenter.pending")}
+                      value={fmt.count(forecast.pending)}
+                      unit={t("commandCenter.parcelsUnit")}
                     />
                   </div>
                   <div className={styles.forecastChart}>
                     <span className={styles.chartLabel}>
-                      Levantamientos por día · últimos {forecast.dailyCompletions.length} días
+                      {t("commandCenter.completionsPerDay", {
+                        days: forecast.dailyCompletions.length,
+                      })}
                     </span>
                     <ForecastChart
                       values={forecast.dailyCompletions}
                       highlightLast={forecast.windowDays}
-                      startDate={shiftDate(
-                        forecast.calculatedAt,
-                        -(forecast.dailyCompletions.length - 1),
+                      startLabel={fmt.isoDateShort(
+                        shiftDate(forecast.calculatedAt, -(forecast.dailyCompletions.length - 1)),
                       )}
-                      endDate={forecast.calculatedAt.toISOString().slice(0, 10)}
-                      label={`Levantamientos por día, últimos ${forecast.dailyCompletions.length} días`}
+                      endLabel={fmt.isoDateShort(forecast.calculatedAt.toISOString().slice(0, 10))}
+                      label={t("commandCenter.completionsPerDayLabel", {
+                        days: forecast.dailyCompletions.length,
+                      })}
                     />
                     <p className={styles.assumptions}>
-                      <span className={styles.assumptionsLabel}>Supuestos:</span>{" "}
+                      <span className={styles.assumptionsLabel}>
+                        {t("commandCenter.assumptions")}
+                      </span>{" "}
                       {forecast.assumptions.join(" · ")}
                     </p>
                     {/*
@@ -287,7 +323,7 @@ export function CommandCenter({
                       forecast — and here it is introduced.
                     */}
                     <p className={styles.algorithm}>
-                      Versión del cálculo: <Mono>{forecast.algorithmVersion}</Mono>
+                      {t("commandCenter.algorithmVersion")} <Mono>{forecast.algorithmVersion}</Mono>
                     </p>
                   </div>
                 </div>
@@ -297,14 +333,16 @@ export function CommandCenter({
 
           <Panel>
             <PanelHeader
-              label="Requiere atención hoy"
-              action={<span className={styles.count}>{view.attention.length} elementos</span>}
+              label={t("commandCenter.attentionTitle")}
+              action={
+                <span className={styles.count}>
+                  {t("commandCenter.attentionCount", { count: fmt.count(view.attention.length) })}
+                </span>
+              }
             />
             {view.attention.length === 0 ? (
               <PanelBody>
-                <p className={styles.muted}>
-                  Nada requiere atención hoy. Esto no sustituye la revisión técnica del expediente.
-                </p>
+                <p className={styles.muted}>{t("commandCenter.attentionEmpty")}</p>
               </PanelBody>
             ) : (
               <AttentionList>
@@ -318,13 +356,17 @@ export function CommandCenter({
                     <AttentionRow
                       key={item.id}
                       severity={item.severity}
-                      severityLabel={ATTENTION_SEVERITY_LABEL[item.severity]}
+                      severityLabel={attentionSeverityLabel(t, item.severity)}
                       title={item.title}
                       note={item.note}
-                      surfaceLabel={item.surfaceLabel}
+                      surfaceLabel={
+                        item.surface ? surfaceLabel(t, item.surface) : item.surfaceLabel
+                      }
                       action={
                         href ? (
-                          <ProvenanceLink href={href}>{item.actionLabel ?? "Abrir"}</ProvenanceLink>
+                          <ProvenanceLink href={href}>
+                            {item.actionLabel ?? t("common.open")}
+                          </ProvenanceLink>
                         ) : (
                           <ProvenanceLink href={provHref(basePath, item.provenanceId)} />
                         )
@@ -339,15 +381,21 @@ export function CommandCenter({
           {view.activity.length > 0 ? (
             <Panel>
               <PanelHeader
-                label="Actividad reciente"
-                badge={<DemoBadge facets={view.activity.map((a) => a.provenance)} />}
+                label={t("commandCenter.activityTitle")}
+                badge={<DemoBadge facets={view.activity.map((a) => a.provenance)} t={t} />}
                 note={scenarioLabel ?? undefined}
               />
               <ActivityTable
-                caption="Actividad reciente del proyecto"
+                caption={t("commandCenter.activityCaption")}
+                headers={{
+                  time: t("commandCenter.activityTime"),
+                  actor: t("commandCenter.activityActor"),
+                  action: t("commandCenter.activityAction"),
+                  object: t("commandCenter.activityObject"),
+                }}
                 rows={view.activity.map((event) => ({
                   id: event.id,
-                  time: formatTime(event.occurredAt),
+                  time: fmt.time(event.occurredAt),
                   actor: event.actorLabel,
                   action: event.action,
                   object: event.objectLabel,
@@ -360,14 +408,17 @@ export function CommandCenter({
         <Stack gap={16}>
           {consultation ? (
             <Panel>
-              <PanelHeader label="Consulta significativa" badge={<Chip tone="ok">COMPLETA</Chip>} />
+              <PanelHeader
+                label={t("commandCenter.consultationTitle")}
+                badge={<Chip tone="ok">{t("commandCenter.consultationComplete")}</Chip>}
+              />
               <PanelBody>
                 <div className={styles.bigFigure}>
-                  <span className={styles.bigValue}>{formatMetricValue(consultation)}</span>
+                  <span className={styles.bigValue}>{formatMetricValue(consultation, fmt)}</span>
                   <span className={styles.bigNote}>{consultation.note}</span>
                 </div>
                 <div className={styles.badgeRow}>
-                  <ProvenanceBadge facets={consultation.provenance} />
+                  <ProvenanceBadge facets={consultation.provenance} t={t} />
                   <ProvenanceLink href={provHref(basePath, consultation.provenanceId)} />
                 </div>
               </PanelBody>
@@ -375,24 +426,27 @@ export function CommandCenter({
           ) : null}
 
           {territory ? (
-            <TerritorySummaryPanel basePath={basePath} gisPath={gisPath} territory={territory} />
+            <TerritorySummaryPanel
+              basePath={basePath}
+              gisPath={gisPath}
+              i18n={i18n}
+              territory={territory}
+            />
           ) : null}
 
           {fieldProgress ? (
             <FieldProgressPanel
               basePath={basePath}
               fieldPath={fieldPath}
+              i18n={i18n}
               progress={fieldProgress}
             />
           ) : null}
 
           <Panel>
-            <PanelHeader label="Alcance de esta fase" />
+            <PanelHeader label={t("commandCenter.scopeTitle")} />
             <PanelBody>
-              <p className={styles.muted}>
-                Los instrumentos del proyecto y los hallazgos de calidad llegan con los módulos de
-                campo y control de calidad. No se muestran cifras inventadas en su lugar.
-              </p>
+              <p className={styles.muted}>{t("commandCenter.scopeBody")}</p>
             </PanelBody>
           </Panel>
         </Stack>
@@ -411,10 +465,12 @@ function TerritorySummaryPanel({
   territory,
   basePath,
   gisPath,
+  i18n: { t, fmt },
 }: {
   territory: TerritorialSummary;
   basePath: string;
   gisPath: string | null;
+  i18n: I18n;
 }) {
   const statuses = (Object.keys(territory.byStatus) as ParcelStatus[]).filter(
     (status) => territory.byStatus[status] > 0,
@@ -425,18 +481,24 @@ function TerritorySummaryPanel({
   return (
     <Panel>
       <PanelHeader
-        label="Resumen territorial"
-        badge={layer ? <ProvenanceBadge facets={layer.provenance} /> : undefined}
-        action={gisPath ? <ProvenanceLink href={gisPath}>Abrir GIS</ProvenanceLink> : undefined}
+        label={t("commandCenter.territoryTitle")}
+        badge={layer ? <ProvenanceBadge facets={layer.provenance} t={t} /> : undefined}
+        action={
+          gisPath ? (
+            <ProvenanceLink href={gisPath}>{t("commandCenter.openGis")}</ProvenanceLink>
+          ) : undefined
+        }
       />
       <PanelBody>
         <div className={styles.territoryHead}>
-          <span className={styles.bigValue}>{formatCount(territory.parcelCount)}</span>
+          <span className={styles.bigValue}>{fmt.count(territory.parcelCount)}</span>
           <span className={styles.bigNote}>
-            predios en el corredor
+            {t("commandCenter.parcelsInCorridor")}
             {territory.alignmentLengthM === null
               ? ""
-              : ` · ${formatDecimal(territory.alignmentLengthM / 1000, 1)} km de eje`}
+              : t("commandCenter.alignmentLength", {
+                  km: fmt.decimal(territory.alignmentLengthM / 1000, 1),
+                })}
           </span>
         </div>
         <ul className={styles.territoryList}>
@@ -445,30 +507,32 @@ function TerritorySummaryPanel({
               <span aria-hidden="true" className={styles.territoryGlyph}>
                 {PARCEL_STATUS_PRESENTATION[status].glyph}
               </span>
-              <span>{PARCEL_STATUS_PRESENTATION[status].label}</span>
-              <Mono>{formatCount(territory.byStatus[status])}</Mono>
+              <span>{parcelStatusLabel(t, status)}</span>
+              <Mono>{fmt.count(territory.byStatus[status])}</Mono>
             </li>
           ))}
           <li className={styles.territoryRow}>
             <span aria-hidden="true" className={styles.territoryGlyph} />
-            <span>Superficie cartografiada</span>
-            <Mono>{formatDecimal(territory.totalAreaM2 / 10_000, 1)} ha</Mono>
+            <span>{t("commandCenter.mappedArea")}</span>
+            <Mono>{fmt.decimal(territory.totalAreaM2 / 10_000, 1)} ha</Mono>
           </li>
           <li className={styles.territoryRow}>
             <span aria-hidden="true" className={styles.territoryGlyph} />
-            <span>Afectación estimada</span>
-            <Mono>{formatDecimal(territory.affectedAreaM2 / 10_000, 1)} ha</Mono>
+            <span>{t("commandCenter.affectedArea")}</span>
+            <Mono>{fmt.decimal(territory.affectedAreaM2 / 10_000, 1)} ha</Mono>
           </li>
         </ul>
         {territory.withoutGeometry > 0 ? (
           <p className={styles.muted} data-system-state="partial gis">
-            {formatCount(territory.withoutGeometry)} de {formatCount(territory.parcelCount)} predios
-            aún no tienen geometría; las superficies de arriba sólo cubren los que sí la tienen.
+            {t("commandCenter.withoutGeometry", {
+              without: fmt.count(territory.withoutGeometry),
+              total: fmt.count(territory.parcelCount),
+            })}
           </p>
         ) : null}
         {layer ? (
           <p className={styles.muted}>
-            {LAYER_LEGEND_COPY[layer.legend].label} · {LAYER_LEGEND_COPY[layer.legend].note}{" "}
+            {layerLegendLabel(t, layer.legend)} · {layerLegendNote(t, layer.legend)}{" "}
             <ProvenanceLink href={provHref(basePath, layer.provenanceId)} />
           </p>
         ) : null}
@@ -493,49 +557,52 @@ function FieldProgressPanel({
   progress,
   basePath,
   fieldPath,
+  i18n: { t, fmt },
 }: {
   progress: FieldProgressSummary;
   basePath: string;
   fieldPath: string | null;
+  i18n: I18n;
 }) {
   return (
     <Panel>
       <PanelHeader
-        label="Campaña de campo en curso"
-        badge={<ProvenanceBadge facets={progress.provenance} />}
+        label={t("commandCenter.fieldCampaignTitle")}
+        badge={<ProvenanceBadge facets={progress.provenance} t={t} />}
         action={
           fieldPath ? (
-            <ProvenanceLink href={fieldPath}>Abrir el trabajo de campo</ProvenanceLink>
+            <ProvenanceLink href={fieldPath}>{t("commandCenter.openField")}</ProvenanceLink>
           ) : undefined
         }
       />
       <PanelBody>
         <div className={styles.territoryHead}>
           <span className={styles.bigValue}>
-            {formatCount(progress.submittedCount)} / {formatCount(progress.progress.total)}
+            {fmt.count(progress.submittedCount)} / {fmt.count(progress.progress.total)}
           </span>
-          <span className={styles.bigNote}>fichas enviadas · {progress.campaignName}</span>
+          <span className={styles.bigNote}>
+            {t("commandCenter.formsSubmitted", { campaign: progress.campaignName })}
+          </span>
         </div>
         <ul className={styles.territoryList}>
           <li className={styles.territoryRow}>
             <span aria-hidden="true" className={styles.territoryGlyph} />
-            <span>Asignaciones</span>
-            <Mono>{formatCount(progress.progress.total)}</Mono>
+            <span>{t("commandCenter.assignments")}</span>
+            <Mono>{fmt.count(progress.progress.total)}</Mono>
           </li>
           <li className={styles.territoryRow}>
             <span aria-hidden="true" className={styles.territoryGlyph} />
-            <span>Pendientes</span>
-            <Mono>{formatCount(progress.progress.pending)}</Mono>
+            <span>{t("commandCenter.pending")}</span>
+            <Mono>{fmt.count(progress.progress.pending)}</Mono>
           </li>
           <li className={styles.territoryRow}>
             <span aria-hidden="true" className={styles.territoryGlyph} />
-            <span>Completadas</span>
-            <Mono>{formatCount(progress.progress.completed)}</Mono>
+            <span>{t("commandCenter.completed")}</span>
+            <Mono>{fmt.count(progress.progress.completed)}</Mono>
           </li>
         </ul>
         <p className={styles.muted}>
-          Operación de demostración en curso. No forma parte de las encuestas socioeconómicas del
-          estudio concluido, que son una cifra histórica agregada del expediente.{" "}
+          {t("commandCenter.fieldCampaignNote")}{" "}
           <ProvenanceLink href={provHref(basePath, progress.provenanceId)} />
         </p>
       </PanelBody>

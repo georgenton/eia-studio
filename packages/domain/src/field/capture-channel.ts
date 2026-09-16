@@ -27,15 +27,17 @@ export type CaptureChannel = z.infer<typeof captureChannelSchema>;
 
 export interface CaptureChannelDescriptor {
   readonly key: CaptureChannel;
-  readonly label: string;
   /**
    * Whether a technician can complete a survey with no connectivity and have it arrive later.
    *
    * `false` for the native web channel, and truthfully so: the browser form posts to the server.
    * There is no queue behind it, so claiming otherwise would cost someone a day of field work.
+   *
+   * The channel's name and its one-line note are `vocabulary.captureChannel.*` and
+   * `vocabulary.captureChannelNote.*` in the message catalogue. This flag is not copy: it decides
+   * whether a campaign may activate.
    */
   readonly supportsOffline: boolean;
-  readonly note: string;
 }
 
 export const CAPTURE_CHANNEL_DESCRIPTORS: Readonly<
@@ -43,9 +45,7 @@ export const CAPTURE_CHANNEL_DESCRIPTORS: Readonly<
 > = {
   NATIVE_WEB: {
     key: "NATIVE_WEB",
-    label: "Captura web de EIA Studio",
     supportsOffline: false,
-    note: "Formulario web responsivo. Requiere conexión al enviar; no hay cola offline.",
   },
   /**
    * EIA Field, the first-party mobile application (Production V1, Wave 1).
@@ -57,11 +57,7 @@ export const CAPTURE_CHANNEL_DESCRIPTORS: Readonly<
    */
   EIA_FIELD_MOBILE: {
     key: "EIA_FIELD_MOBILE",
-    label: "EIA Field (aplicación móvil)",
     supportsOffline: true,
-    note:
-      "Aplicación Android/iOS. Descarga el trabajo asignado, captura sin conexión y sincroniza " +
-      "cuando vuelve la señal; una orden reenviada no duplica nada.",
   },
 };
 

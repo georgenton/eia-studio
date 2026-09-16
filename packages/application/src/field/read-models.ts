@@ -350,6 +350,15 @@ export interface SurveyQuestionView {
   readonly required: boolean;
   readonly sensitivity: QuestionSensitivity;
   readonly options: ReadonlyArray<{ id: string; code: string; label: string; ordinal: number }>;
+  /**
+   * Other languages this version was published in, keyed by locale (ADR-029).
+   *
+   * Empty for a version published before the product became bilingual, which is how nothing had to
+   * be migrated: `prompt` above is always the canonical `es-EC` wording.
+   */
+  readonly translations: Readonly<Record<string, { prompt: string; helpText: string | null }>>;
+  /** Option labels per locale, keyed by **option code** — never by label, and never by id. */
+  readonly optionTranslations: Readonly<Record<string, Readonly<Record<string, string>>>>;
 }
 
 export interface AssignmentDetail {
@@ -515,19 +524,45 @@ export async function loadSurveyQuestions(
   ctx: RequestContext,
   versionId: string,
 ): Promise<ReadonlyArray<SurveyQuestionView>> {
+  /*
+   * The questionnaire, plus whatever languages it was published in (ADR-029).
+   *
+   * `q.prompt` is the canonical `es-EC` wording and `translations` is everything else, keyed by
+   * locale. A version published before the product became bilingual simply has an empty object,
+   * and every caller behaves exactly as it did — which is why no data had to be migrated.
+   */
   const rows = await tx.execute(sql`
     select q.id, q.code, q.ordinal, q.type, q.prompt, q.help_text, q.required, q.sensitivity,
            coalesce(
-             json_agg(
-               json_build_object('id', o.id, 'code', o.code, 'label', o.label, 'ordinal', o.ordinal)
-               order by o.ordinal
+             json_agg(distinct
+               jsonb_build_object('id', o.id, 'code', o.code, 'label', o.label, 'ordinal', o.ordinal)
              ) filter (where o.id is not null),
              '[]'
-           ) as options
+           ) as options,
+           coalesce(
+             (select jsonb_object_agg(qt.locale,
+                       jsonb_build_object('prompt', qt.prompt, 'helpText', qt.help_text))
+                from app.survey_question_translation qt
+               where qt.tenant_id = q.tenant_id and qt.question_id = q.id),
+             '{}'::jsonb
+           ) as translations,
+           coalesce(
+             (select jsonb_object_agg(x.locale, x.labels)
+                from (
+                  select ot.locale, jsonb_object_agg(o2.code, ot.label) as labels
+                    from app.survey_option_translation ot
+                    join app.survey_option o2
+                      on o2.tenant_id = ot.tenant_id and o2.id = ot.option_id
+                   where ot.tenant_id = q.tenant_id and o2.question_id = q.id
+                   group by ot.locale
+                ) x),
+             '{}'::jsonb
+           ) as option_translations
     from app.survey_question q
     left join app.survey_option o on o.tenant_id = q.tenant_id and o.question_id = q.id
     where q.tenant_id = ${ctx.tenantId} and q.version_id = ${versionId}
-    group by q.id, q.code, q.ordinal, q.type, q.prompt, q.help_text, q.required, q.sensitivity
+    group by q.id, q.tenant_id, q.code, q.ordinal, q.type, q.prompt, q.help_text, q.required,
+             q.sensitivity
     order by q.ordinal
   `);
   return (
@@ -541,6 +576,8 @@ export async function loadSurveyQuestions(
       required: boolean;
       sensitivity: QuestionSensitivity;
       options: ReadonlyArray<{ id: string; code: string; label: string; ordinal: number }>;
+      translations: Record<string, { prompt: string; helpText: string | null }>;
+      option_translations: Record<string, Record<string, string>>;
     }>
   ).map((row) => ({
     id: row.id,
@@ -551,7 +588,9 @@ export async function loadSurveyQuestions(
     helpText: row.help_text,
     required: row.required,
     sensitivity: row.sensitivity,
-    options: row.options,
+    options: [...row.options].sort((a, b) => a.ordinal - b.ordinal),
+    translations: row.translations,
+    optionTranslations: row.option_translations,
   }));
 }
 

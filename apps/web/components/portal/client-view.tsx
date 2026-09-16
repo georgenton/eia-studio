@@ -1,5 +1,8 @@
 import type { PublishedClientView } from "@eia/application";
 import type { BasemapCatalogue, PublicFact } from "@eia/domain";
+import { DEFAULT_LOCALE, formatIsoDate } from "@eia/i18n";
+
+import { i18nFor } from "@/lib/locale";
 
 import { PublicationMap } from "./publication-map";
 import { PrintButton } from "./print-button";
@@ -16,15 +19,18 @@ import styles from "./portal.module.css";
  * The words are the client's, not ours. No provenance vocabulary, no capability names, no run
  * ids, no questionnaire versions, no model anything. Where a section has nothing to show it says
  * so plainly rather than showing a plausible zero.
+ *
+ * ## Why this page does not follow the reader's language
+ *
+ * A publication is a statement the firm made to its customer on a date, and its payload — every
+ * headline, fact label and plan title — is stored as it was composed. Translating the headings
+ * around it while the figures stay in the language they were published in would produce a page
+ * that is half one language and half the other, and would imply the firm said something it did
+ * not. So the client's page is rendered in the language the publication was composed in, which
+ * today is always `es-EC`; publishing in a second language is a decision with a column behind it
+ * (TD-085), not a rendering choice here. The internal preview strip *around* this content is
+ * workspace chrome and does follow the reader.
  */
-const dateLong = (date: Date) =>
-  new Intl.DateTimeFormat("es-EC", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-    timeZone: "UTC",
-  }).format(date);
-
 function Facts({ facts }: { facts: ReadonlyArray<PublicFact> }) {
   return (
     <dl className={styles.facts}>
@@ -49,12 +55,13 @@ export function ClientPublicationView({
   view: PublishedClientView;
   basemap: BasemapCatalogue;
 }) {
+  const { t, fmt } = i18nFor(DEFAULT_LOCALE);
   const { payload } = view;
   return (
     <main className={styles.page}>
       <header className={styles.masthead}>
         <div className={styles.mastheadInner}>
-          <p className={styles.brand}>Informe de avance para el cliente</p>
+          <p className={styles.brand}>{t("portal.clientBrand")}</p>
           <h1 className={styles.title}>{payload.project.name}</h1>
           <p className={styles.subtitle}>
             {payload.project.locality}
@@ -65,8 +72,10 @@ export function ClientPublicationView({
           ) : null}
           <p className={styles.published}>
             <span>
-              Última actualización publicada:{" "}
-              <span className={styles.publishedDate}>{dateLong(view.publishedAt)}</span>
+              {t("portal.lastPublished")}{" "}
+              <span className={styles.publishedDate}>
+                {formatIsoDate(fmt.locale, view.publishedAt.toISOString().slice(0, 10))}
+              </span>
             </span>
             <PrintButton />
           </p>
@@ -76,21 +85,19 @@ export function ClientPublicationView({
       <div className={styles.content}>
         <section aria-labelledby="resumen" className={styles.section}>
           <h2 className={styles.sectionTitle} id="resumen">
-            Resumen del estudio
+            {t("portal.summaryTitle")}
           </h2>
           <p className={styles.sectionNote}>{payload.summary.headline}</p>
           {payload.summary.facts.length > 0 ? (
             <Facts facts={payload.summary.facts} />
           ) : (
-            <p className={styles.empty}>
-              No se ha publicado todavía ninguna cifra de resumen para este estudio.
-            </p>
+            <p className={styles.empty}>{t("portal.summaryEmpty")}</p>
           )}
         </section>
 
         <section aria-labelledby="territorio" className={styles.section}>
           <h2 className={styles.sectionTitle} id="territorio">
-            Territorio
+            {t("portal.territoryTitle")}
           </h2>
           <p className={styles.sectionNote}>{payload.territory.note}</p>
           <PublicationMap basemap={basemap} territory={payload.territory} />
@@ -98,7 +105,7 @@ export function ClientPublicationView({
 
         <section aria-labelledby="participacion" className={styles.section}>
           <h2 className={styles.sectionTitle} id="participacion">
-            Participación y componente social
+            {t("portal.participationTitle")}
           </h2>
           {payload.participation.note ? (
             <p className={styles.sectionNote}>{payload.participation.note}</p>
@@ -106,16 +113,14 @@ export function ClientPublicationView({
           {payload.participation.facts.length > 0 ? (
             <Facts facts={payload.participation.facts} />
           ) : (
-            <p className={styles.empty}>
-              No se ha publicado todavía información del componente social.
-            </p>
+            <p className={styles.empty}>{t("portal.participationEmpty")}</p>
           )}
         </section>
 
         {payload.managementPlan ? (
           <section aria-labelledby="pma" className={styles.section}>
             <h2 className={styles.sectionTitle} id="pma">
-              Plan de Manejo Ambiental
+              {t("portal.managementPlanTitle")}
             </h2>
             {payload.managementPlan.note ? (
               <p className={styles.sectionNote}>{payload.managementPlan.note}</p>
@@ -126,7 +131,9 @@ export function ClientPublicationView({
                 <li className={styles.planItem} key={`${plan.code ?? ""}${plan.title}`}>
                   <span className={styles.planTitle}>{plan.title}</span>
                   <span className={styles.planCount}>
-                    {plan.measures === 1 ? "1 medida" : `${plan.measures} medidas`}
+                    {plan.measures === 1
+                      ? t("portal.measureOne")
+                      : t("portal.measureMany", { count: fmt.count(plan.measures) })}
                   </span>
                 </li>
               ))}
@@ -136,7 +143,7 @@ export function ClientPublicationView({
 
         <section aria-labelledby="seguimiento" className={styles.section}>
           <h2 className={styles.sectionTitle} id="seguimiento">
-            Seguimiento
+            {t("portal.followUpTitle")}
           </h2>
           {payload.milestones.length > 0 ? (
             <ul className={styles.planList}>
@@ -148,15 +155,13 @@ export function ClientPublicationView({
               ))}
             </ul>
           ) : (
-            <p className={styles.empty}>
-              No se ha publicado todavía información de avance operativo.
-            </p>
+            <p className={styles.empty}>{t("portal.followUpEmpty")}</p>
           )}
         </section>
 
         <section aria-labelledby="entregables" className={styles.section}>
           <h2 className={styles.sectionTitle} id="entregables">
-            Entregables
+            {t("portal.deliverablesTitle")}
           </h2>
           {payload.deliverables.length > 0 ? (
             <ul className={styles.planList}>
@@ -168,10 +173,7 @@ export function ClientPublicationView({
               ))}
             </ul>
           ) : (
-            <p className={styles.empty}>
-              No hay entregables publicados. Cuando la consultora apruebe un documento para su
-              entrega, aparecerá aquí.
-            </p>
+            <p className={styles.empty}>{t("portal.deliverablesEmpty")}</p>
           )}
         </section>
 

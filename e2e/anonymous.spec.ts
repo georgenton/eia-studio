@@ -45,15 +45,25 @@ test.describe("credentials never appear in a URL", () => {
     expect((await form.getAttribute("method"))?.toLowerCase()).toBe("post");
   });
 
-  test("with scripts disabled the page serves no credential form at all", async ({ browser }) => {
-    // The strongest form of "before hydration". The form is inside a Suspense boundary, so
-    // without scripts it never renders and there is nothing to submit natively — belt as well as
-    // the braces of `method="post"`. Asserted so that a future change which starts serving the
-    // form in the static HTML has to come past this test and think about the method again.
+  test("with scripts disabled the served form still posts", async ({ browser }) => {
+    /*
+     * The strongest form of "before hydration": no scripts at all.
+     *
+     * This used to assert that the form was *absent* — it sat inside a Suspense boundary on a
+     * statically prerendered page, so without scripts there was nothing to submit natively. Since
+     * the sign-in page reads the locale cookie (ADR-029) the page is dynamic, the boundary resolves
+     * on the server, and the form is in the served HTML. The test that mattered is the one that
+     * survives: whatever is served, a native submit must be a POST, so a password cannot be
+     * serialised into a query string by a click that lands before React attaches.
+     */
     const context = await browser.newContext({ javaScriptEnabled: false });
     const page = await context.newPage();
     await page.goto("/sign-in");
-    await expect(page.locator('input[type="password"]')).toHaveCount(0);
+    const form = page.locator("form").first();
+    await expect(form).toBeVisible();
+    expect((await form.getAttribute("method"))?.toLowerCase()).toBe("post");
+    // No `action` either: a GET action would defeat the method attribute on the same element.
+    expect(await form.getAttribute("action")).toBeNull();
     await context.close();
   });
 

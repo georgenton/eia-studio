@@ -1,11 +1,13 @@
 import { loadPublishedClientView } from "@eia/application";
 import { can } from "@eia/domain";
+import type { Translator } from "@eia/i18n";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
 import { ClientPublicationView } from "@/components/portal/client-view";
 import { getDb } from "@/lib/db";
 import { getEnv } from "@/lib/env";
+import { getI18n } from "@/lib/locale";
 import { accessForDomainError, resolveSurfaceAccess } from "@/lib/surface-access";
 
 import styles from "@/components/portal/portal.module.css";
@@ -63,16 +65,18 @@ export default async function ClientPortalViewPage({
   }
 
   const managementHref = `/t/${tenant}/p/${project}/portal`;
+  // The strip is workspace chrome, so it follows the reader; the publication below it does not
+  // (see `ClientPublicationView`).
+  const { t } = await getI18n();
 
   if (!view) {
     return (
       <>
-        <PreviewStrip managementHref={managementHref} />
+        <PreviewStrip managementHref={managementHref} t={t} />
         <main className={styles.page}>
           <div className={styles.content}>
             <p className={styles.empty} style={{ marginTop: 24 }}>
-              Todavía no se ha publicado ninguna actualización para este proyecto. La consultora
-              publica una actualización cuando decide qué información compartir.
+              {t("portal.noPublicationBody")}
             </p>
           </div>
         </main>
@@ -87,8 +91,9 @@ export default async function ClientPortalViewPage({
         note={
           view.sequence === view.available[0]?.sequence
             ? null
-            : `Estás viendo una publicación anterior (${view.versionLabel}).`
+            : t("portal.viewingOlder", { version: view.versionLabel })
         }
+        t={t}
       />
       <ClientPublicationView basemap={getEnv().basemap} view={view} />
     </>
@@ -101,17 +106,25 @@ export default async function ClientPortalViewPage({
  * would make a real, dated publication of real historical figures look like a mock-up, which it
  * is not. What is provisional here is the *access mode*, not the study.
  */
-function PreviewStrip({ managementHref, note }: { managementHref: string; note?: string | null }) {
+function PreviewStrip({
+  managementHref,
+  note,
+  t,
+}: {
+  managementHref: string;
+  note?: string | null;
+  t: Translator;
+}) {
   return (
     <div className={styles.preview}>
       <div className={styles.previewInner}>
         <span>
-          Vista previa interna · este enlace aún no está compartido con el cliente
+          {t("portal.previewStrip")}
           {note ? ` · ${note}` : ""}
         </span>
         <span className={styles.previewActions}>
           <Link className={styles.previewLink} href={managementHref}>
-            Volver a la gestión de publicaciones
+            {t("portal.backToManagement")}
           </Link>
         </span>
       </div>

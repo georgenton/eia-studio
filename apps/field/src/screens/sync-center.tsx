@@ -1,8 +1,10 @@
-import { CONFLICT_REASON_LABEL, type ConflictReason } from "@eia/field-sync-contract";
+import type { ConflictReason } from "@eia/field-sync-contract";
+import type { Translator } from "@eia/i18n";
 import { useEffect, useState } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 
 import { pendingCommands, type OutboxRow } from "../db/repo";
+import { useT } from "../i18n";
 import { useField } from "../store";
 import { theme } from "../theme";
 import { Body, Button, Card, Chip, Heading, Label, Notice, Screen, Title } from "../ui";
@@ -16,6 +18,7 @@ import { Body, Button, Card, Chip, Heading, Label, Notice, Screen, Title } from 
  * response.
  */
 export function SyncCenterScreen({ onBack }: { onBack: () => void }) {
+  const t = useT();
   const { db, pending, online, syncing, sync, lastSyncAt, lastOutcome, assignments } = useField();
   const [queue, setQueue] = useState<ReadonlyArray<OutboxRow>>([]);
 
@@ -32,36 +35,43 @@ export function SyncCenterScreen({ onBack }: { onBack: () => void }) {
     <Screen>
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.header}>
-          <Label>Sincronización</Label>
-          <Title>Centro de sincronización</Title>
+          <Label>{t("mobile.syncCentre")}</Label>
+          <Title>{t("mobile.syncCentre")}</Title>
           <View style={styles.chips}>
-            <Chip text={online ? "Con conexión" : "Sin conexión"} tone={online ? "ok" : "warn"} />
             <Chip
-              text={pending === 0 ? "Sin pendientes" : `${pending} por sincronizar`}
+              text={online ? t("systemState.online") : t("systemState.offline")}
+              tone={online ? "ok" : "warn"}
+            />
+            <Chip
+              text={
+                pending === 0 ? t("mobile.noPending") : t("mobile.pendingCount", { count: pending })
+              }
               tone={pending === 0 ? "ok" : "warn"}
             />
           </View>
           <Body muted>
             {lastSyncAt
-              ? `Última sincronización: ${new Date(lastSyncAt).toLocaleString("es-EC")}`
-              : "Todavía no se ha sincronizado desde este dispositivo."}
+              ? t("mobile.lastSync", { when: new Date(lastSyncAt).toLocaleString(t.locale) })
+              : t("mobile.neverSynced")}
           </Body>
         </View>
 
         {lastOutcome?.error ? <Notice text={lastOutcome.error} tone="warn" /> : null}
 
         <Card>
-          <Heading>Órdenes pendientes</Heading>
+          <Heading>{t("mobile.pendingCommands")}</Heading>
           {queue.length === 0 ? (
-            <Body muted>Nada pendiente. Todo lo capturado está en el servidor.</Body>
+            <Body muted>{t("mobile.nothingPending")}</Body>
           ) : (
             queue.map((row) => (
               <View key={row.commandId} style={styles.row}>
-                <Body>{describe(row.commandType)}</Body>
+                <Body>{describe(t, row.commandType)}</Body>
                 <Body muted>
                   {row.attempts === 0
-                    ? "En cola"
-                    : `${row.attempts} intento(s)${row.lastError ? ` · ${row.lastError}` : ""}`}
+                    ? t("mobile.queued")
+                    : `${t("mobile.attempts", { count: row.attempts })}${
+                        row.lastError ? ` · ${row.lastError}` : ""
+                      }`}
                 </Body>
               </View>
             ))
@@ -70,19 +80,19 @@ export function SyncCenterScreen({ onBack }: { onBack: () => void }) {
 
         {conflicted.length > 0 ? (
           <Card>
-            <Heading>Requieren revisión</Heading>
-            <Body muted>
-              Tu trabajo local se conservó completo. La coordinación del proyecto debe resolver
-              estos casos.
-            </Body>
+            <Heading>{t("mobile.needsReview")}</Heading>
+            <Body muted>{t("mobile.needsReviewBody")}</Body>
             {conflicted.map((assignment) => (
               <View key={assignment.id} style={styles.row}>
-                <Body>Predio {assignment.parcelCode}</Body>
+                <Body>
+                  {t("mobile.parcel")} {assignment.parcelCode}
+                </Body>
                 <Body muted>
                   {assignment.conflictReason
-                    ? (CONFLICT_REASON_LABEL[assignment.conflictReason as ConflictReason] ??
-                      assignment.conflictReason)
-                    : "Requiere revisión."}
+                    ? t(
+                        `mobile.conflictReason.${assignment.conflictReason as ConflictReason}` as "mobile.conflictReason.campaign_closed",
+                      )
+                    : t("mobile.localSurveyState.CONFLICT")}
                 </Body>
               </View>
             ))}
@@ -91,25 +101,29 @@ export function SyncCenterScreen({ onBack }: { onBack: () => void }) {
 
         <Button
           disabled={!online || syncing}
-          label={syncing ? "Sincronizando…" : "Sincronizar ahora"}
+          label={syncing ? t("mobile.syncing") : t("mobile.syncNow")}
           onPress={() => void sync()}
         />
-        <Button label="Volver" onPress={onBack} tone="secondary" />
+        <Button label={t("common.back")} onPress={onBack} tone="secondary" />
       </ScrollView>
     </Screen>
   );
 }
 
-function describe(commandType: string): string {
+/**
+ * A command type as a sentence. The catalogue's keys carry no dots — lookup is by dotted path —
+ * so the mapping from the wire's `visit.start` to `mobile.commandType.visitStart` lives here.
+ */
+function describe(t: Translator, commandType: string): string {
   switch (commandType) {
     case "visit.start":
-      return "Inicio de visita";
+      return t("mobile.commandType.visitStart");
     case "survey.upsert_draft":
-      return "Borrador de ficha";
+      return t("mobile.commandType.surveyUpsertDraft");
     case "survey.submit":
-      return "Envío de ficha";
+      return t("mobile.commandType.surveySubmit");
     case "visit.finish":
-      return "Cierre de visita";
+      return t("mobile.commandType.visitFinish");
     default:
       return commandType;
   }

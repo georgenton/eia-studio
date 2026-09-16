@@ -12,7 +12,8 @@ import { ProvenancePanel } from "@/components/provenance-panel";
 import { projectBreadcrumb, WorkspaceShell } from "@/components/workspace-shell";
 import { getSessionUser } from "@/lib/context";
 import { getDb } from "@/lib/db";
-import { lifecycleLabel } from "@/lib/lifecycle";
+import { surfaceLabel } from "@/lib/labels";
+import { getI18n } from "@/lib/locale";
 import { projectPath } from "@/lib/navigation";
 import { accessForDomainError, resolveSurfaceAccess } from "@/lib/surface-access";
 import { PermissionDeniedState } from "@/lib/system-state";
@@ -50,6 +51,8 @@ export default async function CommandCenterPage({
   }
 
   const { ctx, tenantSettings } = access;
+  const i18n = await getI18n();
+  const { t } = i18n;
   const sessionUser = await getSessionUser();
   const header = await loadWorkspaceHeader(getDb(), ctx);
   const basePath = projectPath(ctx.tenantSlug, project, "");
@@ -59,7 +62,7 @@ export default async function CommandCenterPage({
     tenantSettings,
     projects: header.projects,
     currentSurface: "command-center" as const,
-    userName: sessionUser?.name ?? sessionUser?.email ?? "Usuario",
+    userName: sessionUser?.name ?? sessionUser?.email ?? t("shell.user"),
     userEmail: sessionUser?.email ?? null,
   };
 
@@ -77,7 +80,7 @@ export default async function CommandCenterPage({
             ctx,
             header.tenantName,
             project,
-            SURFACE_DEFINITIONS["command-center"].label,
+            surfaceLabel(t, "command-center"),
           )}
         >
           <PermissionDeniedState
@@ -118,7 +121,7 @@ export default async function CommandCenterPage({
         ctx,
         header.tenantName,
         view.project.name,
-        SURFACE_DEFINITIONS["command-center"].label,
+        surfaceLabel(t, "command-center"),
       )}
       drawer={
         prov ? <ProvenancePanel closeHref={basePath} ctx={ctx} provenanceId={prov} /> : undefined
@@ -130,7 +133,10 @@ export default async function CommandCenterPage({
         fieldPath={fieldPath}
         fieldProgress={fieldProgress}
         gisPath={gisPath}
-        lifecycleLabel={lifecycleLabel(view.project.lifecycle)}
+        i18n={i18n}
+        lifecycleLabel={t(
+          `vocabulary.lifecycle.${view.project.lifecycle}` as Parameters<typeof t>[0],
+        )}
         territory={territory}
         view={view}
       />

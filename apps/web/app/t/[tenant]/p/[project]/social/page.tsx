@@ -9,7 +9,7 @@ import {
   loadSocialVersions,
   loadTabulation,
 } from "@eia/application";
-import { can, SURFACE_DEFINITIONS } from "@eia/domain";
+import { can } from "@eia/domain";
 import { notFound, redirect } from "next/navigation";
 
 import { OpenResponseQueue } from "@/components/social/open-response-queue";
@@ -19,6 +19,8 @@ import { projectBreadcrumb, projectLabel, WorkspaceShell } from "@/components/wo
 import { aiStatusFor } from "@/lib/ai-status";
 import { getSessionUser } from "@/lib/context";
 import { getDb } from "@/lib/db";
+import { surfaceLabel } from "@/lib/labels";
+import { getI18n } from "@/lib/locale";
 import { getEnv } from "@/lib/env";
 import { projectPath } from "@/lib/navigation";
 import { accessForDomainError, resolveSurfaceAccess } from "@/lib/surface-access";
@@ -70,6 +72,8 @@ export default async function SocialPage({
   }
 
   const { ctx, tenantSettings } = access;
+  const i18n = await getI18n();
+  const { t } = i18n;
   const sessionUser = await getSessionUser();
   const header = await loadWorkspaceHeader(getDb(), ctx);
 
@@ -78,13 +82,13 @@ export default async function SocialPage({
     tenantSettings,
     projects: header.projects,
     currentSurface: "social" as const,
-    userName: sessionUser?.name ?? sessionUser?.email ?? "Usuario",
+    userName: sessionUser?.name ?? sessionUser?.email ?? t("shell.user"),
     userEmail: sessionUser?.email ?? null,
     breadcrumb: projectBreadcrumb(
       ctx,
       header.tenantName,
       projectLabel(header.projects, project),
-      SURFACE_DEFINITIONS.social.label,
+      surfaceLabel(t, "social"),
     ),
   };
 
@@ -123,9 +127,7 @@ export default async function SocialPage({
       <WorkspaceShell {...shell}>
         <div className={styles.surface}>
           <p className={styles.note} data-system-state="no-survey-data">
-            Todavía no hay respuestas enviadas que tabular. El análisis social lee únicamente
-            respuestas <strong>enviadas</strong>: los borradores de campo no participan en ninguna
-            cifra de esta superficie.
+            {t("social.noSubmittedResponses")}
           </p>
         </div>
       </WorkspaceShell>
@@ -160,25 +162,25 @@ export default async function SocialPage({
   return (
     <WorkspaceShell {...shell}>
       <div className={styles.surface}>
-        <nav className={styles.tabs} aria-label="Secciones del análisis social">
+        <nav className={styles.tabs} aria-label={t("social.sections")}>
           <a
             className={styles.tab}
             href={`?version=${selected.versionId}&tab=tabulacion`}
             aria-current={activeTab === "tabulacion" ? "page" : undefined}
           >
-            Tabulación
+            {t("social.tabTabulation")}
           </a>
           <a
             className={styles.tab}
             href={`?version=${selected.versionId}&tab=abiertas`}
             aria-current={activeTab === "abiertas" ? "page" : undefined}
           >
-            Respuestas abiertas
+            {t("social.tabOpenAnswers")}
           </a>
         </nav>
 
         {activeTab === "tabulacion" ? (
-          <TabulationPanel tabulation={tabulation} />
+          <TabulationPanel i18n={i18n} tabulation={tabulation} />
         ) : coding ? (
           <>
             <SocialOverview
@@ -191,7 +193,7 @@ export default async function SocialPage({
               surveyVersionId={selected.versionId}
               questionId={openQuestionId}
               canRunAi={can(ctx, "social.ai.run")}
-              aiStatus={aiStatusFor(getEnv().classifier)}
+              aiStatus={aiStatusFor(getEnv().classifier, t)}
             />
             <OpenResponseQueue
               responses={coding.responses}
@@ -202,8 +204,7 @@ export default async function SocialPage({
           </>
         ) : (
           <p className={styles.note} data-system-state="feature-disabled">
-            La codificación asistida no está activa en este proyecto. La tabulación determinista no
-            depende de ella y sigue disponible en la pestaña anterior.
+            {t("social.codingDisabled")}
           </p>
         )}
       </div>

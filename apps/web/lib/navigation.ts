@@ -1,5 +1,6 @@
 import "server-only";
 
+import type { Translator } from "@eia/i18n";
 import {
   navigationPresentation,
   SURFACE_DEFINITIONS,
@@ -9,6 +10,7 @@ import {
   type WorkspaceSurface,
 } from "@eia/domain";
 import type { NavEntry } from "@/components/navigation";
+import { surfaceLabel } from "@/lib/labels";
 
 export function projectPath(tenantSlug: string, projectSlug: string, segment: string): string {
   const base = `/t/${tenantSlug}/p/${projectSlug}`;
@@ -25,6 +27,7 @@ export function buildWorkspaceNav(
   ctx: RequestContext,
   tenantSettings: TenantCapabilitySettings,
   currentSurface: WorkspaceSurface | null,
+  t: Translator,
   /** Project the rail points at; on the Portfolio this is the active project, not the context. */
   activeProjectSlug: string | null = ctx.projectSlug,
 ): { entries: ReadonlyArray<NavEntry>; currentKey: string | null } {
@@ -41,16 +44,16 @@ export function buildWorkspaceNav(
     if (presentation === "ANNOUNCED") {
       entries.push({
         key,
-        label: surface.label,
+        label: surfaceLabel(t, key),
         href: null,
         presentation: "ANNOUNCED",
-        badge: key === "reports" ? "FASE 3" : "PRÓXIMAMENTE",
+        badge: t("shell.comingSoon"),
       });
       continue;
     }
     entries.push({
       key,
-      label: surface.label,
+      label: surfaceLabel(t, key),
       href: projectPath(ctx.tenantSlug, activeProjectSlug, surface.segment),
       presentation: "ACTIVE",
     });

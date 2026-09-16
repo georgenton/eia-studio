@@ -6,18 +6,10 @@ import type {
   SocialWorkflowMetrics,
   TaxonomyVersionSummary,
 } from "@eia/application";
-import { AGREEMENT_SEMANTICS } from "@eia/domain";
-import {
-  Chip,
-  formatCount,
-  formatDateTime,
-  formatPercent,
-  Panel,
-  PanelBody,
-  PanelHeader,
-} from "@eia/ui";
+import { Chip, Panel, PanelBody, PanelHeader } from "@eia/ui";
 import { useState, useTransition } from "react";
 
+import { useI18n } from "@/components/i18n/locale-provider";
 import { startClassificationRunAction } from "@/lib/social-actions";
 
 import styles from "./social.module.css";
@@ -59,6 +51,7 @@ export function SocialOverview({
    */
   aiStatus: { readonly available: boolean; readonly note: string };
 }) {
+  const { t, fmt } = useI18n();
   const [message, setMessage] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -73,7 +66,7 @@ export function SocialOverview({
         surveyVersionId,
         questionId,
       });
-      setMessage(result.ok ? (result.message ?? "Ejecución creada.") : result.error);
+      setMessage(result.ok ? (result.message ?? t("social.runCreated")) : result.error);
     });
   };
 
@@ -81,7 +74,7 @@ export function SocialOverview({
     <div className={styles.overview}>
       <Panel>
         <PanelHeader
-          label="Codificación de respuestas abiertas"
+          label={t("social.codingTitle")}
           action={
             aiStatus.available && canRunAi && taxonomy && questionId ? (
               <button
@@ -90,7 +83,7 @@ export function SocialOverview({
                 onClick={startRun}
                 disabled={pending || metrics.eligible === 0}
               >
-                {pending ? "Creando ejecución…" : "Ejecutar codificación asistida"}
+                {pending ? t("social.creatingRun") : t("social.runCoding")}
               </button>
             ) : null
           }
@@ -102,36 +95,32 @@ export function SocialOverview({
             </p>
           )}
           <dl className={styles.kpis}>
-            <Kpi label="Respuestas abiertas" value={formatCount(metrics.eligible)} />
-            <Kpi label="Propuestas listas" value={formatCount(metrics.succeededAi)} />
-            <Kpi label="Pendientes de revisión" value={formatCount(metrics.pendingReview)} />
-            <Kpi label="Validadas" value={formatCount(metrics.reviewed)} />
+            <Kpi label={t("social.openAnswers")} value={fmt.count(metrics.eligible)} />
+            <Kpi label={t("social.proposalsReady")} value={fmt.count(metrics.succeededAi)} />
+            <Kpi label={t("social.pendingReview")} value={fmt.count(metrics.pendingReview)} />
+            <Kpi label={t("social.validated")} value={fmt.count(metrics.reviewed)} />
             <Kpi
-              label={AGREEMENT_SEMANTICS.label}
+              label={t("social.agreementLabel")}
               value={
                 metrics.agreement.agreementRate === null
-                  ? "—"
-                  : formatPercent(metrics.agreement.agreementRate)
+                  ? t("common.missing")
+                  : fmt.percent(metrics.agreement.agreementRate)
               }
-              help={AGREEMENT_SEMANTICS.help}
+              help={t("social.agreementHelp")}
             />
-            <Kpi
-              label={AGREEMENT_SEMANTICS.overrideLabel}
-              value={formatCount(metrics.agreement.overrides)}
-            />
+            <Kpi label={t("social.overrideLabel")} value={fmt.count(metrics.agreement.overrides)} />
           </dl>
 
           {metrics.pendingAi > 0 || metrics.processingAi > 0 ? (
             <p className={styles.note} data-system-state="syncing">
-              {formatCount(metrics.pendingAi + metrics.processingAi)} respuesta(s) en la cola de
-              clasificación. El proceso de fondo las toma de a una; esta pantalla las muestra en
-              cuanto terminan.
+              {t("social.queueNote", {
+                count: fmt.count(metrics.pendingAi + metrics.processingAi),
+              })}
             </p>
           ) : null}
           {metrics.failedAi > 0 ? (
             <p className={styles.note} data-system-state="error">
-              {formatCount(metrics.failedAi)} clasificación(es) fallida(s). La tabulación
-              determinista no se ve afectada: sigue disponible arriba.
+              {t("social.failedNote", { count: fmt.count(metrics.failedAi) })}
             </p>
           ) : null}
           {message ? <p className={styles.message}>{message}</p> : null}
@@ -139,18 +128,17 @@ export function SocialOverview({
       </Panel>
 
       <Panel>
-        <PanelHeader label="Temas validados" />
+        <PanelHeader label={t("social.validatedThemes")} />
         <PanelBody>
           <p className={styles.note}>
-            Solo cuenta lo que un especialista decidió. Base:{" "}
-            {formatCount(distributions.validated.reviewed)} respuesta(s) validada(s);{" "}
-            {formatCount(distributions.validated.unreviewed)} sin revisar quedan fuera y no se
-            extrapolan. Una respuesta puede llevar varios temas, así que los porcentajes pueden
-            sumar más de 100 %.
+            {t("social.validatedBase", {
+              reviewed: fmt.count(distributions.validated.reviewed),
+              unreviewed: fmt.count(distributions.validated.unreviewed),
+            })}
           </p>
           <Distribution
             tallies={distributions.validated.tallies}
-            emptyNote="Todavía no hay codificaciones validadas."
+            emptyNote={t("social.noValidatedCodings")}
             variant="validated"
           />
         </PanelBody>
@@ -159,18 +147,18 @@ export function SocialOverview({
       {distributions.provisional.tallies.length > 0 ? (
         <Panel>
           <PanelHeader
-            label="Distribución provisional de la IA"
-            action={<Chip tone="warn">Provisional · sin validar</Chip>}
+            label={t("social.provisionalTitle")}
+            action={<Chip tone="warn">{t("social.provisionalChip")}</Chip>}
           />
           <PanelBody>
             <p className={styles.note}>
-              Lo que el modelo propuso, antes de cualquier decisión humana. Se muestra aparte y con
-              su propia base ({formatCount(distributions.provisional.reviewed)} propuestas) para que
-              no se confunda con el resultado validado.
+              {t("social.provisionalNote", {
+                count: fmt.count(distributions.provisional.reviewed),
+              })}
             </p>
             <Distribution
               tallies={distributions.provisional.tallies}
-              emptyNote="Sin propuestas."
+              emptyNote={t("social.noProposals")}
               variant="provisional"
             />
           </PanelBody>
@@ -180,12 +168,12 @@ export function SocialOverview({
       {taxonomy ? (
         <Panel>
           <PanelHeader
-            label="Esquema de codificación"
-            action={<Chip tone="warn">Reconstruido</Chip>}
+            label={t("social.schemeTitle")}
+            action={<Chip tone="warn">{t("social.reconstructed")}</Chip>}
           />
           <PanelBody>
             <p className={styles.note}>
-              Versión <strong>{taxonomy.versionLabel}</strong>. {taxonomy.sourceNote}
+              {t("social.schemeVersion", { version: taxonomy.versionLabel })} {taxonomy.sourceNote}
             </p>
             {/*
               The definition's fingerprint is what proves two codings were made against the same
@@ -194,11 +182,8 @@ export function SocialOverview({
             */}
             {taxonomy.definitionHash ? (
               <details className={styles.technical}>
-                <summary>Detalle técnico del esquema</summary>
-                <p>
-                  Huella de la definición: <code>{taxonomy.definitionHash}</code>. Dos
-                  codificaciones hechas contra la misma huella se hicieron contra el mismo esquema.
-                </p>
+                <summary>{t("social.schemeTechnical")}</summary>
+                <p>{t("social.schemeFingerprint", { hash: taxonomy.definitionHash })}</p>
               </details>
             ) : null}
             <ul className={styles.categoryList}>
@@ -215,29 +200,37 @@ export function SocialOverview({
 
       {runs.length > 0 ? (
         <Panel>
-          <PanelHeader label="Codificaciones asistidas" note={`${runs.length} ejecución(es)`} />
+          <PanelHeader
+            label={t("social.runsTitle")}
+            note={t("social.runsCount", { count: fmt.count(runs.length) })}
+          />
           <PanelBody>
-            <p className={styles.note}>
-              Cada vez que se pidió al modelo que propusiera categorías, y qué devolvió. Son
-              propuestas: ninguna entra en un resultado sin la decisión de un especialista.
-            </p>
+            <p className={styles.note}>{t("social.runsNote")}</p>
             <table className={styles.table}>
               <thead>
                 <tr>
-                  <th scope="col">Cuándo</th>
-                  <th scope="col">Estado</th>
-                  <th scope="col">Propuestas</th>
-                  <th scope="col">Esquema</th>
+                  <th scope="col">{t("social.runWhen")}</th>
+                  <th scope="col">{t("common.status")}</th>
+                  <th scope="col">{t("social.runProposals")}</th>
+                  <th scope="col">{t("social.runScheme")}</th>
                 </tr>
               </thead>
               <tbody>
                 {runs.map((run) => (
                   <tr key={run.runId}>
-                    <td>{run.startedAt ? formatDateTime(run.startedAt) : "—"}</td>
-                    <td>{RUN_STATUS_LABEL[run.status] ?? run.status}</td>
+                    <td>{run.startedAt ? fmt.dateTime(run.startedAt) : t("common.missing")}</td>
                     <td>
-                      {formatCount(run.succeeded)} de {formatCount(run.queued)}
-                      {run.failed > 0 ? ` · ${formatCount(run.failed)} sin resultado` : ""}
+                      {t(`social.runStatus.${run.status}` as "social.runStatus.QUEUED") ??
+                        run.status}
+                    </td>
+                    <td>
+                      {t("social.runProposalsOf", {
+                        succeeded: fmt.count(run.succeeded),
+                        queued: fmt.count(run.queued),
+                      })}
+                      {run.failed > 0
+                        ? t("social.runFailed", { count: fmt.count(run.failed) })
+                        : ""}
                     </td>
                     <td>{run.taxonomyVersionLabel}</td>
                   </tr>
@@ -250,21 +243,21 @@ export function SocialOverview({
               click away — it is an audit trail, not a working view.
             */}
             <details className={styles.technical}>
-              <summary>Detalle técnico de las ejecuciones</summary>
+              <summary>{t("social.runsTechnical")}</summary>
               <table className={styles.table}>
                 <thead>
                   <tr>
-                    <th scope="col">Modelo solicitado</th>
-                    <th scope="col">Modelo que respondió</th>
-                    <th scope="col">Adaptador</th>
-                    <th scope="col">Instrucción (versión · huella)</th>
+                    <th scope="col">{t("social.requestedModel")}</th>
+                    <th scope="col">{t("social.resolvedModel")}</th>
+                    <th scope="col">{t("social.adapter")}</th>
+                    <th scope="col">{t("social.promptVersion")}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {runs.map((run) => (
                     <tr key={run.runId}>
                       <td>{run.requestedModel}</td>
-                      <td>{run.resolvedModel ?? "—"}</td>
+                      <td>{run.resolvedModel ?? t("common.missing")}</td>
                       <td>{run.classifierKind}</td>
                       <td>
                         {run.promptVersion} · {run.promptHash}
@@ -280,15 +273,6 @@ export function SocialOverview({
     </div>
   );
 }
-
-/** Run states, in words. The keys are what the worker writes; these are what a person reads. */
-const RUN_STATUS_LABEL: Readonly<Record<string, string>> = {
-  QUEUED: "En cola",
-  RUNNING: "En curso",
-  COMPLETED: "Completada",
-  FAILED: "Fallida",
-  BLOCKED: "Bloqueada",
-};
 
 function Kpi({ label, value, help }: { label: string; value: string; help?: string }) {
   // Label, then figure, then explanation. The explanation belongs *under* the number it qualifies:
@@ -312,6 +296,7 @@ function Distribution({
   emptyNote: string;
   variant: "validated" | "provisional";
 }) {
+  const { t, fmt } = useI18n();
   if (tallies.length === 0) {
     return (
       <p className={styles.note} data-system-state="empty">
@@ -323,11 +308,11 @@ function Distribution({
     <table className={styles.table}>
       <thead>
         <tr>
-          <th scope="col">Tema</th>
-          <th scope="col">Respuestas</th>
-          <th scope="col">Porcentaje</th>
+          <th scope="col">{t("social.theme")}</th>
+          <th scope="col">{t("social.responses")}</th>
+          <th scope="col">{t("social.percentage")}</th>
           <th scope="col">
-            <span className={styles.srOnly}>Distribución</span>
+            <span className={styles.srOnly}>{t("social.distribution")}</span>
           </th>
         </tr>
       </thead>
@@ -335,8 +320,8 @@ function Distribution({
         {tallies.map((tally) => (
           <tr key={tally.code}>
             <th scope="row">{tally.label}</th>
-            <td>{formatCount(tally.count)}</td>
-            <td>{tally.share === null ? "—" : formatPercent(tally.share)}</td>
+            <td>{fmt.count(tally.count)}</td>
+            <td>{tally.share === null ? t("common.missing") : fmt.percent(tally.share)}</td>
             <td className={styles.barCell}>
               <div className={styles.barTrack}>
                 <div

@@ -14,10 +14,7 @@ export const REVIEW_DECISIONS = ["ACCEPTED", "CORRECTED"] as const;
 export const reviewDecisionSchema = z.enum(REVIEW_DECISIONS);
 export type ReviewDecision = z.infer<typeof reviewDecisionSchema>;
 
-export const REVIEW_DECISION_LABEL: Readonly<Record<ReviewDecision, string>> = {
-  ACCEPTED: "Aceptada",
-  CORRECTED: "Corregida",
-};
+/* Words: `vocabulary.reviewDecision.*` in `@eia/i18n`. */
 
 /**
  * The decision is *derived* from the labels, never taken on trust from the client.
@@ -132,11 +129,9 @@ export function summariseAgreement(comparisons: ReadonlyArray<LabelAgreement>): 
  * The wording the product uses for that number, kept beside the calculation so a screen cannot
  * quietly rename it.
  */
-export const AGREEMENT_SEMANTICS = {
-  label: "Coincidencia IA · especialista",
-  help:
-    "Proporción de respuestas en las que el especialista mantuvo exactamente las categorías " +
-    "propuestas. El especialista revisó viendo la propuesta, así que esto mide concordancia " +
-    "operativa, no acierto del modelo frente a una codificación independiente.",
-  overrideLabel: "Corregidas por el especialista",
-} as const;
+/*
+ * The words are `social.agreementLabel` / `social.agreementHelp` / `social.overrideLabel` in
+ * `@eia/i18n`. What used to be here was a constant so that the copy and the documentation could
+ * not drift; the catalogue's vocabulary test now holds that line in both languages, over every
+ * message rather than over this one.
+ */

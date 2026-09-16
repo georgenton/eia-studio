@@ -4,6 +4,8 @@ import { notFound, redirect } from "next/navigation";
 import { projectBreadcrumb, projectLabel, WorkspaceShell } from "@/components/workspace-shell";
 import { getSessionUser } from "@/lib/context";
 import { getDb } from "@/lib/db";
+import { surfaceLabel } from "@/lib/labels";
+import { getTranslator } from "@/lib/locale";
 import { resolveSurfaceAccessBySegment } from "@/lib/surface-access";
 import { ModuleNotImplementedState, PermissionDeniedState } from "@/lib/system-state";
 
@@ -41,6 +43,7 @@ export default async function SurfacePage({
 
   // `ok` cannot occur here: an implemented surface has its own static route, which wins.
   const { ctx, surface: definition, tenantSettings } = access;
+  const t = await getTranslator();
   const sessionUser = await getSessionUser();
   const header = await loadWorkspaceHeader(getDb(), ctx);
 
@@ -50,19 +53,19 @@ export default async function SurfacePage({
         ctx,
         header.tenantName,
         projectLabel(header.projects, project),
-        definition.label,
+        surfaceLabel(t, definition.key),
       )}
       ctx={ctx}
       currentSurface={definition.key}
       projects={header.projects}
       tenantSettings={tenantSettings}
-      userName={sessionUser?.name ?? sessionUser?.email ?? "Usuario"}
+      userName={sessionUser?.name ?? sessionUser?.email ?? t("shell.user")}
       userEmail={sessionUser?.email ?? null}
     >
       <ModuleNotImplementedState
         backHref={`/t/${tenant}/p/${project}`}
         capabilityKey={definition.capability}
-        label={definition.label}
+        label={surfaceLabel(t, definition.key)}
         plannedIn={definition.plannedIn}
       />
     </WorkspaceShell>

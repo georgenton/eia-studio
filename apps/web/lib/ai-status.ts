@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { ClassifierAvailability } from "@eia/domain";
+import type { Translator } from "@eia/i18n";
 
 /**
  * What the Social surface says when assisted coding cannot run (IG4-001).
@@ -13,40 +14,23 @@ import type { ClassifierAvailability } from "@eia/domain";
  * The copy names no variable, no key and no provider account: it is what a specialist sees, and
  * the operator-facing `detail` stays in the logs.
  */
-export function aiStatusFor(availability: ClassifierAvailability): {
+export function aiStatusFor(
+  availability: ClassifierAvailability,
+  t: Translator,
+): {
   readonly available: boolean;
   readonly note: string;
 } {
   if (availability.state === "AVAILABLE") return { available: true, note: "" };
 
-  const unaffected =
-    " La tabulación determinista no depende de un modelo y sigue disponible en la pestaña " +
-    "Tabulación.";
+  const unaffected = t("social.aiUnaffected");
 
   switch (availability.reason) {
     case "NOT_CONFIGURED":
-      return {
-        available: false,
-        note:
-          "La codificación asistida no está configurada en este entorno, así que no se pueden " +
-          "crear ejecuciones." +
-          unaffected,
-      };
+      return { available: false, note: t("social.aiNotConfigured") + unaffected };
     case "FAKE_REFUSED_IN_PERSISTENT_ENVIRONMENT":
-      return {
-        available: false,
-        note:
-          "Este entorno tiene configurado el clasificador determinista de pruebas, que no puede " +
-          "ejecutarse aquí: sus propuestas serían indistinguibles de las de un modelo real." +
-          unaffected,
-      };
+      return { available: false, note: t("social.aiFakeRefused") + unaffected };
     case "BLOCKED_EXTERNAL_CONFIG":
-      return {
-        available: false,
-        note:
-          "El proveedor de modelos no está disponible: falta configuración externa. No se " +
-          "sustituye por un clasificador simulado." +
-          unaffected,
-      };
+      return { available: false, note: t("social.aiBlockedExternal") + unaffected };
   }
 }

@@ -1,4 +1,3 @@
-import { formatIsoDateShort } from "../format";
 import styles from "./forecast-chart.module.css";
 
 /**
@@ -9,14 +8,15 @@ import styles from "./forecast-chart.module.css";
 export function ForecastChart({
   values,
   highlightLast,
-  startDate,
-  endDate,
+  startLabel,
+  endLabel,
   label,
 }: {
   values: ReadonlyArray<number>;
   highlightLast: number;
-  startDate: string;
-  endDate: string;
+  /** Already formatted by the caller: this package holds no locale. */
+  startLabel: string;
+  endLabel: string;
   label: string;
 }) {
   const max = Math.max(1, ...values);
@@ -30,7 +30,7 @@ export function ForecastChart({
       <svg
         className={styles.svg}
         role="img"
-        aria-label={`${label}. Serie: ${values.join(", ")}.`}
+        aria-label={`${label}: ${values.join(", ")}.`}
         viewBox={`0 0 ${width} 40`}
         preserveAspectRatio="none"
       >
@@ -49,8 +49,8 @@ export function ForecastChart({
         })}
       </svg>
       <figcaption className={styles.caption}>
-        <span>{formatIsoDateShort(startDate)}</span>
-        <span>{formatIsoDateShort(endDate)}</span>
+        <span>{startLabel}</span>
+        <span>{endLabel}</span>
       </figcaption>
     </figure>
   );

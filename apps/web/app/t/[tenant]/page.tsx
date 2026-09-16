@@ -1,11 +1,7 @@
 import { loadPortfolio } from "@eia/application";
 import {
-  ATTENTION_SEVERITY_LABEL,
   PermissionDenied,
-  CAPABILITY_CATALOG,
   ROAD_EIA_SOCIAL_PROFILE,
-  profileLabel,
-  type CapabilityKey,
   SURFACE_DEFINITIONS,
   WORKSPACE_RAIL_ORDER,
 } from "@eia/domain";
@@ -27,10 +23,7 @@ import {
   Stack,
   StatusChip,
   SystemState,
-  formatCount,
-  formatIsoDateShort,
   formatMetricValue,
-  formatPercent,
 } from "@eia/ui";
 import { ButtonLink, ProvenanceLink } from "@/components/navigation";
 import Link from "next/link";
@@ -40,7 +33,8 @@ import { ProvenancePanel } from "@/components/provenance-panel";
 import { tenantBreadcrumb, WorkspaceShell } from "@/components/workspace-shell";
 import { getRequestContext, getSessionUser } from "@/lib/context";
 import { getDb } from "@/lib/db";
-import { lifecycleLabel } from "@/lib/lifecycle";
+import { attentionSeverityLabel, surfaceLabel, tenantRoleLabel } from "@/lib/labels";
+import { getI18n } from "@/lib/locale";
 import { PermissionDeniedState } from "@/lib/system-state";
 
 import styles from "./portfolio.module.css";
@@ -75,6 +69,7 @@ export default async function PortfolioPage({
     );
   }
   const { ctx, tenantSettings } = result;
+  const { t, fmt } = await getI18n();
   const sessionUser = await getSessionUser();
 
   let portfolio;
@@ -99,11 +94,11 @@ export default async function PortfolioPage({
   // Module chips on a project card come from the resolved capability set, never a hardcoded list.
   const moduleChips = WORKSPACE_RAIL_ORDER.filter(
     (key) => ctx.capabilities[SURFACE_DEFINITIONS[key].capability],
-  ).map((key) => SURFACE_DEFINITIONS[key].label);
+  ).map((key) => surfaceLabel(t, key));
 
   return (
     <WorkspaceShell
-      breadcrumb={tenantBreadcrumb(portfolio.tenantName)}
+      breadcrumb={tenantBreadcrumb(portfolio.tenantName, t)}
       ctx={ctx}
       currentSurface={null}
       drawer={
@@ -111,28 +106,38 @@ export default async function PortfolioPage({
       }
       projects={portfolio.projects}
       tenantSettings={tenantSettings}
-      userName={sessionUser?.name ?? sessionUser?.email ?? "Usuario"}
+      userName={sessionUser?.name ?? sessionUser?.email ?? t("shell.user")}
       userEmail={sessionUser?.email ?? null}
     >
       <PageHeader
-        title="Cartera de proyectos"
+        title={t("portfolio.title")}
         subtitle={
           <>
             <span>
-              {formatCount(portfolio.projects.length)}{" "}
-              {portfolio.projects.length === 1 ? "proyecto activo" : "proyectos activos"}
+              {t(
+                portfolio.projects.length === 1
+                  ? "portfolio.projectActive"
+                  : "portfolio.projectsActive",
+                { count: fmt.count(portfolio.projects.length) },
+              )}
             </span>
-            <span>perfil {ROAD_EIA_SOCIAL_PROFILE.label}</span>
+            <span>
+              {t("portfolio.profileLine", {
+                profile: t(
+                  `vocabulary.profile.${ROAD_EIA_SOCIAL_PROFILE.key}` as Parameters<typeof t>[0],
+                ),
+              })}
+            </span>
           </>
         }
       />
 
       {portfolio.metricsRestricted ? (
-        <SystemState state="permission denied" title="Solo administración de proyectos">
+        <SystemState state="permission denied" title={t("portfolio.metricsRestrictedTitle")}>
           <p>
-            Tu rol <strong>{ctx.tenantRole}</strong> administra este tenant pero no incluye acceso a
-            los datos operativos de los proyectos. Necesitas una asignación en el proyecto para ver
-            sus cifras.
+            {t("portfolio.metricsRestrictedBody", {
+              role: tenantRoleLabel(t, ctx.tenantRole),
+            })}
           </p>
         </SystemState>
       ) : null}
@@ -140,10 +145,8 @@ export default async function PortfolioPage({
       <Columns>
         <Stack gap={16}>
           {portfolio.projects.length === 0 ? (
-            <SystemState state="empty" title="Aún no hay proyectos en esta organización">
-              <p>
-                Crea uno desde una plantilla de perfil o importa geometría, predios y encuestas.
-              </p>
+            <SystemState state="empty" title={t("portfolio.emptyTitle")}>
+              <p>{t("portfolio.emptyBody")}</p>
             </SystemState>
           ) : (
             portfolio.projects.map((project) => (
@@ -156,17 +159,28 @@ export default async function PortfolioPage({
                       </h2>
                       <p className={styles.cardMeta}>
                         {project.locationLabel ? <span>{project.locationLabel}</span> : null}
-                        <span>perfil {profileLabel(project.profileKey)}</span>
+                        <span>
+                          {t("portfolio.profileLine", {
+                            profile: t(
+                              `vocabulary.profile.${project.profileKey}` as Parameters<typeof t>[0],
+                            ),
+                          })}
+                        </span>
                       </p>
                     </div>
-                    <StatusChip label={lifecycleLabel(project.lifecycle)} tone="ok" />
+                    <StatusChip
+                      label={t(
+                        `vocabulary.lifecycle.${project.lifecycle}` as Parameters<typeof t>[0],
+                      )}
+                      tone="ok"
+                    />
                   </div>
 
                   {project.progressRatio !== null && project.progressLabel ? (
                     <ProgressBar
                       label={project.progressLabel}
                       ratio={project.progressRatio}
-                      valueLabel={formatPercent(project.progressRatio)}
+                      valueLabel={fmt.percent(project.progressRatio)}
                     />
                   ) : null}
 
@@ -177,7 +191,7 @@ export default async function PortfolioPage({
                           <MetricFigure
                             key={metric.id}
                             label={metric.definition.label}
-                            value={formatMetricValue(metric)}
+                            value={formatMetricValue(metric, fmt)}
                           />
                         ))}
                       </div>
@@ -186,7 +200,7 @@ export default async function PortfolioPage({
                           const metric = project.metrics.find((m) => m.provenanceId === id)!;
                           return (
                             <span className={styles.provenancePair} key={id}>
-                              <ProvenanceBadge facets={metric.provenance} />
+                              <ProvenanceBadge facets={metric.provenance} t={t} />
                               <ProvenanceLink href={`${basePath}?prov=${id}`} />
                             </span>
                           );
@@ -203,7 +217,7 @@ export default async function PortfolioPage({
 
                   <div className={styles.cardActions}>
                     <ButtonLink href={`${basePath}/p/${project.slug}`} variant="primary">
-                      Abrir el centro de control
+                      {t("portfolio.openCommandCenter")}
                     </ButtonLink>
                   </div>
                 </PanelBody>
@@ -213,8 +227,8 @@ export default async function PortfolioPage({
 
           {portfolio.projects.length > 0 ? (
             <EmptyState
-              title="Aún no hay más proyectos en esta organización"
-              description="Crea uno desde una plantilla de perfil o importa geometría, predios y encuestas existentes."
+              title={t("portfolio.moreEmptyTitle")}
+              description={t("portfolio.moreEmptyBody")}
             />
           ) : null}
         </Stack>
@@ -223,18 +237,18 @@ export default async function PortfolioPage({
           {portfolio.attention.length > 0 ? (
             <Panel>
               <PanelHeader
-                label="Atención requerida"
-                badge={<DemoBadge facets={portfolio.attention.map((a) => a.provenance)} />}
+                label={t("portfolio.attentionTitle")}
+                badge={<DemoBadge facets={portfolio.attention.map((a) => a.provenance)} t={t} />}
               />
               <AttentionList>
                 {portfolio.attention.map((item) => (
                   <AttentionRow
                     key={item.id}
                     severity={item.severity}
-                    severityLabel={ATTENTION_SEVERITY_LABEL[item.severity]}
+                    severityLabel={attentionSeverityLabel(t, item.severity)}
                     title={item.title}
                     note={item.note}
-                    surfaceLabel={item.surfaceLabel}
+                    surfaceLabel={item.surface ? surfaceLabel(t, item.surface) : item.surfaceLabel}
                   />
                 ))}
               </AttentionList>
@@ -244,14 +258,20 @@ export default async function PortfolioPage({
           {portfolio.activity.length > 0 ? (
             <Panel>
               <PanelHeader
-                label="Actividad reciente"
-                badge={<DemoBadge facets={portfolio.activity.map((a) => a.provenance)} />}
+                label={t("portfolio.activityTitle")}
+                badge={<DemoBadge facets={portfolio.activity.map((a) => a.provenance)} t={t} />}
               />
               <ActivityTable
-                caption="Actividad reciente de la organización"
+                caption={t("portfolio.activityCaption")}
+                headers={{
+                  time: t("commandCenter.activityTime"),
+                  actor: t("commandCenter.activityActor"),
+                  action: t("commandCenter.activityAction"),
+                  object: t("commandCenter.activityObject"),
+                }}
                 rows={portfolio.activity.map((event) => ({
                   id: event.id,
-                  time: formatIsoDateShort(event.occurredAt.toISOString().slice(0, 10)),
+                  time: fmt.isoDateShort(event.occurredAt.toISOString().slice(0, 10)),
                   actor: event.actorLabel,
                   action: event.action,
                   object: event.objectLabel,
@@ -261,12 +281,9 @@ export default async function PortfolioPage({
           ) : null}
 
           <Panel>
-            <PanelHeader label="Módulos activos" />
+            <PanelHeader label={t("portfolio.modulesTitle")} />
             <PanelBody>
-              <p className={styles.muted}>
-                Lo que esta organización tiene contratado y encendido. Un módulo apagado no aparece
-                en el menú y tampoco se abre escribiendo su dirección.
-              </p>
+              <p className={styles.muted}>{t("portfolio.modulesBody")}</p>
               <div className={styles.chipRow}>
                 {/*
                   The module's name, not its key. A consultant reads this panel to know what the
@@ -275,7 +292,11 @@ export default async function PortfolioPage({
                 {Object.entries(ctx.capabilities)
                   .filter(([, enabled]) => enabled)
                   .map(([key]) => (
-                    <Chip key={key}>{CAPABILITY_CATALOG[key as CapabilityKey].label}</Chip>
+                    <Chip key={key}>
+                      {t(
+                        `vocabulary.capability.${key.replace(".", "_")}` as Parameters<typeof t>[0],
+                      )}
+                    </Chip>
                   ))}
               </div>
             </PanelBody>

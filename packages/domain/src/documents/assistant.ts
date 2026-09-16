@@ -43,7 +43,14 @@ export interface AssistantAnswer {
   readonly narrative: string | null;
   readonly citations: ReadonlyArray<Citation>;
   /** Why there is no narrative, when there is none. Shown to the reader, not swallowed. */
-  readonly narrativeUnavailable: string | null;
+  /**
+   * Why no paragraph was written, as a reason rather than a sentence.
+   *
+   * The domain decides *that* there is no prose and why; the words belong to whoever is reading
+   * (ADR-029). Returning a Spanish sentence from here gave the product one language by
+   * construction — and put a rendered string in a layer that renders nothing.
+   */
+  readonly narrativeUnavailable: NarrativeUnavailableReason | null;
 }
 
 /** What the generator must return. Deliberately small: prose, and which passages it used. */
@@ -66,23 +73,24 @@ export interface AssistantGenerator {
 }
 
 /** The answer when nothing was found. It says so, and cites nothing. */
+export const NARRATIVE_UNAVAILABLE_REASONS = [
+  "no_evidence",
+  "generator_unavailable",
+  "not_configured",
+  "fake_refused",
+  "blocked_external_config",
+] as const;
+export type NarrativeUnavailableReason = (typeof NARRATIVE_UNAVAILABLE_REASONS)[number];
+
 export function noEvidenceAnswer(question: string): AssistantAnswer {
-  return {
-    question,
-    narrative: null,
-    citations: [],
-    narrativeUnavailable:
-      "No se encontraron pasajes del expediente relacionados con esta pregunta. El asistente " +
-      "responde únicamente a partir de los documentos del proyecto: cuando no hay evidencia, no " +
-      "hay respuesta.",
-  };
+  return { question, narrative: null, citations: [], narrativeUnavailable: "no_evidence" };
 }
 
 /** The answer when passages were found but no generator is configured. */
 export function passagesOnlyAnswer(
   question: string,
   passages: ReadonlyArray<RetrievedPassage>,
-  reason: string,
+  reason: NarrativeUnavailableReason,
 ): AssistantAnswer {
   return {
     question,

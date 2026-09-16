@@ -1,4 +1,5 @@
-import { SOURCE_TYPE_LABEL, type ProvenanceFacets } from "@eia/domain";
+import type { ProvenanceFacets } from "@eia/domain";
+import type { Translator } from "@eia/i18n";
 import type { ReactNode } from "react";
 
 import { deriveSourceTypeLabel, needsDemoBadge } from "../provenance-label";
@@ -41,18 +42,22 @@ const SOURCE_TYPE_TONE: Record<string, ChipTone> = {
 };
 
 /**
- * The v0.2 SOURCE TYPE badge, spoken in Spanish (ADR-025). It is derived from the faceted
- * provenance at render time and is never read from a stored column (ADR-005, invariant 13); the
- * derivation returns the four keys and this only decides the words.
+ * The v0.2 SOURCE TYPE badge (ADR-025). It is derived from the faceted provenance at render time
+ * and is never read from a stored column (ADR-005, invariant 13); the derivation returns one of
+ * four keys and the catalogue decides the words.
+ *
+ * The translator arrives as a prop rather than from a context because these badges render inside
+ * server components, where a client context cannot reach them. The surface resolves the locale
+ * once and hands it down (ADR-029).
  */
-export function ProvenanceBadge({ facets }: { facets: ProvenanceFacets }) {
+export function ProvenanceBadge({ facets, t }: { facets: ProvenanceFacets; t: Translator }) {
   const label = deriveSourceTypeLabel(facets);
   if (!label) return null;
   return (
     <span
       className={`${styles.chip} ${styles.mono} ${styles[SOURCE_TYPE_TONE[label] ?? "neutral"]}`}
     >
-      {SOURCE_TYPE_LABEL[label]}
+      {t(`vocabulary.sourceType.${label}` as Parameters<Translator>[0])}
     </span>
   );
 }
@@ -61,17 +66,24 @@ export function ProvenanceBadge({ facets }: { facets: ProvenanceFacets }) {
  * Block-level badge for a panel whose figures include a simulation, so a reader cannot mistake one
  * for the historical record (invariant 4).
  *
- * It says *Simulación operativa* rather than **DEMO**. The obligation is that the reader can tell
- * which numbers are real; shouting a three-letter English word at them on every panel achieved
- * that by making the product look like a sales demonstration of itself (ADR-025).
+ * It says *Simulación operativa* / *Operational simulation* rather than **DEMO**. The obligation is
+ * that the reader can tell which numbers are real; shouting a three-letter English word at them on
+ * every panel achieved that by making the product look like a sales demonstration of itself
+ * (ADR-025) — and in the English half of a bilingual product it would not even be a translation.
  */
 export function DemoBadge({
   facets,
-  label = "Simulación operativa",
+  t,
+  label,
 }: {
   facets: ReadonlyArray<ProvenanceFacets>;
+  t: Translator;
   label?: string;
 }) {
   if (!needsDemoBadge(facets)) return null;
-  return <span className={`${styles.chip} ${styles.demoSolid}`}>{label}</span>;
+  return (
+    <span className={`${styles.chip} ${styles.demoSolid}`}>
+      {label ?? t("vocabulary.sourceType.SYNTHETIC")}
+    </span>
+  );
 }

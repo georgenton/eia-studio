@@ -218,6 +218,34 @@ export async function readPack(db: SQLite.SQLiteDatabase): Promise<FieldPack | n
   return JSON.parse(row.payload) as FieldPack;
 }
 
+/* ------------------------------------------------------------------ device preferences */
+
+/**
+ * `mobile_meta` is a two-column key/value table, and it holds the handful of things that are true
+ * of the *installation* rather than of the work: the local schema version, and the language the
+ * technician reads. Neither is project data, and neither needs a network to change.
+ */
+export async function readMeta(db: SQLite.SQLiteDatabase, key: string): Promise<string | null> {
+  const row = await db.getFirstAsync<{ value: string }>(
+    "select value from mobile_meta where key = ?",
+    key,
+  );
+  return row?.value ?? null;
+}
+
+export async function writeMeta(
+  db: SQLite.SQLiteDatabase,
+  key: string,
+  value: string,
+): Promise<void> {
+  await db.runAsync(
+    "insert into mobile_meta (key, value) values (?, ?) " +
+      "on conflict(key) do update set value = excluded.value",
+    key,
+    value,
+  );
+}
+
 /* ------------------------------------------------------------------ visits and surveys */
 
 export async function insertVisit(

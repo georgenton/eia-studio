@@ -3,11 +3,13 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState, type FormEvent } from "react";
 
+import { useTranslator } from "@/components/i18n/locale-provider";
 import { authClient } from "@/lib/auth-client";
 
 import styles from "./sign-in.module.css";
 
 export function SignInForm() {
+  const t = useTranslator();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [error, setError] = useState<string | null>(null);
@@ -24,7 +26,7 @@ export function SignInForm() {
     });
     setBusy(false);
     if (result.error) {
-      setError("No pudimos iniciar sesión con esos datos.");
+      setError(t("auth.failed"));
       return;
     }
     const next = searchParams.get("next");
@@ -39,7 +41,7 @@ export function SignInForm() {
     <form className={styles.form} method="post" onSubmit={onSubmit}>
       <div className={styles.field}>
         <label className={styles.label} htmlFor="email">
-          Correo institucional
+          {t("auth.email")}
         </label>
         <input
           autoComplete="email"
@@ -52,7 +54,7 @@ export function SignInForm() {
       </div>
       <div className={styles.field}>
         <label className={styles.label} htmlFor="password">
-          Contraseña
+          {t("auth.password")}
         </label>
         <input
           autoComplete="current-password"
@@ -70,7 +72,7 @@ export function SignInForm() {
         </p>
       ) : null}
       <button className={styles.submit} disabled={busy} type="submit">
-        {busy ? "Entrando…" : "Entrar"}
+        {busy ? t("auth.signingIn") : t("auth.signIn")}
       </button>
     </form>
   );
