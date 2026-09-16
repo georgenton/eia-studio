@@ -19,6 +19,7 @@
     "@eia/contracts": "workspace:*",
     "@eia/db": "workspace:*",
     "@eia/domain": "workspace:*",
+    "@eia/field-sync-contract": "workspace:*",
     "@eia/ui": "workspace:*",
     "@tanstack/react-table": "9.2.4",
     "better-auth": "1.7.2",

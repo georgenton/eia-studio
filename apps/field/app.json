@@ -1,0 +1,41 @@
+{
+  "expo": {
+    "name": "EIA Field",
+    "slug": "eia-field",
+    "scheme": "eiafield",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "bundleIdentifier": "ec.eiastudio.field",
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "EIA Field registra la ubicación del técnico al iniciar una visita, cuando el técnico lo autoriza. Nunca se infiere la ubicación de una vivienda."
+      }
+    },
+    "android": {
+      "package": "ec.eiastudio.field",
+      "permissions": ["ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION"]
+    },
+    "plugins": [
+      [
+        "expo-sqlite",
+        {
+          "useSQLCipher": true
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "EIA Field registra la ubicación del técnico al iniciar una visita, cuando el técnico lo autoriza."
+        }
+      ],
+      "expo-secure-store"
+    ],
+    "experiments": {
+      "typedRoutes": false
+    }
+  }
+}

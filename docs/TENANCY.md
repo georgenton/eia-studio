@@ -209,6 +209,22 @@ There is still no `CLIENT` project role (D-015). Client access remains `ClientPo
 modelled and not implemented (TD-005); the internal preview is an internal session, not a stand-in
 for one.
 
+### 3.5 The mobile channel mints no permission (ADR-028)
+
+EIA Field is a second client for the permissions a `FIELD_TECHNICIAN` already holds, and that is the
+decision: `field.assignments.read_own` scopes the Field Pack, `field.capture` gates every command,
+and the row-level policies of §3.1 apply unchanged because the device's commands are executed by the
+same use-cases the web form calls.
+
+A technician therefore reaches, from a phone, exactly what they reach from a browser: their own
+assignments, their own visits, their own captures. They do not gain `field.read`,
+`field.responses.read`, `social.read`, `quality.read` or `portal.preview` by being on a device, and
+an integration test asserts each of those is absent from a technician's resolved context.
+
+`app.field_sync_receipt` adds one further condition to the ordinary predicate — `user_id =
+app.current_user_id()` — because a receipt names what one person's device did, and a list of another
+technician's day is not project reference data.
+
 ## 3a. Identity provider boundary (Gate 1 D-016, ADR-010)
 
 Better Auth is approved **provisionally** for identity, authentication and session management

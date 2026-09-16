@@ -26,6 +26,14 @@ import type { AppEnvironment } from "@eia/contracts";
  * not a trust boundary, it is a landlord. Every origin here is either configured by us or handed to
  * this process by the platform as *this project's own* hostname.
  *
+ * ## The mobile scheme (Production V1, Wave 1)
+ *
+ * EIA Field authenticates against this same Better Auth instance, and a native application has no
+ * web origin — it has a URI scheme. `eiafield://` is added as an exact, literal origin: one
+ * scheme, registered by our own application id, with no wildcard and no host part. A pattern such
+ * as `eiafield://*` or a scheme we do not control would let any application that claims the scheme
+ * complete a flow, which on Android is a real possibility rather than a theoretical one.
+ *
  * Loopback origins are accepted only in `local` and `test`. A staging or production deployment that
  * still carried `http://localhost:3000` in its configuration would be trusting any process on the
  * reviewer's machine, so the environment drops it rather than honouring it.
@@ -43,8 +51,21 @@ export interface TrustedOriginInput {
     readonly branchHost?: string | undefined;
     readonly productionHost?: string | undefined;
   };
+  /**
+   * URI schemes of first-party native applications, without punctuation (`eiafield`).
+   *
+   * Each becomes exactly one origin, `<scheme>://`. Anything that is not a plain scheme — a
+   * wildcard, a host, a path, whitespace — is dropped rather than guessed at.
+   */
+  readonly mobileSchemes?: readonly string[] | undefined;
   readonly appEnv: AppEnvironment;
 }
+
+/**
+ * The URI scheme EIA Field registers (`apps/field/app.json`). Declared here, in source, because a
+ * trusted origin is a security decision and this one is about *our* application's identity.
+ */
+export const FIELD_APP_SCHEME = "eiafield";
 
 const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "[::1]", "0.0.0.0"]);
 
@@ -79,6 +100,20 @@ function toOrigin(candidate: string | undefined): string | null {
   return url.origin;
 }
 
+/**
+ * A native application's scheme turned into the single origin Better Auth will compare against.
+ *
+ * The grammar is deliberately tighter than RFC 3986: lowercase letters and digits only, starting
+ * with a letter. Our schemes are ours, we choose them, and a permissive parser here would be
+ * accepting configuration we have not thought about.
+ */
+function originFromMobileScheme(scheme: string | undefined): string | null {
+  if (!scheme) return null;
+  const value = scheme.trim().toLowerCase();
+  if (!/^[a-z][a-z0-9]{2,31}$/.test(value)) return null;
+  return `${value}://`;
+}
+
 function isLoopback(origin: string): boolean {
   try {
     return LOOPBACK_HOSTS.has(new URL(origin).hostname);
@@ -103,6 +138,7 @@ export function resolveTrustedOrigins(input: TrustedOriginInput): string[] {
     originFromPlatformHost(input.vercel.deploymentHost),
     originFromPlatformHost(input.vercel.branchHost),
     originFromPlatformHost(input.vercel.productionHost),
+    ...(input.mobileSchemes ?? []).map(originFromMobileScheme),
   ];
 
   const seen = new Set<string>();

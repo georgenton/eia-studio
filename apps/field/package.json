@@ -1,0 +1,42 @@
+{
+  "name": "@eia/field",
+  "version": "0.0.0",
+  "private": true,
+  "description": "EIA Field \u2014 offline-first capture for road-EIA technicians (React Native + Expo)",
+  "main": "index.js",
+  "scripts": {
+    "start": "expo start --dev-client",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "prebuild": "expo prebuild --no-install",
+    "bundle": "expo export --platform android --platform ios --output-dir .expo-export",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@better-auth/expo": "1.7.2",
+    "@eia/domain": "workspace:*",
+    "@eia/field-sync-contract": "workspace:*",
+    "better-auth": "1.7.2",
+    "expo": "57.0.23",
+    "expo-constants": "57.0.18",
+    "expo-crypto": "57.0.3",
+    "expo-linking": "57.0.10",
+    "expo-location": "57.0.18",
+    "expo-network": "57.0.2",
+    "expo-secure-store": "57.0.4",
+    "expo-sqlite": "57.0.3",
+    "expo-status-bar": "57.0.1",
+    "expo-web-browser": "57.0.3",
+    "react": "19.2.3",
+    "react-native": "0.86.3",
+    "react-native-safe-area-context": "5.7.0",
+    "zod": "4.5.4"
+  },
+  "devDependencies": {
+    "@eia/config": "workspace:*",
+    "@types/react": "19.2.9",
+    "typescript": "5.9.3",
+    "vitest": "4.1.11"
+  }
+}

@@ -749,3 +749,54 @@ like a mock-up.
 **A reviewer checks; a coordinator decides.** `portal.preview` is new and sits beside the existing
 `portal.publish`. `eia_portal` is still granted nothing: a role with SELECT and no caller is surface
 with nobody behind it (TD-005, TD-078).
+
+## EIA Field — offline-first capture (Production V1, Wave 1, 16 September 2026)
+
+| | |
+|---|---|
+| Branch / PR | `feat/field-mobile-foundation` · PR pending |
+| Merge SHA | pending |
+| Migrations | `0031_eia_field_capture_channel` (enum value) · `0032_field_sync_receipt` (table) · `0033_field_sync_receipt_rls` (grants, FORCE RLS, write-once) |
+| ADR | **ADR-028** — EIA Field is the offline capture channel, and it syncs commands rather than rows |
+| Scope | the offline pipeline end to end. No media, no background sync, no native release build, no production |
+
+**The invariant, and how it is built.** *The same command, sent any number of times, produces one
+result and one set of rows.* Three things hold it up: the device names each intent once
+(`commandId`, generated when the technician acts and never regenerated); the use-cases underneath
+were already idempotent *by intent* — an open visit is returned rather than started twice, one
+`survey_instance` exists per assignment and version by unique constraint, a submitted response comes
+back as a result rather than as an error; and `app.field_sync_receipt` remembers what each command
+id produced, so a retry replays an answer instead of re-deciding it.
+
+**The receipt is written after the work, not with it.** A use-case opens its own transaction, and
+the crash a shared one would prevent is already harmless because the use-case is idempotent: the
+retry returns the same visit or response. The reverse order would acknowledge work that never
+happened, so it is never used. Said plainly in the code rather than claimed as atomicity.
+
+**What the audit found before any of it was built.** The brief listed "Media foundations" as
+existing; there is no `Media` table, no storage adapter and no credential — only a `StoragePort`
+interface and TD-037. Media is therefore out of this wave rather than half in it: a camera button
+that stores photographs the product cannot upload is the dishonest half of a feature.
+
+**Two version traps, both caught by tests rather than by luck.** `npm view expo latest` pairs with
+React Native **0.87.1**; Expo SDK 57 was built against **0.86.3**, and the mismatch surfaced as
+`@expo/metro-config` requiring a file React Native had removed — a stack trace that mentions no
+version. `apps/field/test/expo-alignment.test.ts` now pins every dependency against the SDK's own
+`bundledNativeModules.json`. And `@better-auth/expo@1.7.5` would have dragged the server to Better
+Auth 1.7.5, which drops the `account.issuer` column this schema declares `NOT NULL`; the client is
+pinned to **1.7.2** instead, because upgrading the identity system deserves its own pull request.
+
+**pnpm and React Native.** Hierarchical resolution must stay **on** — the opposite of the advice
+written for hoisted layouts — because under pnpm a package's dependencies live beside it in
+`.pnpm/<pkg>/node_modules`, and Metro otherwise fails on React Native's first `require`. The RN
+toolchain is publicly hoisted in a scoped pattern rather than switching the monorepo to
+`node-linker=hoisted`, which would lose strict resolution everywhere else.
+
+**The bundle contains no server and no secret**, asserted three ways: an ESLint boundary,
+`apps/field/test/bundle-safety.test.ts`, and a purity test that walks `@eia/domain/mobile`'s import
+graph — needed because *pure* and *bundle-safe* are different properties and `documents/chunking.ts`
+imports `node:crypto`.
+
+**Tests**: unit 358 → **403**, integration 427 → **452**, plus the reproducible handset procedure in
+`docs/FIELD_MOBILE_OFFLINE_UAT.md`. Both platform bundles build (`expo export`); native builds need
+SDKs this machine does not have, which is recorded rather than glossed.

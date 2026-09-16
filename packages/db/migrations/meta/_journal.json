@@ -218,6 +218,27 @@
       "when": 1788821998484,
       "tag": "0030_client_portal_rls_and_immutability",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1789591154181,
+      "tag": "0031_eia_field_capture_channel",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1789591331037,
+      "tag": "0032_field_sync_receipt",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1789591332037,
+      "tag": "0033_field_sync_receipt_rls",
+      "breakpoints": true
     }
   ]
 }

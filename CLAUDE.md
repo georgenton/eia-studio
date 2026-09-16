@@ -133,6 +133,27 @@ built**: no `ClientPortalGrant`, no portal session, and `eia_portal` is still gr
 standalone `/portal/:tenant/:project` requires an internal session and says so above the content
 (TD-005, TD-077, TD-078).
 
+**Production V1 Wave 1 — EIA Field (16 Sep 2026)** is the first EIA Studio client that is not a
+browser: a React Native + Expo application for **offline field capture** (ADR-028), built because
+eight production road projects have technicians working where there is no mobile data. Its governing
+rule is **the same command, sent any number of times, produces one result and one set of rows**. The
+device sends four *domain commands* — `visit.start`, `survey.upsert_draft`, `survey.submit`,
+`visit.finish` — never rows, and the server executes them through **the use-cases the web form
+calls**, so a phone cannot write a row a browser could not. `commandId` is generated once at the
+moment of intent and never regenerated; `app.field_sync_receipt` remembers what it produced and
+replays it on a retry. Five outcomes, and `superseded` is the one that matters: an obsolete intent
+settles rather than retrying for ever. **A conflict never deletes local work** — an assignment
+reassigned, cancelled, or a questionnaire that moved marks the row *requiere revisión* and keeps
+every answer. Offline access is a window the server stamps, `min(session expiry, now + 7 days)`, and
+a disconnected device **cannot** learn that an account was revoked — recorded, not mitigated. The
+local database is SQLCipher keyed from SecureStore, and the application refuses to open an
+unencrypted one. `EIA_FIELD_MOBILE` is the first capture channel with `supportsOffline: true`, so
+`field.surveys.offline_mode = required` is now a policy a project can set; the catalogue still holds
+exactly 14 keys, and offline remains configuration (ADR-018). **Not built and not pretended**: media
+capture (TD-037), background sync, a correction workflow, any model call. The earlier plan to adapt
+ODK/Kobo is superseded and kept as history in `docs/FIELD_CAPTURE_ADAPTER_CONTRACT.md`. What still
+stands between this and eight production projects is in `docs/PRODUCTION_V1_GO_LIVE.md`.
+
 ## Read before acting
 
 Approved design bundle (source of truth; precedence: README → prototype → spec v0.2 → screenshots):
@@ -156,11 +177,13 @@ Also relevant by task: `docs/DATA_MODEL.md`, `docs/PROVENANCE.md`, `docs/AI_GOVE
 `docs/PRODUCT_LANGUAGE_ES.md`, `docs/ZAMORA_WORKSPACE.md`,
 `docs/PRODUCT_VALUE_AND_DIRECTION.md`, `docs/CONSULTANCY_DEMO_SCRIPT.md`,
 `docs/CLIENT_PORTAL_DECISION.md`, `docs/ENVIRONMENTAL_AUDIT_PRODUCT_DIRECTION.md`,
-`docs/REAL_DATA_INTAKE.md`,
+`docs/REAL_DATA_INTAKE.md`, `docs/FIELD_MOBILE_ARCHITECTURE.md`,
+`docs/OFFLINE_SYNC_PROTOCOL.md`, `docs/FIELD_MOBILE_OFFLINE_UAT.md`,
+`docs/PRODUCTION_V1_GO_LIVE.md`,
 `docs/IMPLEMENTATION_PLAN.md`, `docs/DESIGN_BUNDLE_KNOWN_ISSUES.md`, the delivery docs
 `docs/ENGINEERING_STANDARDS.md`, `docs/RELEASE_POLICY.md`, `docs/CI.md`, `docs/DEPLOYMENT.md`,
 `docs/DEPENDENCIES.md`, `docs/TECH_DEBT.md`, the Gate record `docs/DECISIONS/GATE-1.md`, and
-the ADRs in `docs/DECISIONS/ADR-001` … `ADR-027`. Root `README.md` has the local quick start.
+the ADRs in `docs/DECISIONS/ADR-001` … `ADR-028`. Root `README.md` has the local quick start.
 
 ## Working rules for every session
 

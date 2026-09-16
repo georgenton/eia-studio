@@ -57,6 +57,7 @@ export const schema = {
   surveyInstance: fieldTables.surveyInstance,
   surveyAnswer: fieldTables.surveyAnswer,
   surveyAnswerOption: fieldTables.surveyAnswerOption,
+  fieldSyncReceipt: fieldTables.fieldSyncReceipt,
   taxonomy: socialTables.taxonomy,
   taxonomyVersion: socialTables.taxonomyVersion,
   taxonomyCategory: socialTables.taxonomyCategory,

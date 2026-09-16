@@ -21,6 +21,7 @@
     "@eia/contracts": "workspace:*",
     "@eia/db": "workspace:*",
     "@eia/domain": "workspace:*",
+    "@eia/field-sync-contract": "workspace:*",
     "ai": "^7.0.91",
     "docx": "9.5.1",
     "drizzle-orm": "0.45.2",

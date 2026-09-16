@@ -84,6 +84,11 @@ export type {
   VisitResult,
 } from "./field/use-cases";
 export { readsAllFieldResponses, withFieldContext } from "./field/context";
+// EIA Field (Production V1, Wave 1): the scoped download a technician works from offline.
+export { buildFieldPack, decodeCursor, encodeCursor } from "./field/field-pack";
+export type { FieldPackOptions } from "./field/field-pack";
+export { processSyncCommands, pullFieldChanges } from "./field/sync";
+export type { ProcessSyncOptions } from "./field/sync";
 export { activateDatasetVersion } from "./gis/activate-dataset-version";
 export type { DatasetActivation } from "./gis/activate-dataset-version";
 export {

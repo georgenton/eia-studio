@@ -53,6 +53,47 @@ describe("domain purity", () => {
     expect(declared).toEqual(["zod"]);
   });
 
+  /**
+   * The bundle-safety half of purity (Production V1, Wave 1).
+   *
+   * `pure` and `bundle-safe` are not the same property: `documents/chunking.ts` imports
+   * `node:crypto`, which is right on a server and unresolvable in a React Native bundle. EIA Field
+   * therefore imports `@eia/domain/mobile`, and this test walks that entry point's own import
+   * graph so the guarantee is checked rather than remembered.
+   */
+  it("nothing reachable from the mobile entry point imports a Node builtin", () => {
+    const seen = new Set<string>();
+    const offenders: string[] = [];
+    const visit = (file: string) => {
+      if (seen.has(file)) return;
+      seen.add(file);
+      const text = readFileSync(file, "utf8");
+      for (const match of text.matchAll(IMPORT_RE)) {
+        const specifier = match[1]!;
+        if (specifier.startsWith("node:")) {
+          offenders.push(`${file.replace(DOMAIN_ROOT, "packages/domain")} → ${specifier}`);
+          continue;
+        }
+        if (!specifier.startsWith(".")) continue;
+        const resolved = resolve(dirname(file), specifier);
+        for (const candidate of [`${resolved}.ts`, join(resolved, "index.ts")]) {
+          try {
+            if (statSync(candidate).isFile()) {
+              visit(candidate);
+              break;
+            }
+          } catch {
+            // Not this candidate; try the next shape.
+          }
+        }
+      }
+    };
+    visit(join(DOMAIN_ROOT, "src", "mobile.ts"));
+    expect(offenders).toEqual([]);
+    // Proof the walk actually walked: the entry alone would be one file.
+    expect(seen.size).toBeGreaterThan(4);
+  });
+
   it("is importable without any database environment or driver", async () => {
     const domain = await import("../src/index");
     expect(domain.CAPABILITY_KEYS).toHaveLength(14);

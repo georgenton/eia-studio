@@ -22,7 +22,7 @@ import {
   type ClassifierAvailability,
 } from "@eia/domain";
 
-import { resolveTrustedOrigins, vercelHosts } from "./trusted-origins";
+import { FIELD_APP_SCHEME, resolveTrustedOrigins, vercelHosts } from "./trusted-origins";
 
 interface WebEnv {
   readonly app: AppEnv;
@@ -122,6 +122,10 @@ export function getEnv(): WebEnv {
       baseURL: auth.BETTER_AUTH_URL,
       publicAppUrl: app.PUBLIC_APP_URL,
       vercel: vercelHosts(source),
+      // EIA Field's own scheme, a constant of this repository rather than configuration: it is the
+      // one our `app.json` registers, and making it settable would let an environment variable
+      // decide which application may complete a sign-in.
+      mobileSchemes: [FIELD_APP_SCHEME],
       appEnv: app.APP_ENV,
     }),
   };

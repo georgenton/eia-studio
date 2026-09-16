@@ -5,7 +5,8 @@
   "description": "Pure EIA Studio domain rules: roles, permissions, capabilities, provenance facets, audit vocabulary",
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./mobile": "./src/mobile.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json"
