@@ -280,6 +280,63 @@ export async function finalizeUpload(
 }
 
 /**
+ * What an already-consumed intent produced.
+ *
+ * `finalizeUpload` refuses a second finalize, and must: consuming an authorisation twice is
+ * exactly what the intent's state machine exists to prevent. But a client whose response was lost
+ * in the air cannot tell "already finalized" from "failed", and it has to be able to carry on.
+ *
+ * So the route asks a **second question** rather than weakening the first: *what did the finalize
+ * of this intent write?* The use-case keeps its property — one finalize, one stored object — and
+ * the endpoint on top of it becomes idempotent. That is the correct place for idempotency: in the
+ * caller's protocol, not in the rule.
+ *
+ * Returns `null` when the intent was abandoned or never finalized, which is not the same answer
+ * and must not be conflated with it.
+ */
+export async function resolveFinalizedUpload(
+  db: Database,
+  ctx: RequestContext,
+  intentId: string,
+): Promise<FinalizedUpload | null> {
+  const projectId = requireProject(ctx);
+  return withDbContext(db, ctx, async (tx) => {
+    const [intent] = await tx
+      .select()
+      .from(storageSchema.uploadIntent)
+      .where(
+        and(
+          eq(storageSchema.uploadIntent.id, intentId),
+          eq(storageSchema.uploadIntent.projectId, projectId),
+        ),
+      );
+    if (!intent || intent.state !== "FINALIZED") return null;
+    requirePermission(ctx, NAMESPACE_RULES[intent.namespace as StorageNamespace].permission);
+
+    const [object] = await tx
+      .select()
+      .from(storageSchema.storedObject)
+      .where(
+        and(
+          eq(storageSchema.storedObject.projectId, projectId),
+          eq(storageSchema.storedObject.objectKey, intent.objectKey),
+        ),
+      );
+    if (!object) return null;
+    return {
+      storedObjectId: object.id,
+      objectKey: object.objectKey,
+      sizeBytes: object.sizeBytes,
+      sha256: object.sha256,
+      mimeType: object.mimeType,
+      originalFilename: object.originalFilename,
+      // Only meaningful at the moment of finalize; a later reader is being told what is there now.
+      duplicateOfObjectId: null,
+    };
+  });
+}
+
+/**
  * A short-lived link to read an object back.
  *
  * Minted only after the row has been read under the caller's own context, so RLS has already

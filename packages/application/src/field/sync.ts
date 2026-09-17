@@ -22,6 +22,7 @@ import {
 import { and, desc, eq, sql } from "drizzle-orm";
 
 import { withFieldContext } from "./context";
+import { declareFieldMedia } from "./media";
 import { encodeCursor, readAssignmentsForPull } from "./field-pack";
 import { completeVisit, saveSurveyDraft, startVisit, submitSurveyInstance } from "./use-cases";
 
@@ -224,6 +225,34 @@ async function execute(
         message: result.alreadySubmitted ? "El servidor ya tenía esta ficha enviada." : null,
       };
     }
+    case "media.declare": {
+      // The bytes are already stored and already verified (ADR-031); this writes the row that says
+      // what they are. `already_declared` is `applied` on the wire, deliberately: from the device's
+      // side both answers mean *the server has it, you may delete the local file*, and inventing a
+      // sixth outcome for a distinction the device cannot act on would be protocol nobody uses.
+      const result = await declareFieldMedia(db, ctx, {
+        assignmentId: command.payload.assignmentId,
+        visitId: command.payload.visitId,
+        localId: command.payload.localId,
+        storedObjectId: command.payload.storedObjectId,
+        kind: command.payload.kind,
+        capturedAt: command.payload.capturedAt,
+        note: command.payload.note,
+        location: command.payload.location
+          ? {
+              latitude: command.payload.location.latitude,
+              longitude: command.payload.location.longitude,
+              accuracyM: command.payload.location.accuracyM,
+            }
+          : null,
+      });
+      return {
+        ...EMPTY,
+        commandId: command.commandId,
+        outcome: "applied",
+        visitId: result.visitId,
+      };
+    }
     case "visit.finish": {
       const result = await completeVisit(db, ctx, command.payload.visitId);
       return {
@@ -403,13 +432,23 @@ async function recordReceipt(
         commandId: command.commandId,
         commandType: command.type,
         outcome: result.outcome,
-        entityKind: command.type.startsWith("visit.") ? "visit" : "survey",
+        entityKind: entityKindFor(command.type),
         entityId: command.payload.assignmentId,
         deviceRevision: command.deviceRevision,
         result,
       })
       .onConflictDoNothing();
   });
+}
+
+/**
+ * Which local thing a command was about, so a stale revision can be recognised against the right
+ * one. A photograph is neither a visit nor a survey: two photographs of one visit are two
+ * independent intents, and ordering them against each other would be meaningless.
+ */
+function entityKindFor(type: SyncCommand["type"]): string {
+  if (type === "media.declare") return "media";
+  return type.startsWith("visit.") ? "visit" : "survey";
 }
 
 /* ---------------------------------------------------------------------------------------------

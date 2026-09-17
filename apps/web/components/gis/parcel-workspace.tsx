@@ -1,4 +1,4 @@
-import type { ParcelVisitEntry, ParcelWorkspaceView } from "@eia/application";
+import type { ParcelVisitEntry, ParcelWorkspaceView, VisitMedia } from "@eia/application";
 import { formatChainage, PARCEL_STATUS_PRESENTATION } from "@eia/domain";
 import type { MessageKey } from "@eia/i18n";
 import { Chip, Panel, PanelBody, PanelHeader, ProvenanceBadge, SystemState } from "@eia/ui";
@@ -9,6 +9,7 @@ import {
   chainageMethodLabel,
   instanceStatusLabel,
   layerLegendLabel,
+  mediaKindLabel,
   locationOutcomeLabel,
   parcelSideLabel,
   parcelStatusLabel,
@@ -47,6 +48,7 @@ export function ParcelWorkspace({
   basePath,
   explorerPath,
   visits,
+  media,
   canReadResponses,
   i18n,
 }: {
@@ -56,6 +58,8 @@ export function ParcelWorkspace({
   explorerPath: string;
   /** Null when the caller cannot see field data at all; empty when the parcel has no visits. */
   visits: ReadonlyArray<ParcelVisitEntry> | null;
+  /** Null when the caller may not read individual responses; empty when there are none. */
+  media: ReadonlyArray<VisitMedia> | null;
   canReadResponses: boolean;
   i18n: I18n;
 }) {
@@ -117,14 +121,7 @@ export function ParcelWorkspace({
           t={t}
         />
       ) : null}
-      {tab === "media" ? (
-        <PendingModule
-          capability="field.surveys"
-          label={t("parcel.tabMedia")}
-          note={t("parcel.mediaNote")}
-          t={t}
-        />
-      ) : null}
+      {tab === "media" ? <MediaTab i18n={i18n} media={media} /> : null}
       {tab === "calidad" ? (
         <PendingModule
           capability="quality.document_gate"
@@ -379,6 +376,80 @@ function VisitsTab({
           {canReadResponses
             ? t("parcel.visitsNoteWithAccess")
             : t("parcel.visitsNoteWithoutAccess")}
+        </p>
+      </PanelBody>
+    </Panel>
+  );
+}
+
+/**
+ * The photographs taken on this parcel's visits.
+ *
+ * Descriptions, never links: a link is a short-lived signature, minted one at a time after the row
+ * has been read under the caller's own context. Forty signed URLs rendered because somebody opened
+ * a tab would be forty grants nobody asked for (ADR-032).
+ *
+ * The note under the table is not decoration. Field media is the kind of evidence people assume
+ * flows onwards — into the client's portal, into a report, into a model — and saying plainly that
+ * it does not is part of the control.
+ */
+function MediaTab({
+  media,
+  i18n: { t, fmt },
+}: {
+  media: ReadonlyArray<VisitMedia> | null;
+  i18n: I18n;
+}) {
+  if (media === null) {
+    return (
+      <SystemState
+        state="permission denied"
+        title={t("parcel.mediaDeniedTitle")}
+        meta="field.responses.read"
+      >
+        <p>{t("parcel.mediaDeniedBody")}</p>
+      </SystemState>
+    );
+  }
+
+  if (media.length === 0) {
+    return <p className={styles.muted}>{t("parcel.noMedia")}</p>;
+  }
+
+  return (
+    <Panel>
+      <PanelHeader label={t("parcel.mediaTitle")} />
+      <PanelBody>
+        <table className={styles.affectations}>
+          <caption className={styles.srOnly}>{t("parcel.mediaCaption")}</caption>
+          <thead>
+            <tr>
+              <th scope="col">{t("parcel.mediaKindColumn")}</th>
+              <th scope="col">{t("parcel.mediaCapturedAt")}</th>
+              <th scope="col">{t("parcel.mediaNote")}</th>
+              <th scope="col">{t("parcel.mediaSize")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {media.map((item) => (
+              <tr key={item.id}>
+                <td>{mediaKindLabel(t, item.kind)}</td>
+                <td>
+                  {fmt.dateTime(new Date(item.capturedAt))}
+                  {/* Whether there is a point, never the point: this one is a person's position
+                      at a moment, and a coordinate on a list is a coordinate in a screenshot. */}
+                  <span className={styles.visitNote}>
+                    {item.hasLocation ? t("parcel.mediaHasLocation") : t("parcel.mediaNoLocation")}
+                  </span>
+                </td>
+                <td>{item.note ?? t("common.missing")}</td>
+                <td>{fmt.bytes(item.sizeBytes)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <p className={styles.muted} style={{ marginTop: 12 }}>
+          {t("parcel.mediaNever")}
         </p>
       </PanelBody>
     </Panel>

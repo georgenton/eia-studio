@@ -1,8 +1,12 @@
 import {
   fieldPackResponseSchema,
+  mediaFinalizeResponseSchema,
+  mediaIntentResponseSchema,
   syncPullResponseSchema,
   syncPushResponseSchema,
   type FieldPackResponse,
+  type MediaFinalizeResponse,
+  type MediaIntentResponse,
   type SyncCommand,
   type SyncPullResponse,
   type SyncPushResponse,
@@ -85,4 +89,61 @@ export async function pullChanges(input: {
   return syncPullResponseSchema.parse(
     await post("/api/field/pull", { ...input, knownAssignmentIds: [...input.knownAssignmentIds] }),
   );
+}
+
+/* ---------------------------------------------------------------------------------------------
+ * Media upload — the two calls whose payload is not JSON (ADR-032)
+ * ------------------------------------------------------------------------------------------ */
+
+export async function requestMediaIntent(input: {
+  tenantSlug: string;
+  projectSlug: string;
+  filename: string;
+  mimeType: string;
+  sizeBytes: number;
+}): Promise<MediaIntentResponse> {
+  return mediaIntentResponseSchema.parse(await post("/api/field/media/intent", input));
+}
+
+export async function finalizeMediaUpload(input: {
+  tenantSlug: string;
+  projectSlug: string;
+  intentId: string;
+  objectKey: string;
+}): Promise<MediaFinalizeResponse> {
+  return mediaFinalizeResponseSchema.parse(await post("/api/field/media/finalize", input));
+}
+
+/**
+ * The bytes, straight to the provider.
+ *
+ * Deliberately **not** through `post`: there is no session on this request and there must not be
+ * one. The only authorisation is the signature the provider put in the URL, which is why its life
+ * is measured in minutes — sending a session cookie to a storage vendor would hand them a
+ * credential for this product (SECURITY.md §7).
+ *
+ * Uploaded from the file system rather than read into memory: a 4 MB photograph held as a
+ * base64 string on a low-end handset is three times its size in a heap that is already tight.
+ */
+export async function putFileToProvider(input: {
+  url: string;
+  headers: Record<string, string>;
+  fileUri: string;
+}): Promise<void> {
+  const { uploadAsync, FileSystemUploadType } = await import("expo-file-system/legacy");
+  let result: { status: number };
+  try {
+    result = await uploadAsync(input.url, input.fileUri, {
+      httpMethod: "PUT",
+      uploadType: FileSystemUploadType.BINARY_CONTENT,
+      headers: input.headers,
+    });
+  } catch (error) {
+    throw new TransportError(error instanceof Error ? error.message : "sin conexión");
+  }
+  if (result.status < 200 || result.status >= 300) {
+    // The provider refused the signature or the content type. A decision, not an outage — but the
+    // device's answer is the same either way: keep the file, and ask for a fresh intent later.
+    throw new ServerError(result.status, "el proveedor rechazó la carga");
+  }
 }

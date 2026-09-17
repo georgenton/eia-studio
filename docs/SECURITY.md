@@ -293,6 +293,24 @@ data on hardware the firm does not control. The controls are about the **device*
 | Environment separation | The API URL is build-time configuration (`EXPO_PUBLIC_API_URL`), not a runtime setting. A field application that can be repointed from its own settings screen is one tap away from writing demo answers into a real study |
 | No model call | This wave has no AI requirement and no code path to one. No survey data leaves for a model from the device or from the sync routes |
 
+### 10e.1 A photograph on a technician's phone (Production V1 Wave 2, ADR-032)
+
+The device now holds files as well as rows, and a photograph of a parcel can contain a person, a
+house number or the inside of a home.
+
+| Control | Mechanism |
+|---|---|
+| The camera, never the library | `expo-image-picker` is configured with `photosPermission: false` and the application calls `launchCameraAsync` only. A picker over the whole device is a picker over everything else on it |
+| No kind for identified data | four kinds — `parcel`, `affectation`, `access`, `other` — and deliberately no `document` and no `signature`. Photographing an identity card or a signed sheet is collecting identified personal data the compliance gate of §10a has not authorised |
+| Files live where the application can protect them | copied out of the picker's cache into the app's own documents directory at capture. The camera roll is the operating system's and a backup would copy it off the device |
+| Row ownership | `field_media`'s select policy is `survey_instance`'s — *this row is mine, or I hold `field.responses.read`*. Its **insert** policy has no such escape: a caller may only declare in their own name |
+| Written once | `REVOKE UPDATE, DELETE` **and** a trigger. What a photograph is of, and when, are statements a technician made at the shutter |
+| No session reaches the storage vendor | the PUT carries the provider's signature and nothing of ours. Sending a session cookie to a storage vendor would hand them a credential for this product (§7) |
+| The local file is the last thing to go | released only by the server acknowledging the row — never by the PUT returning 200 — through one predicate, `mayDeleteLocalFile` |
+| Nothing is altered on capture | no re-encode, no resize, no EXIF strip. A device that silently altered evidence would be producing something the technician did not take; stripping belongs where a file is exported (§7) |
+| Never automatically onward | not to the client portal, not to a model provider, not to the document corpus, not to a map. Each prevented by a type or a query with nowhere to put a photograph, and each asserted by a test (ADR-032 §3) |
+| Audit | `field.media.declared` records the visit and the kind. Never the technician's free-text note and never the coordinates |
+
 **The limitation, recorded rather than mitigated:** a device with no connectivity cannot learn that
 an account was suspended or an assignment reassigned. Revocation takes effect at the next server
 contact. The product's answer is a short, derived, visible window — `min(session expiry, now + 7

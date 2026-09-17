@@ -100,8 +100,34 @@ learn that an account was revoked. Revocation takes effect at the next server co
 | With pending commands, tap **Cerrar sesión** | It **refuses**, and says how many are pending |
 | Sync, then sign out | Session, database key and database file are all gone; the next sign-in starts clean |
 
-## 7. What this procedure does not cover
+## 7. Photographs (Production V1 Wave 2, ADR-032)
 
-Media capture (not built, TD-037), background synchronisation (not the correctness mechanism, and
-not built), and a correction workflow for a submitted response (a submitted response is immutable
-by design).
+**Nothing in this section has been run**, because no native build artefact exists (TD-082) and a
+camera cannot run in a bundle nobody installed. It is written now so that the first person with a
+handset has the procedure rather than inventing one, and it is recorded as TD-096.
+
+The property being accepted is the one that cannot be undone: **a photograph is never released from
+the device before the server has acknowledged the row.**
+
+| Step | Expected |
+|---|---|
+| In aeroplane mode, open an assignment and take three photographs (*Predio*, *Afectación*, *Acceso*) | Three chips, each *Pendiente de subida*. No error, no spinner that never ends: a photograph waiting for signal is safe and the screen says so |
+| Deny the camera permission once, then take a photograph | The refusal is stated plainly and the visit continues. Nothing is captured and nothing is queued |
+| Take a photograph **before** starting the visit | It is recorded and held: there is no server visit for it to belong to yet |
+| Force-quit the application and reopen it | The three photographs are still listed, in the same states. The files are in the application's own directory, not the camera roll |
+| Restore connectivity and synchronise | Each becomes *Subida*. `Fotografías` in the Parcel Workspace lists three rows for the visit |
+| Synchronise **again** immediately | Still three rows. Not six: `localId` is what the server keys on |
+| Turn connectivity off mid-upload (aeroplane mode during the sync) | The affected photograph returns to *Pendiente de subida* with its file. Nothing is lost, and the next sync continues |
+| After a successful sync, inspect the application's documents directory | The files of acknowledged photographs are gone; any still pending are there |
+| On a deployment with no bucket configured (TD-090) | The intent call answers 503 with a sentence; the photographs stay on the device and the visit is unaffected |
+
+Two things to look for that are easy to miss:
+
+- a photograph must **never** appear in the client view (`/portal/:tenant/:project`), and
+- the `Fotografías` tab must show *whether* there is a technician position, never the coordinates.
+
+## 8. What this procedure does not cover
+
+Background synchronisation (not the correctness mechanism, and not built), a correction workflow
+for a submitted response (a submitted response is immutable by design), and removing a photograph
+declared by mistake (TD-097).

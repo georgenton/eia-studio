@@ -63,6 +63,21 @@ test.describe("FieldFlow · technician isolation", () => {
     const main = page.getByRole("main");
     await expect(main).not.toContainText("Técnico de campo 2");
   });
+
+  /*
+   * A photograph of a parcel can hold a person, a house number or a number plate, so it sits behind
+   * `field.responses.read` rather than behind parcel access (ADR-032). A technician holds neither
+   * that key nor `field.read`, and the workspace tab says so instead of listing the project's
+   * photographs — or, worse, showing an empty list that would read as "there are none".
+   */
+  test("a technician cannot browse the project's photographs from the Parcel Workspace", async ({
+    page,
+  }) => {
+    await page.goto(`/t/${TENANT}/p/${PROJECT}/parcels/${PARCELS.first}?tab=media`);
+    const main = page.getByRole("main");
+    await expect(main).toContainText("sin acceso al trabajo de campo");
+    await expect(main).not.toContainText("Fotografías de campo");
+  });
 });
 
 /**

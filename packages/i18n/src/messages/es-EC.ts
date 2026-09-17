@@ -468,7 +468,22 @@ export const messages = {
     tabAffectations: "Afectaciones",
     tabVisits: "Visitas",
     tabInstruments: "Instrumentos",
-    tabMedia: "Media",
+    tabMedia: "Fotografías",
+    mediaDeniedTitle: "Fotografías: sin acceso al trabajo de campo",
+    mediaDeniedBody:
+      "Tu rol puede consultar el predio pero no las fotografías de sus visitas. Una fotografía de un predio puede contener a una persona, un número de casa o una placa, y por eso se rige por el mismo permiso que las respuestas individuales.",
+    noMedia:
+      "No hay fotografías registradas para este predio. Aparecen aquí cuando un técnico las carga desde EIA Field.",
+    mediaTitle: "Fotografías de campo",
+    mediaCaption: "Fotografías cargadas durante las visitas a este predio",
+    mediaNever:
+      "Las fotografías de campo no se publican al cliente, no se envían a ningún proveedor de modelos, no entran al expediente documental y no se dibujan en el mapa. Descargar una es una acción deliberada y queda registrada.",
+    mediaKindColumn: "Tipo",
+    mediaCapturedAt: "Captura",
+    mediaSize: "Tamaño",
+    mediaNote: "Nota del técnico",
+    mediaHasLocation: "Con ubicación del técnico",
+    mediaNoLocation: "Sin ubicación",
     tabQuality: "Calidad",
     sections: "Secciones del predio",
     backToExplorer: "Volver al explorador",
@@ -507,8 +522,6 @@ export const messages = {
     pendingTitle: "{label}: aún sin datos",
     instrumentsNote:
       "Las fichas socioeconómicas y demás instrumentos se listarán aquí cuando la bandeja de campo esté implementada.",
-    mediaNote:
-      "Las fotografías y evidencias de campo llegan con la captura móvil. No hay archivos asociados a este predio.",
     qualityNote:
       "Los hallazgos del control de consistencia referidos a este predio se mostrarán aquí cuando el módulo esté implementado.",
   },
@@ -1284,6 +1297,12 @@ export const messages = {
       CONTAINS_PERSONAL_DATA: "Contiene datos personales identificados",
       REVIEW_REQUIRED: "Requiere revisión",
     },
+    mediaKind: {
+      parcel: "Predio",
+      affectation: "Afectación",
+      access: "Acceso",
+      other: "Otra",
+    },
     mediaState: {
       PENDING_UPLOAD: "Pendiente de subida",
       UPLOADING: "Subiendo",
@@ -1306,6 +1325,13 @@ export const messages = {
     syncing: "Sincronizando…",
     refreshWork: "Actualizar trabajo asignado",
     workUpdated: "Trabajo actualizado.",
+    photographs: "Fotografías",
+    photographsNote:
+      "Se guardan en el teléfono al momento de tomarlas y se envían cuando hay señal. El archivo local no se borra hasta que el servidor confirma que la fotografía quedó registrada.",
+    noPhotographs: "Todavía no has tomado fotografías en esta visita.",
+    cameraDenied:
+      "No se concedió el permiso de cámara. Puedes continuar la visita sin fotografías.",
+    captureFailed: "No se pudo guardar la fotografía. Inténtalo otra vez.",
     startVisit: "Iniciar visita",
     startingVisit: "Iniciando…",
     continueSurvey: "Continuar ficha",

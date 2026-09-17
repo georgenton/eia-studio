@@ -82,4 +82,12 @@ export type { CaptureChannel, CaptureChannelDescriptor } from "./field/capture-c
 export { FIELD_OFFLINE_MODE_SEMANTICS, FIELD_OFFLINE_MODES } from "./field/offline-mode";
 export type { FieldOfflineMode } from "./field/offline-mode";
 
+export {
+  FIELD_MEDIA_KINDS,
+  LOCAL_MEDIA_STATES,
+  MAX_MEDIA_PER_VISIT,
+  mayDeleteLocalFile,
+} from "./field/media";
+export type { FieldMediaKind, LocalMediaState } from "./field/media";
+
 export { InvalidInput } from "./core/errors";

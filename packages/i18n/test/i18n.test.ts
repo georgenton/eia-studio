@@ -11,10 +11,12 @@ import {
   DOCUMENT_KINDS,
   DOCUMENT_PRIVACY_CLASSIFICATIONS,
   DOCUMENT_PROCESSING_STATES,
+  FIELD_MEDIA_KINDS,
   FIELD_OFFLINE_MODES,
   FORBIDDEN_FINDING_WORDS,
   INSTANCE_STATUSES,
   LAYER_PROVENANCE_LEGENDS,
+  LOCAL_MEDIA_STATES,
   LOCATION_OUTCOMES,
   PARCEL_SIDES,
   PARCEL_STATUSES,
@@ -241,6 +243,8 @@ const RENDERED_VALUES: ReadonlyArray<[string, ReadonlyArray<string>]> = [
   ["textSource", TEXT_SOURCES],
   ["documentProcessing", DOCUMENT_PROCESSING_STATES],
   ["documentPrivacy", DOCUMENT_PRIVACY_CLASSIFICATIONS],
+  ["mediaKind", FIELD_MEDIA_KINDS],
+  ["mediaState", LOCAL_MEDIA_STATES],
 ];
 
 describe("the words for stored values", () => {
@@ -260,7 +264,7 @@ describe("the words for stored values", () => {
     // the failure means something different: dead copy for a value nothing can produce, which a
     // reader of the catalogue would take for a state the product has.
     const declared = new Set(RENDERED_VALUES.map(([ns]) => ns));
-    const known = new Set([...declared, "requirement", "mediaState"]);
+    const known = new Set([...declared, "requirement"]);
     for (const ns of Object.keys(esEC.vocabulary)) {
       expect(known.has(ns), `vocabulary.${ns} is not covered by a test`).toBe(true);
     }

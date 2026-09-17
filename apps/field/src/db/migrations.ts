@@ -147,6 +147,49 @@ export const LOCAL_MIGRATIONS: ReadonlyArray<LocalMigration> = [
        )`,
     ],
   },
+  {
+    /*
+     * Field media (ADR-032), added as migration 2 rather than by editing migration 1: a device
+     * already in the field has run 1, and forward-only is the same rule the server's migrations
+     * follow. A handset that has been in a valley for a week upgrades by running this and nothing
+     * else.
+     */
+    version: 2,
+    name: "field_media",
+    statements: [
+      /*
+       * A photograph, and the file it is. `file_uri` points at the application's own documents
+       * directory — not the camera roll, which the operating system and the technician both manage
+       * and which a backup would copy off the device.
+       *
+       * `local_id` is minted at the shutter and is what the server keys on, so a retry after a
+       * reinstalled outbox is still one photograph. `server_media_id` is what releases the file:
+       * until it is set, `mayDeleteLocalFile` refuses, and the sweep never touches the row.
+       */
+      `create table if not exists local_media (
+         local_id text primary key,
+         assignment_local_id text not null,
+         visit_server_id text,
+         file_uri text not null,
+         mime_type text not null,
+         size_bytes integer not null,
+         kind text not null,
+         note text,
+         captured_at text not null,
+         latitude real,
+         longitude real,
+         accuracy_m real,
+         state text not null default 'PENDING_UPLOAD',
+         stored_object_id text,
+         server_media_id text,
+         attempts integer not null default 0,
+         last_error text
+       )`,
+      `create index if not exists local_media_assignment_idx
+         on local_media (assignment_local_id, captured_at)`,
+      `create index if not exists local_media_pending_idx on local_media (state, captured_at)`,
+    ],
+  },
 ];
 
 export const LOCAL_SCHEMA_VERSION = LOCAL_MIGRATIONS[LOCAL_MIGRATIONS.length - 1]!.version;

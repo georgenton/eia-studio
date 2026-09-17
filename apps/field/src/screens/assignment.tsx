@@ -1,10 +1,14 @@
 import * as Crypto from "expo-crypto";
+import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 
 import { visitStartCommand } from "../core/commands";
-import { enqueue, insertVisit, upsertSurvey } from "../db/repo";
+import { mediaStateFor } from "../core/media-upload";
+import { enqueue, insertVisit, listMediaForAssignment, upsertSurvey } from "../db/repo";
+import type { LocalMediaRecord } from "../db/repo";
+import { captureMedia } from "../sync/media";
 import { fieldConfig } from "../config";
 import { useT } from "../i18n";
 import { useField } from "../store";
@@ -35,7 +39,24 @@ export function AssignmentScreen({
   const { db, pack, assignments, refresh, offlineState } = useField();
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [media, setMedia] = useState<ReadonlyArray<LocalMediaRecord>>([]);
+  // Bumped after a capture, so the effect below re-reads. A counter rather than a callback,
+  // because the hooks must run before the early return and a stable dependency is what makes that
+  // readable.
+  const [mediaVersion, setMediaVersion] = useState(0);
   const assignment = assignments.find((row) => row.id === assignmentId);
+
+  useEffect(() => {
+    if (!db) return;
+    let cancelled = false;
+    void (async () => {
+      const rows = await listMediaForAssignment(db, assignmentId);
+      if (!cancelled) setMedia(rows);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [assignmentId, db, mediaVersion]);
 
   if (!assignment || !pack) {
     return (
@@ -107,6 +128,62 @@ export function AssignmentScreen({
 
   const hasLocalWork = assignment.localSurveyId !== null;
 
+  /**
+   * Take a photograph, and keep it before anything else is attempted.
+   *
+   * The order is the guarantee (ADR-032): the file is copied into this application's own directory
+   * and the row is written **first**, offline, with no server involved. Upload happens later, when
+   * there is signal, and the local file is not released until the server says the row exists.
+   *
+   * The camera is asked for directly rather than offering the photo library: a photograph of a
+   * parcel is evidence of *this* visit, and a picker over the whole device is a picker over
+   * everything else on it.
+   */
+  const capture = async (kind: "parcel" | "affectation" | "access" | "other") => {
+    if (!db) return;
+    setMessage(null);
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
+    if (!permission.granted) {
+      setMessage(t("mobile.cameraDenied"));
+      return;
+    }
+    setBusy(true);
+    try {
+      const shot = await ImagePicker.launchCameraAsync({
+        mediaTypes: ["images"],
+        // Not edited and not re-encoded by us beyond the camera's own compression: a photograph a
+        // device silently altered is not the photograph the technician took.
+        allowsEditing: false,
+        quality: 0.8,
+        exif: false,
+      });
+      if (shot.canceled || !shot.assets[0]) return;
+      const asset = shot.assets[0];
+      const where = await readLocation();
+      await captureMedia(db, {
+        assignmentId,
+        visitServerId: assignment.openVisitId ?? null,
+        sourceUri: asset.uri,
+        mimeType: asset.mimeType === "image/png" ? "image/png" : "image/jpeg",
+        sizeBytes: asset.fileSize ?? 0,
+        kind,
+        note: null,
+        location: where.coords
+          ? {
+              latitude: where.coords.latitude,
+              longitude: where.coords.longitude,
+              accuracyM: where.coords.accuracy,
+            }
+          : null,
+      });
+      setMediaVersion((version) => version + 1);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : t("mobile.captureFailed"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <Screen>
       <ScrollView contentContainerStyle={styles.content}>
@@ -144,6 +221,41 @@ export function AssignmentScreen({
           <Chip
             text={t("mobile.questions", { count: pack.campaign.surveyVersion.questions.length })}
           />
+        </Card>
+
+        <Card>
+          <Heading>{t("mobile.photographs")}</Heading>
+          {/* The distinction that matters on a phone with no signal: *on the device* is not
+           *the server has it*, and a photograph waiting for a connection is safe. */}
+          <Body muted>{t("mobile.photographsNote")}</Body>
+          {media.length === 0 ? (
+            <Body muted>{t("mobile.noPhotographs")}</Body>
+          ) : (
+            <View style={styles.mediaList}>
+              {media.map((item) => (
+                <Chip
+                  key={item.localId}
+                  text={`${t(`vocabulary.mediaKind.${item.kind}` as "vocabulary.mediaKind.parcel")} · ${t(
+                    `vocabulary.mediaState.${mediaStateFor({
+                      ...item,
+                      attempts: item.attempts,
+                    })}` as "vocabulary.mediaState.PENDING_UPLOAD",
+                  )}`}
+                />
+              ))}
+            </View>
+          )}
+          <View style={styles.mediaActions}>
+            {(["parcel", "affectation", "access"] as const).map((kind) => (
+              <Button
+                disabled={busy || offlineState === "expired"}
+                key={kind}
+                label={t(`vocabulary.mediaKind.${kind}` as "vocabulary.mediaKind.parcel")}
+                onPress={() => void capture(kind)}
+                tone="secondary"
+              />
+            ))}
+          </View>
         </Card>
 
         <View style={styles.actions}>
@@ -201,4 +313,6 @@ const styles = StyleSheet.create({
   content: { padding: theme.space.lg, gap: theme.space.md },
   header: { gap: theme.space.xs },
   actions: { gap: theme.space.sm, marginTop: theme.space.md },
+  mediaList: { flexDirection: "row", flexWrap: "wrap", gap: theme.space.xs },
+  mediaActions: { flexDirection: "row", flexWrap: "wrap", gap: theme.space.xs },
 });

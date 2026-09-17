@@ -961,3 +961,68 @@ PR after), content scanning (TD-091), and a download button (TD-093).
 **Tests**: unit 482 → **511**, integration 471 → **490**, Playwright +5. Migrations 0037 (tables),
 0038 (grants, FORCE RLS, the consume-once and immutability triggers), 0039 (document version
 columns).
+
+## Production V1 · Wave 2 · PR 4 — a photograph, and the last thing to let go of (17 September 2026)
+
+EIA Field shipped capture without a camera, and the register said why twice: TD-037 since Slice 3,
+TD-080 since Wave 1, both resting on *there is no `Media` table, no storage adapter and no bucket,
+and a camera button that stores photographs the product cannot upload is worse than no button.*
+PR 3 removed two of those three. This closes both entries (ADR-032).
+
+**A photograph is evidence of a visit, not a file with a row attached.** The bytes go through
+ADR-031's path — intent, PUT, finalize — which verifies the format, the ceiling and the magic bytes
+and computes the hash. `field_media` then says what those bytes *are*: this kind, at this moment,
+on this visit. Nothing in the declaration reads an image.
+
+**The local file is the last thing to go, and only the server's acknowledgement releases it.** Not
+the PUT returning 200: bytes in a bucket are not a row, and a finalize that never ran leaves an
+object nothing points at. One predicate in the domain decides, the device's sweep asks it, and the
+unit suite walks the sequence failing at each of its four steps with the same assertion every
+time — *the file is still there*.
+
+**Four kinds, and the two that are missing are the design.** `parcel`, `affectation`, `access`,
+`other`. No `document` and no `signature`: photographing an identity card, a deed or a signed
+attendance sheet is collecting identified personal data the compliance gate has not authorised, and
+the honest way not to collect something is to have nowhere to put it. The application asks the
+**camera** and never the photo library (`photosPermission: false`) for the same reason.
+
+**The four prohibitions are structural, and each is asserted where it is real.** The client portal's
+payload is composed from a closed vocabulary with nowhere to put a file; the classifier's input
+holds text and a taxonomy; `uploadDocumentVersion` refuses a `field-media` object and
+`declareFieldMedia` refuses a `documents` one — both directions; a map layer is a
+`SpatialDatasetVersion` and media is not a layer.
+
+**Row ownership, and one place where it is narrower.** The select policy is `survey_instance`'s —
+*mine, or I hold `field.responses.read`*. The **insert** policy has no such escape: holding the
+permission to read what a household answered is not the same as being able to file evidence in
+somebody else's name.
+
+**A retry cannot duplicate, and the mechanism is not the receipt.** `localId` is minted at the
+shutter and never regenerated; `commandId` identifies the *attempt*, `localId` identifies the
+*photograph*. Enforced by the use-case and again by a unique index, with a second index on the
+stored object closing the other door. A device that lost its outbox but kept its gallery still
+cannot produce a second row.
+
+**The finalize route is idempotent; the use-case is not.** Consuming an authorisation twice stays
+refused. A phone whose response was lost in a valley cannot tell "already finalized" from "failed",
+so the route asks a *different question* about what the first call wrote. Idempotency belongs in the
+caller's protocol, not in the rule.
+
+**`media.declare` did not bump the protocol version**, and the reasoning is recorded: a new command
+type changes no existing meaning, an old device never sends it, an old server rejects it as an
+unknown discriminant. Nothing was added to `commandResultSchema`, which is `.strict()` and *would*
+have broken an older device's parse — so `already_declared` reports as `applied`, because from the
+device's side both mean *the server has it, you may release the file*.
+
+**Not verified on hardware, and said plainly.** There is still no native build artefact (TD-082), so
+the camera path is proved by unit tests over an injected transport, by an integration suite against
+real MinIO and PostgreSQL, and by a bundle that exports for Android and iOS — not by a handset.
+Recorded as TD-096, with the procedure written in `docs/FIELD_MOBILE_OFFLINE_UAT.md` §7 so the first
+person with a phone does not have to invent one.
+
+**Also new**: TD-095 (a retried upload can orphan an object — the trade is deliberate, and the
+sweep that would clean it is named), TD-097 (a photograph cannot be removed once declared, in the
+shape every other append-only decision here takes).
+
+**Tests**: unit 511 → **535**, integration 490 → **507**, Playwright 240 → **241**. Migrations 0040
+(enum, enum value, table) and 0041 (grants, FORCE RLS, the two policies, the write-once trigger).
