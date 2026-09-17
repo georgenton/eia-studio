@@ -150,6 +150,22 @@ export default defineConfig({
     },
     {
       /*
+       * Writing a questionnaire in the product (ADR-037). Serial — each test is a stage of one act
+       * — and on its own project, because publishing a questionnaire into the pilot would change
+       * what every other spec's counts and tabulations are about.
+       */
+      name: "survey-authoring",
+      testMatch: /(^|\/)survey-authoring\.spec\.ts$/,
+      fullyParallel: false,
+      dependencies: ["setup"],
+      use: {
+        ...devices["Desktop Chrome"],
+        viewport: { width: 1440, height: 940 },
+        storageState: "e2e/.auth/owner.json",
+      },
+    },
+    {
+      /*
        * The template library (ADR-036). Serial and after the review project, because each test
        * builds on the previous one's rows — a registered template, then a version, then an
        * activation, then a document.

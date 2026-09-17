@@ -28,7 +28,14 @@ import { z } from "zod";
  */
 
 /** Bumped when a command's meaning changes in a way an old device could get wrong. */
-export const FIELD_SYNC_PROTOCOL_VERSION = 1;
+/**
+ * Bumped to **2** by ADR-037, and the reason is the rule stated at `COMMAND_TYPES` below: a new
+ * field on a `.strict()` object breaks an older device's parse. `packQuestionSchema` gains
+ * `section`, so a device built against version 1 could not read a pack from this server at all —
+ * and the honest failure is "your application is older than this server", which the version
+ * literal produces, rather than an unexplained validation error deep inside a questionnaire.
+ */
+export const FIELD_SYNC_PROTOCOL_VERSION = 2;
 
 /** Bumped when the Field Pack's shape changes; a device with an older pack re-downloads. */
 export const FIELD_PACK_SCHEMA_VERSION = 1;
@@ -62,6 +69,8 @@ export const packQuestionTranslationSchema = z
   .object({
     prompt: z.string().min(1).max(500),
     helpText: z.string().max(500).nullable(),
+    /** The heading in this language; null when the question sits under none (ADR-037). */
+    section: z.string().min(1).max(80).nullable(),
     options: z.record(z.string().min(1).max(40), z.string().min(1).max(200)),
   })
   .strict();
@@ -76,6 +85,14 @@ export const packQuestionSchema = z
     helpText: z.string().max(500).nullable(),
     required: z.boolean(),
     sensitivity: z.string().min(1).max(40),
+    /**
+     * The heading this question is read under (ADR-037), in the definition's own language.
+     *
+     * Presentation, and nothing else: an answer points at a question code, and no section touches
+     * a code. This is the canonical wording; the other languages are in `translations`, beside the
+     * prompt, because a heading is part of the questionnaire's words.
+     */
+    section: z.string().min(1).max(80).nullable(),
     options: z.array(packOptionSchema),
     translations: z.record(z.string().min(2).max(10), packQuestionTranslationSchema),
   })

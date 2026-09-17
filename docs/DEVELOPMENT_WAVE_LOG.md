@@ -1181,3 +1181,54 @@ every environment this repository controls, including staging.
 object-storage bucket, an Expo/Apple/Google account, and the production hosting decision that
 `docs/PRODUCTION_RECOVERY.md` specifies. The physical-handset UAT is **PREPARED and not executed**,
 and says so where somebody would look.
+
+---
+
+## Go-Live Wave A — removing the production blockers (17 September 2026)
+
+Authorised from `08a137d`. Not a feature wave: each change closes a named entry of
+`docs/PRODUCTION_V1_GO_LIVE.md` §2 or turns a documented intention into something a person can
+actually do. **No production deployment, no store submission, no real personal data, no live model.**
+
+### PR A — a questionnaire is written inside the product (ADR-037)
+
+Until this change a `SurveyVersion` could be created by exactly one thing: the demonstration
+seeder. Eight studies cannot each be a developer task, and that was go-live blocker 8 (TD-088).
+
+*Preparar proyecto* → *Formularios* is now where a questionnaire comes from. Two permissions rather
+than one: `field.instruments.author` writes a `DRAFT` — its questions, their order, their options,
+their headings and their second language — and `field.instruments.publish` decides that households
+may be asked it. A `PROJECT_DATA_MANAGER` holds the first because writing the instrument *is*
+preparation, and not the second, because deciding what a firm asks people is a statement the firm
+makes. Nothing else about that role moved, and an integration test asserts each absence by name.
+
+**What was deliberately not built** is the decision rather than a stage of one: no conditional
+logic, no expression syntax, no calculated question, no matrix, no repeating group, no new question
+type. Each is a *language*, and a language has to be interpreted identically by the web form, the
+phone, the tabulator and whatever reads the archive in five years; the moment two disagree, an
+answer means two things. The surface writes exactly the questionnaire this product already knows
+how to ask, answer offline, synchronise and count.
+
+A **section** is a heading and nothing else — a nullable label on the question, not an entity — and
+a unit test asserts that moving a question between headings leaves `surveyVersionHash` unchanged,
+because a heading touches nothing an answer means. The one rule it carries is that a heading may
+not be interrupted.
+
+**Two additive migrations and no new table.** 0048 adds three columns; 0049 adds two CHECKs and
+re-creates the existing immutability function with one more column in its frozen list. The rules
+that make any of this safe — a `DRAFT` is free, a `PUBLISHED` version is frozen, a translation is
+frozen with the definition it belongs to — were already migrations 0014 and 0035, and this change
+is built on them rather than beside them.
+
+`FIELD_SYNC_PROTOCOL_VERSION` moved **1 → 2**, because the Field Pack's question schema is
+`.strict()` and a new field breaks an older device's parse. The version literal turns that into
+*your application is older than this server* instead of a validation error inside a questionnaire.
+No build is in anybody's hands, so the cost is a rebuild.
+
+The proof is `packages/application/test/survey-authoring.integration.test.ts`, and it **seeds no
+questionnaire**: author → publish → Field Pack → the device's own render → an answer captured
+offline → the same command again → deterministic tabulation, in both languages, with one set of
+codes throughout. A proof that used the seeder would be proving the thing this replaced.
+
+**Closed**: TD-088, go-live blocker 8. **Opened**: TD-114 — a *submitted response* still cannot be
+corrected, which is a different problem with a different shape and is PR B's.

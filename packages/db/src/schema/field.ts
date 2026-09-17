@@ -13,7 +13,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 
-import { app, project, projectMembership, provenanceRecord } from "./app";
+import { app, project, projectMembership, provenanceRecord, user } from "./app";
 import { parcel } from "./gis";
 import { storedObject } from "./storage";
 
@@ -179,6 +179,8 @@ export const surveyVersion = app.table(
     /** Deterministic fingerprint of the definition; lets a mismatch be detected, not identity. */
     definitionHash: text("definition_hash"),
     publishedAt: timestamp("published_at", { withTimezone: true, mode: "date" }),
+    /** Who decided people may be asked this. Null while it is a draft (ADR-037). */
+    publishedByUserId: uuid("published_by_user_id"),
     retiredAt: timestamp("retired_at", { withTimezone: true, mode: "date" }),
     provenanceId: uuid("provenance_id").notNull(),
     createdAt: createdAt(),
@@ -201,6 +203,11 @@ export const surveyVersion = app.table(
       columns: [t.tenantId, t.provenanceId],
       foreignColumns: [provenanceRecord.tenantId, provenanceRecord.id],
     }),
+    foreignKey({
+      name: "survey_version_published_by_fk",
+      columns: [t.publishedByUserId],
+      foreignColumns: [user.id],
+    }),
     index("survey_version_template_status_idx").on(t.tenantId, t.templateId, t.status),
   ],
 );
@@ -217,6 +224,14 @@ export const surveyQuestion = app.table(
     type: questionType("type").notNull(),
     prompt: text("prompt").notNull(),
     helpText: text("help_text"),
+    /**
+     * A heading this question is read under, and nothing else (ADR-037).
+     *
+     * Not an entity: no id, no order of its own, no rule. Nothing about an answer depends on it,
+     * which is why it is a label on the question rather than a table beside it — a section table
+     * would be a second thing a tabulation could be grouped by, and there is only one.
+     */
+    section: text("section"),
     required: boolean("required").notNull().default(false),
     /** Classification for a future retention/export policy; it authorizes nothing today. */
     sensitivity: questionSensitivity("sensitivity").notNull().default("NON_PERSONAL"),
@@ -604,6 +619,14 @@ export const surveyQuestionTranslation = app.table(
     locale: text("locale").notNull(),
     prompt: text("prompt").notNull(),
     helpText: text("help_text"),
+    /**
+     * The heading, in this language (ADR-037).
+     *
+     * It lives here rather than in a table of its own because a section *is* part of the
+     * questionnaire's words, and these rows are already frozen with the definition by the same
+     * trigger. A second table would have been a second thing to freeze.
+     */
+    section: text("section"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
   },
   (t) => [

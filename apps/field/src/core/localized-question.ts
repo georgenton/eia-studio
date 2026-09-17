@@ -17,6 +17,8 @@ export interface LocalizedQuestion {
   readonly code: string;
   readonly prompt: string;
   readonly helpText: string | null;
+  /** The heading this question is read under, in this language, or null (ADR-037). */
+  readonly section: string | null;
   readonly options: ReadonlyArray<{ readonly code: string; readonly label: string }>;
 }
 
@@ -26,6 +28,9 @@ export function localizeQuestion(question: PackQuestion, locale: Locale): Locali
     code: question.code,
     prompt: translated?.prompt ?? question.prompt,
     helpText: translated?.helpText ?? question.helpText,
+    // Falls back to the canonical heading for the same reason the prompt does: a blank heading
+    // above a run of questions reads as a grouping somebody forgot to name.
+    section: translated?.section ?? question.section,
     options: question.options.map((option) => ({
       code: option.code,
       label: translated?.options[option.code] ?? option.label,
@@ -43,4 +48,33 @@ export function availableLocales(
     for (const locale of Object.keys(question.translations)) found.add(locale);
   }
   return [...found] as ReadonlyArray<Locale>;
+}
+
+export interface LocalizedSection {
+  readonly section: string | null;
+  readonly questions: ReadonlyArray<LocalizedQuestion>;
+}
+
+/**
+ * The questionnaire as it is read: headings in question order, each with the run under it.
+ *
+ * The grouping is computed from the questions rather than sent as a structure, so the phone and
+ * the authoring preview derive it the same way from the same field — and a heading can never
+ * disagree with the questions it claims to hold.
+ */
+export function localizedSections(
+  questions: ReadonlyArray<PackQuestion>,
+  locale: Locale,
+): ReadonlyArray<LocalizedSection> {
+  const groups: Array<{ section: string | null; questions: LocalizedQuestion[] }> = [];
+  for (const question of [...questions].sort((a, b) => a.ordinal - b.ordinal)) {
+    const localized = localizeQuestion(question, locale);
+    const last = groups[groups.length - 1];
+    if (last !== undefined && last.section === localized.section) {
+      last.questions.push(localized);
+    } else {
+      groups.push({ section: localized.section, questions: [localized] });
+    }
+  }
+  return groups;
 }

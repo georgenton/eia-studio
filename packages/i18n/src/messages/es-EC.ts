@@ -571,7 +571,7 @@ export const messages = {
     templatesInstruments: "Instrumentos declarados por el perfil",
     templatesRules: "Reglas de consistencia",
     templatesPending:
-      "La edición de cuestionarios y plantillas dentro del producto llega en una fase posterior. Hasta entonces, un cuestionario se publica con las herramientas de aprovisionamiento y esta pantalla informa de lo que existe.",
+      "Lo que el perfil trae son valores por defecto, no el contenido. El cuestionario se escribe en la etapa Formularios; las plantillas .docx de entregables se cargan y se activan en Informes.",
     readinessOperable: "EIA Studio puede operar este proyecto.",
     readinessBlocked: "Falta algo antes de poder operar este proyecto.",
     readinessScopeNote:
@@ -640,6 +640,73 @@ export const messages = {
         "Falta configuración externa del almacenamiento: no se sustituye por un almacén temporal.",
       UNKNOWN: "El almacenamiento no está disponible en este entorno.",
     },
+  },
+
+  /*
+   * Redactar un cuestionario dentro del producto (ADR-037). El vocabulario dice lo que el acto es:
+   * se *escribe* un borrador y se *publica* una versión, y publicar es una decisión que no se
+   * deshace — por eso la pantalla lo dice antes, no después.
+   */
+  authoring: {
+    title: "Cuestionarios del proyecto",
+    lead: "Aquí se escribe el instrumento con el que se sale a campo. Una versión publicada no vuelve a cambiar: las respuestas ya dadas conservan el cuestionario que se les hizo, y corregir es publicar una versión nueva.",
+    readOnly: "Tu rol puede leer los cuestionarios de este proyecto, no escribirlos.",
+    cannotPublish:
+      "Tu rol puede escribir el cuestionario. Decidir que se le pregunte a la gente es del coordinador del proyecto.",
+    newQuestionnaire: "Nuevo cuestionario",
+    keyLabel: "Clave",
+    keyHint: "Minúsculas y guiones bajos, p. ej. ficha_socioeconomica. No se muestra en pantalla.",
+    nameLabel: "Nombre del cuestionario",
+    descriptionLabel: "Para qué es",
+    create: "Crear cuestionario",
+    created: "Cuestionario creado, con su primer borrador.",
+    versions: "Versiones",
+    questionsCount: "{count} pregunta(s)",
+    usedByCampaign: "Con campaña asociada",
+    newVersion: "Nueva versión",
+    newVersionFrom: "Nueva versión a partir de {version}",
+    draftOpened: "Borrador {version} abierto.",
+    draftAlready: "Este cuestionario ya tiene un borrador abierto.",
+    edit: "Editar",
+    preview: "Ver como se lee",
+    editing: "Borrador {version}",
+    viewing: "Publicada {version}",
+    publish: "Publicar esta versión",
+    publishing: "Publicando…",
+    published: "Versión {version} publicada. Ya no puede modificarse.",
+    publishWarning:
+      "Al publicar, esta definición queda fija. Revisa los enunciados y las opciones antes de continuar.",
+    addQuestion: "Añadir pregunta",
+    removeQuestion: "Quitar",
+    moveUp: "Subir",
+    moveDown: "Bajar",
+    noQuestions: "Este borrador todavía no tiene preguntas.",
+    questionCode: "Código",
+    questionCodeHint: "Estable: es lo que apunta una respuesta y por lo que agrupa la tabulación.",
+    questionPrompt: "Enunciado",
+    questionHelp: "Ayuda",
+    questionType: "Tipo",
+    questionRequired: "Obligatoria",
+    questionSensitivity: "Clasificación del dato",
+    questionSection: "Encabezado",
+    sectionHint:
+      "Sólo agrupa preguntas en pantalla. No cambia ningún código, ninguna opción ni ningún denominador.",
+    options: "Opciones",
+    addOption: "Añadir opción",
+    optionCode: "Código",
+    optionLabel: "Etiqueta",
+    removeOption: "Quitar opción",
+    languageTab: "Idioma",
+    canonicalLanguage: "Español (definición)",
+    secondLanguage: "Inglés",
+    secondLanguageNote:
+      "Un idioma está completo o no está: si esta versión declara inglés, cada enunciado, cada ayuda de encabezado y cada etiqueta de opción tienen que estar escritos en inglés antes de publicar.",
+    previewIn: "Leer en",
+    previewEmpty: "No hay nada que leer todavía.",
+    noSection: "Sin encabezado",
+    noDraft: "Este cuestionario no tiene ningún borrador abierto.",
+    immutableNote:
+      "Publicada: esta definición ya no cambia. Para corregirla, abre una versión nueva a partir de ella.",
   },
 
   pgas: {
@@ -1516,6 +1583,25 @@ export const messages = {
       NATIVE_WEB: "Formulario web responsivo. Requiere conexión al enviar; no hay cola offline.",
       EIA_FIELD_MOBILE:
         "Aplicación Android/iOS. Descarga el trabajo asignado, captura sin conexión y sincroniza cuando vuelve la señal; una orden reenviada no duplica nada.",
+    },
+    questionType: {
+      SHORT_TEXT: "Texto corto",
+      LONG_TEXT: "Texto largo",
+      INTEGER: "Número entero",
+      DECIMAL: "Número decimal",
+      BOOLEAN: "Sí / No",
+      SINGLE_CHOICE: "Opción única",
+      MULTI_CHOICE: "Opción múltiple",
+      DATE: "Fecha",
+    },
+    /*
+     * Una clasificación, no una autorización: nada en el producto concede ni deniega por esto, y
+     * marcar una pregunta como sensible no afirma que recogerla sea lícito (SECURITY.md §10a).
+     */
+    questionSensitivity: {
+      NON_PERSONAL: "Sin datos personales",
+      PERSONAL: "Dato personal",
+      SENSITIVE: "Dato sensible",
     },
     documentKind: {
       report: "Informe",

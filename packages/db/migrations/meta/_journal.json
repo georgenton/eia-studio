@@ -337,6 +337,20 @@
       "when": 1789669699309,
       "tag": "0047_report_templates_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1789685403447,
+      "tag": "0048_survey_authoring",
+      "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1789685404447,
+      "tag": "0049_survey_authoring_rules",
+      "breakpoints": true
     }
   ]
 }

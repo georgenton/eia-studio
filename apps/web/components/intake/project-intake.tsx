@@ -1,6 +1,6 @@
 "use client";
 
-import type { ProjectIntakeView } from "@eia/application";
+import type { ProjectIntakeView, SurveyAuthoringView } from "@eia/application";
 import { FIELD_OFFLINE_MODES, type ReadinessCheck, type ReadinessRuleKey } from "@eia/domain";
 import type { MessageKey } from "@eia/i18n";
 import { Chip, Panel, PanelBody, PanelHeader, StatusChip } from "@eia/ui";
@@ -18,6 +18,7 @@ import {
 } from "@/lib/labels";
 
 import { INTAKE_STAGES, type IntakeStage } from "./stages";
+import { SurveyAuthoring } from "./survey-authoring";
 
 import styles from "./intake.module.css";
 
@@ -43,12 +44,15 @@ import styles from "./intake.module.css";
 
 export function ProjectIntake({
   view,
+  authoring,
   stage,
   basePath,
   tenant,
   project,
 }: {
   view: ProjectIntakeView;
+  /** The questionnaires stage's own read model; null when the caller may not read it. */
+  authoring: SurveyAuthoringView | null;
   stage: IntakeStage;
   basePath: string;
   tenant: string;
@@ -79,7 +83,13 @@ export function ProjectIntake({
       {stage === "team" ? <TeamStage view={view} /> : null}
       {stage === "gis" ? <GisStage view={view} /> : null}
       {stage === "documents" ? <DocumentsStage view={view} /> : null}
-      {stage === "surveys" ? <SurveysStage view={view} /> : null}
+      {stage === "surveys" ? (
+        authoring ? (
+          <SurveyAuthoring basePath={basePath} project={project} tenant={tenant} view={authoring} />
+        ) : (
+          <SurveysStage view={view} />
+        )
+      ) : null}
       {stage === "templates" ? <TemplatesStage view={view} /> : null}
       {stage === "readiness" ? <ReadinessStage view={view} /> : null}
       {stage === "activation" ? (
@@ -394,8 +404,6 @@ function TemplatesStage({ view }: { view: ProjectIntakeView }) {
             </li>
           </ul>
         ) : null}
-        {/* Said plainly rather than shown as an empty editor: authoring does not exist yet, and a
-            disabled form would imply it is one release away. */}
         <p className={styles.empty}>{t("intake.templatesPending")}</p>
       </PanelBody>
     </Panel>

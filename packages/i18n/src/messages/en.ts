@@ -565,7 +565,7 @@ export const messages: Messages = {
     templatesInstruments: "Instruments declared by the profile",
     templatesRules: "Consistency rules",
     templatesPending:
-      "Editing questionnaires and templates inside the product arrives in a later phase. Until then a questionnaire is published with the provisioning tools, and this screen reports what exists.",
+      "What the profile brings are defaults, not content. The questionnaire is written in the Questionnaires stage; the .docx templates a deliverable is produced from are uploaded and activated under Reports.",
     readinessOperable: "EIA Studio can operate this project.",
     readinessBlocked: "Something is missing before this project can be operated.",
     readinessScopeNote:
@@ -635,6 +635,73 @@ export const messages: Messages = {
       UNKNOWN: "File storage is not available in this environment.",
     },
   },
+  /*
+   * Writing a questionnaire inside the product (ADR-037). The words say what the act is: a draft is
+   * *written* and a version is *published*, and publishing does not come undone — which is why the
+   * screen says so beforehand rather than afterwards.
+   */
+  authoring: {
+    title: "This project's questionnaires",
+    lead: "This is where the instrument people are sent to the field with is written. A published version never changes again: the answers already given keep the questionnaire they were asked, and correcting one means publishing a new version.",
+    readOnly: "Your role can read this project's questionnaires, not write them.",
+    cannotPublish:
+      "Your role can write the questionnaire. Deciding that households will be asked it is the project coordinator's.",
+    newQuestionnaire: "New questionnaire",
+    keyLabel: "Key",
+    keyHint: "Lower case and underscores, e.g. socioeconomic_sheet. It is never shown on screen.",
+    nameLabel: "Questionnaire name",
+    descriptionLabel: "What it is for",
+    create: "Create questionnaire",
+    created: "Questionnaire created, with its first draft.",
+    versions: "Versions",
+    questionsCount: "{count} question(s)",
+    usedByCampaign: "A campaign uses it",
+    newVersion: "New version",
+    newVersionFrom: "New version from {version}",
+    draftOpened: "Draft {version} opened.",
+    draftAlready: "This questionnaire already has an open draft.",
+    edit: "Edit",
+    preview: "See how it reads",
+    editing: "Draft {version}",
+    viewing: "Published {version}",
+    publish: "Publish this version",
+    publishing: "Publishing…",
+    published: "Version {version} published. It can no longer be changed.",
+    publishWarning:
+      "Publishing fixes this definition. Check the prompts and the options before you continue.",
+    addQuestion: "Add question",
+    removeQuestion: "Remove",
+    moveUp: "Up",
+    moveDown: "Down",
+    noQuestions: "This draft has no questions yet.",
+    questionCode: "Code",
+    questionCodeHint: "Stable: it is what an answer points at and what tabulation groups by.",
+    questionPrompt: "Prompt",
+    questionHelp: "Help",
+    questionType: "Type",
+    questionRequired: "Required",
+    questionSensitivity: "Data classification",
+    questionSection: "Heading",
+    sectionHint:
+      "It only groups questions on screen. It changes no code, no option and no denominator.",
+    options: "Options",
+    addOption: "Add option",
+    optionCode: "Code",
+    optionLabel: "Label",
+    removeOption: "Remove option",
+    languageTab: "Language",
+    canonicalLanguage: "Spanish (the definition)",
+    secondLanguage: "English",
+    secondLanguageNote:
+      "A language is complete or it is absent: if this version declares English, every prompt, every heading and every option label must be written in English before it can be published.",
+    previewIn: "Read in",
+    previewEmpty: "There is nothing to read yet.",
+    noSection: "No heading",
+    noDraft: "This questionnaire has no open draft.",
+    immutableNote:
+      "Published: this definition no longer changes. To correct it, open a new version from it.",
+  },
+
   pgas: {
     title: "Environmental and Social Management Plan",
     notImported:
@@ -1509,6 +1576,26 @@ export const messages: Messages = {
         "A responsive web form. It needs a connection to submit; there is no offline queue.",
       EIA_FIELD_MOBILE:
         "An Android/iOS application. It downloads the assigned work, captures with no connection and syncs when the signal returns; a resent command duplicates nothing.",
+    },
+    questionType: {
+      SHORT_TEXT: "Short text",
+      LONG_TEXT: "Long text",
+      INTEGER: "Whole number",
+      DECIMAL: "Decimal number",
+      BOOLEAN: "Yes / No",
+      SINGLE_CHOICE: "Single choice",
+      MULTI_CHOICE: "Multiple choice",
+      DATE: "Date",
+    },
+    /*
+     * A classification, not an authorization: nothing in the product grants or denies on it, and
+     * marking a question sensitive asserts nothing about whether collecting it is lawful
+     * (SECURITY.md §10a).
+     */
+    questionSensitivity: {
+      NON_PERSONAL: "No personal data",
+      PERSONAL: "Personal data",
+      SENSITIVE: "Sensitive data",
     },
     documentKind: {
       report: "Report",

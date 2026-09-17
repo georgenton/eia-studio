@@ -349,6 +349,8 @@ export interface SurveyQuestionView {
   readonly helpText: string | null;
   readonly required: boolean;
   readonly sensitivity: QuestionSensitivity;
+  /** The heading this question is read under, or null. Presentation only (ADR-037). */
+  readonly section: string | null;
   readonly options: ReadonlyArray<{ id: string; code: string; label: string; ordinal: number }>;
   /**
    * Other languages this version was published in, keyed by locale (ADR-029).
@@ -356,7 +358,9 @@ export interface SurveyQuestionView {
    * Empty for a version published before the product became bilingual, which is how nothing had to
    * be migrated: `prompt` above is always the canonical `es-EC` wording.
    */
-  readonly translations: Readonly<Record<string, { prompt: string; helpText: string | null }>>;
+  readonly translations: Readonly<
+    Record<string, { prompt: string; helpText: string | null; section: string | null }>
+  >;
   /** Option labels per locale, keyed by **option code** — never by label, and never by id. */
   readonly optionTranslations: Readonly<Record<string, Readonly<Record<string, string>>>>;
 }
@@ -533,6 +537,7 @@ export async function loadSurveyQuestions(
    */
   const rows = await tx.execute(sql`
     select q.id, q.code, q.ordinal, q.type, q.prompt, q.help_text, q.required, q.sensitivity,
+           q.section,
            coalesce(
              json_agg(distinct
                jsonb_build_object('id', o.id, 'code', o.code, 'label', o.label, 'ordinal', o.ordinal)
@@ -541,7 +546,8 @@ export async function loadSurveyQuestions(
            ) as options,
            coalesce(
              (select jsonb_object_agg(qt.locale,
-                       jsonb_build_object('prompt', qt.prompt, 'helpText', qt.help_text))
+                       jsonb_build_object('prompt', qt.prompt, 'helpText', qt.help_text,
+                                         'section', qt.section))
                 from app.survey_question_translation qt
                where qt.tenant_id = q.tenant_id and qt.question_id = q.id),
              '{}'::jsonb
@@ -562,7 +568,7 @@ export async function loadSurveyQuestions(
     left join app.survey_option o on o.tenant_id = q.tenant_id and o.question_id = q.id
     where q.tenant_id = ${ctx.tenantId} and q.version_id = ${versionId}
     group by q.id, q.tenant_id, q.code, q.ordinal, q.type, q.prompt, q.help_text, q.required,
-             q.sensitivity
+             q.sensitivity, q.section
     order by q.ordinal
   `);
   return (
@@ -575,8 +581,12 @@ export async function loadSurveyQuestions(
       help_text: string | null;
       required: boolean;
       sensitivity: QuestionSensitivity;
+      section: string | null;
       options: ReadonlyArray<{ id: string; code: string; label: string; ordinal: number }>;
-      translations: Record<string, { prompt: string; helpText: string | null }>;
+      translations: Record<
+        string,
+        { prompt: string; helpText: string | null; section: string | null }
+      >;
       option_translations: Record<string, Record<string, string>>;
     }>
   ).map((row) => ({
@@ -588,6 +598,7 @@ export async function loadSurveyQuestions(
     helpText: row.help_text,
     required: row.required,
     sensitivity: row.sensitivity,
+    section: row.section,
     options: [...row.options].sort((a, b) => a.ordinal - b.ordinal),
     translations: row.translations,
     optionTranslations: row.option_translations,

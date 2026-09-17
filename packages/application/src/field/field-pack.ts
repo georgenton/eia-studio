@@ -156,6 +156,7 @@ export async function buildFieldPack(
             helpText: question.helpText,
             required: question.required,
             sensitivity: question.sensitivity,
+            section: question.section,
             options: question.options.map((option) => ({
               code: option.code,
               label: option.label,
@@ -168,6 +169,7 @@ export async function buildFieldPack(
                 {
                   prompt: translated.prompt,
                   helpText: translated.helpText,
+                  section: translated.section,
                   options: question.optionTranslations[locale] ?? {},
                 },
               ]),

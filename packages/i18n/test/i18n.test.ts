@@ -19,6 +19,9 @@ import {
   LOCAL_MEDIA_STATES,
   LOCATION_OUTCOMES,
   PARCEL_SIDES,
+  QUESTION_SENSITIVITY,
+  SURVEY_LOCALES,
+  QUESTION_TYPES,
   PARCEL_STATUSES,
   PROJECT_LIFECYCLES,
   QUALITY_REQUIREMENTS,
@@ -243,6 +246,8 @@ const RENDERED_VALUES: ReadonlyArray<[string, ReadonlyArray<string>]> = [
   ["textSource", TEXT_SOURCES],
   ["documentProcessing", DOCUMENT_PROCESSING_STATES],
   ["documentPrivacy", DOCUMENT_PRIVACY_CLASSIFICATIONS],
+  ["questionType", QUESTION_TYPES],
+  ["questionSensitivity", QUESTION_SENSITIVITY],
   ["mediaKind", FIELD_MEDIA_KINDS],
   ["mediaState", LOCAL_MEDIA_STATES],
 ];
@@ -388,5 +393,17 @@ describe("formatting", () => {
     expect(fmt.decimal(7.4)).toBe("7.4");
     expect(fmt.percent(0.5, 0)).toBe("50%");
     expect(fmt.count(1200)).toBe(formatCount("en", 1200));
+  });
+});
+
+/*
+ * `@eia/domain` depends on zod alone (ADR-015), so the languages a questionnaire may be authored in
+ * are restated there rather than imported from here. Restated is fine; *diverging* is not — a third
+ * language added to one list and not the other would give the authoring surface a locale the
+ * product cannot render, or the reverse.
+ */
+describe("the two lists of languages", () => {
+  it("say the same thing", () => {
+    expect([...SURVEY_LOCALES]).toEqual([...LOCALES]);
   });
 });
