@@ -58,8 +58,12 @@ export interface RetrievedPassage {
   readonly documentVersionId: string;
   readonly versionLabel: string;
   readonly ordinal: number;
-  readonly pageFrom: number;
-  readonly pageTo: number;
+  /** What this passage's locator *is*. A DOCX has no page model (ADR-033). */
+  readonly locatorKind: "PAGE" | "SECTION";
+  readonly pageFrom: number | null;
+  readonly pageTo: number | null;
+  /** The heading trail, for a `SECTION` passage. */
+  readonly sectionPath: string | null;
   readonly text: string;
   /** Strategy-specific and comparable only within one result set. Never shown as a percentage. */
   readonly score: number;
@@ -94,6 +98,8 @@ export interface Citation {
    */
   readonly passage: number;
   readonly page: number | null;
+  /** Present instead of a page when the source has no pages a reader could turn to. */
+  readonly section: string | null;
   readonly quote: string;
 }
 
@@ -105,8 +111,13 @@ export function citationFor(passage: RetrievedPassage): Citation {
     documentVersionId: passage.documentVersionId,
     chunkId: passage.chunkId,
     passage: passage.ordinal + 1,
-    // A chunk spanning two pages cannot honestly name one, so it names none.
-    page: passage.pageFrom === passage.pageTo ? passage.pageFrom : null,
+    // A chunk spanning two pages cannot honestly name one, so it names none — and a DOCX passage
+    // never names one at all, because the file has no pages this product could know.
+    page:
+      passage.locatorKind === "PAGE" && passage.pageFrom === passage.pageTo
+        ? passage.pageFrom
+        : null,
+    section: passage.locatorKind === "SECTION" ? passage.sectionPath : null,
     quote: passage.text,
   };
 }
@@ -118,8 +129,15 @@ export function citationFor(passage: RetrievedPassage): Citation {
  * names. The page appears only when the passage sits on exactly one.
  */
 export function renderCitation(citation: Citation): string {
-  const page = citation.page === null ? "" : ` · p. ${citation.page}`;
-  return `${citation.documentCode} ${citation.versionLabel}${page} · pasaje ${citation.passage}`;
+  // A page when there is one, the heading trail when the source has no pages, and neither when a
+  // passage spans two pages — in which case the passage number is what the reader checks.
+  const locator =
+    citation.page !== null
+      ? ` · p. ${citation.page}`
+      : citation.section !== null
+        ? ` · ${citation.section}`
+        : "";
+  return `${citation.documentCode} ${citation.versionLabel}${locator} · pasaje ${citation.passage}`;
 }
 
 /**

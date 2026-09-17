@@ -873,6 +873,11 @@ export const messages = {
     requiresOcrNote:
       "Este PDF no trae texto: son imágenes de páginas. El producto no inventa lo que dicen. El archivo queda disponible para descargar y consultar a mano.",
     processingFailedNote: "El procesamiento no pudo completarse. El archivo cargado sigue intacto.",
+    requeue: "Procesar de nuevo",
+    requeued: "En cola para procesar. El trabajador lo tomará en cuanto pueda.",
+    alreadyQueued: "Ya estaba en cola.",
+    queuedNote: "En cola para procesar; todavía no tiene pasajes que citar.",
+    processingNote: "Procesando en este momento.",
     projectDocuments: "Documentos del proyecto",
     documentsNote: "{documents} documento(s) · {passages} pasajes",
     emptyBody:
@@ -891,6 +896,7 @@ export const messages = {
     passage: "Pasaje {number}",
     passagePage: " · p. {page}",
     passagePages: " · pp. {from}–{to}",
+    passageSection: " · {section}",
     assistantTitle: "Consulta al expediente",
     assistantNote: "Responde únicamente con pasajes de los documentos del proyecto",
     assistantLead:

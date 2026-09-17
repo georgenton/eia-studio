@@ -3,6 +3,7 @@ import {
   NotFound,
   requireCapability,
   requirePermission,
+  type ChunkLocatorKind,
   type DocumentKind,
   type DocumentPrivacyClassification,
   type DocumentProcessingState,
@@ -53,8 +54,11 @@ export interface DocumentVersionDetail extends DocumentSummary {
   readonly passages: ReadonlyArray<{
     readonly chunkId: string;
     readonly ordinal: number;
-    readonly pageFrom: number;
-    readonly pageTo: number;
+    /** `PAGE` for a PDF, `SECTION` for a DOCX, which has no page model (ADR-033). */
+    readonly locatorKind: ChunkLocatorKind;
+    readonly pageFrom: number | null;
+    readonly pageTo: number | null;
+    readonly sectionPath: string | null;
     readonly text: string;
   }>;
 }
@@ -130,7 +134,7 @@ export async function loadDocumentVersion(
     if (!row) throw new NotFound("document version");
 
     const chunks = await tx.execute(sql`
-      select id, ordinal, page_from, page_to, text
+      select id, ordinal, locator_kind::text as locator_kind, page_from, page_to, section_path, text
         from app.document_chunk
        where tenant_id = ${ctx.tenantId} and version_id = ${row.version_id}
        order by ordinal
@@ -145,15 +149,19 @@ export async function loadDocumentVersion(
         chunks.rows as unknown as Array<{
           id: string;
           ordinal: number;
-          page_from: number;
-          page_to: number;
+          locator_kind: ChunkLocatorKind;
+          page_from: number | null;
+          page_to: number | null;
+          section_path: string | null;
           text: string;
         }>
       ).map((chunk) => ({
         chunkId: chunk.id,
         ordinal: Number(chunk.ordinal),
-        pageFrom: Number(chunk.page_from),
-        pageTo: Number(chunk.page_to),
+        locatorKind: chunk.locator_kind,
+        pageFrom: chunk.page_from === null ? null : Number(chunk.page_from),
+        pageTo: chunk.page_to === null ? null : Number(chunk.page_to),
+        sectionPath: chunk.section_path,
         text: chunk.text,
       })),
     };

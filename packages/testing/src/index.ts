@@ -9,3 +9,4 @@ export {
   NotAnEphemeralDatabase,
   stampEphemeralTestDatabase,
 } from "./ephemeral-guard";
+export * from "./documents";

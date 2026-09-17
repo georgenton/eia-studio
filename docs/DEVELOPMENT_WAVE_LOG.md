@@ -1026,3 +1026,60 @@ shape every other append-only decision here takes).
 
 **Tests**: unit 511 → **535**, integration 490 → **507**, Playwright 240 → **241**. Migrations 0040
 (enum, enum value, table) and 0041 (grants, FORCE RLS, the two policies, the write-once trigger).
+
+## Production V1 · Wave 2 · PR 5 — reading the file, and what a citation may claim (17 September 2026)
+
+PR 3 put real files in a bucket and left them unread. This reads them — and the question it forces
+is not *how do I get the text out*, which is a library, but **what may a citation claim?** (ADR-033).
+
+**A locator is not always a page.** A PDF has printed pages a reader can turn to. A DOCX does not:
+its pagination is computed by whatever renders it — the fonts installed, the paper size, the printer
+driver — so two readers of one file disagree about what is on page 7. Numbering chunks 1, 2, 3 and
+calling those pages would have been easy and would have produced citations that *look* verifiable.
+So a chunk declares its `locator_kind`, `page_from`/`page_to` are nullable, a DOCX chunk carries the
+document's own heading trail instead, and a database CHECK refuses a row whose locator disagrees
+with itself. That constraint — not a convention — is what stops a future extractor inventing a page.
+
+**A PDF chunk may span pages; a DOCX chunk may not span sections.** A page number is a physical fact
+either way, and a chunk crossing a boundary names none. A heading trail is a claim about *what this
+passage is part of*, and a passage that began under 6.2 and ran into 7 is part of neither.
+
+**A scanned PDF is `REQUIRES_OCR` and writes no chunk**, so it can never be cited. Two conditions
+decide, and the second is the one a naive check gets wrong: enough characters overall, *and* enough
+pages carrying any — because a born-digital cover in front of two hundred scanned pages passes a
+total-only test on the strength of its title. The state's note carries the numbers rather than a
+verdict. **OCR itself is not built** and is not implied by the name: it means a vendor the
+compliance gate has not assessed, and a mediocre local OCR would be worse than the honest state
+because its output is indistinguishable from real text once it is a chunk (TD-098).
+
+**The queue is the table.** `app.claim_document_extraction`, `FOR UPDATE SKIP LOCKED`, four
+identifiers and no content — the shape Slice 4 established. The worker opens an ordinary RLS
+transaction as the **uploader**, so it needs no `BYPASSRLS`, and a revoked membership makes the job
+fail safely rather than read a file that person may no longer reach. A claim older than fifteen
+minutes returns to the queue; an attempt counter bounds a crash loop. **A worker with no usable
+storage never claims** — IG4-001's rule, one layer across.
+
+**`UPLOADED` and `QUEUED` are different states, and the difference is observable.** The upload asks
+for the read as a separate last step; a version whose enqueue failed sits in `UPLOADED` and a person
+can ask again. A `FAILED` or `REQUIRES_OCR` version can be re-queued; a `READY` one cannot, because
+its chunks are immutable and a second set would make every citation of the first ambiguous.
+
+**Nothing is executed.** `pdf.js` with `isEvalSupported: false`, no worker, no network fonts. A
+DOCX's archive is bounded against every entry's **declared** size as the central directory is
+walked — which is where a zip bomb lies — and only two entries are ever decompressed; the macro
+project is not one of them. The DOCX is read by hand rather than through a converter because a
+converter throws away the heading trail and decides for itself what to expand.
+
+**And what extraction does not do**: it does not repair the document. The delivered study's own
+spellings, broken tables and missing sections survive — Wave C's rule for the management plan, for
+the same reason.
+
+**TD-094 closes**: a `READY` version's `content_hash` is now the hash of its extracted text and
+differs from `file_sha256`, which the integration suite asserts. **TD-056 closes**: a real text
+source exists. New: TD-098 (OCR), TD-099 (extraction's memory profile is bounded but unmeasured),
+TD-100 (the worker and the web app resolve their own store, so `memory` is two stores).
+
+**Tests**: unit 535 → **547**, integration 507 → **518**. The integration suite builds **real files
+byte by byte** — a PDF with a correct cross-reference table, a DOCX with real Word heading styles,
+an archive that lies about how much it expands to — because the interesting cases are the ones
+nobody has a sample of. Migrations 0042 and 0043.

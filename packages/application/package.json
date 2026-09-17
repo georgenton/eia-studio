@@ -27,6 +27,8 @@
     "ai": "^7.0.91",
     "docx": "9.5.1",
     "drizzle-orm": "0.45.2",
+    "fflate": "0.8.2",
+    "pdfjs-dist": "5.4.149",
     "zod": "4.5.4"
   },
   "devDependencies": {

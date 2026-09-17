@@ -202,6 +202,15 @@ export type {
 } from "./quality/read-models";
 
 // Document intelligence (Slice 6). Retrieval is full-text; there is no embedding path (ADR-021).
+export {
+  claimNextExtraction,
+  processDocumentExtraction,
+  queueDocumentExtraction,
+  releaseStaleExtractions,
+} from "./documents/extraction";
+export type { ExtractionClaim, ExtractionOutcome } from "./documents/extraction";
+export { extractPdf, PdfUnreadable, PDF_LIMITS } from "./documents/extract-pdf";
+export { extractDocx, DocxUnreadable } from "./documents/extract-docx";
 export { ingestDocumentVersion } from "./documents/ingest";
 export type { IngestedVersion } from "./documents/ingest";
 export { FullTextRetriever } from "./documents/retriever";
