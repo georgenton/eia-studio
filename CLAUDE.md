@@ -172,6 +172,45 @@ client publication, which is rendered in the language it was published in (TD-08
 choice is a cookie, and the default is `es-EC`: a consultant whose browser is configured in English
 did not ask for an English product. `docs/I18N_ARCHITECTURE.md` is the map.
 
+**Production V1 Wave 2 (17 September 2026)** made the product one that eight studies can be loaded
+into rather than one a developer seeds. Five merged changes, five ADRs.
+
+**The product is bilingual** (ADR-029, above). **A project is prepared rather than scripted**
+(ADR-030): *Preparar proyecto* is eight stages over the project as it is — no workflow engine, no
+stored wizard position — with `PROJECT_DATA_MANAGER` (*Gestor de información*), a role that loads a
+project's files and deliberately holds no `field.responses.read`, `pii.read`, `quality.review`,
+`social.coding.review`, `portal.publish` or `project.configure`. Readiness is a **pure function of
+one snapshot** and says only *EIA Studio can operate this project* — never that the study is complete
+and never that it complies.
+
+**A delivered file is stored** (ADR-031). Object storage sits behind one port; a key is
+`t/{tenantId}/p/{projectId}/{namespace}/{objectId}` and carries **no filename**, because a bucket
+listing is the one place RLS does not reach and a delivered file can be named after a person. The
+client never proposes a key. An upload is verified against the **provider** — object present, size
+within the signed ceiling, first bytes matching the declared format — and the SHA-256 is computed
+from the bytes read back; `ETag` is recorded as the provider's entity tag and never treated as a
+hash. `resolveStorageAvailability` never falls back: unset is unavailable, `memory` is refused
+outside `local` and `test`, and no process refuses to boot over it. A corrected delivery is **v2**
+and v1's words stay; the same bytes twice are answered rather than duplicated. **There is no bucket
+in staging or production** — that is an owner action (TD-090).
+
+**A photograph is evidence of a visit** (ADR-032), and the local file is the last thing to go:
+released only when the server acknowledges the row, never when the PUT returns 200. Four kinds, and
+the two that are missing are the design — no `document` and no `signature`, and the camera rather
+than the photo library. Field media never automatically reaches the client portal, an AI provider,
+the document corpus or a public map, and each is prevented by a type or a query rather than a rule.
+
+**A file is read** (ADR-033), in the worker, with the queue in the table. **A locator is not always
+a page**: a PDF's pages are printed and checkable, a DOCX's are computed by whatever renders it, so a
+DOCX chunk carries the document's own heading trail and a database CHECK refuses a row whose locator
+disagrees with itself. A scanned PDF is `REQUIRES_OCR` and **writes no chunk**, so it can never be
+cited; OCR itself is not built (TD-098). Nothing is executed: pdf.js without eval or network fonts,
+and a DOCX archive bounded against every entry's declared size before anything is expanded.
+
+**Nothing in Wave 2 calls a model.** Retrieval is still PostgreSQL full-text and still says so on
+screen. What stands between this and eight production projects is in `docs/PRODUCTION_V1_GO_LIVE.md`,
+and four of the eight blockers are decisions rather than engineering.
+
 ## Read before acting
 
 Approved design bundle (source of truth; precedence: README → prototype → spec v0.2 → screenshots):
@@ -196,12 +235,15 @@ Also relevant by task: `docs/DATA_MODEL.md`, `docs/PROVENANCE.md`, `docs/AI_GOVE
 `docs/PRODUCT_VALUE_AND_DIRECTION.md`, `docs/CONSULTANCY_DEMO_SCRIPT.md`,
 `docs/CLIENT_PORTAL_DECISION.md`, `docs/ENVIRONMENTAL_AUDIT_PRODUCT_DIRECTION.md`,
 `docs/REAL_DATA_INTAKE.md`, `docs/FIELD_MOBILE_ARCHITECTURE.md`,
+`docs/PROJECT_INTAKE.md`, `docs/OBJECT_STORAGE.md`,
+`docs/DOCUMENT_UPLOAD_AND_VERSIONING.md`, `docs/FIELD_MEDIA.md`,
+`docs/DOCUMENT_EXTRACTION.md`,
 `docs/OFFLINE_SYNC_PROTOCOL.md`, `docs/FIELD_MOBILE_OFFLINE_UAT.md`,
 `docs/PRODUCTION_V1_GO_LIVE.md`,
 `docs/IMPLEMENTATION_PLAN.md`, `docs/DESIGN_BUNDLE_KNOWN_ISSUES.md`, the delivery docs
 `docs/ENGINEERING_STANDARDS.md`, `docs/RELEASE_POLICY.md`, `docs/CI.md`, `docs/DEPLOYMENT.md`,
 `docs/DEPENDENCIES.md`, `docs/TECH_DEBT.md`, the Gate record `docs/DECISIONS/GATE-1.md`, and
-the ADRs in `docs/DECISIONS/ADR-001` … `ADR-029`. Root `README.md` has the local quick start.
+the ADRs in `docs/DECISIONS/ADR-001` … `ADR-033`. Root `README.md` has the local quick start.
 
 ## Working rules for every session
 
