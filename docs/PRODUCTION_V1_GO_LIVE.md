@@ -35,6 +35,9 @@ into**, rather than one study a developer seeded.
 Closed along the way: **TD-037** and **TD-080** (field media), **TD-056** (no real text source),
 **TD-089** (no storage readiness rule), **TD-094** (the stand-in text hash).
 
+Measured on merged `main`: unit **551**, integration **518**, Playwright **241**. Ten migrations,
+0034 … 0043, every one additive and forward-only.
+
 ## 2. What is *not* done, and is needed before eight real projects run on this
 
 These are the honest blockers, in the order they block.

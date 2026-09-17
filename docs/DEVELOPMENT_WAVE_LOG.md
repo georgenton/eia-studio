@@ -1079,7 +1079,7 @@ differs from `file_sha256`, which the integration suite asserts. **TD-056 closes
 source exists. New: TD-098 (OCR), TD-099 (extraction's memory profile is bounded but unmeasured),
 TD-100 (the worker and the web app resolve their own store, so `memory` is two stores).
 
-**Tests**: unit 535 → **547**, integration 507 → **518**. The integration suite builds **real files
+**Tests**: unit 535 → **551**, integration 507 → **518**. The integration suite builds **real files
 byte by byte** — a PDF with a correct cross-reference table, a DOCX with real Word heading styles,
 an archive that lies about how much it expands to — because the interesting cases are the ones
 nobody has a sample of. Migrations 0042 and 0043.
@@ -1108,7 +1108,7 @@ different place: *what may this product claim?*
 - A **citation** that names a page when there is one and a heading trail when there is not, and a
   scan that contributes no passage at all (#37).
 
-**Counts across the wave**: unit 466 → **547**, integration 458 → **518**, Playwright 235 → **241**.
+**Counts across the wave**: unit 403 → **551**, integration 452 → **518**, Playwright 235 → **241** — measured on merged `main` at `a6e7769`, not summed from the entries above.
 Migrations 0034 … 0043, every one additive and forward-only, no backfill, no destructive change, no
 RLS weakened, no `BYPASSRLS` anywhere.
 
