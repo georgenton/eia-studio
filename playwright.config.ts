@@ -133,6 +133,23 @@ export default defineConfig({
     },
     {
       /*
+       * Study #2, through the product path (Wave 3): created on the Portfolio by the tenant owner,
+       * prepared in the intake, and then checked for isolation against the pilot. Serial, because
+       * the tests are stages of one act; last, because it adds a project every other project's
+       * assertions would then have to account for.
+       */
+      name: "second-project",
+      testMatch: /(^|\/)second-project\.spec\.ts$/,
+      fullyParallel: false,
+      dependencies: ["setup", "templates"],
+      use: {
+        ...devices["Desktop Chrome"],
+        viewport: { width: 1440, height: 940 },
+        storageState: "e2e/.auth/owner.json",
+      },
+    },
+    {
+      /*
        * The template library (ADR-036). Serial and after the review project, because each test
        * builds on the previous one's rows — a registered template, then a version, then an
        * activation, then a document.

@@ -89,7 +89,11 @@ describe("staging · report tables and their guarantees", () => {
       select t.tgname as name from pg_trigger t
         join pg_class c on c.oid = t.tgrelid
         join pg_namespace n on n.oid = c.relnamespace
-       where n.nspname = 'app' and not t.tgisinternal and t.tgname like 'report_%'
+       where n.nspname = 'app' and not t.tgisinternal
+         and t.tgname like 'report_%'
+         -- The template library's tables share the report_ prefix and have their own staging
+         -- assertions (ADR-036); this test is about the report version's own immutability.
+         and t.tgname not like 'report_template%'
        order by 1
     `);
     expect((triggers.rows as Array<{ name: string }>).map((r) => r.name)).toEqual([

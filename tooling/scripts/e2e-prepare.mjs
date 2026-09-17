@@ -115,6 +115,24 @@ run([
   "--tenant-role",
   "ADMIN",
 ]);
+/*
+ * The tenant OWNER, added in Wave 3 so the suite can drive the path a consulting firm actually
+ * takes to start study #2: create the project, then prepare it. An OWNER has implicit, computed
+ * access to every project of the tenant (TENANCY.md §2.1), which is what lets the same person open
+ * the intake of a project they have just created. An ADMIN can create one and cannot prepare it —
+ * recorded as TD-111 rather than worked around here.
+ */
+run([
+  "provision:identity",
+  "--email",
+  "propietaria@demo.invalid",
+  "--name",
+  "Propietaria de la consultora",
+  "--tenant",
+  "demo-consultancy",
+  "--tenant-role",
+  "OWNER",
+]);
 
 // …and the field campaign assigns work to the synthetic technicians, so it can only be filled in
 // once they are project members. The seeder is idempotent — it replaces what it owns — so running

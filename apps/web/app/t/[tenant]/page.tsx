@@ -1,5 +1,6 @@
 import { loadPortfolio } from "@eia/application";
 import {
+  can,
   PermissionDenied,
   ROAD_EIA_SOCIAL_PROFILE,
   SURFACE_DEFINITIONS,
@@ -29,6 +30,7 @@ import { ButtonLink, ProvenanceLink } from "@/components/navigation";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { NewProject } from "@/components/new-project";
 import { ProvenancePanel } from "@/components/provenance-panel";
 import { tenantBreadcrumb, WorkspaceShell } from "@/components/workspace-shell";
 import { getRequestContext, getSessionUser } from "@/lib/context";
@@ -131,6 +133,10 @@ export default async function PortfolioPage({
           </>
         }
       />
+
+      {/* Behind `projects.create`, the tenant permission an OWNER or ADMIN holds: creating a
+          project is a tenant act, and preparing it is the project act that follows (ADR-030). */}
+      {can(ctx, "projects.create") ? <NewProject tenant={tenant} /> : null}
 
       {portfolio.metricsRestricted ? (
         <SystemState state="permission denied" title={t("portfolio.metricsRestrictedTitle")}>

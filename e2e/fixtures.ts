@@ -57,6 +57,11 @@ export const USERS = {
     name: "Coordinadora de proyecto",
     state: "e2e/.auth/coordinator.json",
   },
+  owner: {
+    email: "propietaria@demo.invalid",
+    name: "Propietaria de la consultora",
+    state: "e2e/.auth/owner.json",
+  },
   admin: {
     email: "admin@demo.invalid",
     name: "Administradora del tenant",

@@ -9,6 +9,9 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "prebuild": "expo prebuild --no-install",
+    "build:development": "eas build --profile development",
+    "build:staging": "eas build --profile staging",
+    "build:production": "eas build --profile production",
     "bundle": "expo export --platform android --platform ios --output-dir .expo-export",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run"

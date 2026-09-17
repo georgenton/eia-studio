@@ -14,6 +14,11 @@ setup("authenticate as the tenant administrator", async ({ page }) => {
   await page.context().storageState({ path: USERS.admin.state });
 });
 
+setup("authenticate as the tenant owner", async ({ page }) => {
+  await signIn(page, USERS.owner);
+  await page.context().storageState({ path: USERS.owner.state });
+});
+
 setup("authenticate as the field technician", async ({ page }) => {
   await signIn(page, USERS.technician);
   await page.context().storageState({ path: USERS.technician.state });

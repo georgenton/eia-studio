@@ -34,6 +34,7 @@
     "db:reset:local": "pnpm --filter @eia/db reset:local",
     "db:seed:demo-project": "pnpm --filter @eia/application seed:demo-project --fixture zamora-puente-del-amor",
     "demo:doctor": "pnpm --filter @eia/application demo:doctor",
+    "ops:doctor": "pnpm --filter @eia/application ops:doctor",
     "demo:preflight": "pnpm --filter @eia/application demo:preflight",
     "social:drain": "pnpm --filter @eia/application social:drain",
     "quality:run": "pnpm --filter @eia/application quality:run",

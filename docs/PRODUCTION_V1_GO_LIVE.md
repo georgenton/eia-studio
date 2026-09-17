@@ -38,6 +38,24 @@ Closed along the way: **TD-037** and **TD-080** (field media), **TD-056** (no re
 Measured on merged `main`: unit **551**, integration **518**, Playwright **241**. Ten migrations,
 0034 … 0043, every one additive and forward-only.
 
+## 1b. What Wave 3 delivered (17 September 2026)
+
+Four merged changes, two ADRs, and one blocker closed.
+
+| | What | ADR |
+|---|---|---|
+| A delivered file comes back down | *Descargar original* as a permission-checked, audited 303 to a five-minute presigned GET; and the upload → storage → **separate worker process** → chunk → citation path exercised end to end for the first time | ADR-034 |
+| An AI candidate is not a finding | A model reads the project's own passages and **proposes**; a candidate has no `requirement_key`, cannot become a `quality_finding`, is coded `IA-001`, and is headed *Candidato generado por IA*. Retrieval-first, no passage → no claim, no citation → no candidate, and a corpus with one unclassified document is **refused in full** | ADR-035 |
+| A template prints only what this product will say | A firm's own `.docx`, versioned and validated against a **closed placeholder vocabulary**; an unknown tag blocks activation, an absent value prints *Dato no disponible* and never `0`, and every generated document says it is a draft | ADR-036 |
+| Study #2, through the product | *Nuevo proyecto* on the Portfolio, then *Preparar proyecto* — the path a firm takes for roads #2…#8, with no seeder. Plus a registry test that fails the moment a project-scoped table forgets the project | — |
+
+**Migrations 0034 … 0047 are applied to staging**, and `pnpm test:staging` passes 99 assertions
+against it (`STAGING_OPERATIONS.md` §0). That closes blocker 5's database half and most of what
+§2 called "staging has never seen Wave 2".
+
+Nothing in Wave 3 enables a live model: `DOCUMENT_REVIEWER` is unset everywhere, as
+`SOCIAL_CLASSIFIER` and `ASSISTANT_GENERATOR` are.
+
 ## 2. What is *not* done, and is needed before eight real projects run on this
 
 These are the honest blockers, in the order they block.
@@ -47,8 +65,8 @@ These are the honest blockers, in the order they block.
 | 1 | **The compliance review** (SECURITY.md §10a) | Eight real projects means real households answering real questionnaires, and now also **photographs** and **delivered documents** that may hold personal data. Until the LOPDP review passes, this product's own rule is that data stays synthetic, anonymised or aggregated | owner + counsel |
 | 2 | **An object-storage bucket** (TD-090) | Wave 2 built the whole path and there is no bucket in staging or production. The deployment reports `NOT_CONFIGURED` and says so on screen; **no document can be uploaded and no photograph can leave a phone** until five environment variables are set. An account, a paid subscription and a credential — `docs/OBJECT_STORAGE.md` §7 is the four-step activation | owner |
 | 3 | **Native builds and distribution** (TD-082) | Wave 1 verified the JavaScript bundle for both platforms and generated no signed artefact; Wave 2 added a camera to a bundle nobody can install. Android and iOS development builds need a machine with the SDKs; distribution needs Apple and Google accounts, which are paid actions nobody has authorised | owner |
-| 4 | **Production hosting and recovery** | Staging's database has no backups and no point-in-time recovery, and is explicitly disposable (`docs/DEPLOYMENT.md` §4b). Production cannot inherit that — and now there are **objects as well as rows** to recover | owner + dev |
-| 5 | **A second project** | The profile mechanism has run one project. Eight will find what is pilot-shaped in it; the intake surface makes preparing one an ordinary act, so the fastest way to know is to prepare the second | dev |
+| 4 | **Production hosting and recovery** | Staging's database has no backups and no point-in-time recovery, and is explicitly disposable (`docs/DEPLOYMENT.md` §4b). Production cannot inherit that — and now there are **objects as well as rows** to recover. Wave 3 wrote the specification the hosting decision has to satisfy: `docs/PRODUCTION_RECOVERY.md` — RPO, RTO, restore order, verification, the field-device outbox problem, and secret rotation. **No backup exists and no restore has been tested** | owner + dev |
+| ~~5~~ | ~~**A second project**~~ **Closed in Wave 3.** A project is created on the Portfolio and prepared in the intake, by the product; `e2e/second-project.spec.ts` drives it and asserts isolation from the pilot on every surface, and `docs/GENERALISATION_AUDIT.md` records that no pilot constant reached product code | — |
 | 6 | **A correction workflow** | A submitted response is immutable by design, and so now are a photograph's declaration (TD-097) and a document version. Eight projects will produce corrections, and there is no reviewed path for one (TD-060 is the same gap for reports) | dev |
 | 7 | **Real device testing at distance** | `docs/FIELD_MOBILE_OFFLINE_UAT.md` is reproducible and has not been run on a handset in a corridor with no signal — §7's photograph procedure least of all, because no photograph has been taken on real hardware (TD-096). That is a field test, not a laboratory one | owner + dev |
 | 8 | **Questionnaire authoring** (TD-088) | Eight studies will not all use the pilot's questionnaire, and publishing a `SurveyVersion` is still a provisioning-tool act. The intake's *Formularios* stage reports what exists and says plainly that editing arrives later | dev |
