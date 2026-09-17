@@ -9,6 +9,7 @@ import {
   runtimeDatabaseEnvSchema,
   assistantEnvSchema,
   socialEnvSchema,
+  storageEnvSchema,
   type AppEnv,
   type AuthEnv,
   type EmailEnv,
@@ -18,8 +19,10 @@ import {
   resolveAiAdapterAvailability,
   resolveBasemapCatalogue,
   resolveClassifierAvailability,
+  resolveStorageAvailability,
   type BasemapCatalogue,
   type ClassifierAvailability,
+  type StorageAvailability,
 } from "@eia/domain";
 
 import { FIELD_APP_SCHEME, resolveTrustedOrigins, vercelHosts } from "./trusted-origins";
@@ -53,6 +56,24 @@ interface WebEnv {
    * a plain ground. A basemap is geographic context, never project evidence.
    */
   readonly basemap: BasemapCatalogue;
+  /**
+   * Whether a file can be stored here at all, resolved once from `APP_ENV` and the storage
+   * variables (ADR-031). The same shape as `classifier`, for the same reason: an unset
+   * configuration means *unavailable*, never a quiet fallback to a store whose contents vanish
+   * with the process. Surfaces that do not store a file are unaffected.
+   */
+  readonly storage: StorageAvailability;
+  /**
+   * What was configured, for the adapter to build from. Present whatever `storage` resolved to;
+   * `getStorage()` reads `storage` first and never these values.
+   */
+  readonly storageConfig: {
+    readonly bucket: string | undefined;
+    readonly region: string | undefined;
+    readonly endpoint: string | undefined;
+    readonly accessKeyId: string | undefined;
+    readonly secretAccessKey: string | undefined;
+  };
 }
 
 let cached: WebEnv | null = null;
@@ -86,6 +107,7 @@ export function getEnv(): WebEnv {
   const auth = loadEnv("auth", authEnvSchema, source);
   const social = loadEnv("social", socialEnvSchema, source);
   const assistant = loadEnv("assistant", assistantEnvSchema, source);
+  const storage = loadEnv("storage", storageEnvSchema, source);
   cached = {
     app,
     auth,
@@ -106,6 +128,23 @@ export function getEnv(): WebEnv {
       model: assistant.ASSISTANT_GENERATOR_MODEL,
       credentialPresent: assistant.AI_GATEWAY_API_KEY !== undefined,
     }),
+    storage: resolveStorageAvailability({
+      appEnv: app.APP_ENV,
+      provider: storage.STORAGE_PROVIDER,
+      bucket: storage.STORAGE_BUCKET,
+      region: storage.STORAGE_REGION,
+      endpoint: storage.STORAGE_ENDPOINT,
+      credentialsPresent:
+        storage.STORAGE_ACCESS_KEY_ID !== undefined &&
+        storage.STORAGE_SECRET_ACCESS_KEY !== undefined,
+    }),
+    storageConfig: {
+      bucket: storage.STORAGE_BUCKET,
+      region: storage.STORAGE_REGION,
+      endpoint: storage.STORAGE_ENDPOINT,
+      accessKeyId: storage.STORAGE_ACCESS_KEY_ID,
+      secretAccessKey: storage.STORAGE_SECRET_ACCESS_KEY,
+    },
     basemap: resolveBasemapCatalogue(
       ((): Parameters<typeof resolveBasemapCatalogue>[0] => {
         const basemap = loadEnv("basemap", basemapEnvSchema, source);

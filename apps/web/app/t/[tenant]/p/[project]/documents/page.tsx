@@ -5,10 +5,18 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
 import { DocumentAssistant } from "@/components/documents/document-assistant";
+import { DocumentUpload } from "@/components/documents/document-upload";
 import { projectBreadcrumb, projectLabel, WorkspaceShell } from "@/components/workspace-shell";
 import { getSessionUser } from "@/lib/context";
 import { getDb } from "@/lib/db";
-import { surfaceLabel } from "@/lib/labels";
+import { getEnv } from "@/lib/env";
+import {
+  documentKindLabel,
+  documentPrivacyLabel,
+  documentProcessingLabel,
+  surfaceLabel,
+  textSourceLabel,
+} from "@/lib/labels";
 import { getI18n } from "@/lib/locale";
 import { projectPath } from "@/lib/navigation";
 import { accessForDomainError, resolveSurfaceAccess } from "@/lib/surface-access";
@@ -92,11 +100,41 @@ export default async function DocumentsPage({
   }
 
   const assistantEnabled = ctx.capabilities["quality.rag_assistant"] === true;
+  // Two independent questions, deliberately not collapsed into one: *may this person add a file*
+  // is a permission, and *can this deployment store one* is configuration. Answering the second
+  // with a denial would blame the reader for the environment (ADR-031).
+  const mayUpload = can(ctx, "documents.write");
+  const storage = getEnv().storage;
 
   return (
     <WorkspaceShell {...shell}>
       <div className={styles.surface}>
         {assistantEnabled ? <DocumentAssistant tenant={ctx.tenantSlug} project={project} /> : null}
+
+        {mayUpload && storage.state === "AVAILABLE" ? (
+          <DocumentUpload
+            documents={documents.map((document) => ({
+              id: document.id,
+              code: document.code,
+              title: document.title,
+            }))}
+            project={project}
+            tenant={ctx.tenantSlug}
+          />
+        ) : null}
+        {mayUpload && storage.state !== "AVAILABLE" ? (
+          <Panel>
+            <PanelHeader label={t("documents.uploadTitle")} />
+            <PanelBody>
+              {/* The operator-facing `detail` names variables and stays in the logs; what a
+                  consultant reads is that uploading is off here and who turns it on. */}
+              <p className={styles.note} data-system-state="feature disabled">
+                {t("documents.storageUnavailable")}
+              </p>
+              <p className={styles.note}>{t("documents.storageUnavailableWho")}</p>
+            </PanelBody>
+          </Panel>
+        ) : null}
 
         <Panel>
           <PanelHeader
@@ -120,6 +158,7 @@ export default async function DocumentsPage({
                     <th scope="col">{t("documents.document")}</th>
                     <th scope="col">{t("documents.kind")}</th>
                     <th scope="col">{t("common.version")}</th>
+                    <th scope="col">{t("documents.state")}</th>
                     <th scope="col">{t("documents.pages")}</th>
                     <th scope="col">{t("documents.passages")}</th>
                   </tr>
@@ -137,9 +176,11 @@ export default async function DocumentsPage({
                       </td>
                       <td>
                         {document.title}
-                        <div className={styles.strategy}>{document.textSourceLabel}</div>
+                        <div className={styles.strategy}>
+                          {textSourceLabel(t, document.textSource)}
+                        </div>
                       </td>
-                      <td>{document.kindLabel}</td>
+                      <td>{documentKindLabel(t, document.kind)}</td>
                       <td className={styles.code}>
                         {document.versionLabel}
                         {document.versionCount > 1
@@ -147,6 +188,17 @@ export default async function DocumentsPage({
                               count: i18n.fmt.count(document.versionCount),
                             })
                           : ""}
+                      </td>
+                      <td className={styles.stateCell}>
+                        {documentProcessingLabel(t, document.processingState)}
+                        {/* The privacy classification is a claim the uploader made, so it is shown
+                            wherever the version is, not filed away in a detail page. */}
+                        {document.privacyClassification === "NO_PERSONAL_DATA_KNOWN" ? null : (
+                          <span className={styles.privacyFlag}>
+                            {t("documents.privacy")}:{" "}
+                            {documentPrivacyLabel(t, document.privacyClassification)}
+                          </span>
+                        )}
                       </td>
                       <td>{i18n.fmt.count(document.pageCount)}</td>
                       <td>{i18n.fmt.count(document.chunkCount)}</td>

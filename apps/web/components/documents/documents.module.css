@@ -169,3 +169,64 @@
   border-left: 2px solid var(--eia-warn, #b25e09);
   padding-left: 10px;
 }
+
+/* --- Upload form (ADR-031) --- */
+.uploadFields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  border: 0;
+  margin: 0 0 12px;
+  padding: 0;
+}
+.uploadLegend {
+  padding: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--eia-text-secondary);
+}
+.uploadChoice {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+}
+.uploadField {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin: 0 0 12px;
+  max-width: 520px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--eia-text-secondary);
+}
+.uploadField .input {
+  flex: 0 0 auto;
+  min-width: 0;
+  font-weight: 400;
+  letter-spacing: normal;
+  text-transform: none;
+  color: var(--eia-text-primary);
+}
+.uploadHelp {
+  font-size: 11.5px;
+  font-weight: 400;
+  letter-spacing: normal;
+  text-transform: none;
+  line-height: 1.5;
+  color: var(--eia-text-secondary);
+}
+.stateCell {
+  white-space: nowrap;
+}
+.privacyFlag {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--eia-text-secondary);
+}

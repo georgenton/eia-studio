@@ -1,4 +1,5 @@
 import {
+  bigint,
   boolean,
   foreignKey,
   index,
@@ -10,6 +11,7 @@ import {
 } from "drizzle-orm/pg-core";
 
 import { app, project, provenanceRecord, user } from "./app";
+import { storedObject } from "./storage";
 
 /**
  * Document intelligence tables (DATA_MODEL.md §3.2, ADR-021).
@@ -50,6 +52,39 @@ export const documentTextSource = app.enum("document_text_source", [
   "RECONSTRUCTED_EXCERPT",
   "PLAIN_TEXT",
   "PDF_TEXT",
+  /** A DOCX read as a container of sections and paragraphs, never as pages (ADR-031). */
+  "DOCX_TEXT",
+  /** The file is here and nothing has been read from it yet. */
+  "PENDING_EXTRACTION",
+]);
+
+/**
+ * Where an uploaded file has got to (PART I of the wave brief).
+ *
+ * `REQUIRES_OCR` is a terminal state and an honest one: a scanned PDF has no native text, and this
+ * product does not fabricate any. The file stays available and the surface says what happened.
+ */
+export const documentProcessingState = app.enum("document_processing_state", [
+  "UPLOADED",
+  "QUEUED",
+  "PROCESSING",
+  "READY",
+  "REQUIRES_OCR",
+  "FAILED",
+]);
+
+/**
+ * What is known about personal data in a version, as a **claim somebody made** rather than a fact
+ * the system derived.
+ *
+ * `REVIEW_REQUIRED` is the default for an uploaded file, and deliberately not "none known": the
+ * product has read nothing at that point, and a green state nobody checked is the one that would
+ * be quoted. A version that is not `NO_PERSONAL_DATA_KNOWN` is never sent to an AI provider.
+ */
+export const documentPrivacy = app.enum("document_privacy", [
+  "NO_PERSONAL_DATA_KNOWN",
+  "CONTAINS_PERSONAL_DATA",
+  "REVIEW_REQUIRED",
 ]);
 
 export const sourceDocument = app.table(
@@ -105,6 +140,25 @@ export const documentVersion = app.table(
      */
     storageKey: text("storage_key"),
     /**
+     * The verified upload this version's file came from (ADR-031). Null for a version whose text
+     * was transcribed rather than uploaded — the pilot's corpus — so the two paths stay tellable
+     * apart by looking rather than by inference.
+     */
+    storedObjectId: uuid("stored_object_id"),
+    /** SHA-256 of the **file**, distinct from `content_hash`, which is of the extracted text. */
+    fileSha256: text("file_sha256"),
+    originalFilename: text("original_filename"),
+    mimeType: text("mime_type"),
+    sizeBytes: bigint("size_bytes", { mode: "number" }),
+    processingState: documentProcessingState("processing_state").notNull().default("READY"),
+    /** Set when processing ends in `FAILED` or `REQUIRES_OCR`; bounded operational text. */
+    processingNote: text("processing_note"),
+    privacyClassification: documentPrivacy("privacy_classification")
+      .notNull()
+      .default("REVIEW_REQUIRED"),
+    /** The date the document itself bears, when it differs from when it was uploaded. */
+    sourceDate: timestamp("source_date", { withTimezone: true, mode: "date" }),
+    /**
      * Who imported it, when a person did. **Null for a version the project fixture seeded**:
      * nobody performed that action, and attributing it to a demo identity would put a name on
      * something they did not do. The surface says "cargado con el proyecto de demostración".
@@ -139,7 +193,14 @@ export const documentVersion = app.table(
       columns: [t.importedByUserId],
       foreignColumns: [user.id],
     }),
+    foreignKey({
+      name: "document_version_stored_object_fk",
+      columns: [t.tenantId, t.storedObjectId],
+      foreignColumns: [storedObject.tenantId, storedObject.id],
+    }),
     index("document_version_document_idx").on(t.tenantId, t.documentId, t.importedAt),
+    // A re-upload of the same file to the same document is answered, not duplicated (PART G3).
+    index("document_version_file_hash_idx").on(t.tenantId, t.documentId, t.fileSha256),
   ],
 );
 

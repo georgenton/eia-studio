@@ -60,6 +60,18 @@ export default defineConfig({
       },
     },
     {
+      // Its own project, after the coordinator's, because it creates documents: a golden reference
+      // taken afterwards would show the suite's own synthetic rows rather than the product.
+      name: "document-upload",
+      testMatch: /(^|\/)document-upload\.spec\.ts$/,
+      dependencies: ["setup", "coordinator"],
+      use: {
+        ...devices["Desktop Chrome"],
+        viewport: { width: 1440, height: 940 },
+        storageState: "e2e/.auth/coordinator.json",
+      },
+    },
+    {
       name: "admin",
       testMatch: /admin\.spec\.ts/,
       dependencies: ["setup"],
@@ -177,6 +189,10 @@ export default defineConfig({
             // because this is a test run, and nowhere else selects it for us.
             SOCIAL_CLASSIFIER: "fake",
             SOCIAL_CLASSIFIER_MODEL: "fake/deterministic",
+            // Also explicit, for the same reason (ADR-031). `memory` is a real implementation of
+            // the storage port whose bytes live in this server process, and it is refused outside
+            // `local` and `test` — so selecting it here selects it nowhere else.
+            STORAGE_PROVIDER: "memory",
           },
         },
 

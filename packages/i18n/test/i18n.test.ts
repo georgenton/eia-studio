@@ -8,6 +8,9 @@ import {
   CAMPAIGN_STATUSES,
   CAPTURE_CHANNELS,
   CHAINAGE_METHODS,
+  DOCUMENT_KINDS,
+  DOCUMENT_PRIVACY_CLASSIFICATIONS,
+  DOCUMENT_PROCESSING_STATES,
   FIELD_OFFLINE_MODES,
   FORBIDDEN_FINDING_WORDS,
   INSTANCE_STATUSES,
@@ -26,6 +29,7 @@ import {
   REVIEW_DECISIONS,
   SURFACE_DEFINITIONS,
   TENANT_ROLES,
+  TEXT_SOURCES,
   VALIDATION_STATES,
   VISIT_STATUSES,
   WORKSPACE_SURFACES,
@@ -233,6 +237,10 @@ const RENDERED_VALUES: ReadonlyArray<[string, ReadonlyArray<string>]> = [
   ["offlineModeDescription", FIELD_OFFLINE_MODES],
   ["captureChannel", CAPTURE_CHANNELS],
   ["captureChannelNote", CAPTURE_CHANNELS],
+  ["documentKind", DOCUMENT_KINDS],
+  ["textSource", TEXT_SOURCES],
+  ["documentProcessing", DOCUMENT_PROCESSING_STATES],
+  ["documentPrivacy", DOCUMENT_PRIVACY_CLASSIFICATIONS],
 ];
 
 describe("the words for stored values", () => {
@@ -252,13 +260,7 @@ describe("the words for stored values", () => {
     // the failure means something different: dead copy for a value nothing can produce, which a
     // reader of the catalogue would take for a state the product has.
     const declared = new Set(RENDERED_VALUES.map(([ns]) => ns));
-    const known = new Set([
-      ...declared,
-      "requirement",
-      "documentProcessing",
-      "documentPrivacy",
-      "mediaState",
-    ]);
+    const known = new Set([...declared, "requirement", "mediaState"]);
     for (const ns of Object.keys(esEC.vocabulary)) {
       expect(known.has(ns), `vocabulary.${ns} is not covered by a test`).toBe(true);
     }

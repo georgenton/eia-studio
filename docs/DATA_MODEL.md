@@ -151,6 +151,37 @@ DocumentChunk { id, document_version_id, ordinal, page_from, page_to, section_pa
 DocumentLocator (value) { document_version_id, page?, section?, chunk_id?, bbox?, quote? }
 ```
 
+**As built, after ADR-031.** `DocumentVersion` gained the columns an uploaded file needs, beside
+the ones a transcribed excerpt already had:
+
+```
+DocumentVersion + { stored_object_id, file_sha256, original_filename, mime_type, size_bytes,
+                    processing_state: UPLOADED|QUEUED|PROCESSING|READY|REQUIRES_OCR|FAILED,
+                    processing_note, privacy_classification, source_date }
+```
+
+- `content_hash` is the hash of the **extracted text**; `file_sha256` is the hash of the delivered
+  bytes. Both are needed, and while a version is unprocessed the first holds the second (TD-094).
+- `privacy_classification` is a **claim the uploader made**, defaulting to `REVIEW_REQUIRED` and
+  never to "none known"; only `NO_PERSONAL_DATA_KNOWN` is eligible to leave for a model provider.
+- `storage_key` is `t/{tenantId}/p/{projectId}/documents/{objectId}` and carries **no filename**;
+  the delivered name is `original_filename` on the row, under RLS.
+- A version that arrived before the object store has all of these null and `processing_state =
+  READY`, which is what a transcribed excerpt is.
+
+### 3.2a Object storage (ADR-031)
+
+```
+UploadIntent { id, tenant_id, project_id, namespace: documents|field-media, object_key,
+               declared_filename, declared_mime_type, declared_size_bytes, max_bytes,
+               issued_by_user_id, expires_at, state: ISSUED|FINALIZED|ABANDONED, finalized_at }
+StoredObject { id, tenant_id, project_id, namespace, object_key, original_filename, mime_type,
+               size_bytes, sha256, uploaded_by_user_id, created_at }   -- immutable
+```
+
+An intent is consumable exactly once (trigger) and a stored object is immutable (`REVOKE UPDATE,
+DELETE` **and** trigger). Both are FORCE RLS with the composite FK to `project`.
+
 ### 3.3 GIS
 
 **Implemented in Slice 2** (migrations `0009`, `0010`, and the Gate 2 hardening `0011`). The

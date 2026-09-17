@@ -230,6 +230,10 @@ describe("5 · Missing tenant context does not produce cross-tenant data", () =>
       "app.tenant_capability",
       "app.project_capability_setting",
       "audit.log",
+      // ADR-031: the two storage tables carry the same predicate as everything else, and a
+      // connection with no context must see no key — a key names a tenant and a project.
+      "app.upload_intent",
+      "app.stored_object",
       'app."user"',
     ]) {
       expect(await countVisible(db.runtime, none, table), table).toBe(0);

@@ -6,7 +6,13 @@ import { notFound, redirect } from "next/navigation";
 import { projectBreadcrumb, projectLabel, WorkspaceShell } from "@/components/workspace-shell";
 import { getSessionUser } from "@/lib/context";
 import { getDb } from "@/lib/db";
-import { surfaceLabel } from "@/lib/labels";
+import {
+  documentKindLabel,
+  documentPrivacyLabel,
+  documentProcessingLabel,
+  surfaceLabel,
+  textSourceLabel,
+} from "@/lib/labels";
 import { getI18n } from "@/lib/locale";
 import { projectPath } from "@/lib/navigation";
 import { accessForDomainError, resolveSurfaceAccess } from "@/lib/surface-access";
@@ -100,7 +106,7 @@ export default async function DocumentPage({
           <PanelHeader
             label={`${document.code} ${document.versionLabel} · ${document.title}`}
             note={t("documents.detailNote", {
-              kind: document.kindLabel,
+              kind: documentKindLabel(t, document.kind),
               pages: i18n.fmt.count(document.pageCount),
               passages: i18n.fmt.count(document.chunkCount),
             })}
@@ -109,8 +115,33 @@ export default async function DocumentPage({
             {document.superseded ? (
               <p className={styles.superseded}>{t("documents.supersededNote")}</p>
             ) : null}
+            {/* Uploaded is not processed, and the version says which it is before it says
+                anything else. A reader who takes an unprocessed version for an empty one would
+                conclude the document has nothing in it. */}
+            {document.processingState === "READY" ? null : (
+              <p className={styles.superseded} data-processing-state={document.processingState}>
+                <strong>{documentProcessingLabel(t, document.processingState)}.</strong>{" "}
+                {document.processingState === "REQUIRES_OCR"
+                  ? t("documents.requiresOcrNote")
+                  : document.processingState === "FAILED"
+                    ? t("documents.processingFailedNote")
+                    : t("documents.notProcessedYet")}
+              </p>
+            )}
             <p className={styles.note}>
-              <strong>{document.textSourceLabel}.</strong> {document.sourceNote}
+              <strong>{textSourceLabel(t, document.textSource)}.</strong> {document.sourceNote}
+            </p>
+            <p className={styles.strategy}>
+              {t("documents.privacy")}: {documentPrivacyLabel(t, document.privacyClassification)}
+              {document.originalFilename === null ? null : (
+                <>
+                  {" · "}
+                  {t("documents.originalFilename")}: <code>{document.originalFilename}</code>
+                </>
+              )}
+              {document.sizeBytes === null
+                ? null
+                : ` · ${t("documents.fileSize")}: ${i18n.fmt.bytes(document.sizeBytes)}`}
             </p>
             <p className={styles.strategy}>
               {t("documents.chunkingStrategy")} <code>{document.chunkingStrategy}</code>.{" "}

@@ -260,6 +260,27 @@
       "when": 1789602919027,
       "tag": "0036_project_data_manager_role",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1789603045714,
+      "tag": "0037_object_storage",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1789603046714,
+      "tag": "0038_object_storage_rls",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1789603290030,
+      "tag": "0039_document_upload",
+      "breakpoints": true
     }
   ]
 }

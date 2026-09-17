@@ -10,8 +10,8 @@ export { ConsoleEmailAdapter, NoopEmailAdapter } from "./ports/email";
 export type { EmailLogger, EmailMessage, EmailPort } from "./ports/email";
 export { InMemoryJobQueue } from "./ports/job-queue";
 export type { JobEnvelope, JobQueuePort } from "./ports/job-queue";
-export { formatStorageKey } from "./ports/storage";
-export type { StorageKey, StoragePort } from "./ports/storage";
+export { DOWNLOAD_LINK_TTL_SECONDS, UPLOAD_INTENT_TTL_SECONDS } from "./ports/storage";
+export type { DownloadLink, StoragePort, StoredObject, UploadIntent } from "./ports/storage";
 export {
   ROAD_EIA_SOCIAL_PROFILE,
   SYSTEM_PROFILES,

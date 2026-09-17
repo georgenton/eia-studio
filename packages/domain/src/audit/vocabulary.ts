@@ -11,6 +11,11 @@ export const AUDIT_ACTIONS = [
   // Preparing a project, and the one column that moves it out of planning (ADR-030).
   "project.intake.updated",
   "project.activated",
+  // An upload is authorised once and proved once (ADR-031). Neither line carries a filename: an
+  // audit entry is read by more people than the row is, and a filename can name a person.
+  "storage.upload.intent_issued",
+  "storage.upload.finalized",
+  "document.version.uploaded",
   "project.membership.added",
   "project.membership.removed",
   "capability.tenant.changed",

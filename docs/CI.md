@@ -48,7 +48,9 @@ Add to `quality`, in this order (fail fast, cheapest first):
 
 Add job `db` (needs Docker):
 
-1. start PostgreSQL with PostGIS + pgvector via Testcontainers (or a service container);
+1. start PostgreSQL with PostGIS + pgvector via Testcontainers (or a service container), and
+   MinIO for the object-storage suite — from `quay.io/minio/minio`, so no Docker Hub pull
+   limit and **no cloud bucket or credential** is needed for a normal run (ADR-031);
 2. `pnpm db:migrate` against an empty database → **migration verification** (applies cleanly,
    is idempotent on re-run, `drizzle-kit check` reports no drift between schema and migrations);
 3. `pnpm test:integration` (repositories, RLS policy tests, schema assertions: every table in

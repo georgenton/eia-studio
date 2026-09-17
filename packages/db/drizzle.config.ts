@@ -16,6 +16,7 @@ export default defineConfig({
     "./src/schema/reports.ts",
     "./src/schema/pgas.ts",
     "./src/schema/portal.ts",
+    "./src/schema/storage.ts",
   ],
   out: "./migrations",
   schemaFilter: ["app", "auth", "audit", "portal"],

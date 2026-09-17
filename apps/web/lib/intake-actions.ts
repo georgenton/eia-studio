@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { getDb } from "@/lib/db";
+import { storageReadiness } from "@/lib/storage";
 import { getTranslator } from "@/lib/locale";
 import { resolveSurfaceAccess } from "@/lib/surface-access";
 
@@ -67,7 +68,7 @@ export async function activateProjectAction(raw: unknown): Promise<IntakeActionR
   if (access.kind !== "ok") return { ok: false, error: t("actions.noSurfaceAccess") };
 
   try {
-    const result = await activateProject(getDb(), access.ctx);
+    const result = await activateProject(getDb(), access.ctx, storageReadiness());
     if (result.blocked.length > 0) {
       return { ok: false, error: t("intake.activationBlocked"), blocked: result.blocked };
     }

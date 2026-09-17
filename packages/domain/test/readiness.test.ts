@@ -40,6 +40,7 @@ function snapshot(over: Partial<ReadinessSnapshot> = {}): ReadinessSnapshot {
     campaign: { captureChannel: "NATIVE_WEB", status: "ACTIVE", ...(over.campaign ?? {}) },
     offlineMode: over.offlineMode ?? "disabled",
     corpus: { documents: 6, ...(over.corpus ?? {}) },
+    storage: { available: true, reason: null, ...(over.storage ?? {}) },
   };
 }
 
@@ -221,5 +222,40 @@ describe("the Project Data Manager's least privilege (ADR-030)", () => {
   it("cannot turn a module on or off, or manage the project's members", () => {
     expect(dataManager.has("project.configure")).toBe(false);
     expect(dataManager.has("project.members.manage")).toBe(false);
+  });
+});
+
+describe("somewhere to put a file (ADR-031)", () => {
+  it("is advisory: a deployment with no storage does not stop field work", () => {
+    const report = evaluateReadiness(
+      snapshot({ storage: { available: false, reason: "NOT_CONFIGURED" } }),
+    );
+    const storage = report.checks.find((c) => c.key === "project.storage");
+    expect(storage?.outcome).toBe("blocked");
+    expect(storage?.severity).toBe("advisory");
+    // Field capture stores nothing. Refusing to activate a project because a document could not be
+    // uploaded would stop the work over a facility that work does not use.
+    expect(report.operable).toBe(true);
+    expect(report.advisory).toContain("project.storage");
+  });
+
+  it("carries the reason as a code, never the operator-facing detail", () => {
+    const report = evaluateReadiness(
+      snapshot({ storage: { available: false, reason: "BLOCKED_EXTERNAL_CONFIG" } }),
+    );
+    const storage = report.checks.find((c) => c.key === "project.storage");
+    expect(storage?.detail).toEqual({ reason: "BLOCKED_EXTERNAL_CONFIG" });
+    // The resolver's `detail` names environment variables; it belongs in a log, not on a screen.
+    expect(JSON.stringify(storage?.detail)).not.toMatch(/STORAGE_/);
+  });
+
+  it("does not apply when nothing on this project would ever store a file", () => {
+    const report = evaluateReadiness(
+      snapshot({
+        capabilities: capabilities({ "core.documents": false, "field.surveys": false }),
+        storage: { available: false, reason: "NOT_CONFIGURED" },
+      }),
+    );
+    expect(report.checks.find((c) => c.key === "project.storage")?.outcome).toBe("not_applicable");
   });
 });

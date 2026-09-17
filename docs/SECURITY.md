@@ -116,7 +116,11 @@ Principles:
 
 ## 7. Object storage isolation
 
-- Key layout: `t/{tenant_id}/p/{project_id}/{module}/{object_id}/{filename}`; documents, media and
+> **Amended by ADR-031 (Production V1 Wave 2).** The key layout below originally ended
+> `…/{object_id}/{filename}`. It no longer carries a filename — see §7a. Everything else in this
+> section stands.
+
+- Key layout: `t/{tenant_id}/p/{project_id}/{namespace}/{object_id}`; documents, media and
   exports are all under the project prefix; portal PDF exports live under
   `t/{tenant_id}/p/{project_id}/portal/` and are the only objects the portal can be given.
 - No public buckets; every read/write is a short-lived presigned URL minted by a use-case after
@@ -124,6 +128,24 @@ Principles:
 - Media EXIF: GPS is required data for field evidence and stays in the `Media` row; before any
   export to the portal or a deliverable, files are re-encoded without EXIF.
 - Bucket per environment; server-side encryption; lifecycle rules for exports.
+
+### 7a. A key carries no filename, and no client proposes one (ADR-031)
+
+Two changes to the original layout, both for the same reason: a bucket listing is a flat text file
+that operators, backups, the provider's console and support tickets all see, and it is the one place
+RLS does not reach.
+
+| Control | Mechanism |
+|---|---|
+| No name in the address | `t/{tenantId}/p/{projectId}/{namespace}/{objectId}` — six segments, four UUIDs, `namespace` ∈ {`documents`, `field-media`}. No filename, no extension, no document code, no date. A delivered file can be called *Levantamiento predio 41 — Sra. Rosa Chamba.pdf* |
+| The name is kept where reading it is authorized | on `stored_object` and `document_version`, under RLS, and restored on the download link as a `Content-Disposition` name |
+| The server mints the key | `buildObjectKey` takes no string a person typed; `createUploadIntent` accepts a namespace, a filename, a type and a size, and returns a URL. A client that can name a key can name another tenant's |
+| The key is re-checked on the way back | `assertObjectKeyBelongsTo` parses a stored key against the caller's own tenant, project and namespace at finalize, so a row written by an older, wider version could not be finalized into this project |
+| An upload is not trusted because the client says so | `finalizeUpload` asks the provider: is there an object, of an acceptable size, whose first bytes are the declared format's signature? The SHA-256 is computed from the bytes read back. `ETag` is recorded as the provider's entity tag and **never** treated as a content hash |
+| Nothing is stored for a format we do not accept | extension, declared MIME type and signature must agree, against a two-format allowlist per namespace. A `.docx` is a ZIP, and `ARCHIVE_LIMITS` bounds what extraction may read out of it |
+| Deduplication never crosses a tenant | the file hash is matched within one project and namespace: whether another firm holds the same file is not a fact this product may reveal |
+| Storage off is a state, not a crash | `resolveStorageAvailability` (the shape of IG4-001): an unset provider is *unavailable*, `memory` is refused outside `local` and `test`, and there is no fallback — a file that is not where the database says it is would be discovered by whoever needed it most |
+| Both tables | `upload_intent` (consumable exactly once, by trigger) and `stored_object` (immutable by `REVOKE UPDATE, DELETE` **and** a trigger), FORCE RLS, tenant/project columns and the composite FK |
 
 ## 8. Vector / RAG isolation
 

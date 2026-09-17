@@ -110,19 +110,34 @@ describe("loadEnv", () => {
     expect(env.AUTH_TRUSTED_ORIGINS).toEqual(["http://a.test", "http://b.test"]);
   });
 
-  it("storage is all-or-nothing", () => {
-    expect(loadEnv("storage", storageEnvSchema, {}).configured).toBe(false);
-    expect(() => loadEnv("storage", storageEnvSchema, { STORAGE_BUCKET: "b" })).toThrowError(
-      /STORAGE_\*/,
-    );
+  // Shape only, and deliberately not all-or-nothing any more (ADR-031). A half-configured storage
+  // environment is an `UNAVAILABLE` outcome named by `resolveStorageAvailability` in the domain,
+  // not a startup failure: taking a whole deployment down over a feature it may not use that day
+  // would be the worse outcome. What the schema still enforces is that a value present is a value
+  // of the right shape — an endpoint that is not a URL fails here rather than at signing time.
+  it("accepts a partial storage environment and checks the shape of what is present", () => {
+    expect(loadEnv("storage", storageEnvSchema, {})).toEqual({});
+    expect(loadEnv("storage", storageEnvSchema, { STORAGE_BUCKET: "b" }).STORAGE_BUCKET).toBe("b");
+
     const full = loadEnv("storage", storageEnvSchema, {
+      STORAGE_PROVIDER: "s3",
       STORAGE_ENDPOINT: "http://localhost:9000",
       STORAGE_REGION: "auto",
       STORAGE_BUCKET: "eia",
       STORAGE_ACCESS_KEY_ID: "k",
       STORAGE_SECRET_ACCESS_KEY: "s",
     });
-    expect(full.configured).toBe(true);
+    expect(full.STORAGE_PROVIDER).toBe("s3");
+    expect(full.STORAGE_ENDPOINT).toBe("http://localhost:9000");
+
+    // `localhost:9000` parses as a URL whose protocol is `localhost:`; a storage endpoint is
+    // http(s) or it is a mistake, and the mistake belongs at boot rather than at signing time.
+    for (const endpoint of ["localhost:9000", "ftp://store.test", "eia-storage"]) {
+      expect(() =>
+        loadEnv("storage", storageEnvSchema, { STORAGE_ENDPOINT: endpoint }),
+      ).toThrowError(/STORAGE_ENDPOINT/);
+    }
+    expect(storageEnvSchema.safeParse({ STORAGE_SECRET_KEY: "s" }).success).toBe(false);
   });
 
   it("coerces worker numbers and booleans", () => {

@@ -9,12 +9,27 @@
 |---|---|---|---|
 | Unit | Vitest | pure functions: capability resolver, permission resolver, forecast arithmetic, frequency/cross-tab calculators, locator validation, deidentification scrubbers, copy linters | every push |
 | Domain | Vitest + in-memory repositories | use-cases and aggregate invariants (state machines, immutability rules) with `RequestContext` for tenant A/B | every push |
-| Integration / DB | Vitest + Testcontainers (Postgres with PostGIS + pgvector), real migrations | repositories, RLS policies, composite FKs, triggers, job handlers | every push (parallel) |
+| Integration / DB | Vitest + Testcontainers (Postgres with PostGIS + pgvector, and **MinIO** for object storage), real migrations | repositories, RLS policies, composite FKs, triggers, job handlers, presigned upload and download over the wire | every push (parallel) |
 | Cross-tenant attack suite | Vitest + Testcontainers, dedicated harness in `packages/testing` | every server entry point and job exercised with a foreign context | every push, **gate** |
 | API / server actions | Vitest with a Next.js test harness (request → action) | validation, context building, capability and permission enforcement, error → state mapping | every push |
 | E2E | Playwright | connected flows from the prototype; the 15 states | nightly + pre-release |
 | Visual regression | Playwright screenshots vs the 11 goldens (masked dynamic regions, perceptual tolerance) | shell, Command Center, GIS, Parcel, Social (2), Quality (2), Portal, Tenant modules, states gallery | nightly + pre-release |
 | Performance smoke | k6 or Playwright timing | GIS layer load, queue navigation, portal TTFB | pre-release |
+
+### Object storage in tests (ADR-031)
+
+Three stores, and the choice is deliberate in each case. **Normal CI requires no cloud bucket and
+no credential.**
+
+| Suite | Store | Why |
+|---|---|---|
+| unit | none | the rules — the key, the format gate, the archive limits, availability — are pure |
+| integration | **MinIO in a Testcontainer**, image `quay.io/minio/minio` | real presigned URLs, real `PUT` over `fetch`, real `HeadObject`. MinIO's own registry rather than Docker Hub, whose anonymous pull limits fail a CI run for reasons that have nothing to do with the change |
+| e2e | the in-memory store (`STORAGE_PROVIDER=memory` in `playwright.config.ts`) | one server process holds the bytes, and the use-cases verify them exactly as they verify a provider's. The browser sends them through a server action because that store has no URL to PUT to (TD-092) |
+
+The e2e suite is where the renamed `.exe` is proved: the upload succeeds, the finalize reads the
+stored bytes, and no document exists. A test that stopped at the file picker would only be
+exercising the `accept` attribute, which is a convenience and not a control.
 
 Fixtures for tests are generic factories (`tenantA`, `tenantB`, `projectX`, `projectY`,
 `userAdminA`, `userViewerB`, `clientGrantX`). Zamora fixtures are used only for scenario tests

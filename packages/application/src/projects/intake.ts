@@ -60,6 +60,10 @@ export interface IntakeDocument {
   readonly kind: string;
   readonly versionLabel: string;
   readonly versionCount: number;
+  /** Where the current version's file has got to. Uploaded is not processed (ADR-031). */
+  readonly processingState: string;
+  /** What the uploader declared about personal data in it. Never something this product derived. */
+  readonly privacyClassification: string;
 }
 
 export interface ProjectIntakeView {
@@ -97,9 +101,24 @@ export interface ProjectIntakeView {
   readonly editable: boolean;
 }
 
+/**
+ * Whether this deployment can store a file, as the caller already resolved it.
+ *
+ * Passed in rather than read here, because `resolveStorageAvailability` reads the environment and
+ * the application layer does not (ARCHITECTURE §9.1): the web app resolves it once at startup and
+ * the worker would resolve its own. Omitted, the readiness report treats storage as available —
+ * which is what a caller that never stores a file is entitled to assume.
+ */
+export interface StorageReadiness {
+  readonly available: boolean;
+  /** `NOT_CONFIGURED`, `MEMORY_REFUSED_IN_PERSISTENT_ENVIRONMENT`, `BLOCKED_EXTERNAL_CONFIG`. */
+  readonly reason: string | null;
+}
+
 export async function loadProjectIntake(
   db: Database,
   ctx: RequestContext,
+  storage: StorageReadiness = { available: true, reason: null },
 ): Promise<ProjectIntakeView> {
   requirePermission(ctx, "project.intake.read");
   const projectId = requireProject(ctx);
@@ -161,10 +180,16 @@ export async function loadProjectIntake(
       kind: string;
       version_label: string;
       version_count: number;
+      processing_state: string | null;
+      privacy_classification: string | null;
     }>(sql`
       select d.code, d.title, d.kind::text as kind,
              (array_agg(v.version_label order by v.created_at desc))[1] as version_label,
-             count(v.id)::int as version_count
+             count(v.id)::int as version_count,
+             (array_agg(v.processing_state::text order by v.created_at desc))[1]
+               as processing_state,
+             (array_agg(v.privacy_classification::text order by v.created_at desc))[1]
+               as privacy_classification
         from app.source_document d
         left join app.document_version v on v.document_id = d.id
        where d.project_id = ${projectId}
@@ -242,6 +267,7 @@ export async function loadProjectIntake(
       },
       offlineMode,
       corpus: { documents: documents.rows.length },
+      storage,
     });
 
     return {
@@ -264,6 +290,10 @@ export async function loadProjectIntake(
         kind: row.kind,
         versionLabel: row.version_label ?? "",
         versionCount: row.version_count,
+        // A document with no version at all reports the state of nothing, which is what an empty
+        // string says; the stage renders the row as having no file rather than inventing one.
+        processingState: row.processing_state ?? "",
+        privacyClassification: row.privacy_classification ?? "",
       })),
       surveys: surveys.rows.map((row) => ({
         templateName: row.template_name,
@@ -378,10 +408,11 @@ export async function updateProjectIntake(
 export async function activateProject(
   db: Database,
   ctx: RequestContext,
+  storage?: StorageReadiness,
 ): Promise<{ lifecycle: string; blocked: ReadonlyArray<string> }> {
   requirePermission(ctx, "project.intake.write");
   const projectId = requireProject(ctx);
-  const view = await loadProjectIntake(db, ctx);
+  const view = await loadProjectIntake(db, ctx, storage);
   if (!view.readiness.operable) {
     return { lifecycle: view.project.lifecycle, blocked: view.readiness.blocking };
   }

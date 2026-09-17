@@ -9,6 +9,7 @@ export * as documentsSchema from "./documents";
 export * as reportsSchema from "./reports";
 export * as pgasSchema from "./pgas";
 export * as portalSchema from "./portal";
+export * as storageSchema from "./storage";
 
 import * as appTables from "./app";
 import * as auditTables from "./audit";
@@ -19,6 +20,7 @@ import * as documentTables from "./documents";
 import * as pgasTables from "./pgas";
 import * as portalTables from "./portal";
 import * as reportTables from "./reports";
+import * as storageTables from "./storage";
 import * as qualityTables from "./quality";
 import * as socialTables from "./social";
 
@@ -46,6 +48,10 @@ export const schema = {
   parcel: gisTables.parcel,
   parcelGeometry: gisTables.parcelGeometry,
   affectation: gisTables.affectation,
+  uploadIntent: storageTables.uploadIntent,
+  storedObject: storageTables.storedObject,
+  storageNamespace: storageTables.storageNamespace,
+  uploadIntentState: storageTables.uploadIntentState,
   projectConfiguration: fieldTables.projectConfiguration,
   surveyTemplate: fieldTables.surveyTemplate,
   surveyVersion: fieldTables.surveyVersion,

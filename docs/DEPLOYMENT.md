@@ -64,7 +64,7 @@ Postgres. Migrations for previews run from the PR branch against that disposable
 | `DATABASE_PORTAL_URL` | web (portal route group) | `eia_portal`, `portal` schema only |
 | `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL` | web | identity layer |
 | `AUTH_TRUSTED_ORIGINS` | web | preview/staging origins |
-| `STORAGE_ENDPOINT`, `STORAGE_REGION`, `STORAGE_BUCKET`, `STORAGE_ACCESS_KEY_ID`, `STORAGE_SECRET_ACCESS_KEY`, `STORAGE_FORCE_PATH_STYLE` | both | S3-compatible |
+| `STORAGE_PROVIDER`, `STORAGE_BUCKET`, `STORAGE_REGION`, `STORAGE_ENDPOINT`, `STORAGE_ACCESS_KEY_ID`, `STORAGE_SECRET_ACCESS_KEY` | both | S3-compatible (ADR-031). **No default**: unset means file upload is unavailable and says so, and nothing falls back to the in-memory store. Path-style addressing follows from having an endpoint, so there is no separate switch. Activation is `docs/OBJECT_STORAGE.md` §7 — an owner action (TD-090) |
 | `EMAIL_PROVIDER_API_KEY`, `EMAIL_FROM` | web, worker | invitations, notifications |
 | `MAP_TILES_URL`, `MAP_TILES_API_KEY` | web (public part via `NEXT_PUBLIC_MAP_STYLE_URL`) | base map |
 | `PUBLIC_APP_URL`, `PUBLIC_PORTAL_URL` | both | links in emails/PDFs |
