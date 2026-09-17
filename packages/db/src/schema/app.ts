@@ -27,6 +27,7 @@ export const app = pgSchema("app");
 export const tenantRole = app.enum("tenant_role", ["OWNER", "ADMIN", "MEMBER"]);
 export const projectRole = app.enum("project_role", [
   "COORDINATOR",
+  "PROJECT_DATA_MANAGER",
   "SOCIAL_SPECIALIST",
   "ENVIRONMENTAL_SPECIALIST",
   "GIS_SPECIALIST",

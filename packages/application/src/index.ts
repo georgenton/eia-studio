@@ -35,6 +35,18 @@ export {
 export { loadCommandCenter } from "./projects/command-center";
 export type { CommandCenterView, ProjectHeader } from "./projects/command-center";
 export { loadWorkspaceHeader, loadPortfolio } from "./projects/portfolio";
+export {
+  activateProject,
+  loadProjectIntake,
+  updateProjectIntake,
+  updateProjectIntakeInputSchema,
+} from "./projects/intake";
+export type {
+  IntakeDocument,
+  IntakeSurvey,
+  IntakeTeamMember,
+  ProjectIntakeView,
+} from "./projects/intake";
 export type { PortfolioCard, PortfolioView } from "./projects/portfolio";
 export {
   facetsOf,

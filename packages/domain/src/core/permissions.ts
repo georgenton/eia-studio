@@ -23,6 +23,17 @@ export const TENANT_PERMISSIONS = [
 export const PROJECT_PERMISSIONS = [
   "project.configure",
   "project.members.manage",
+  /*
+   * Preparing a project is not configuring it (ADR-030).
+   *
+   * `project.configure` decides which *modules* a project has — it is the write side of the
+   * capability resolver, and turning one off hides routes for everybody on the project. Preparing
+   * a project is filling in what the product needs to run it: the study's title, where it is, the
+   * settings under a module that is already on, and reading how far that preparation has got.
+   * A data manager does the second and not the first, which is why these are two keys and not one.
+   */
+  "project.intake.read",
+  "project.intake.write",
   "parcels.read",
   "parcels.write",
   "geometry.import",

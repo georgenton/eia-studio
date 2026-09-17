@@ -1,0 +1,203 @@
+.surface {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 1180px;
+}
+.lead {
+  margin: 0 0 12px;
+  font-size: 12.5px;
+  color: var(--eia-text-primary);
+  line-height: 1.55;
+  max-width: 82ch;
+}
+.note {
+  margin: 0 0 10px;
+  font-size: 11.5px;
+  color: var(--eia-text-secondary);
+  line-height: 1.5;
+  max-width: 88ch;
+}
+.stages {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.stage {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--eia-text-secondary);
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+}
+.stageCurrent {
+  color: var(--eia-text-primary);
+  border-bottom-color: var(--eia-accent, #1f4f46);
+}
+.stageIndex {
+  font-family: var(--eia-font-mono);
+  font-size: 10px;
+  opacity: 0.6;
+}
+.fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+  margin: 0 0 12px;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.label {
+  font-size: 10.5px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--eia-text-secondary);
+}
+.input,
+.select {
+  padding: 7px 9px;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--eia-text-primary);
+  background: var(--eia-surface, #fff);
+  border: 1px solid var(--eia-hairline);
+  border-radius: 2px;
+}
+.readonlyValue {
+  font-size: 12.5px;
+  color: var(--eia-text-primary);
+}
+.actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.primary {
+  padding: 7px 14px;
+  font: inherit;
+  font-size: 12px;
+  color: #fff;
+  background: var(--eia-accent, #1f4f46);
+  border: 1px solid var(--eia-accent, #1f4f46);
+  border-radius: 2px;
+  cursor: pointer;
+}
+.primary:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.feedback {
+  font-size: 11.5px;
+}
+.ok {
+  color: var(--eia-accent, #1f4f46);
+}
+.bad {
+  color: var(--eia-crit, #8c2f26);
+}
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.table th,
+.table td {
+  padding: 6px 8px;
+  text-align: left;
+  border-bottom: 1px solid var(--eia-hairline);
+  vertical-align: top;
+}
+.table th {
+  font-size: 10.5px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--eia-text-secondary);
+  font-weight: 500;
+}
+.code {
+  font-family: var(--eia-font-mono);
+  font-size: 11.5px;
+}
+.counts {
+  display: flex;
+  gap: 18px;
+  margin: 0 0 10px;
+  padding: 0;
+  list-style: none;
+  font-size: 12.5px;
+}
+.checks {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.check {
+  display: grid;
+  grid-template-columns: 22px 1fr auto;
+  gap: 8px;
+  align-items: start;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--eia-hairline);
+}
+.check:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+/* The glyph is the signal, not the colour: state never rests on colour alone. */
+.glyph {
+  font-family: var(--eia-font-mono);
+  font-size: 13px;
+  line-height: 1.4;
+}
+.checkName {
+  font-size: 12.5px;
+  color: var(--eia-text-primary);
+}
+.checkWhat {
+  display: block;
+  margin-top: 2px;
+  font-size: 11.5px;
+  color: var(--eia-text-secondary);
+  line-height: 1.5;
+  max-width: 88ch;
+}
+.checkDetail {
+  display: block;
+  margin-top: 2px;
+  font-family: var(--eia-font-mono);
+  font-size: 11px;
+  color: var(--eia-text-secondary);
+}
+.severity {
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--eia-text-secondary);
+  white-space: nowrap;
+}
+.verdict {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--eia-text-primary);
+}
+.empty {
+  margin: 0;
+  font-size: 12px;
+  color: var(--eia-text-secondary);
+  line-height: 1.5;
+  max-width: 88ch;
+}

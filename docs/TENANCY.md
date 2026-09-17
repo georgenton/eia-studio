@@ -62,7 +62,8 @@ Derived from the README role list and the prototype matrix (PRODUCT.md §3):
 
 | Role | Label (UI) | Permissions (project scope) |
 |---|---|---|
-| `COORDINATOR` | Coordinador de proyecto | project.configure, project.members.manage, parcels.write, field.write, field.validate, social.read, quality.write, reports.write, deliverables.approve, portal.publish, pii.read (audited) |
+| `COORDINATOR` | Coordinador de proyecto | project.configure, project.members.manage, project.intake.read, project.intake.write, parcels.write, field.write, field.validate, social.read, quality.write, reports.write, deliverables.approve, portal.publish, pii.read (audited) |
+| `PROJECT_DATA_MANAGER` | Gestor de información | project.intake.read, project.intake.write, parcels.read, parcels.write, geometry.import, field.read, documents.read, documents.write, provenance.read |
 | `SOCIAL_SPECIALIST` | Especialista social | parcels.read, field.read, social.write (coding, taxonomy proposal decisions), quality.write, reports.write, pii.read, pii.export (audited) |
 | `ENVIRONMENTAL_SPECIALIST` | Especialista ambiental | parcels.read, field.read, documents.write, quality.write, reports.write |
 | `GIS_SPECIALIST` | Cartógrafo / GIS | parcels.write, geometry.import, field.read (no PII), quality.read |
@@ -76,6 +77,10 @@ There is no `CLIENT` project role. Client access = `ClientPortalGrant` only (§1
 
 - The prototype matrix has no column for "Revisor" nor for "Especialista ambiental"; Gate 1
   confirmed both as explicit project roles (`REVIEWER`, `ENVIRONMENTAL_SPECIALIST`).
+- `PROJECT_DATA_MANAGER` is newer than the bundle (ADR-030) and has no column in it either. It was
+  added as a role rather than as a "permission bundle" because this model has no custom-role
+  mechanism — a bundle would have been a role without a name — and because its permissions belong
+  beside every other role's, in code.
 - The prototype shows the owner with projects "Todos": modelled as the OWNER's implicit,
   computed project access. The prototype does not show an ADMIN; ADMIN has no implicit project
   data access.
@@ -95,7 +100,9 @@ Permissions are typed keys grouped by module, declared in `core/authz/permission
 tenant:    tenant.transfer, tenant.delete, billing.manage, members.manage, roles.assign,
            modules.manage, templates.manage, security.manage, integrations.manage,
            projects.create, projects.archive, audit.read, portfolio.read
-project:   project.configure, project.members.manage, parcels.read, parcels.write,
+project:   project.configure, project.members.manage,
+           project.intake.read, project.intake.write,
+           parcels.read, parcels.write,
            geometry.import, field.read, field.campaigns.manage, field.assignments.manage,
            field.assignments.read_own, field.responses.read,
            field.capture, field.validate, field.write,
@@ -224,6 +231,29 @@ an integration test asserts each of those is absent from a technician's resolved
 `app.field_sync_receipt` adds one further condition to the ordinary predicate — `user_id =
 app.current_user_id()` — because a receipt names what one person's device did, and a list of another
 technician's day is not project reference data.
+
+### 3.5 Preparing a project is not configuring it (ADR-030)
+
+Eight studies cannot each be a developer task, and the people who will load their files are data
+staff rather than coordinators. `PROJECT_DATA_MANAGER` — *Gestor de información* — is the project
+role that prepares a project so the product can operate it.
+
+| Key | Grants | Held by |
+|---|---|---|
+| `project.intake.read` | open *Preparar proyecto* and read its readiness report | COORDINATOR, PROJECT_DATA_MANAGER, REVIEWER, VIEWER |
+| `project.intake.write` | edit the project's identity and the settings under modules already on | COORDINATOR, PROJECT_DATA_MANAGER |
+
+`project.configure` is deliberately not granted to the data manager. That key is the write side of
+the capability resolver, and turning a module off hides routes for everybody on the project;
+preparing a project is filling in what the product needs to run it. Two acts, two keys.
+
+The role's shape is what is **absent** from it. No `field.responses.read`, so a person who loads a
+project's files never reads what a household answered — and the row-level policies of §3.1 enforce
+that again underneath. No `pii.read`. No `social.coding.review` or `quality.review`, so they settle
+nothing. No `portal.publish`, so they make no statement to the client. Nothing tenant-wide.
+
+`field.read` *is* granted: the operational workflow — campaigns, assignments, counts — which the
+readiness report reads, and which §3.1 already distinguishes from an individual's answers.
 
 ## 3a. Identity provider boundary (Gate 1 D-016, ADR-010)
 

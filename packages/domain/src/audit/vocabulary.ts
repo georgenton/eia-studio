@@ -8,6 +8,9 @@ export const AUDIT_ACTIONS = [
   "tenant.membership.role_changed",
   "tenant.membership.removed",
   "project.created",
+  // Preparing a project, and the one column that moves it out of planning (ADR-030).
+  "project.intake.updated",
+  "project.activated",
   "project.membership.added",
   "project.membership.removed",
   "capability.tenant.changed",
