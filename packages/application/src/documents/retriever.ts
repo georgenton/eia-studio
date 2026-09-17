@@ -64,6 +64,14 @@ export class FullTextRetriever implements DocumentRetriever {
          -- answered from text a corrected file replaced.
          and d.current_version_id = v.id
          ${parsed.documentId ? sql`and d.id = ${parsed.documentId}` : sql``}
+         ${
+           parsed.documentVersionIds
+             ? sql`and v.id in (${sql.join(
+                 parsed.documentVersionIds.map((id) => sql`${id}::uuid`),
+                 sql`, `,
+               )})`
+             : sql``
+         }
          and c.search @@ q.tsq
        order by score desc, d.code, c.ordinal
        limit ${parsed.limit}

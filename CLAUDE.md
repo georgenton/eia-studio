@@ -237,13 +237,13 @@ Also relevant by task: `docs/DATA_MODEL.md`, `docs/PROVENANCE.md`, `docs/AI_GOVE
 `docs/REAL_DATA_INTAKE.md`, `docs/FIELD_MOBILE_ARCHITECTURE.md`,
 `docs/PROJECT_INTAKE.md`, `docs/OBJECT_STORAGE.md`,
 `docs/DOCUMENT_UPLOAD_AND_VERSIONING.md`, `docs/FIELD_MEDIA.md`,
-`docs/DOCUMENT_EXTRACTION.md`,
+`docs/DOCUMENT_EXTRACTION.md`, `docs/AI_DOCUMENT_REVIEW.md`,
 `docs/OFFLINE_SYNC_PROTOCOL.md`, `docs/FIELD_MOBILE_OFFLINE_UAT.md`,
 `docs/PRODUCTION_V1_GO_LIVE.md`,
 `docs/IMPLEMENTATION_PLAN.md`, `docs/DESIGN_BUNDLE_KNOWN_ISSUES.md`, the delivery docs
 `docs/ENGINEERING_STANDARDS.md`, `docs/RELEASE_POLICY.md`, `docs/CI.md`, `docs/DEPLOYMENT.md`,
 `docs/DEPENDENCIES.md`, `docs/TECH_DEBT.md`, the Gate record `docs/DECISIONS/GATE-1.md`, and
-the ADRs in `docs/DECISIONS/ADR-001` … `ADR-033`. Root `README.md` has the local quick start.
+the ADRs in `docs/DECISIONS/ADR-001` … `ADR-035`. Root `README.md` has the local quick start.
 
 ## Working rules for every session
 

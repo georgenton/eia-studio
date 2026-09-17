@@ -70,6 +70,34 @@ export const documentProcessingLabel = (t: Translator, value: string) =>
   vocabulary(t, "documentProcessing", value);
 export const documentPrivacyLabel = (t: Translator, value: string) =>
   vocabulary(t, "documentPrivacy", value);
+/**
+ * The AI review vocabularies (ADR-035).
+ *
+ * Same shape as every other vocabulary helper here: the stored value is an enum and what a reader
+ * sees is a label for it (ADR-025/029). These are under `documents.review.*` rather than
+ * `vocabulary.*` because they are this surface's words and are meaningless anywhere else — and
+ * because a reviewer's *Descartado* must never be looked up from the same table as a quality
+ * finding's, which would make the two read identically.
+ */
+const reviewWord = (t: Translator, group: string, value: string) =>
+  t(`documents.review.${group}.${value}` as MessageKey);
+
+export const reviewLensLabel = (t: Translator, value: string) => reviewWord(t, "lens", value);
+export const reviewRunStatusLabel = (t: Translator, value: string) =>
+  reviewWord(t, "status", value);
+export const reviewCandidateStateLabel = (t: Translator, value: string) =>
+  reviewWord(t, "state", value);
+export const reviewSupportLabel = (t: Translator, value: string) => reviewWord(t, "support", value);
+export const reviewSupportHelp = (t: Translator, value: string) =>
+  reviewWord(t, "supportHelp", value);
+export const reviewEvidenceRoleLabel = (t: Translator, value: string) =>
+  reviewWord(t, "role", value);
+export const reviewBlockedReasonLabel = (t: Translator, value: string) =>
+  reviewWord(t, "refusedReason", value);
+/** `ACCEPT` → *Aceptar*. The decision's own word, lower-cased to reach the catalogue key. */
+export const reviewDecisionWord = (t: Translator, value: string) =>
+  t(`documents.review.${value.toLowerCase()}` as MessageKey);
+
 export const surfaceLabel = (t: Translator, key: string) =>
   t(`surface.${key === "command-center" ? "commandCenter" : key}` as MessageKey);
 

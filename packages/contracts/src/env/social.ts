@@ -56,3 +56,25 @@ export const assistantEnvSchema = z
   .strict();
 
 export type AssistantEnv = z.infer<typeof assistantEnvSchema>;
+
+/**
+ * AI document review (ADR-035).
+ *
+ * Third adapter, same shape, same rule, decided by the same domain function. It is the one where
+ * the no-default rule has the sharpest consequence: a deterministic stand-in's output here is a
+ * paragraph of plausible Spanish asserting that two chapters of a study disagree, and once a
+ * specialist has accepted it nothing distinguishes it from a real model's suggestion.
+ *
+ * Unset means the review surface reports `NOT_CONFIGURED` and offers no run. Everything else in
+ * Documentos — the corpus, the passages, the citations, the assistant's retrieval — is unaffected.
+ */
+export const documentReviewerEnvSchema = z
+  .object({
+    DOCUMENT_REVIEWER: z.enum(SOCIAL_CLASSIFIERS).optional(),
+    DOCUMENT_REVIEWER_MODEL: z.string().min(3).optional(),
+    /** Presence only. The same credential the other two use; read by the AI SDK, never by us. */
+    AI_GATEWAY_API_KEY: z.string().min(1).optional(),
+  })
+  .strict();
+
+export type DocumentReviewerEnv = z.infer<typeof documentReviewerEnvSchema>;

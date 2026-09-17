@@ -111,6 +111,20 @@ export default async function DocumentsPage({
       <div className={styles.surface}>
         {assistantEnabled ? <DocumentAssistant tenant={ctx.tenantSlug} project={project} /> : null}
 
+        {/* A link rather than a section: an AI candidate and a rule's finding must never share a
+            list, and they must not share a scroll either (ADR-035 §4). */}
+        {assistantEnabled ? (
+          <p className={styles.note}>
+            <Link
+              className={styles.docLink}
+              href={`/t/${ctx.tenantSlug}/p/${project}/documents/review`}
+            >
+              {t("documents.review.title")}
+            </Link>{" "}
+            — {t("documents.review.lead")}
+          </p>
+        ) : null}
+
         {mayUpload && storage.state === "AVAILABLE" ? (
           <DocumentUpload
             documents={documents.map((document) => ({

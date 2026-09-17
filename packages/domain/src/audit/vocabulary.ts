@@ -57,6 +57,19 @@ export const AUDIT_ACTIONS = [
   // live in one place with one retention rule, and copying them here would create a second.
   "documents.version.ingested",
   "documents.assistant.asked",
+  /*
+   * AI document review (Wave 3, ADR-035). Three moments, and the first is the one the compliance
+   * review will ask about: **passages of this project's documents left for a model**. The line
+   * records the lens, how many versions were in the corpus, the adapter, the model and whether
+   * the call was live — never a passage, never a candidate's words, never a document's filename.
+   *
+   * `refused` is audited too, and deliberately: a run stopped by the privacy gate is a decision
+   * the product made about somebody's data, and a refusal that left no trace would be
+   * indistinguishable from a run nobody attempted.
+   */
+  "documents.review.run_started",
+  "documents.review.run_refused",
+  "documents.review.candidate_decided",
   // Report generation (Slice 7). That a version was produced, from how many facts, and whether a
   // model wrote its prose. Never the chapter's text: the version holds it, immutably, once.
   "reports.version.generated",

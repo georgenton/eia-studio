@@ -309,6 +309,20 @@
       "when": 1789608474225,
       "tag": "0043_document_extraction_queue",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1789660601364,
+      "tag": "0044_ai_document_review",
+      "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1789660602364,
+      "tag": "0045_ai_document_review_rls",
+      "breakpoints": true
     }
   ]
 }

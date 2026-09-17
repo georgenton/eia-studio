@@ -39,6 +39,14 @@ export const retrievalQuerySchema = z
     limit: z.number().int().min(1).max(20).default(6),
     /** Narrow to one document when the reader already knows where to look. */
     documentId: z.uuid().optional(),
+    /**
+     * Narrow to a declared set of versions (ADR-035).
+     *
+     * AI document review reads a corpus somebody chose and a privacy gate cleared, so the
+     * retrieval that feeds it must be bounded by that same set rather than by the project. Absent
+     * for the assistant, which searches the project's current corpus.
+     */
+    documentVersionIds: z.array(z.uuid()).min(1).max(200).optional(),
   })
   .strict();
 export type RetrievalQuery = z.infer<typeof retrievalQuerySchema>;

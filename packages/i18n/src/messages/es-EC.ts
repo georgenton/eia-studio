@@ -918,6 +918,113 @@ export const messages = {
       "full-text":
         "Los pasajes se seleccionan por las palabras que contienen, no por su significado. Una pregunta formulada con otras palabras que el documento puede no encontrar nada, aunque el documento lo diga.",
     },
+    review: {
+      title: "Revisión asistida",
+      lead: "Un modelo lee pasajes del expediente y propone qué podría querer revisar un especialista. No detecta nada: propone, y una persona decide.",
+      distinction:
+        "Esto no es el Control de consistencia. Allí una regla determinista compara dos valores y el resultado se puede rehacer a mano. Aquí un modelo sugiere, y ninguna sugerencia entra en un informe hasta que un especialista la acepta.",
+      lensLabel: "Enfoque de la revisión",
+      lensHelp:
+        "Cada enfoque busca un tipo de contraste y se limita a él. No existe una revisión general del estudio.",
+      run: "Iniciar revisión",
+      running: "Iniciando…",
+      runsTitle: "Revisiones realizadas",
+      runsCaption: "Revisiones asistidas de este proyecto, de la más reciente a la más antigua",
+      runStarted:
+        "Revisión en cola sobre {sources} documento(s). Los candidatos aparecerán aquí cuando termine.",
+      runStatus: "Estado",
+      runLens: "Enfoque",
+      runSources: "Documentos",
+      runPassages: "Pasajes",
+      runCandidates: "Candidatos",
+      runRefused: "Descartados por el sistema",
+      runRefusedHelp:
+        "Candidatos que el modelo devolvió y que no se guardaron: citaban un pasaje que no recibieron, o usaban lenguaje que este producto no admite. Se cuentan en lugar de ocultarse.",
+      runModel: "Modelo",
+      runWhen: "Fecha",
+      noRuns: "Todavía no se ha hecho ninguna revisión asistida en este proyecto.",
+      status: {
+        QUEUED: "En cola",
+        PROCESSING: "Procesando",
+        COMPLETED: "Terminada",
+        FAILED: "Falló",
+      },
+      emptyReason: {
+        NO_PASSAGES:
+          "La búsqueda no encontró pasajes para este enfoque, así que no se consultó a ningún modelo. No hay nada que proponer.",
+        NO_CANDIDATES: "El modelo no propuso nada para este enfoque.",
+      },
+      candidatesTitle: "Candidatos generados por IA",
+      candidatesLead:
+        "Cada uno es una sugerencia con los pasajes en que se apoya. Ninguno afirma que algo esté mal.",
+      noCandidates: "Todavía no hay candidatos.",
+      candidate: "Candidato generado por IA",
+      observation: "Lo observado",
+      suggestedCheck: "Qué se podría verificar",
+      evidence: "Pasajes citados",
+      support: {
+        TWO_SIDED: "Dos fuentes contrapuestas",
+        SINGLE_SOURCE: "Una sola fuente",
+      },
+      supportHelp: {
+        TWO_SIDED:
+          "El candidato señala dos pasajes que no coinciden. Puede aceptarse como observación para el expediente.",
+        SINGLE_SOURCE:
+          "El candidato se apoya en un único pasaje, así que no muestra una discrepancia entre dos fuentes. Se puede descartar, pero no aceptar.",
+      },
+      role: {
+        SOURCE_A: "Fuente A",
+        SOURCE_B: "Fuente B",
+        CONTEXT: "Contexto",
+      },
+      state: {
+        PROPOSED: "Propuesto por IA",
+        ACCEPTED: "Aceptado por especialista",
+        DISMISSED: "Descartado por especialista",
+      },
+      decide: "Decidir",
+      accept: "Aceptar",
+      dismiss: "Descartar",
+      reopen: "Reabrir",
+      justification: "Justificación",
+      justificationHelp:
+        "Queda registrada, atribuida y permanente. Una decisión no se edita: un cambio de opinión es otra decisión.",
+      justificationTooShort: "La justificación es obligatoria (mínimo 12 caracteres).",
+      submitDecision: "Registrar decisión",
+      decisionsTitle: "Decisiones",
+      decidedBy: "{decision} · {when}",
+      acceptRefusedSingleSource:
+        "Este candidato se apoya en un solo pasaje. Aceptarlo afirmaría una discrepancia entre dos fuentes que no se ha mostrado.",
+      corpusTitle: "Documentos revisados",
+      corpusNote:
+        "La revisión lee la versión vigente de cada documento. Una versión anterior se conserva para que las citas hechas contra ella sigan resolviendo, pero no se revisa.",
+      refusedTitle: "Revisión rechazada",
+      refusedLead:
+        "No se envió nada a ningún modelo. La revisión se rechaza completa en lugar de omitir los documentos bloqueados: informar sobre menos de lo que se pidió, sin decirlo, sería peor que no revisar.",
+      refusedReason: {
+        PRIVACY_NOT_AI_SAFE: "declarado con datos personales o pendiente de revisión",
+        CONTAINS_PII: "marcado como documento con datos personales",
+        NOT_READABLE: "todavía no tiene texto procesado",
+      },
+      refusedDocument: "{code}: {reason}",
+      unavailable: {
+        NOT_CONFIGURED:
+          "La revisión asistida no está configurada en este entorno. El resto de Documentos funciona igual.",
+        FAKE_REFUSED_IN_PERSISTENT_ENVIRONMENT:
+          "Este entorno tiene configurado el revisor determinista de pruebas, que no puede ejecutarse aquí: sus candidatos serían indistinguibles de los de un modelo real.",
+        BLOCKED_EXTERNAL_CONFIG:
+          "El proveedor de modelos no está disponible: falta configuración externa. No se sustituye por un revisor simulado.",
+      },
+      lens: {
+        numerical_consistency: "Cifras entre documentos",
+        dates_chronology: "Fechas y cronología",
+        project_identity: "Identidad del proyecto",
+        locations_institutions: "Lugares e instituciones",
+        social_conclusions_support: "Conclusiones sociales y su respaldo",
+        management_plan_application_area: "Plan de manejo y lugar de aplicación",
+        general_cross_document: "Contraste general entre documentos",
+      },
+    },
     narrativeUnavailable: {
       no_evidence:
         "No se encontraron pasajes del expediente relacionados con esta pregunta. El asistente responde únicamente a partir de los documentos del proyecto: cuando no hay evidencia, no hay respuesta.",

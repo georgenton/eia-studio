@@ -116,6 +116,22 @@ export default defineConfig({
       },
     },
     {
+      /*
+       * AI document review (ADR-035), after the pipeline's: it uploads documents, has them read by
+       * the extraction process, then asks for a review that a *second* separate process performs.
+       * Serial, because the second test decides a candidate the first one's run produced.
+       */
+      name: "document-review",
+      testMatch: /(^|\/)document-review\.spec\.ts$/,
+      fullyParallel: false,
+      dependencies: ["setup", "document-pipeline"],
+      use: {
+        ...devices["Desktop Chrome"],
+        viewport: { width: 1440, height: 940 },
+        storageState: "e2e/.auth/coordinator.json",
+      },
+    },
+    {
       // Its own project, after the coordinator's, because it creates documents: a golden reference
       // taken afterwards would show the suite's own synthetic rows rather than the product.
       name: "document-upload",
@@ -245,6 +261,10 @@ export default defineConfig({
             // because this is a test run, and nowhere else selects it for us.
             SOCIAL_CLASSIFIER: "fake",
             SOCIAL_CLASSIFIER_MODEL: "fake/deterministic",
+            // And the third adapter (ADR-035). A run records which one answered, so nothing this
+            // suite produces could later be read as a real model's output.
+            DOCUMENT_REVIEWER: "fake",
+            DOCUMENT_REVIEWER_MODEL: "fake/deterministic",
             // Also explicit, for the same reason (ADR-031): one shared MinIO when `pnpm e2e`
             // started it, and the per-process in-memory store otherwise. Neither is ever selected
             // by default — both are refused outside `local` and `test`.

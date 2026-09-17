@@ -161,6 +161,41 @@ What Slice 6 settled, beyond the specification:
   instruction says nothing inside them can change the task, and — the part that actually holds — the
   generator has no tool, no retrieval of its own and no write path.
 
+## 8a. AI document review (Wave 3, ADR-035)
+
+The second AI feature over the corpus, and the first whose output is a **statement about the study**
+rather than about one response. Its whole design is the answer to one question: how does a reader, a
+year later, tell a rule's finding from a model's suggestion that somebody agreed with?
+
+- **A candidate is not a finding, and has no path into `quality_finding`.** A finding carries
+  `requirement_key` and `requirement_version`, which name a deterministic rule in versioned code
+  (ADR-020). Writing a model's suggestion there would require inventing a requirement key, and the
+  study would carry a finding attributed to a rule that never ran. Four tables of its own, a code
+  of its own (`IA-001`, never `QG-001`), a page of its own, and the words *Candidato generado por
+  IA* — never *Error detectado por IA*.
+- **Retrieval first, and the model is not always called.** Seven bounded lenses, each carrying its
+  own full-text probes. **No passage, no claim**: with nothing retrieved, no model is called and the
+  run says `NO_PASSAGES` — which a reader can tell from `NO_CANDIDATES`.
+- **No citation, no candidate.** Every candidate names passage indices resolved against what was
+  actually retrieved. An index the model never received *fails that candidate*, and the refusal is
+  counted on the run rather than absorbed.
+- **No compliance conclusion.** Invariant 11's forbidden vocabulary — the same list the rule
+  catalogue is held to, in both languages — runs over every field of every candidate.
+- **The privacy gate refuses rather than filters.** Only `NO_PERSONAL_DATA_KNOWN` versions may be
+  read by a model; `REVIEW_REQUIRED` means *nobody has looked*. A mixed corpus is refused **in
+  full**, naming every document that blocked it, because reviewing the rest would make "no
+  candidates in the social chapter" mean "the social chapter was never read".
+- **Two sides, or it stays a suggestion.** A candidate resting on one passage has made an assertion,
+  not shown a disagreement; it can be dismissed and **cannot be accepted**.
+- **Both halves are preserved.** The model's words are write-once (only `state` may change); every
+  decision, including a dismissal, is append-only with a mandatory justification.
+- **Which reviewer answered is recorded.** `DOCUMENT_REVIEWER` has no default (IG4-001), the
+  deterministic one is refused outside `local` and `test`, and every run stores its adapter, model
+  and prompt version.
+
+There are still **no embeddings**: retrieval is PostgreSQL full-text and the surface says so
+(ADR-021).
+
 ## 9. Evaluation and calibration (research track)
 
 Out of scope for implementation slices, but the data model keeps what it needs: pairs of

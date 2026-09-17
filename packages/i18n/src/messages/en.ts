@@ -911,6 +911,113 @@ export const messages: Messages = {
       "full-text":
         "Passages are selected by the words they contain, not by their meaning. A question phrased in other words than the document uses may find nothing, even when the document says it.",
     },
+    review: {
+      title: "Assisted review",
+      lead: "A model reads passages of the file and proposes what a specialist might want to check. It detects nothing: it proposes, and a person decides.",
+      distinction:
+        "This is not the Consistency check. There a deterministic rule compares two values and the result can be redone by hand. Here a model suggests, and no suggestion reaches a report until a specialist accepts it.",
+      lensLabel: "Review focus",
+      lensHelp:
+        "Each focus looks for one kind of contrast and stays within it. There is no general review of the study.",
+      run: "Start review",
+      running: "Starting…",
+      runsTitle: "Reviews carried out",
+      runsCaption: "Assisted reviews of this project, most recent first",
+      runStarted:
+        "Review queued over {sources} document(s). Candidates will appear here when it finishes.",
+      runStatus: "Status",
+      runLens: "Focus",
+      runSources: "Documents",
+      runPassages: "Passages",
+      runCandidates: "Candidates",
+      runRefused: "Refused by the system",
+      runRefusedHelp:
+        "Candidates the model returned that were not stored: they cited a passage they were never given, or used language this product does not admit. They are counted rather than hidden.",
+      runModel: "Model",
+      runWhen: "Date",
+      noRuns: "No assisted review has been run on this project yet.",
+      status: {
+        QUEUED: "Queued",
+        PROCESSING: "Processing",
+        COMPLETED: "Finished",
+        FAILED: "Failed",
+      },
+      emptyReason: {
+        NO_PASSAGES:
+          "The search found no passages for this focus, so no model was consulted. There is nothing to propose.",
+        NO_CANDIDATES: "The model proposed nothing for this focus.",
+      },
+      candidatesTitle: "AI-generated candidates",
+      candidatesLead:
+        "Each one is a suggestion with the passages it rests on. None of them states that anything is wrong.",
+      noCandidates: "No candidates yet.",
+      candidate: "AI-generated candidate",
+      observation: "What was observed",
+      suggestedCheck: "What could be verified",
+      evidence: "Cited passages",
+      support: {
+        TWO_SIDED: "Two opposing sources",
+        SINGLE_SOURCE: "A single source",
+      },
+      supportHelp: {
+        TWO_SIDED:
+          "The candidate points at two passages that do not match. It can be accepted as an observation for the file.",
+        SINGLE_SOURCE:
+          "The candidate rests on one passage, so it does not show a discrepancy between two sources. It can be dismissed, but not accepted.",
+      },
+      role: {
+        SOURCE_A: "Source A",
+        SOURCE_B: "Source B",
+        CONTEXT: "Context",
+      },
+      state: {
+        PROPOSED: "Proposed by AI",
+        ACCEPTED: "Accepted by a specialist",
+        DISMISSED: "Dismissed by a specialist",
+      },
+      decide: "Decide",
+      accept: "Accept",
+      dismiss: "Dismiss",
+      reopen: "Reopen",
+      justification: "Justification",
+      justificationHelp:
+        "It is recorded, attributed and permanent. A decision is not edited: a change of mind is another decision.",
+      justificationTooShort: "A justification is required (at least 12 characters).",
+      submitDecision: "Record decision",
+      decisionsTitle: "Decisions",
+      decidedBy: "{decision} · {when}",
+      acceptRefusedSingleSource:
+        "This candidate rests on a single passage. Accepting it would assert a discrepancy between two sources that has not been shown.",
+      corpusTitle: "Documents reviewed",
+      corpusNote:
+        "A review reads the current version of each document. An earlier version is kept so citations made against it still resolve, but it is not reviewed.",
+      refusedTitle: "Review refused",
+      refusedLead:
+        "Nothing was sent to any model. The review is refused in full rather than omitting the blocked documents: reporting on less than was asked for, without saying so, would be worse than not reviewing.",
+      refusedReason: {
+        PRIVACY_NOT_AI_SAFE: "declared as holding personal data, or pending review",
+        CONTAINS_PII: "marked as a document holding personal data",
+        NOT_READABLE: "has no processed text yet",
+      },
+      refusedDocument: "{code}: {reason}",
+      unavailable: {
+        NOT_CONFIGURED:
+          "Assisted review is not configured in this environment. The rest of Documents works as usual.",
+        FAKE_REFUSED_IN_PERSISTENT_ENVIRONMENT:
+          "This environment has the deterministic test reviewer configured, which cannot run here: its candidates would be indistinguishable from a real model's.",
+        BLOCKED_EXTERNAL_CONFIG:
+          "The model provider is not available: external configuration is missing. It is not replaced by a simulated reviewer.",
+      },
+      lens: {
+        numerical_consistency: "Figures across documents",
+        dates_chronology: "Dates and chronology",
+        project_identity: "Project identity",
+        locations_institutions: "Places and institutions",
+        social_conclusions_support: "Social conclusions and their support",
+        management_plan_application_area: "Management plan and place of application",
+        general_cross_document: "General cross-document contrast",
+      },
+    },
     narrativeUnavailable: {
       no_evidence:
         "No passages of the corpus related to this question were found. The assistant answers only from the project's documents: where there is no evidence, there is no answer.",

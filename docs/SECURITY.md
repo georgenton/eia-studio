@@ -277,6 +277,31 @@ operator scripts alike.
   startup failure: taking the whole deployment down over a feature it may not use would be a worse
   outcome than losing that feature.
 
+## 10f. Sending a delivered study's passages to a model (Wave 3, ADR-035)
+
+The second time data leaves this system for a third party, and the first time what leaves is a
+**client's delivered document** rather than a synthetic demo answer. The controls are again about
+the data rather than the person asking.
+
+| Control | Mechanism |
+|---|---|
+| Privacy gate | only a `DocumentVersion` classified `NO_PERSONAL_DATA_KNOWN`, on a document not flagged `contains_pii`, may be read by a model. `REVIEW_REQUIRED` is the default for every upload and means *nobody has looked*; treating it as safe would send exactly the documents nobody has checked |
+| Refused, never filtered | a corpus with one ineligible version stops the **whole** run, and the refusal names every document that blocked it. Dropping them and reviewing the rest would make "no candidates in the social chapter" mean "the social chapter was never read", with nothing on screen saying so |
+| The refusal is audited | `documents.review.run_refused`, written in its own transaction so it survives the refusal it records. A refusal that left no trace is indistinguishable from a run nobody attempted |
+| Data minimisation | what leaves is passage **text**, and nothing else: no filename, no document code, no uploader, no project name, no survey answer, no parcel. The prompt is built from `text` alone |
+| The corpus is recorded | `document_review_source` stores which versions a run read and the classification each carried *at the time*, so "what did this run actually look at?" is answerable from the row rather than re-derived from a corpus that has since changed |
+| No agency | the reviewer has no tools, no retrieval of its own, no browsing, no filesystem and no database. Passages in, a bounded structured object out |
+| Prompt injection | passage text arrives delimited and the instruction says nothing inside it can change the task. What actually holds is that there is no capability to grant: the worst a hostile paragraph can achieve is a candidate a specialist reads and dismisses, beside the passages it cites |
+| Bounded output | a closed schema, closed passage indices, bounded lengths, at most twelve candidates. A candidate citing a passage the model never received is refused and counted, never dropped |
+| No compliance conclusion | invariant 11's forbidden vocabulary, in both languages, over every field of every candidate |
+| No reasoning stored | chain-of-thought is neither requested nor persisted, and neither is the raw provider response body |
+| Vendor boundary | one narrow port, one selector (`DOCUMENT_REVIEWER`) with **no default** and no fallback (IG4-001); a gateway without its credential is `BLOCKED_EXTERNAL_CONFIG` |
+| Logs | identifiers and counts. A passage never reaches a log line, and neither does a candidate's text |
+| Model output is a proposal | it is never a finding, never enters a report, and cannot be accepted at all unless it names two sources (ADR-035 §7) |
+
+This restriction stands until the privacy, legal and vendor review of §10a explicitly authorises
+real data. `DOCUMENT_REVIEWER` is unset in every environment this repository controls.
+
 ## 10d. A specialist decision, and a citation nobody can check (Slice 5)
 
 Two controls, and neither is about isolation. They protect the record from *us*.
