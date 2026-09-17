@@ -254,6 +254,40 @@ export {
   DOCUMENT_REVIEW_PROMPT_VERSION,
 } from "./documents/reviewer";
 export type { FakeReviewerScenario } from "./documents/reviewer";
+// The template library (Wave 3, ADR-036). The renderer has no database access, and no model is
+// anywhere on this path.
+export {
+  activateTemplateVersion,
+  createReportTemplate,
+  createTemplateInputSchema,
+  generateDocumentFromTemplate,
+  listGeneratedDocuments,
+  listReportTemplates,
+  revalidateTemplateVersion,
+  uploadTemplateVersion,
+  uploadTemplateVersionInputSchema,
+  issueGeneratedDocumentDownload,
+} from "./templates/use-cases";
+export type {
+  CreateTemplateInput,
+  GeneratedDocumentResult,
+  GeneratedDocumentRow,
+  TemplateRow,
+  TemplateVersionRow,
+  UploadTemplateVersionInput,
+  UploadedTemplateVersion,
+  GeneratedDocumentLink,
+} from "./templates/use-cases";
+export { buildTemplateBinding } from "./templates/binding";
+export type { BuildBindingInput } from "./templates/binding";
+export {
+  assertTemplateArchiveSafe,
+  inspectDocxArchive,
+  readTemplateManifest,
+  renderTemplate,
+  TEMPLATE_ARCHIVE_LIMITS,
+} from "./templates/renderer";
+export type { RenderedTemplate } from "./templates/renderer";
 export { loadDocuments, loadDocumentVersion } from "./documents/read-models";
 export type { DocumentSummary, DocumentVersionDetail } from "./documents/read-models";
 

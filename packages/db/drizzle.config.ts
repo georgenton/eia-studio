@@ -14,6 +14,7 @@ export default defineConfig({
     "./src/schema/quality.ts",
     "./src/schema/documents.ts",
     "./src/schema/review.ts",
+    "./src/schema/templates.ts",
     "./src/schema/reports.ts",
     "./src/schema/pgas.ts",
     "./src/schema/portal.ts",

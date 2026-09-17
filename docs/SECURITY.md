@@ -167,6 +167,26 @@ controls are about what it will not do with it.
 built (TD-098), because it means an external **processor** handling a study's documents and §10a's
 review has assessed no such vendor.
 
+### 7c. A consultancy's own template, and the document produced from it (ADR-036)
+
+A template is untrusted binary input *and* a decision about what a deliverable will say, so the
+controls are in both directions.
+
+| Control | Mechanism |
+|---|---|
+| No code in a template | the renderer evaluates nothing (`docx-templates`, which runs JavaScript from the template, was rejected for this); `.doc` and `.docm` are refused by declared type; **`word/vbaProject.bin` is refused inside the archive**, because a `.docm` renamed `.docx` presents the same ZIP signature |
+| A container that is not a Word document | `word/document.xml` must be present: `PK\x03\x04` is every ZIP there is |
+| An archive that lies about its size | ADR-033's `ARCHIVE_LIMITS`, against declared sizes as the central directory is walked |
+| No raw XML, image, chart or link from a template | the renderer's plugin list is replaced with text and repetition only |
+| The template cannot choose what it reads | the library's default resolver is a path traversal over the data object; it is **replaced** by one that answers only from the closed placeholder registry, and the data object handed to the library is empty |
+| No personal data, no proposal, no internal identifier | the registry is an enumeration, so those absences are asserted by a test rather than intended |
+| A vulnerable XML parser underneath | the renderer pins `@xmldom/xmldom@0.8.13`, which carries ten open advisories including quadratic-time parsing reachable from an uploaded file; a workspace `pnpm` override lifts it to the advisory-clean `0.8.15` |
+| Absence is not a number | a placeholder whose absence blocks stops the document; one that tolerates absence prints an explicit localized *no value*, never `0` and never a model's guess |
+| Every output says what it is | the draft banner is a required placeholder *and* is verified in the rendered text; a document without it is refused rather than delivered |
+| An activated version is frozen | which file a version is cannot change, by trigger; a corrected template is the next version |
+| Namespaces are not mixed | `templates` and `generated` are separate from `documents`; a generated draft is unreachable by a query written for the corpus |
+| Audit | `templates.version.uploaded`, `.activated`, `.document.generated`, `.document.download_issued` — the template's code, the label, the locale and counts. **Never the filename**, never the rendered bytes, never a value the document printed |
+
 ## 8. Vector / RAG isolation
 
 - Chunk embeddings live in `vec.document_chunk_embedding (tenant_id, project_id, chunk_id,

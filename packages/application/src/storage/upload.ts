@@ -7,6 +7,8 @@ import {
   assertObjectKeyBelongsTo,
   buildObjectKey,
   DOCUMENT_FORMATS,
+  GENERATED_FORMATS,
+  TEMPLATE_FORMATS,
   FIELD_MEDIA_FORMATS,
   formatForMimeType,
   InvalidInput,
@@ -55,11 +57,25 @@ const NAMESPACE_RULES: Readonly<
   documents: { formats: DOCUMENT_FORMATS, permission: "documents.write" },
   // A photograph is captured by whoever captures the work it belongs to.
   "field-media": { formats: FIELD_MEDIA_FORMATS, permission: "media.upload" },
+  /*
+   * A template is the firm's own deliverable format, and loading a project's files is what
+   * `reports.write` already means. `.docx` only (ADR-036): `.doc` is a different binary format
+   * this product cannot read, and `.docm` is the same format carrying a macro project — refused
+   * here by its declared type and again inside the archive, because a `.docm` renamed `.docx`
+   * presents the same ZIP signature.
+   */
+  templates: { formats: TEMPLATE_FORMATS, permission: "reports.write" },
+  /*
+   * What this product generated. No client ever uploads into it: the namespace exists so a
+   * rendered draft is addressable and is never reachable by a query written for the corpus. The
+   * permission is the one that produced it.
+   */
+  generated: { formats: GENERATED_FORMATS, permission: "reports.write" },
 };
 
 export const uploadIntentInputSchema = z
   .object({
-    namespace: z.enum(["documents", "field-media"]),
+    namespace: z.enum(["documents", "field-media", "templates"]),
     filename: z.string().trim().min(1).max(255),
     mimeType: z.string().trim().min(3).max(200),
     sizeBytes: z.number().int().positive(),

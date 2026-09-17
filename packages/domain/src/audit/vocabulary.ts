@@ -70,6 +70,18 @@ export const AUDIT_ACTIONS = [
   "documents.review.run_started",
   "documents.review.run_refused",
   "documents.review.candidate_decided",
+  /*
+   * The template library (Wave 3, ADR-036). Three moments: a firm's own `.docx` was registered as
+   * a version, somebody decided documents may be produced from it, and one was produced.
+   *
+   * Never the filename — a template is named by whoever wrote it, and an audit line is read by
+   * more people than the row is (ADR-031 §1). Never the rendered bytes, and never a value the
+   * document printed.
+   */
+  "templates.version.uploaded",
+  "templates.version.activated",
+  "templates.document.generated",
+  "templates.document.download_issued",
   // Report generation (Slice 7). That a version was produced, from how many facts, and whether a
   // model wrote its prose. Never the chapter's text: the version holds it, immutably, once.
   "reports.version.generated",

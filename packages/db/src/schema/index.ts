@@ -7,6 +7,7 @@ export * as socialSchema from "./social";
 export * as qualitySchema from "./quality";
 export * as documentsSchema from "./documents";
 export * as reviewSchema from "./review";
+export * as templatesSchema from "./templates";
 export * as reportsSchema from "./reports";
 export * as pgasSchema from "./pgas";
 export * as portalSchema from "./portal";
@@ -22,6 +23,7 @@ import * as pgasTables from "./pgas";
 import * as portalTables from "./portal";
 import * as reportTables from "./reports";
 import * as reviewTables from "./review";
+import * as templateTables from "./templates";
 import * as storageTables from "./storage";
 import * as qualityTables from "./quality";
 import * as socialTables from "./social";
@@ -89,6 +91,9 @@ export const schema = {
   documentReviewCandidate: reviewTables.documentReviewCandidate,
   documentReviewEvidence: reviewTables.documentReviewEvidence,
   documentReviewDecision: reviewTables.documentReviewDecision,
+  reportTemplate: templateTables.reportTemplate,
+  reportTemplateVersion: templateTables.reportTemplateVersion,
+  generatedDocument: templateTables.generatedDocument,
   generatedReport: reportTables.generatedReport,
   reportVersion: reportTables.reportVersion,
   reportSection: reportTables.reportSection,

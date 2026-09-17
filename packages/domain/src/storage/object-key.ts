@@ -20,7 +20,15 @@ import { InvalidInput } from "../core/errors";
  * for an upload *intent* and is handed a key it did not choose; a client that could name a key
  * could name another tenant's.
  */
-export const STORAGE_NAMESPACES = ["documents", "field-media"] as const;
+/**
+ * The namespaces, which are never mixed (ADR-031 §1, extended by ADR-036).
+ *
+ * `templates` holds a consultancy's own `.docx` templates and `generated` holds the documents this
+ * product produced from them. They are separate from `documents` — a delivered study — because the
+ * three have different formats, different retention questions and different readers, and because a
+ * generated draft must never be reachable by a query written for the corpus.
+ */
+export const STORAGE_NAMESPACES = ["documents", "field-media", "templates", "generated"] as const;
 export type StorageNamespace = (typeof STORAGE_NAMESPACES)[number];
 
 export interface ObjectKeyParts {

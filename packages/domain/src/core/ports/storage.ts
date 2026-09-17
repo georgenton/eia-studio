@@ -70,6 +70,18 @@ export interface StoragePort {
   head(key: string): Promise<StoredObject | null>;
   /** Read an object back — for verification at finalize, and for the extraction worker. */
   get(key: string): Promise<Uint8Array>;
+  /**
+   * Write bytes this product itself produced (ADR-036).
+   *
+   * Every other path here is a client PUT against a presigned URL, because a 120 MB study should
+   * not travel through a request twice. A **generated** document is different: the bytes exist in
+   * this process, there is no client to hand them to, and presigning a URL for ourselves to fetch
+   * would be a round trip to avoid a method.
+   *
+   * It is only ever called for bytes this product rendered. Nothing an uploader supplies reaches
+   * it, and the `generated` namespace it writes into accepts no upload intent.
+   */
+  put(key: string, bytes: Uint8Array, contentType: string): Promise<void>;
   /** Only ever called for an object this product wrote and then refused. */
   remove(key: string): Promise<void>;
 }

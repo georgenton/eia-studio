@@ -102,6 +102,18 @@ export function createS3Storage(config: S3StorageConfig): StoragePort {
       }
     },
 
+    /**
+     * Write bytes this product produced (ADR-036).
+     *
+     * The only path here that does not go through a presigned URL, because there is no client to
+     * hand a generated document to. It is never called with bytes an uploader supplied.
+     */
+    async put(key, bytes, contentType): Promise<void> {
+      await client.send(
+        new PutObjectCommand({ Bucket, Key: key, Body: bytes, ContentType: contentType }),
+      );
+    },
+
     async get(key): Promise<Uint8Array> {
       const result = await client.send(new GetObjectCommand({ Bucket, Key: key }));
       const body = result.Body;

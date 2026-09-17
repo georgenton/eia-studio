@@ -20,8 +20,24 @@ Dependabot/Renovate PRs (CI.md Stage E) and Changesets when release-visible.
 | dotenv | 17.4.2 | db (scripts), web (next.config) | load the repository-root `.env` in local development only |
 | @aws-sdk/client-s3 · @aws-sdk/s3-request-presigner | (see manifest) | application | the S3 **protocol**, not a provider: MinIO, R2 and AWS all speak it, and this is the only place that knows the SDK exists (ADR-031) |
 | pdfjs-dist | 5.4.149 | application | reads a PDF's own text **per page**, so a citation names the page a reader turns to rather than a chunk index. Mozilla's, the one Firefox uses; the `legacy` build runs on Node with no DOM. Run with `isEvalSupported: false`, no worker and no network fonts — a delivered PDF is untrusted input (ADR-033) |
-| fflate | 0.8.2 | application, testing | opens a DOCX's archive entry by entry, so `ARCHIVE_LIMITS` is checked against every entry's declared size *before* anything is expanded. A converter would decide for itself what to decompress, and would throw away the heading trail — the only checkable locator a DOCX has |
+| fflate | 0.8.3 | application, testing | opens a DOCX's archive entry by entry, so `ARCHIVE_LIMITS` is checked against every entry's declared size *before* anything is expanded. A converter would decide for itself what to decompress, and would throw away the heading trail — the only checkable locator a DOCX has |
+| easy-template-x | 7.2.8 | application | fills a consultancy's own `.docx` (ADR-036). Word splits a run whenever anything about the text changes, so `{{project.name}}` normally lives in several `<w:r>` elements and a regex cannot see it — walking the run tree is a parser. MIT, no `eval`/`new Function`/`vm`/`child_process`, and configured so it can only substitute: plugins replaced with text and repetition, delimiters fixed here, and the data resolver **replaced** so a tag is a closed-registry key or nothing. `docx-templates` was rejected because it evaluates JavaScript from the template |
 | expo-image-picker · expo-file-system | 57.0.18 · 57.0.7 | field | the camera (never the photo library) and the application's own documents directory, where a photograph waits for signal (ADR-032) |
+
+### One pinned override
+
+```
+pnpm.overrides: { "@xmldom/xmldom": "0.8.15" }
+```
+
+`easy-template-x` pins `@xmldom/xmldom@0.8.13`, which carries **ten open advisories** — two
+high-severity injection bypasses and several quadratic-time or quadratic-memory parsing issues. The
+parser is what reads an uploaded template's `word/document.xml`, so the DoS advisories are directly
+reachable by a hostile or merely malformed file. `0.8.15` is advisory-clean and is a patch inside
+the same LTS line. Recorded as TD-107; the override goes away when the package relaxes its pin.
+
+`fflate` moved `0.8.2` → `0.8.3` in the same change: its `unzipSync` infinite-loop advisory is
+reachable from exactly this kind of file, and the template validator is a second caller of it.
 
 ## Tooling and tests (devDependencies)
 

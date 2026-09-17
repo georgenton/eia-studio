@@ -147,3 +147,86 @@ export function buildZipBomb(): Uint8Array {
     { level: 9 },
   );
 }
+
+/* ---------------------------------------------------------------------------------------------
+ * Synthetic templates (ADR-036)
+ *
+ * These are **not** any consultancy's templates. They are the smallest Word packages that carry
+ * the shapes the renderer has to survive: a placeholder split across runs the way Word actually
+ * writes one, a macro project, a container that is not a Word document at all.
+ * ------------------------------------------------------------------------------------------ */
+
+export interface TemplateParagraph {
+  /** One entry per `<w:r>`. Splitting a placeholder across entries is the point. */
+  readonly runs: ReadonlyArray<string>;
+  readonly headingLevel?: number;
+}
+
+const CONTENT_TYPES =
+  `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
+  `<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">` +
+  `<Default Extension="xml" ContentType="application/xml"/>` +
+  `<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>` +
+  `<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>` +
+  `</Types>`;
+
+const RELS =
+  `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
+  `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">` +
+  `<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>` +
+  `</Relationships>`;
+
+function documentXml(paragraphs: ReadonlyArray<TemplateParagraph>): string {
+  const body = paragraphs
+    .map((paragraph) => {
+      const style =
+        paragraph.headingLevel === undefined
+          ? ""
+          : `<w:pPr><w:pStyle w:val="Heading${paragraph.headingLevel}"/></w:pPr>`;
+      const runs = paragraph.runs
+        .map((run) => `<w:r><w:t xml:space="preserve">${escapeXml(run)}</w:t></w:r>`)
+        .join("");
+      return `<w:p>${style}${runs}</w:p>`;
+    })
+    .join("");
+  return (
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
+    `<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">` +
+    `<w:body>${body}</w:body></w:document>`
+  );
+}
+
+/** A Word package whose body is exactly these paragraphs, run by run. */
+export function buildDocxTemplate(paragraphs: ReadonlyArray<TemplateParagraph>): Uint8Array {
+  return zipSync({
+    "[Content_Types].xml": strToU8(CONTENT_TYPES),
+    "_rels/.rels": strToU8(RELS),
+    "word/document.xml": strToU8(documentXml(paragraphs)),
+  });
+}
+
+/**
+ * The same package carrying a macro project.
+ *
+ * A `.docm` renamed `.docx` presents the same `PK\x03\x04` signature and the same declared MIME
+ * type, so the only place to catch it is inside the archive.
+ */
+export function buildMacroEnabledTemplate(
+  paragraphs: ReadonlyArray<TemplateParagraph>,
+): Uint8Array {
+  return zipSync({
+    "[Content_Types].xml": strToU8(CONTENT_TYPES),
+    "_rels/.rels": strToU8(RELS),
+    "word/document.xml": strToU8(documentXml(paragraphs)),
+    // Not a real VBA project — the name is what makes a package macro-enabled.
+    "word/vbaProject.bin": strToU8("this stands in for a macro project"),
+  });
+}
+
+/** A ZIP that is not a Word document: the case the magic bytes cannot tell apart from one. */
+export function buildNotAWordPackage(): Uint8Array {
+  return zipSync({
+    "readme.txt": strToU8("A container with no Word main part inside it."),
+    "data/rows.csv": strToU8("a,b,c\n1,2,3\n"),
+  });
+}
