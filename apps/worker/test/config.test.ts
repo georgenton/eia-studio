@@ -85,3 +85,59 @@ describe("loadWorkerConfig", () => {
     expect(config.classifier).toMatchObject({ state: "AVAILABLE", kind: "fake", live: false });
   });
 });
+
+/**
+ * Whether this worker can read an uploaded file at all (ADR-033).
+ *
+ * The same rule as the classifier's, one layer over: **a worker with no usable storage never
+ * claims.** Claiming and then failing at the first fetch would drain the extraction queue and mark
+ * every document `FAILED` over a missing environment variable — an outcome a consultant would read
+ * as *these documents are broken*.
+ */
+describe("worker storage resolution", () => {
+  const base = {
+    PUBLIC_APP_URL: "https://staging.example",
+    WORKER_DB_CHECK: "false",
+  } as const;
+
+  it("is unavailable when nothing is configured, and the process still starts", () => {
+    const config = loadWorkerConfig({ ...base, APP_ENV: "staging" });
+    expect(config.storage).toMatchObject({ state: "UNAVAILABLE", reason: "NOT_CONFIGURED" });
+  });
+
+  it("refuses the in-memory store in a persistent environment", () => {
+    const config = loadWorkerConfig({ ...base, APP_ENV: "staging", STORAGE_PROVIDER: "memory" });
+    expect(config.storage).toMatchObject({
+      state: "UNAVAILABLE",
+      reason: "MEMORY_REFUSED_IN_PERSISTENT_ENVIRONMENT",
+    });
+  });
+
+  it("reports BLOCKED_EXTERNAL_CONFIG for a half-configured provider, rather than failing", () => {
+    const config = loadWorkerConfig({
+      ...base,
+      APP_ENV: "staging",
+      STORAGE_PROVIDER: "s3",
+      STORAGE_BUCKET: "eia",
+    });
+    expect(config.storage).toMatchObject({
+      state: "UNAVAILABLE",
+      reason: "BLOCKED_EXTERNAL_CONFIG",
+    });
+  });
+
+  it("is available, and carries what the adapter needs, when it is complete", () => {
+    const config = loadWorkerConfig({
+      ...base,
+      APP_ENV: "production",
+      STORAGE_PROVIDER: "s3",
+      STORAGE_BUCKET: "eia",
+      STORAGE_REGION: "auto",
+      STORAGE_ENDPOINT: "https://store.example",
+      STORAGE_ACCESS_KEY_ID: "k",
+      STORAGE_SECRET_ACCESS_KEY: "s",
+    });
+    expect(config.storage).toMatchObject({ state: "AVAILABLE", provider: "s3", live: true });
+    expect(config.storageConfig.bucket).toBe("eia");
+  });
+});

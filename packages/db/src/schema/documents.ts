@@ -81,6 +81,11 @@ export const documentProcessingState = app.enum("document_processing_state", [
  * product has read nothing at that point, and a green state nobody checked is the one that would
  * be quoted. A version that is not `NO_PERSONAL_DATA_KNOWN` is never sent to an AI provider.
  */
+/**
+ * What a citation points at (ADR-033). See `documentChunk.locatorKind` for why there are two.
+ */
+export const chunkLocatorKind = app.enum("chunk_locator_kind", ["PAGE", "SECTION"]);
+
 export const documentPrivacy = app.enum("document_privacy", [
   "NO_PERSONAL_DATA_KNOWN",
   "CONTAINS_PERSONAL_DATA",
@@ -153,6 +158,10 @@ export const documentVersion = app.table(
     processingState: documentProcessingState("processing_state").notNull().default("READY"),
     /** Set when processing ends in `FAILED` or `REQUIRES_OCR`; bounded operational text. */
     processingNote: text("processing_note"),
+    /** How many times extraction has claimed this version. Bounds a crash loop (ADR-033). */
+    extractionAttempts: integer("extraction_attempts").notNull().default(0),
+    /** When the worker claimed it; a claim older than the stale interval returns to the queue. */
+    extractionClaimedAt: timestamp("extraction_claimed_at", { withTimezone: true, mode: "date" }),
     privacyClassification: documentPrivacy("privacy_classification")
       .notNull()
       .default("REVIEW_REQUIRED"),
@@ -219,8 +228,20 @@ export const documentChunk = app.table(
     projectId: uuid("project_id").notNull(),
     versionId: uuid("version_id").notNull(),
     ordinal: integer("ordinal").notNull(),
-    pageFrom: integer("page_from").notNull(),
-    pageTo: integer("page_to").notNull(),
+    /**
+     * What this chunk's locator *is* (ADR-033).
+     *
+     * `PAGE` for a PDF, whose pages are printed and checkable. `SECTION` for a DOCX, which has no
+     * page model this product could know — its pagination is computed by whatever renders it, so
+     * numbering chunks and calling those pages would produce citations that look verifiable and
+     * are not. Rows written before this column existed are `PAGE`, which is what they claimed.
+     */
+    locatorKind: chunkLocatorKind("locator_kind").notNull().default("PAGE"),
+    /** Null for a `SECTION` chunk: there is no page number to record, and none is invented. */
+    pageFrom: integer("page_from"),
+    pageTo: integer("page_to"),
+    /** The heading trail, for a `SECTION` chunk. The document's own words, never rewritten. */
+    sectionPath: text("section_path"),
     /** Character offsets into the version's concatenated text; meaningless across versions. */
     charFrom: integer("char_from").notNull(),
     charTo: integer("char_to").notNull(),

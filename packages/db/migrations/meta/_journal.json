@@ -295,6 +295,20 @@
       "when": 1789606307632,
       "tag": "0041_field_media_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1789608473225,
+      "tag": "0042_document_extraction",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1789608474225,
+      "tag": "0043_document_extraction_queue",
+      "breakpoints": true
     }
   ]
 }

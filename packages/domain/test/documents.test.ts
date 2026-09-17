@@ -29,6 +29,8 @@ const passage = (n: number, text = `Pasaje ${n}`): RetrievedPassage => ({
   documentVersionId: uuid(200 + n),
   versionLabel: "v1",
   ordinal: n,
+  locatorKind: "PAGE",
+  sectionPath: null,
   pageFrom: n,
   pageTo: n,
   text,

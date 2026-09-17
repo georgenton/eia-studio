@@ -61,14 +61,23 @@ test.describe("Documents · uploading a delivered file", () => {
     await page.goto(DOCUMENTS);
     const row = page.getByRole("row", { name: new RegExp(CODE) });
     await expect(row).toBeVisible();
-    // Uploaded is not processed, and the list says which it is rather than showing an empty
-    // passage count that would read as "this document says nothing".
-    await expect(row).toContainText("Cargado");
+    /*
+     * Uploaded is not processed, and the list says which of the states it is in rather than
+     * showing an empty passage count that would read as "this document says nothing".
+     *
+     * Since ADR-033 the upload also *asks* for the file to be read, so the state here is `En cola`
+     * rather than `Cargado` — `UPLOADED` is what a version falls back to when that ask fails, and
+     * the two being distinguishable is the point. No worker runs in this suite, so it stays queued.
+     */
+    await expect(row).toContainText("En cola");
+    await expect(row).not.toContainText("Cargado");
     await expect(row).toContainText("Requiere revisión");
+    await expect(row).toContainText("Sin procesar");
 
     await page.getByRole("link", { name: CODE }).click();
     const main = page.getByRole("main");
-    await expect(main).toContainText("todavía no se ha procesado");
+    await expect(main).toContainText("En cola para procesar");
+    await expect(main).toContainText("todavía no tiene pasajes que citar");
     await expect(main).toContainText("anexo.pdf");
   });
 

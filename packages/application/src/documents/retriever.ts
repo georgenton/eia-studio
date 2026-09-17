@@ -42,8 +42,10 @@ export class FullTextRetriever implements DocumentRetriever {
       with q as (select websearch_to_tsquery('spanish', ${parsed.question}) as tsq)
       select c.id            as chunk_id,
              c.ordinal       as ordinal,
+             c.locator_kind::text as locator_kind,
              c.page_from     as page_from,
              c.page_to       as page_to,
+             c.section_path  as section_path,
              c.text          as text,
              v.id            as version_id,
              v.version_label as version_label,
@@ -75,8 +77,10 @@ export class FullTextRetriever implements DocumentRetriever {
 interface RawPassage {
   chunk_id: string;
   ordinal: number;
-  page_from: number;
-  page_to: number;
+  locator_kind: "PAGE" | "SECTION";
+  page_from: number | null;
+  page_to: number | null;
+  section_path: string | null;
   text: string;
   version_id: string;
   version_label: string;
@@ -95,8 +99,10 @@ function toPassage(row: RawPassage): RetrievedPassage {
     documentVersionId: row.version_id,
     versionLabel: row.version_label,
     ordinal: Number(row.ordinal),
-    pageFrom: Number(row.page_from),
-    pageTo: Number(row.page_to),
+    locatorKind: row.locator_kind,
+    pageFrom: row.page_from === null ? null : Number(row.page_from),
+    pageTo: row.page_to === null ? null : Number(row.page_to),
+    sectionPath: row.section_path,
     text: row.text,
     score: Number(row.score),
   };

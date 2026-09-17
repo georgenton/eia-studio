@@ -51,7 +51,14 @@ const PRIVILEGED_PREDICATES = [
  * response content crosses this boundary; the worker takes the identifiers and then does all of
  * its real reading inside an ordinary RLS transaction as the user who started the run.
  */
-const PRIVILEGED_JOB_HELPERS = ["claim_classification", "release_stale_classifications"] as const;
+const PRIVILEGED_JOB_HELPERS = [
+  "claim_classification",
+  "release_stale_classifications",
+  // ADR-033: the same boundary, for the document extraction queue. `claim_document_extraction`
+  // returns four uuids — version, tenant, project, uploader — and no file, no key and no text.
+  "claim_document_extraction",
+  "release_stale_document_extractions",
+] as const;
 
 const PRIVILEGED = [...PRIVILEGED_PREDICATES, ...PRIVILEGED_JOB_HELPERS] as const;
 
@@ -211,12 +218,33 @@ describe("hardening contract of the privileged helpers", () => {
     ]);
     for (const column of columns) expect(column.type, column.column).toBe("uuid");
 
-    const release = await db.migrator.execute(sql`
-      select pg_catalog.format_type(p.prorettype, null) as rettype
-        from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-       where n.nspname = 'app' and p.proname = 'release_stale_classifications'
+    // The document queue crosses the same boundary and must answer the same way: four uuids, and
+    // no object key, no filename and no page of text (ADR-033).
+    const extraction = await db.migrator.execute(sql`
+      select arg.name as column, pg_catalog.format_type(arg.type, null) as type
+        from pg_proc p,
+             lateral unnest(p.proargnames, p.proallargtypes, p.proargmodes)
+               with ordinality as arg(name, type, mode, ord)
+       where p.proname = 'claim_document_extraction' and arg.mode = 't'
+       order by arg.ord
     `);
-    expect((release.rows[0] as { rettype: string }).rettype).toBe("integer");
+    const extractionColumns = extraction.rows as Array<{ column: string; type: string }>;
+    expect(extractionColumns.map((c) => c.column)).toEqual([
+      "version_id",
+      "tenant_id",
+      "project_id",
+      "imported_by_user_id",
+    ]);
+    for (const column of extractionColumns) expect(column.type, column.column).toBe("uuid");
+
+    for (const name of ["release_stale_classifications", "release_stale_document_extractions"]) {
+      const release = await db.migrator.execute(sql`
+        select pg_catalog.format_type(p.prorettype, null) as rettype
+          from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+         where n.nspname = 'app' and p.proname = ${name}
+      `);
+      expect((release.rows[0] as { rettype: string }).rettype, name).toBe("integer");
+    }
   });
 
   it("no helper body uses dynamic SQL", async () => {

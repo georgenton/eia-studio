@@ -3,6 +3,7 @@
 import {
   createUploadIntent,
   finalizeUpload,
+  queueDocumentExtraction,
   uploadDocumentVersion,
   type MemoryStorage,
 } from "@eia/application";
@@ -131,6 +132,34 @@ export async function putLocalBytesAction(raw: unknown): Promise<{ ok: boolean; 
   return { ok: true };
 }
 
+/**
+ * Ask for a version to be read again.
+ *
+ * Only reachable for a version that is `UPLOADED`, `FAILED` or `REQUIRES_OCR` — the use-case
+ * refuses a `READY` one, because its chunks are immutable and a second set over the same bytes
+ * would make every citation of the first ambiguous (ADR-033).
+ */
+export async function requeueExtractionAction(
+  raw: unknown,
+): Promise<{ ok: true; message: string } | { ok: false; error: string }> {
+  const input = scope.extend({ versionId: z.string() }).strict().parse(raw);
+  const t = await getTranslator();
+  const access = await resolveSurfaceAccess(input.tenant, input.project, "documents");
+  if (access.kind !== "ok") return { ok: false, error: t("actions.noSurfaceAccess") };
+
+  try {
+    const result = await queueDocumentExtraction(getDb(), access.ctx, input.versionId);
+    revalidatePath(`/t/${input.tenant}/p/${input.project}/documents`, "page");
+    return {
+      ok: true,
+      message: result.queued ? t("documents.requeued") : t("documents.alreadyQueued"),
+    };
+  } catch (error) {
+    if (error instanceof DomainError) return { ok: false, error: error.message };
+    throw error;
+  }
+}
+
 export async function completeDocumentUploadAction(raw: unknown): Promise<UploadResult> {
   const input = scope
     .extend({
@@ -169,6 +198,17 @@ export async function completeDocumentUploadAction(raw: unknown): Promise<Upload
       sourceDate: input.sourceDate,
       sourceNote: input.sourceNote,
     });
+    /*
+     * `UPLOADED → QUEUED`, as the last step and in its own call (ADR-033).
+     *
+     * Separate, because the two states mean different things: `UPLOADED` is *the file is stored and
+     * nobody has asked for it to be read*, which is exactly where a version sits if this fails. A
+     * person can ask again from the surface; silently collapsing the states would leave a document
+     * that looks queued and is not.
+     */
+    if (version.outcome === "stored" && version.versionId !== null) {
+      await queueDocumentExtraction(getDb(), access.ctx, version.versionId).catch(() => undefined);
+    }
     revalidatePath(`/t/${input.tenant}/p/${input.project}/documents`, "page");
     return {
       ok: true,

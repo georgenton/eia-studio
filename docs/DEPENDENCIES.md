@@ -18,6 +18,10 @@ Dependabot/Renovate PRs (CI.md Stage E) and Changesets when release-visible.
 | zod | 4.5.4 | contracts, domain, db (seed), web | strict schemas at every boundary; env validation |
 | pino | 10.3.1 | web, worker | structured logs with redaction |
 | dotenv | 17.4.2 | db (scripts), web (next.config) | load the repository-root `.env` in local development only |
+| @aws-sdk/client-s3 · @aws-sdk/s3-request-presigner | (see manifest) | application | the S3 **protocol**, not a provider: MinIO, R2 and AWS all speak it, and this is the only place that knows the SDK exists (ADR-031) |
+| pdfjs-dist | 5.4.149 | application | reads a PDF's own text **per page**, so a citation names the page a reader turns to rather than a chunk index. Mozilla's, the one Firefox uses; the `legacy` build runs on Node with no DOM. Run with `isEvalSupported: false`, no worker and no network fonts — a delivered PDF is untrusted input (ADR-033) |
+| fflate | 0.8.2 | application, testing | opens a DOCX's archive entry by entry, so `ARCHIVE_LIMITS` is checked against every entry's declared size *before* anything is expanded. A converter would decide for itself what to decompress, and would throw away the heading trail — the only checkable locator a DOCX has |
+| expo-image-picker · expo-file-system | 57.0.18 · 57.0.7 | field | the camera (never the photo library) and the application's own documents directory, where a photograph waits for signal (ADR-032) |
 
 ## Tooling and tests (devDependencies)
 

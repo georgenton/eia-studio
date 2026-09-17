@@ -125,7 +125,16 @@ export default async function DocumentPage({
                   ? t("documents.requiresOcrNote")
                   : document.processingState === "FAILED"
                     ? t("documents.processingFailedNote")
-                    : t("documents.notProcessedYet")}
+                    : document.processingState === "QUEUED"
+                      ? t("documents.queuedNote")
+                      : document.processingState === "PROCESSING"
+                        ? t("documents.processingNote")
+                        : t("documents.notProcessedYet")}
+                {/* Operator-facing and bounded: it names the *kind* of failure, or — for a scan —
+                    the numbers behind the verdict. Never the document's text (ADR-033). */}
+                {document.processingNote === null ? null : (
+                  <span className={styles.strategy}> {document.processingNote}</span>
+                )}
               </p>
             )}
             <p className={styles.note}>
@@ -158,12 +167,21 @@ export default async function DocumentPage({
                 <li className={styles.passage} key={passage.chunkId} id={`p-${passage.ordinal}`}>
                   <span className={styles.passageMeta}>
                     {t("documents.passage", { number: i18n.fmt.count(passage.ordinal + 1) })}
-                    {passage.pageFrom === passage.pageTo
-                      ? t("documents.passagePage", { page: i18n.fmt.count(passage.pageFrom) })
-                      : t("documents.passagePages", {
-                          from: i18n.fmt.count(passage.pageFrom),
-                          to: i18n.fmt.count(passage.pageTo),
-                        })}
+                    {/* What a citation names, and it is not always a page: a DOCX has no page
+                        model this product could know, so its passages carry the heading trail
+                        instead of a number nobody could check (ADR-033). */}
+                    {passage.locatorKind === "SECTION"
+                      ? passage.sectionPath === null
+                        ? ""
+                        : t("documents.passageSection", { section: passage.sectionPath })
+                      : passage.pageFrom === null || passage.pageTo === null
+                        ? ""
+                        : passage.pageFrom === passage.pageTo
+                          ? t("documents.passagePage", { page: i18n.fmt.count(passage.pageFrom) })
+                          : t("documents.passagePages", {
+                              from: i18n.fmt.count(passage.pageFrom),
+                              to: i18n.fmt.count(passage.pageTo),
+                            })}
                   </span>
                   <p className={styles.passageText}>{passage.text}</p>
                 </li>

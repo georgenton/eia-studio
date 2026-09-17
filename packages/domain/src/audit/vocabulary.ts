@@ -16,6 +16,7 @@ export const AUDIT_ACTIONS = [
   "storage.upload.intent_issued",
   "storage.upload.finalized",
   "document.version.uploaded",
+  "document.version.extracted",
   "project.membership.added",
   "project.membership.removed",
   "capability.tenant.changed",
