@@ -5,7 +5,8 @@
   "description": "Testcontainers PostgreSQL fixture, generic factories (tenant A/B) and the cross-tenant attack harness",
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./documents": "./src/documents.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json"

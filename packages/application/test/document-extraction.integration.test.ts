@@ -1,4 +1,4 @@
-import { documentsSchema } from "@eia/db";
+import { documentsSchema, storageSchema } from "@eia/db";
 import type { SessionUser } from "@eia/domain";
 import {
   attempt,
@@ -14,7 +14,7 @@ import {
   setTenantCapability,
   type TwoTenantWorld,
 } from "@eia/testing";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, inject, it } from "vitest";
 
 import {
@@ -25,6 +25,7 @@ import {
   finalizeUpload,
   loadDocumentVersion,
   processDocumentExtraction,
+  issueDocumentDownload,
   queueDocumentExtraction,
   releaseStaleExtractions,
   uploadDocumentVersion,
@@ -44,6 +45,7 @@ import { withDbContext } from "@eia/db";
 const db = getTestDatabase();
 let w: TwoTenantWorld;
 let coordinator: { id: string; email: string };
+let technician: { id: string; email: string };
 let storage: ReturnType<typeof createS3Storage>;
 
 const prose = (times: number) =>
@@ -60,6 +62,21 @@ async function contextFor(user: { id: string; email: string }) {
     sessionUser,
     tenantSlug: w.tenantA.slug,
     projectSlug: w.projectX.slug,
+  });
+}
+
+/** The same coordinator, scoped to the tenant's other project. */
+async function otherProjectContext() {
+  const sessionUser: SessionUser = {
+    subject: coordinator.id,
+    email: coordinator.email,
+    name: null,
+    emailVerified: true,
+  };
+  return buildRequestContext(db.runtime, {
+    sessionUser,
+    tenantSlug: w.tenantA.slug,
+    projectSlug: w.projectY.slug,
   });
 }
 
@@ -143,6 +160,30 @@ beforeAll(async () => {
     role: "COORDINATOR" as never,
   });
   coordinator = user;
+
+  // A technician on the same project: holds `media.upload`, not `documents.read`.
+  const tech = await createUser(db.migrator, "extraction-technician");
+  const techTenantMembership = await createTenantMembership(db.migrator, {
+    tenantId: w.tenantA.id,
+    userId: tech.id,
+    role: "MEMBER",
+  });
+  await createProjectMembership(db.migrator, {
+    tenantId: w.tenantA.id,
+    projectId: w.projectX.id,
+    tenantMembershipId: techTenantMembership.id,
+    role: "FIELD_TECHNICIAN" as never,
+  });
+  technician = tech;
+
+  // The same person on the tenant's *other* project, so "not this project" is observable without
+  // crossing a tenant boundary — the narrower and more realistic failure.
+  await createProjectMembership(db.migrator, {
+    tenantId: w.tenantA.id,
+    projectId: w.projectY.id,
+    tenantMembershipId: tenantMembership.id,
+    role: "COORDINATOR" as never,
+  });
 
   const config = inject("eiaTestStorage");
   storage = createS3Storage({
@@ -422,5 +463,118 @@ describe("the queue itself", () => {
       }
       expect(constraint, kind).toBe("document_chunk_locator_consistent");
     }
+  });
+});
+
+/**
+ * Handing somebody the original file (ADR-034).
+ *
+ * The interesting assertions are the refusals and the audit line, not the happy path: a download
+ * link is a bearer credential for five minutes, and what must never happen is that one is minted
+ * for a caller who could not read the row, or that the log of it carries the filename.
+ */
+describe("downloading an original", () => {
+  let versionId: string;
+
+  beforeAll(async () => {
+    const delivered = await deliver("DOC-DL1", buildPdf([prose(6)]), "pdf");
+    versionId = delivered.versionId;
+  });
+
+  it("mints a signed link the provider honours, and the bytes come back", async () => {
+    const ctx = await contextFor(coordinator);
+    const link = await issueDocumentDownload(db.runtime, ctx, storage, versionId);
+
+    expect(link.filename).toBe("doc-dl1.pdf");
+    expect(link.sizeBytes).toBeGreaterThan(0);
+
+    /*
+     * The URL **does** contain the object key, because that is what a presigned S3 GET is: the
+     * path addresses the object and the query string carries the signature. There is no way to
+     * sign a fetch of an object without naming it.
+     *
+     * What makes that acceptable is ADR-031's key design, and this is the assertion that keeps it
+     * true: the key is a namespace and four UUIDs, so a link pasted into a chat discloses *that a
+     * document exists* and nothing about whose it is. No filename, no document code, no date, no
+     * person. SECURITY.md §7's rule — "the UI never receives raw keys of other objects" — is met
+     * by the page, which holds a route and not a key.
+     */
+    const path = new URL(link.url).pathname;
+    expect(path).toMatch(/\/t\/[0-9a-f-]{36}\/p\/[0-9a-f-]{36}\/documents\/[0-9a-f-]{36}$/);
+    expect(path).not.toContain("doc-dl1");
+    expect(path).not.toContain(".pdf");
+
+    const response = await fetch(link.url);
+    expect(response.status).toBe(200);
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    expect(new TextDecoder().decode(bytes.subarray(0, 4))).toBe("%PDF");
+    // The delivered name is restored on the link rather than carried in the key.
+    expect(response.headers.get("content-disposition")).toContain("doc-dl1.pdf");
+  });
+
+  it("records the issuance without the filename, the key or the hash", async () => {
+    const ctx = await contextFor(coordinator);
+    await issueDocumentDownload(db.runtime, ctx, storage, versionId);
+
+    const rows = await db.migrator.execute(
+      sql`select action::text as action, details from audit.log
+           where object_id = ${versionId} and action = 'document.version.download_issued'
+           order by occurred_at desc limit 1`,
+    );
+    const entry = rows.rows[0] as { action: string; details: Record<string, unknown> } | undefined;
+    expect(entry?.action).toBe("document.version.download_issued");
+    // The document, the version and the privacy claim — what a reviewer of this log needs.
+    expect(entry?.details).toMatchObject({ document: "DOC-DL1", versionLabel: "v1" });
+    const serialised = JSON.stringify(entry?.details ?? {});
+    expect(serialised).not.toContain("doc-dl1.pdf");
+    expect(serialised).not.toMatch(/t\/[0-9a-f-]{36}\/p\//);
+    expect(serialised).not.toMatch(/[0-9a-f]{64}/);
+  });
+
+  it("refuses a caller without documents.read, and says nothing about the version", async () => {
+    // A technician holds `media.upload` and no `documents.read`. The refusal must not distinguish
+    // "you may not" from "it is not there".
+    const error = await attempt(
+      issueDocumentDownload(db.runtime, await contextFor(technician), storage, versionId),
+    );
+    expect(error).toMatch(/permission|denied|documents\.read/i);
+  });
+
+  it("refuses a version of another project, as a not-found", async () => {
+    const error = await attempt(
+      issueDocumentDownload(db.runtime, await otherProjectContext(), storage, versionId),
+    );
+    expect(error).toMatch(/document version|not found/i);
+  });
+
+  it("refuses a version that has no file, rather than offering a dead link", async () => {
+    // Every transcribed excerpt in the pilot corpus is one of these: text read by hand, no PDF.
+    const ctx = await contextFor(coordinator);
+    const [excerpt] = await db.migrator
+      .select({ id: documentsSchema.documentVersion.id })
+      .from(documentsSchema.documentVersion)
+      .where(isNull(documentsSchema.documentVersion.storedObjectId))
+      .limit(1);
+    if (!excerpt) return;
+    const error = await attempt(issueDocumentDownload(db.runtime, ctx, storage, excerpt.id));
+    expect(error).toMatch(/document version|not found/i);
+  });
+
+  it("the link stops working once it expires", async () => {
+    // Signed for a bounded life by the provider, not by us (SECURITY.md §12: TTL ≤ 15 minutes).
+    // Asked for one second, the provider refuses it a moment later — which is the property, and
+    // the only way to observe it without waiting five minutes.
+    const briefly = await storage.presignDownload(
+      (
+        await db.migrator
+          .select({ key: storageSchema.storedObject.objectKey })
+          .from(storageSchema.storedObject)
+          .limit(1)
+      )[0]!.key,
+      1,
+    );
+    await new Promise((resolve) => setTimeout(resolve, 1_600));
+    const response = await fetch(briefly.url);
+    expect(response.status).toBeGreaterThanOrEqual(400);
   });
 });

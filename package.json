@@ -2,7 +2,7 @@
   "name": "eia-studio",
   "version": "0.0.0",
   "private": true,
-  "description": "EIA Studio — multi-tenant workspace for environmental and social impact studies",
+  "description": "EIA Studio \u2014 multi-tenant workspace for environmental and social impact studies",
   "packageManager": "pnpm@10.33.2",
   "engines": {
     "node": ">=24.0.0 <25",
@@ -20,7 +20,7 @@
     "test:rls": "vitest run --project integration packages/testing/test/rls",
     "test:staging": "vitest run --config vitest.staging.config.mts",
     "staging:baseline": "pnpm -s --filter @eia/db staging:baseline",
-    "e2e": "playwright test",
+    "e2e": "pnpm e2e:storage && playwright test",
     "e2e:screenshots": "playwright test e2e/screenshots.spec.ts",
     "e2e:prepare": "node tooling/scripts/e2e-prepare.mjs",
     "perf:baseline": "node tooling/scripts/perf-baseline.mjs",
@@ -47,7 +47,8 @@
     "dev:worker": "pnpm --filter @eia/worker dev",
     "changeset": "changeset",
     "version-packages": "changeset version",
-    "ci:local": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test:unit && pnpm build && pnpm test:integration"
+    "ci:local": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test:unit && pnpm build && pnpm test:integration",
+    "e2e:storage": "node tooling/scripts/e2e-storage.mjs"
   },
   "lint-staged": {
     "*.{ts,tsx,mts,mjs,js,cjs}": [

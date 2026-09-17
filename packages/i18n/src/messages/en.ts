@@ -871,6 +871,11 @@ export const messages: Messages = {
     alreadyQueued: "It was already queued.",
     queuedNote: "Queued for processing; it has no passages to cite yet.",
     processingNote: "Being processed right now.",
+    download: "Download original",
+    downloadNote:
+      "Opens a temporary link signed by the storage provider. It expires in minutes, and the download is recorded.",
+    noOriginal:
+      "This version has no file: its text was transcribed by hand from the file room, and the original PDF never entered the system.",
     projectDocuments: "Project documents",
     documentsNote: "{documents} document(s) · {passages} passages",
     emptyBody:
