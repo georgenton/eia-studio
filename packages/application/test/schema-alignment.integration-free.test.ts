@@ -1,7 +1,13 @@
-import { appSchema } from "@eia/db";
+import { appSchema, reviewSchema } from "@eia/db";
 import { describe, expect, it } from "vitest";
 
 import {
+  REVIEW_CANDIDATE_DECISIONS,
+  REVIEW_CANDIDATE_STATES,
+  REVIEW_EVIDENCE_ROLES,
+  REVIEW_LENS_KEYS,
+  REVIEW_RUN_STATUSES,
+  REVIEW_SUPPORT_KINDS,
   PROJECT_ROLES,
   TENANT_ROLES,
   REGIMES,
@@ -45,5 +51,30 @@ describe("db ↔ domain vocabulary alignment", () => {
         source_type: "REAL_AGGREGATE",
       }).success,
     ).toBe(false);
+  });
+
+  /*
+   * AI document review (ADR-035). `@eia/db` must not import `@eia/domain`, so these vocabularies
+   * exist twice; this is the test that keeps the two copies from drifting. The lens list is the
+   * one that matters most — it is a candidate's whole classification, and a key in the database
+   * the domain does not know would be a candidate nothing could render.
+   */
+  it("the review vocabularies in the database equal the domain's", () => {
+    expect([...reviewSchema.reviewLens.enumValues]).toEqual([...REVIEW_LENS_KEYS]);
+    expect([...reviewSchema.reviewRunStatus.enumValues]).toEqual([...REVIEW_RUN_STATUSES]);
+    expect([...reviewSchema.reviewCandidateState.enumValues]).toEqual([...REVIEW_CANDIDATE_STATES]);
+    expect([...reviewSchema.reviewCandidateDecision.enumValues]).toEqual([
+      ...REVIEW_CANDIDATE_DECISIONS,
+    ]);
+    expect([...reviewSchema.reviewSupportKind.enumValues]).toEqual([...REVIEW_SUPPORT_KINDS]);
+    expect([...reviewSchema.reviewEvidenceRole.enumValues]).toEqual([...REVIEW_EVIDENCE_ROLES]);
+  });
+
+  it("a review candidate carries no severity and no confidence", () => {
+    // Both would be a model deciding something it has nothing to calibrate against (ADR-035 §5).
+    const columns = Object.keys(reviewSchema.documentReviewCandidate);
+    expect(columns).not.toContain("severity");
+    expect(columns).not.toContain("confidence");
+    expect(columns).not.toContain("score");
   });
 });

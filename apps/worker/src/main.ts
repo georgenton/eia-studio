@@ -1,10 +1,16 @@
-import { createClassifier, createMemoryStorage, createS3Storage } from "@eia/application";
+import {
+  createClassifier,
+  createDocumentReviewer,
+  createMemoryStorage,
+  createS3Storage,
+} from "@eia/application";
 import { createDatabase, createPool, type Pool } from "@eia/db";
 import { InMemoryJobQueue } from "@eia/domain";
 import pino from "pino";
 
 import { ClassificationConsumer } from "./classification-consumer";
 import { ExtractionConsumer } from "./extraction-consumer";
+import { ReviewConsumer } from "./review-consumer";
 import { loadWorkerConfig } from "./config";
 import { WorkerProcess } from "./process";
 
@@ -144,6 +150,43 @@ if (config.database && config.storage.state === "AVAILABLE") {
   );
 }
 
+/**
+ * The AI document review consumer (ADR-035), started only when this process can actually run one.
+ *
+ * The third instance of the same rule, and here it is doing the most work: a worker that claimed a
+ * review with no reviewer configured would mark every request `FAILED`, and a specialist would be
+ * told the study had been checked and nothing came of it.
+ */
+let review: ReviewConsumer | null = null;
+if (config.database && config.reviewer.state === "AVAILABLE") {
+  const available = config.reviewer;
+  const reviewPool = createPool(config.database.DATABASE_URL, {
+    max: 2,
+    applicationName: "eia-studio-worker-review",
+  });
+  review = new ReviewConsumer({
+    db: createDatabase(reviewPool),
+    reviewer: createDocumentReviewer(available),
+    model: available.model,
+    logger,
+  });
+  checks.push({
+    name: "document-reviewer",
+    run: async () => {
+      logger.info(
+        { adapter: available.kind, model: available.model, live: available.live },
+        "AI document review configured",
+      );
+    },
+  });
+  poolsToClose.push(reviewPool);
+} else if (config.reviewer.state === "UNAVAILABLE") {
+  logger.warn(
+    { reason: config.reviewer.reason, detail: config.reviewer.detail },
+    "AI document review disabled: this worker will not claim review work",
+  );
+}
+
 const worker = new WorkerProcess({
   logger,
   queue: new InMemoryJobQueue(),
@@ -166,6 +209,12 @@ const worker = new WorkerProcess({
       },
     },
     {
+      name: "review-consumer",
+      run: async () => {
+        if (review) await review.stop();
+      },
+    },
+    {
       name: "database-pool",
       run: async () => {
         if (pool) await pool.end();
@@ -179,6 +228,7 @@ try {
   await worker.start();
   consumer?.start();
   extraction?.start();
+  review?.start();
 } catch (error) {
   logger.error(
     { error: error instanceof Error ? error.message : String(error) },

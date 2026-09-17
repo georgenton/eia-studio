@@ -182,6 +182,41 @@ StoredObject { id, tenant_id, project_id, namespace, object_key, original_filena
 An intent is consumable exactly once (trigger) and a stored object is immutable (`REVOKE UPDATE,
 DELETE` **and** trigger). Both are FORCE RLS with the composite FK to `project`.
 
+### 3.2b AI document review (Wave 3, ADR-035)
+
+```
+DocumentReviewRun    { id, tenant_id, project_id, lens, lens_ref, status: QUEUED|PROCESSING|
+                       COMPLETED|FAILED, adapter_kind, requested_model, prompt_version,
+                       passage_count, candidates_created, candidates_refused, error,
+                       attempts, claimed_at, started_at, finished_at,
+                       initiated_by_user_id, provenance_id }
+DocumentReviewSource { id, tenant_id, project_id, run_id, document_id, document_version_id,
+                       privacy_classification_at_run }                     -- write-once
+DocumentReviewCandidate { id, tenant_id, project_id, run_id, candidate_code (IA-001), lens,
+                       support: TWO_SIDED|SINGLE_SOURCE, state: PROPOSED|ACCEPTED|DISMISSED,
+                       title, observation, suggested_check, provenance_id }  -- only state changes
+DocumentReviewEvidence { id, tenant_id, project_id, candidate_id, role: SOURCE_A|SOURCE_B|CONTEXT,
+                       ordinal, chunk_id, document_version_id, label, quote }  -- write-once
+DocumentReviewDecision { id, tenant_id, project_id, candidate_id, decision: ACCEPT|DISMISS|REOPEN,
+                       from_state, to_state, justification, reviewer_user_id, decided_at }
+                                                                            -- append-only
+```
+
+**These are not Quality Gate tables, and that is the decision.** `quality_finding` carries
+`requirement_key` and `requirement_version`, naming a deterministic rule in versioned code
+(ADR-020); an AI candidate has no rule, so writing one there would mean inventing a requirement key
+and attributing a finding to a rule that never ran. A candidate has **no severity and no
+confidence** (ADR-035 §3), a code that cannot be mistaken for a finding's, and no path into
+`quality_finding` at all.
+
+`document_review_source` records the corpus — and the classification each version carried **at the
+time** — because "what did this run actually read?" must be answerable from the row a year later,
+not re-derived from a corpus that has since changed.
+
+All five are FORCE RLS with the composite FK to `project`, and none carries a `DELETE` grant.
+Migrations `0044` (tables) and `0045` (grants, policies, triggers, and the
+`app.claim_document_review` queue helper).
+
 ### 3.3 GIS
 
 **Implemented in Slice 2** (migrations `0009`, `0010`, and the Gate 2 hardening `0011`). The

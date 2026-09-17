@@ -32,7 +32,7 @@ route or a nav item; a capability never carries a numeric parameter.
 | `social.analytics` | social | `field.surveys` | AVAILABLE | ACTIVE | Social Intelligence: closed variables |
 | `social.ai_coding` | social | `social.analytics` | AVAILABLE | ACTIVE | Social Intelligence: open answers queue, taxonomy proposals |
 | `quality.document_gate` | quality | `core.projects` | AVAILABLE | ACTIVE | Quality Gate |
-| `quality.rag_assistant` | quality | `core.documents` | AVAILABLE (Slice 6) | ACTIVE | RAG Assistant (embedded in Documents) |
+| `quality.rag_assistant` | quality | `core.documents` | AVAILABLE (Slice 6) | ACTIVE | RAG Assistant (embedded in Documents) **and** *Revisión asistida* (ADR-035) |
 | `reports.social_generator` | reports | `social.analytics`, `core.documents` | AVAILABLE (Slice 7) | ACTIVE | Reports |
 | `client.portal` | client-portal | `core.projects` | AVAILABLE (ADR-027) | ACTIVE | *Portal del cliente* (prepare, preview, publish, history) and the standalone *Vista del cliente* at `/portal/:tenant/:project` |
 | `climate.analytics` | (ext) | `core.projects` | EXTENSION | HIDDEN | none in workspace |
@@ -106,6 +106,12 @@ Pilot: every AVAILABLE key above is ACTIVE, including `compliance.pma` since ADR
 `client.portal` since ADR-027; Climate
 Analytics and Environmental Audit are navigation HIDDEN (and disabled). No pilot capability is
 ANNOUNCED any more — the rail has no placeholder left.
+
+`quality.rag_assistant` is the one key whose **meaning was widened** (ADR-035 §8): it governed
+*asking the corpus a question*, and now also governs *having the corpus reviewed by a model*. Both
+are AI over this project's documents and both depend on `core.documents`, so a fifteenth key would
+have split one question — *may a model read this project's documents?* — across two switches that
+can disagree. The catalogue still holds exactly 14 keys.
 
 `compliance.pma` is the one key whose **meaning** was narrowed rather than its status merely
 raised (ADR-024 §6). It governs the plan the study *proposes* — its plans, programmes and

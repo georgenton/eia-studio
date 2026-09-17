@@ -14,6 +14,7 @@ export {
   socialSchema,
   qualitySchema,
   documentsSchema,
+  reviewSchema,
   pgasSchema,
   portalSchema,
   reportsSchema,

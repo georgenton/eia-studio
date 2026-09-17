@@ -230,3 +230,118 @@
   font-size: 11px;
   color: var(--eia-text-secondary);
 }
+
+/* --- AI document review (ADR-035) ---
+   The visual distance from the Quality Gate is deliberate, not decorative: a candidate is marked
+   as a machine's suggestion wherever it appears, and never adopts the finding's treatment. */
+.reviewCandidates {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.candidate {
+  border: 1px solid var(--eia-hairline);
+  border-left: 3px solid var(--eia-text-muted);
+  border-radius: 5px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.candidateHead {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+.candidateOrigin {
+  font-size: var(--eia-size-label);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--eia-text-muted);
+}
+.candidateTitle {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+.candidateBody {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+.candidateLabel {
+  font-size: var(--eia-size-label);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--eia-text-muted);
+  display: block;
+  margin-bottom: 2px;
+}
+.candidateEvidence {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.decisionForm {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-top: 1px solid var(--eia-hairline);
+  padding-top: 10px;
+}
+.decisionRow {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.textarea {
+  font: inherit;
+  font-size: 12.5px;
+  border: 1px solid #d8dde1;
+  border-radius: 5px;
+  padding: 8px 10px;
+  background: #ffffff;
+  min-height: 60px;
+  resize: vertical;
+  width: 100%;
+  max-width: 620px;
+}
+.select {
+  font: inherit;
+  font-size: 12.5px;
+  border: 1px solid #d8dde1;
+  border-radius: 5px;
+  padding: 7px 10px;
+  background: #ffffff;
+}
+.decisionHistory {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 11.5px;
+  color: var(--eia-text-secondary);
+  line-height: 1.55;
+}
+.error {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--eia-danger, #a3261f);
+}
+.blockedList {
+  margin: 6px 0 0;
+  padding-left: 16px;
+  font-size: 12px;
+  line-height: 1.6;
+}

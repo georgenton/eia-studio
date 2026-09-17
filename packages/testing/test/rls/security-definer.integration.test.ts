@@ -58,6 +58,10 @@ const PRIVILEGED_JOB_HELPERS = [
   // returns four uuids — version, tenant, project, uploader — and no file, no key and no text.
   "claim_document_extraction",
   "release_stale_document_extractions",
+  // ADR-035: and again for the AI review queue. `claim_document_review` returns four uuids — run,
+  // tenant, project, initiator — and no lens text, no passage and no candidate.
+  "claim_document_review",
+  "release_stale_document_reviews",
 ] as const;
 
 const PRIVILEGED = [...PRIVILEGED_PREDICATES, ...PRIVILEGED_JOB_HELPERS] as const;
@@ -237,7 +241,29 @@ describe("hardening contract of the privileged helpers", () => {
     ]);
     for (const column of extractionColumns) expect(column.type, column.column).toBe("uuid");
 
-    for (const name of ["release_stale_classifications", "release_stale_document_extractions"]) {
+    // The review queue crosses the same boundary and answers the same way (ADR-035).
+    const review = await db.migrator.execute(sql`
+      select arg.name as column, pg_catalog.format_type(arg.type, null) as type
+        from pg_proc p,
+             lateral unnest(p.proargnames, p.proallargtypes, p.proargmodes)
+               with ordinality as arg(name, type, mode, ord)
+       where p.proname = 'claim_document_review' and arg.mode = 't'
+       order by arg.ord
+    `);
+    const reviewColumns = review.rows as Array<{ column: string; type: string }>;
+    expect(reviewColumns.map((c) => c.column)).toEqual([
+      "run_id",
+      "tenant_id",
+      "project_id",
+      "initiated_by_user_id",
+    ]);
+    for (const column of reviewColumns) expect(column.type, column.column).toBe("uuid");
+
+    for (const name of [
+      "release_stale_classifications",
+      "release_stale_document_extractions",
+      "release_stale_document_reviews",
+    ]) {
       const release = await db.migrator.execute(sql`
         select pg_catalog.format_type(p.prorettype, null) as rettype
           from pg_proc p join pg_namespace n on n.oid = p.pronamespace

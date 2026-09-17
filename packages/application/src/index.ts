@@ -226,6 +226,34 @@ export {
   renderAssistantUserPrompt,
 } from "./documents/generator";
 export type { FakeGeneratorScenario } from "./documents/generator";
+export {
+  claimNextDocumentReview,
+  decideDocumentReviewCandidate,
+  listDocumentReviewCandidates,
+  listDocumentReviewRuns,
+  processDocumentReview,
+  releaseStaleDocumentReviews,
+  startDocumentReviewRun,
+  REVIEW_PASSAGE_LIMIT,
+} from "./documents/review";
+export type {
+  DecidedCandidate,
+  ReviewCandidateRow,
+  ReviewClaim,
+  ReviewOutcome,
+  ReviewRunRow,
+  StartReviewInput,
+  StartedReviewRun,
+} from "./documents/review";
+export {
+  AiGatewayDocumentReviewer,
+  createDocumentReviewer,
+  FakeDocumentReviewer,
+  renderReviewSystemPrompt,
+  renderReviewUserPrompt,
+  DOCUMENT_REVIEW_PROMPT_VERSION,
+} from "./documents/reviewer";
+export type { FakeReviewerScenario } from "./documents/reviewer";
 export { loadDocuments, loadDocumentVersion } from "./documents/read-models";
 export type { DocumentSummary, DocumentVersionDetail } from "./documents/read-models";
 

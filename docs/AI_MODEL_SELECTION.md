@@ -107,6 +107,10 @@ SOCIAL_CLASSIFIER=ai-gateway
 SOCIAL_CLASSIFIER_MODEL=anthropic/claude-haiku-4.5
 ASSISTANT_GENERATOR=ai-gateway
 ASSISTANT_GENERATOR_MODEL=anthropic/claude-sonnet-5
+# AI document review (ADR-035). A third, separate decision: this one sends passages of a delivered
+# study to the vendor, and only versions declared `NO_PERSONAL_DATA_KNOWN` can be in the corpus.
+DOCUMENT_REVIEWER=ai-gateway
+DOCUMENT_REVIEWER_MODEL=anthropic/claude-sonnet-5
 AI_GATEWAY_API_KEY=<in the platform's environment, never in the repository>
 ```
 

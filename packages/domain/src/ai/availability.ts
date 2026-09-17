@@ -94,6 +94,35 @@ export function resolveClassifierAvailability(
 }
 
 /**
+ * Whether AI document review may run (ADR-035).
+ *
+ * The third adapter, and the reason this function is shared rather than copied: the predicate that
+ * keeps a persistent environment from running a stand-in is the whole guarantee, and a third copy
+ * of it would be a third thing to forget.
+ *
+ * It is also the adapter where the stakes of `FAKE_REFUSED_IN_PERSISTENT_ENVIRONMENT` are highest.
+ * A fake classification is one row saying a response is about *access to services*; a fake review
+ * candidate is a paragraph of plausible Spanish asserting that two chapters of a study disagree,
+ * stored beside real ones and indistinguishable from them once a specialist has accepted it.
+ */
+export function resolveDocumentReviewerAvailability(input: {
+  readonly appEnv: string;
+  readonly reviewer: ClassifierKind | undefined;
+  readonly model: string | undefined;
+  readonly gatewayApiKeyPresent: boolean;
+}): ClassifierAvailability {
+  return resolveAiAdapterAvailability({
+    appEnv: input.appEnv,
+    variable: "DOCUMENT_REVIEWER",
+    modelVariable: "DOCUMENT_REVIEWER_MODEL",
+    feature: "AI document review",
+    adapter: input.reviewer,
+    model: input.model,
+    credentialPresent: input.gatewayApiKeyPresent,
+  });
+}
+
+/**
  * The same rule, for any adapter that may or may not have a live provider behind it.
  *
  * Slice 6 added a second one (the assistant's narrative generator), and the choice was between

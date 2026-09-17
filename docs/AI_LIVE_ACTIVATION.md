@@ -10,13 +10,14 @@
 > (explicit configuration, no default, no fallback), `docs/AI_MODEL_SELECTION.md` (which model, and
 > why), `docs/AI_GOVERNANCE.md`.
 
-## 1. Three features, two selectors, one credential
+## 1. Four features, three selectors, one credential
 
 | Feature | Surface | Selector | Model variable | What is lost when it is off |
 |---|---|---|---|---|
 | Assisted coding | Análisis social · respuestas abiertas | `SOCIAL_CLASSIFIER` | `SOCIAL_CLASSIFIER_MODEL` | proposals. Tabulation, denominators, validated themes and the queue keep working |
 | Document assistant's paragraph | Documentos | `ASSISTANT_GENERATOR` | `ASSISTANT_GENERATOR_MODEL` | the paragraph. Retrieval and its citations *are* the answer and need no model (ADR-021) |
 | Report chapter's prose | Informes | `ASSISTANT_GENERATOR` (shared) | `ASSISTANT_GENERATOR_MODEL` | the prose. The snapshot is the deliverable and is complete without it (ADR-022) |
+| AI document review | Documentos · Revisión asistida | `DOCUMENT_REVIEWER` | `DOCUMENT_REVIEWER_MODEL` | the candidates. Everything else in Documentos — the corpus, the passages, the citations, the assistant's retrieval — is unaffected (ADR-035) |
 
 `AI_GATEWAY_API_KEY` is the single credential, read by the AI SDK and never by our code — we check
 only that it is present. `APP_ENV` decides whether a deterministic stand-in is permitted at all.
@@ -70,6 +71,12 @@ environment as a **FAIL**.
    only needs to know whether the feature is available.
 4. Run the smoke of §7 — two answers — and read what it recorded.
 5. Only then consider the assistant's `ASSISTANT_GENERATOR`, which is a second decision.
+6. `DOCUMENT_REVIEWER` is a **third and separate** decision, and the one with the largest blast
+   radius: a live reviewer sends passages of a delivered study to a vendor, and the privacy gate
+   of ADR-035 §6 is what bounds which ones. Turning it on is meaningless until the compliance
+   review of SECURITY.md §10a has assessed that vendor, and until somebody has actually classified
+   the corpus — every uploaded version defaults to `REVIEW_REQUIRED`, and a run over one is
+   refused.
 
 Nothing about this is a deployment: no code changes, and no migration.
 
@@ -177,7 +184,8 @@ Then decide whether to widen. Not before.
 
 ## 8. Turning it off
 
-Unset `SOCIAL_CLASSIFIER` (and `ASSISTANT_GENERATOR`) and redeploy. That is the whole rollback:
+Unset `SOCIAL_CLASSIFIER` (and `ASSISTANT_GENERATOR`, and `DOCUMENT_REVIEWER`) and redeploy. That is
+the whole rollback:
 
 - no schema change to undo — the tables exist and hold what was already produced;
 - proposals already written stay, correctly attributed to the model that wrote them, which is why

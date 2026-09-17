@@ -2,6 +2,7 @@ import {
   appEnvSchema,
   loadEnv,
   runtimeDatabaseEnvSchema,
+  documentReviewerEnvSchema,
   socialEnvSchema,
   storageEnvSchema,
   workerEnvSchema,
@@ -12,6 +13,7 @@ import {
 } from "@eia/contracts";
 import {
   resolveClassifierAvailability,
+  resolveDocumentReviewerAvailability,
   resolveStorageAvailability,
   type ClassifierAvailability,
   type StorageAvailability,
@@ -34,6 +36,11 @@ export interface WorkerConfig {
    * document `FAILED` over a missing environment variable.
    */
   readonly storage: StorageAvailability;
+  /**
+   * Whether this process may run AI document review (ADR-035). Same rule again: `UNAVAILABLE` is
+   * not a startup failure, and a worker that cannot review never claims a review.
+   */
+  readonly reviewer: ClassifierAvailability;
   /** What was configured, for the adapter to build from. `getStorage` reads `storage` first. */
   readonly storageConfig: {
     readonly bucket: string | undefined;
@@ -58,6 +65,13 @@ export function loadWorkerConfig(source: EnvSource = process.env): WorkerConfig 
     model: social.SOCIAL_CLASSIFIER_MODEL,
     gatewayApiKeyPresent: social.AI_GATEWAY_API_KEY !== undefined,
   });
+  const reviewerEnv = loadEnv("documentReviewer", documentReviewerEnvSchema, source);
+  const reviewer = resolveDocumentReviewerAvailability({
+    appEnv: app.APP_ENV,
+    reviewer: reviewerEnv.DOCUMENT_REVIEWER,
+    model: reviewerEnv.DOCUMENT_REVIEWER_MODEL,
+    gatewayApiKeyPresent: reviewerEnv.AI_GATEWAY_API_KEY !== undefined,
+  });
   const storageEnv = loadEnv("storage", storageEnvSchema, source);
   const storage = resolveStorageAvailability({
     appEnv: app.APP_ENV,
@@ -74,6 +88,7 @@ export function loadWorkerConfig(source: EnvSource = process.env): WorkerConfig 
     worker,
     database,
     classifier,
+    reviewer,
     storage,
     storageConfig: {
       bucket: storageEnv.STORAGE_BUCKET,

@@ -8,6 +8,7 @@ import {
   loadEnv,
   runtimeDatabaseEnvSchema,
   assistantEnvSchema,
+  documentReviewerEnvSchema,
   socialEnvSchema,
   storageEnvSchema,
   type AppEnv,
@@ -17,6 +18,7 @@ import {
 } from "@eia/contracts";
 import {
   resolveAiAdapterAvailability,
+  resolveDocumentReviewerAvailability,
   resolveBasemapCatalogue,
   resolveClassifierAvailability,
   resolveStorageAvailability,
@@ -43,6 +45,8 @@ interface WebEnv {
    * citation do not depend on it: `UNAVAILABLE` degrades the answer, never the surface.
    */
   readonly assistant: ClassifierAvailability;
+  /** Whether AI document review may run here, and why not when it may not (ADR-035). */
+  readonly reviewer: ClassifierAvailability;
   /**
    * The origins Better Auth accepts state-changing requests from, resolved once from explicit
    * configuration plus this deployment's own platform hostnames (`trusted-origins.ts`).
@@ -107,6 +111,7 @@ export function getEnv(): WebEnv {
   const auth = loadEnv("auth", authEnvSchema, source);
   const social = loadEnv("social", socialEnvSchema, source);
   const assistant = loadEnv("assistant", assistantEnvSchema, source);
+  const reviewer = loadEnv("documentReviewer", documentReviewerEnvSchema, source);
   const storage = loadEnv("storage", storageEnvSchema, source);
   cached = {
     app,
@@ -127,6 +132,12 @@ export function getEnv(): WebEnv {
       adapter: assistant.ASSISTANT_GENERATOR,
       model: assistant.ASSISTANT_GENERATOR_MODEL,
       credentialPresent: assistant.AI_GATEWAY_API_KEY !== undefined,
+    }),
+    reviewer: resolveDocumentReviewerAvailability({
+      appEnv: app.APP_ENV,
+      reviewer: reviewer.DOCUMENT_REVIEWER,
+      model: reviewer.DOCUMENT_REVIEWER_MODEL,
+      gatewayApiKeyPresent: reviewer.AI_GATEWAY_API_KEY !== undefined,
     }),
     storage: resolveStorageAvailability({
       appEnv: app.APP_ENV,
