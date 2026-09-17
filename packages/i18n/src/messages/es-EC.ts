@@ -683,6 +683,19 @@ export const messages = {
     },
   },
   portfolio: {
+    newProject: "Nuevo proyecto",
+    newProjectLead:
+      "Crear el proyecto es la primera mitad; la segunda es prepararlo en «Preparar proyecto», que es donde se carga su información.",
+    newProjectName: "Nombre del proyecto",
+    newProjectSlug: "Identificador en la URL",
+    newProjectSlugHelp:
+      "Minúsculas, números y guiones. Aparece en la dirección del proyecto y no se cambia después.",
+    newProjectProfile: "Perfil",
+    newProjectProfileHelp: "Decide qué módulos tiene el proyecto. Se copia al crearlo.",
+    newProjectSubmit: "Crear proyecto",
+    newProjectCreating: "Creando…",
+    newProjectCreated: "Proyecto {name} creado.",
+    newProjectUnknownProfile: "Ese perfil no existe en esta versión del producto.",
     title: "Cartera de proyectos",
     projectsActive: "{count} proyectos activos",
     projectActive: "{count} proyecto activo",

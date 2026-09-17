@@ -1,0 +1,4 @@
+{
+  "NSLocationWhenInUseUsageDescription": "EIA Field records the technician's own location when a visit starts, and only when the technician allows it. A household's location is never inferred.",
+  "NSCameraUsageDescription": "EIA Field uses the camera to record photographs of a visit: the parcel, the affectation and the access. Photographs are kept on the device and sent to the study; they are never published to the client and never sent to a model provider."
+}

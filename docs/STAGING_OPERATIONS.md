@@ -4,12 +4,30 @@
 > ADR-031, ADR-034. Production is out of scope here and stays manual and gated
 > (`DEPLOYMENT.md` §6).
 
-This page exists because Wave 2 and Wave 3 built things that **cannot be verified on staging from a
-developer's machine**: the credentials are not in this repository and must not be. Each section is
-the exact sequence an operator runs, and what to look for afterwards.
+This page is the exact sequence an operator runs, and what to look for afterwards. Nothing here is
+a guess about what staging holds: where the answer was unknown, the procedure started by finding
+out, and §0 records what it found.
 
-Nothing here is a guess about what staging currently holds. Where the answer is unknown, the
-procedure starts by finding out.
+## 0. What has been done, and when
+
+| | Status | When |
+|---|---|---|
+| Migrations 0034 … 0047 applied to staging | **DONE** | 17 September 2026, during Wave 3 |
+| Baseline before and after, and the table diff | **DONE** — §2 records the exact diff | same |
+| `pnpm test:staging` | **DONE — 99 passed, 8 files**, including 8 new Wave 3 assertions against the real database | same |
+| Object storage activated on staging | **BLOCKED** — there is no bucket; §3 is the four-step activation and every step is an owner action (TD-090) | — |
+| Document and media smoke tests on staging | **BLOCKED** by the above: with no bucket, `resolveStorageAvailability` reports `NOT_CONFIGURED` and no upload can be attempted | — |
+
+Facts about staging, recorded so the next operator does not have to rediscover them:
+
+- PostgreSQL **17.6**, database `eia_staging`, reached through Railway's TCP proxy;
+- roles present: `eia_app`, `eia_app_login`, `eia_policy`. **There is no `eia_migrator` role** —
+  staging was provisioned with the platform's `postgres` superuser as the schema owner, so the
+  migrator URL below is that superuser's, not a separate migration role;
+- before Wave 3: **34** migrations applied. After: **48**, which is every entry in the journal.
+
+The credentials themselves are in the platform's environment configuration and are not in this
+repository — only the procedure is (CLAUDE.md rule 20).
 
 ## 1. Before anything: what is staging on right now
 
@@ -45,8 +63,28 @@ psql "$EIA_STAGING_MIGRATOR_URL" -Atc \
 diff /tmp/staging-tables-before.txt /tmp/staging-tables-after.txt
 ```
 
-Expected difference, and nothing else: `app.survey_question_translation`,
-`app.survey_option_translation`, `app.upload_intent`, `app.stored_object`, `app.field_media`.
+Expected difference, and nothing else — **this is the diff the 17 September 2026 run actually
+produced**, fourteen new tables and nothing removed or altered:
+
+```
+> app.survey_question_translation      Wave 2 · bilingual questionnaires (ADR-029)
+> app.survey_option_translation
+> app.upload_intent                    Wave 2 · object storage (ADR-031)
+> app.stored_object
+> app.field_media                      Wave 2 · field photographs (ADR-032)
+> app.document_review_run              Wave 3 · AI document review (ADR-035)
+> app.document_review_source
+> app.document_review_candidate
+> app.document_review_evidence
+> app.document_review_decision
+> app.report_template                  Wave 3 · the template library (ADR-036)
+> app.report_template_version
+> app.generated_document
+```
+
+Wave 3's migrations also add two values to `app.storage_namespace` (`templates`, `generated`), two
+SECURITY DEFINER queue helpers and their release functions, and the immutability triggers — none of
+which appear in a table diff, and all of which `pnpm test:staging` asserts directly.
 
 Then the non-destructive suite, which **reads** and rolls back every write (SECURITY.md §12a):
 

@@ -676,6 +676,19 @@ export const messages: Messages = {
     },
   },
   portfolio: {
+    newProject: "New project",
+    newProjectLead:
+      "Creating the project is the first half; the second is preparing it in “Prepare project”, which is where its information is loaded.",
+    newProjectName: "Project name",
+    newProjectSlug: "Identifier in the URL",
+    newProjectSlugHelp:
+      "Lower case, digits and hyphens. It appears in the project's address and does not change afterwards.",
+    newProjectProfile: "Profile",
+    newProjectProfileHelp: "Decides which modules the project has. Copied when it is created.",
+    newProjectSubmit: "Create project",
+    newProjectCreating: "Creating…",
+    newProjectCreated: "Project {name} created.",
+    newProjectUnknownProfile: "That profile does not exist in this build.",
     title: "Project portfolio",
     projectsActive: "{count} active projects",
     projectActive: "{count} active project",
