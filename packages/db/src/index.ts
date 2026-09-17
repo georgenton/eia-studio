@@ -15,6 +15,7 @@ export {
   qualitySchema,
   documentsSchema,
   reviewSchema,
+  templatesSchema,
   pgasSchema,
   portalSchema,
   reportsSchema,

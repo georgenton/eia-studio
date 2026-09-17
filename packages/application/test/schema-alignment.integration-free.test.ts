@@ -1,7 +1,11 @@
-import { appSchema, reviewSchema } from "@eia/db";
+import { appSchema, reviewSchema, storageSchema, templatesSchema } from "@eia/db";
 import { describe, expect, it } from "vitest";
 
 import {
+  STORAGE_NAMESPACES,
+  TEMPLATE_KINDS,
+  TEMPLATE_LOCALES,
+  TEMPLATE_VERSION_STATES,
   REVIEW_CANDIDATE_DECISIONS,
   REVIEW_CANDIDATE_STATES,
   REVIEW_EVIDENCE_ROLES,
@@ -76,5 +80,24 @@ describe("db ↔ domain vocabulary alignment", () => {
     expect(columns).not.toContain("severity");
     expect(columns).not.toContain("confidence");
     expect(columns).not.toContain("score");
+  });
+
+  /*
+   * The template library (ADR-036). The locale list is the one that matters most: ES and EN are
+   * different versions of the same template, and a locale the database allowed but the domain did
+   * not know would be a version nothing could render.
+   */
+  it("the template vocabularies in the database equal the domain's", () => {
+    expect([...templatesSchema.templateKind.enumValues]).toEqual([...TEMPLATE_KINDS]);
+    expect([...templatesSchema.templateLocale.enumValues]).toEqual([...TEMPLATE_LOCALES]);
+    expect([...templatesSchema.templateVersionState.enumValues]).toEqual([
+      ...TEMPLATE_VERSION_STATES,
+    ]);
+  });
+
+  it("the storage namespaces are the four the domain declares, never mixed", () => {
+    expect([...storageSchema.storageNamespace.enumValues]).toEqual([...STORAGE_NAMESPACES]);
+    expect(STORAGE_NAMESPACES).toContain("templates");
+    expect(STORAGE_NAMESPACES).toContain("generated");
   });
 });

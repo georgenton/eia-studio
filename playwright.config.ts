@@ -132,6 +132,22 @@ export default defineConfig({
       },
     },
     {
+      /*
+       * The template library (ADR-036). Serial and after the review project, because each test
+       * builds on the previous one's rows — a registered template, then a version, then an
+       * activation, then a document.
+       */
+      name: "templates",
+      testMatch: /(^|\/)templates\.spec\.ts$/,
+      fullyParallel: false,
+      dependencies: ["setup", "document-review"],
+      use: {
+        ...devices["Desktop Chrome"],
+        viewport: { width: 1440, height: 940 },
+        storageState: "e2e/.auth/coordinator.json",
+      },
+    },
+    {
       // Its own project, after the coordinator's, because it creates documents: a golden reference
       // taken afterwards would show the suite's own synthetic rows rather than the product.
       name: "document-upload",

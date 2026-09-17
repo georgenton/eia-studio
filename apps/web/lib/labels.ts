@@ -98,6 +98,31 @@ export const reviewBlockedReasonLabel = (t: Translator, value: string) =>
 export const reviewDecisionWord = (t: Translator, value: string) =>
   t(`documents.review.${value.toLowerCase()}` as MessageKey);
 
+/**
+ * The template library's vocabularies (ADR-036), under `templates.*` for the same reason the
+ * review ones are under `documents.review.*`: they are this surface's words.
+ */
+const templateWord = (t: Translator, group: string, value: string) =>
+  t(`templates.${group}.${value}` as MessageKey);
+
+export const templateKindLabel = (t: Translator, value: string) =>
+  templateWord(t, "kindLabel", value);
+export const templateStateLabel = (t: Translator, value: string) =>
+  templateWord(t, "stateLabel", value);
+export const templateLocaleLabel = (t: Translator, value: string) =>
+  templateWord(t, "localeLabel", value);
+export const templateAbsenceLabel = (t: Translator, value: string) =>
+  templateWord(t, "absenceLabel", value);
+/**
+ * Where a placeholder's value comes from, in the reader's language.
+ *
+ * The domain's `PlaceholderDefinition.source` is operator-facing English — it is what a reviewer
+ * reads when asking whether a figure may be in a deliverable, and it stays in the registry. What a
+ * consultant sees on the page is this label for it (ADR-025/029).
+ */
+export const templateSourceLabel = (t: Translator, key: string) =>
+  templateWord(t, "vocabularySourceFor", key);
+
 export const surfaceLabel = (t: Translator, key: string) =>
   t(`surface.${key === "command-center" ? "commandCenter" : key}` as MessageKey);
 

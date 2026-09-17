@@ -217,6 +217,38 @@ All five are FORCE RLS with the composite FK to `project`, and none carries a `D
 Migrations `0044` (tables) and `0045` (grants, policies, triggers, and the
 `app.claim_document_review` queue helper).
 
+### 3.2c The template library (Wave 3, ADR-036)
+
+```
+ReportTemplate        { id, tenant_id, project_id, code (TPL-001), name, kind: cover|chapter|annex,
+                        purpose, created_by_user_id }                        -- write-once
+ReportTemplateVersion { id, tenant_id, project_id, template_id, version_label, locale: es-EC|en,
+                        state: UPLOADED|VALIDATED|ACTIVE|SUPERSEDED, stored_object_id,
+                        file_sha256, original_filename, size_bytes, manifest (jsonb),
+                        validated_at, validation_error, activated_at, activated_by_user_id,
+                        uploaded_by_user_id, uploaded_at, provenance_id }
+                        -- state advances; which file it is never changes (trigger)
+GeneratedDocument     { id, tenant_id, project_id, template_version_id, report_version_id,
+                        snapshot_digest, locale, stored_object_id, file_sha256, size_bytes,
+                        declared_absent text[], narrative_model, narrative_prompt_version,
+                        generated_by_user_id, generated_at, provenance_id }   -- write-once
+```
+
+`manifest` is what parsing found: the registry placeholders the template uses, the tags **nobody
+declared** (any one of which blocks activation), the required ones, the repetition containers and a
+tag count. It is stored rather than recomputed so the list that blocked an activation is still
+readable after somebody fixes the template.
+
+`declared_absent` records which placeholders printed an explicit *no value*, so a reader of the
+archive can tell a blank the project genuinely had from one a later change created. `snapshot_digest`
+is the SHA-256 of the snapshot's own bytes: the id says which version, the digest says which bytes
+of it.
+
+Two new storage namespaces — `templates` and `generated` — kept separate from `documents` because
+the three have different formats, different readers and different retention questions. All three
+tables are FORCE RLS with the composite FK to `project`, and none carries a `DELETE` grant.
+Migrations `0046` (tables) and `0047` (grants, policies, triggers).
+
 ### 3.3 GIS
 
 **Implemented in Slice 2** (migrations `0009`, `0010`, and the Gate 2 hardening `0011`). The

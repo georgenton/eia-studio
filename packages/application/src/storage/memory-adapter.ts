@@ -16,7 +16,13 @@ import type { DownloadLink, StoragePort, StoredObject, UploadIntent } from "@eia
  */
 export interface MemoryStorage extends StoragePort {
   /** Put bytes directly, standing in for the client's PUT to the presigned URL. */
-  put(key: string, bytes: Uint8Array, contentType: string): void;
+  /**
+   * The port's write, and the local stand-in for a browser's PUT.
+   *
+   * `StoragePort.put` is async; this store answers immediately, so the signature widens to a
+   * promise while callers that already use it synchronously keep working.
+   */
+  put(key: string, bytes: Uint8Array, contentType: string): Promise<void>;
   keys(): ReadonlyArray<string>;
 }
 
@@ -24,8 +30,9 @@ export function createMemoryStorage(): MemoryStorage {
   const objects = new Map<string, { bytes: Uint8Array; contentType: string }>();
 
   return {
-    put(key, bytes, contentType) {
+    async put(key, bytes, contentType) {
       objects.set(key, { bytes, contentType });
+      return Promise.resolve();
     },
     keys() {
       return [...objects.keys()];

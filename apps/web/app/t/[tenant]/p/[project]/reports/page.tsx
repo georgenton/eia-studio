@@ -1,5 +1,6 @@
 import { loadWorkspaceHeader, loadReportOverview } from "@eia/application";
 import { can } from "@eia/domain";
+import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
 import { ReportOverviewPanel } from "@/components/reports/report-overview";
@@ -94,6 +95,20 @@ export default async function ReportsPage({
   return (
     <WorkspaceShell {...shell}>
       <div className={styles.surface}>
+        {/* A link rather than a section: the template library is about the format a client
+            receives, and the versions list is about the figures in it (ADR-036). */}
+        {can(ctx, "reports.write") ? (
+          <p className={styles.note}>
+            <Link
+              className={styles.docLink}
+              href={`/t/${ctx.tenantSlug}/p/${project}/reports/templates`}
+            >
+              {t("templates.title")}
+            </Link>{" "}
+            — {t("templates.lead")}
+          </p>
+        ) : null}
+
         <ReportOverviewPanel
           overview={overview}
           tenant={ctx.tenantSlug}

@@ -132,3 +132,12 @@
   color: var(--eia-text-muted);
   line-height: 1.45;
 }
+
+/* The link to the template library (ADR-036). */
+.docLink {
+  font-weight: 600;
+  color: var(--eia-ink);
+}
+.docLink:hover {
+  color: var(--eia-accent);
+}

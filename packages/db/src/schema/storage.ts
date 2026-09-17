@@ -9,7 +9,15 @@ import { app, project, user } from "./app";
  * Vocabularies are duplicated from `@eia/domain` on purpose (db must not depend on domain); a test
  * asserts the lists stay identical.
  */
-export const storageNamespace = app.enum("storage_namespace", ["documents", "field-media"]);
+export const storageNamespace = app.enum("storage_namespace", [
+  "documents",
+  "field-media",
+  // A consultancy's own .docx templates, and the documents this product generated from them
+  // (ADR-036). Never mixed with `documents`: different formats, different readers, different
+  // retention questions — and a generated draft must not be reachable by a corpus query.
+  "templates",
+  "generated",
+]);
 
 export const uploadIntentState = app.enum("upload_intent_state", [
   "ISSUED",

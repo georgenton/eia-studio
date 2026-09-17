@@ -74,6 +74,73 @@ export const FORMAT_DESCRIPTORS: Readonly<Record<UploadFormat, FormatDescriptor>
 /** What a document may be. A field photograph is not a document and vice versa. */
 export const DOCUMENT_FORMATS: ReadonlyArray<UploadFormat> = ["pdf", "docx"];
 export const FIELD_MEDIA_FORMATS: ReadonlyArray<UploadFormat> = ["jpeg", "png"];
+/**
+ * A template is a `.docx` and nothing else (ADR-036).
+ *
+ * Not `.doc`, which is a different binary format this product cannot read; not `.docm`, which is
+ * the same format carrying a macro project. The allowlist refuses both by their declared type —
+ * and because a `.docm` renamed `.docx` would present the same `PK\x03\x04` signature,
+ * `assertNoMacroProject` looks inside the archive as well.
+ */
+export const TEMPLATE_FORMATS: ReadonlyArray<UploadFormat> = ["docx"];
+/** What this product generates. One format, so a reader always knows what they are opening. */
+export const GENERATED_FORMATS: ReadonlyArray<UploadFormat> = ["docx"];
+
+/**
+ * Parts of an OOXML package that mean the file carries code, or is not a Word document at all.
+ *
+ * `word/vbaProject.bin` is the macro project: its presence is what makes a file macro-enabled,
+ * whatever its extension claims. The content types are the ones Word writes for the macro-enabled
+ * variants. Nothing here executes any of it — the refusal is so that a template a person activates
+ * cannot be a file that asks somebody's Word to run something when they open the result.
+ */
+export const MACRO_ARCHIVE_ENTRIES: ReadonlyArray<string> = [
+  "word/vbaproject.bin",
+  "word/vbadata.xml",
+];
+export const MACRO_CONTENT_TYPES: ReadonlyArray<string> = [
+  "application/vnd.ms-word.document.macroenabled.main+xml",
+  "application/vnd.ms-word.template.macroenabledtemplate.main+xml",
+];
+
+/**
+ * Refuse an archive that carries a macro project, or declares itself macro-enabled.
+ *
+ * Takes the entry names and the `[Content_Types].xml` text rather than the bytes, so the domain
+ * stays pure and the caller — which has already walked the central directory under
+ * `ARCHIVE_LIMITS` — does not read the file twice.
+ */
+export function assertNoMacroProject(input: {
+  entryNames: ReadonlyArray<string>;
+  contentTypesXml: string;
+}): void {
+  for (const name of input.entryNames) {
+    if (MACRO_ARCHIVE_ENTRIES.includes(name.toLowerCase())) {
+      throw new UnsupportedUpload("it carries a macro project", { entry: name });
+    }
+  }
+  const declared = input.contentTypesXml.toLowerCase();
+  for (const type of MACRO_CONTENT_TYPES) {
+    if (declared.includes(type)) {
+      throw new UnsupportedUpload("it declares itself macro-enabled", { contentType: type });
+    }
+  }
+}
+
+/**
+ * A Word document has a main part. An arbitrary ZIP renamed `.docx` does not.
+ *
+ * Checked because the signature `PK\x03\x04` is shared by every ZIP there is, so "it is a
+ * container" is all the magic bytes prove.
+ */
+export function assertWordPackage(entryNames: ReadonlyArray<string>): void {
+  const lower = entryNames.map((name) => name.toLowerCase());
+  if (!lower.includes("word/document.xml")) {
+    throw new UnsupportedUpload("it is a container without a Word document inside it", {
+      entries: entryNames.length,
+    });
+  }
+}
 
 export function formatForMimeType(mimeType: string): UploadFormat | null {
   const normalised = mimeType.trim().toLowerCase().split(";")[0] ?? "";
