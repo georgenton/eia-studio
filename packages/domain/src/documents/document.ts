@@ -16,14 +16,7 @@ import { InvalidInput } from "../core/errors";
 export const DOCUMENT_KINDS = ["report", "annex", "minutes", "plan", "legal", "other"] as const;
 export type DocumentKind = (typeof DOCUMENT_KINDS)[number];
 
-export const DOCUMENT_KIND_LABELS: Record<DocumentKind, string> = {
-  report: "Informe",
-  annex: "Anexo",
-  minutes: "Acta",
-  plan: "Plan",
-  legal: "Componente legal",
-  other: "Otro",
-};
+/* A kind's words are `vocabulary.documentKind.*` in `@eia/i18n` (ADR-029). */
 
 /**
  * How the text of a version got here.
@@ -33,14 +26,48 @@ export const DOCUMENT_KIND_LABELS: Record<DocumentKind, string> = {
  * not in the repository. Labelling those excerpts as an extraction from an ingested file would be
  * the same fabrication ADR-020 refused for page numbers, one layer up.
  */
-export const TEXT_SOURCES = ["RECONSTRUCTED_EXCERPT", "PLAIN_TEXT", "PDF_TEXT"] as const;
+export const TEXT_SOURCES = [
+  "RECONSTRUCTED_EXCERPT",
+  "PLAIN_TEXT",
+  "PDF_TEXT",
+  "DOCX_TEXT",
+  /** Uploaded, not yet read. Naming a format whose text nobody has seen would be the fabrication. */
+  "PENDING_EXTRACTION",
+] as const;
 export type TextSource = (typeof TEXT_SOURCES)[number];
 
-export const TEXT_SOURCE_LABELS: Record<TextSource, string> = {
-  RECONSTRUCTED_EXCERPT: "Extracto reconstruido del expediente",
-  PLAIN_TEXT: "Texto plano cargado",
-  PDF_TEXT: "Texto extraído de un PDF",
-};
+/* A text source's words are `vocabulary.textSource.*` in `@eia/i18n` (ADR-029). */
+
+/**
+ * Where an uploaded file has got to (ADR-031).
+ *
+ * `REQUIRES_OCR` is terminal and honest: a scanned PDF has no native text and this product does
+ * not invent any. The file stays available, and the surface says which of the six this is.
+ */
+export const DOCUMENT_PROCESSING_STATES = [
+  "UPLOADED",
+  "QUEUED",
+  "PROCESSING",
+  "READY",
+  "REQUIRES_OCR",
+  "FAILED",
+] as const;
+export type DocumentProcessingState = (typeof DOCUMENT_PROCESSING_STATES)[number];
+
+/**
+ * What is known about personal data in a version — a **claim somebody made**, never a fact this
+ * product derived.
+ *
+ * `REVIEW_REQUIRED` is the default for an uploaded file, and deliberately not "none known": at
+ * that point nothing has been read, and a green state nobody checked is the one that would later
+ * be quoted. Only `NO_PERSONAL_DATA_KNOWN` is eligible to leave for an AI provider.
+ */
+export const DOCUMENT_PRIVACY_CLASSIFICATIONS = [
+  "NO_PERSONAL_DATA_KNOWN",
+  "CONTAINS_PERSONAL_DATA",
+  "REVIEW_REQUIRED",
+] as const;
+export type DocumentPrivacyClassification = (typeof DOCUMENT_PRIVACY_CLASSIFICATIONS)[number];
 
 /** `DOC-001`, per project. A business identifier, never a primary key. */
 const DOCUMENT_CODE = /^DOC-\d{3,}$/;

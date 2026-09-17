@@ -201,3 +201,11 @@
   line-height: 1.5;
   max-width: 88ch;
 }
+
+/* A second line under a cell's main value: a privacy claim beside a processing state. */
+.subtle {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--eia-text-secondary);
+}

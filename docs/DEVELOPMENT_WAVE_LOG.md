@@ -889,3 +889,75 @@ and the object-storage readiness rule, which joins the set with the adapter rath
 green tick with nothing behind it (TD-089).
 
 **Tests**: unit 466 → **482**, integration 458 → **471**. Migration 0036 adds one enum value.
+
+## Production V1 · Wave 2 · PR 3 — a real file, stored and versioned (17 September 2026)
+
+Every document in this product had been put there by a seeder. Eight studies arrive as folders of
+PDFs and DOCX files somebody has to load, so this PR builds the layer underneath that: object
+storage behind a port, and an upload path that ends in a `DocumentVersion` (ADR-031).
+
+**A key carries no filename.** `t/{tenantId}/p/{projectId}/{namespace}/{objectId}` — six segments,
+four UUIDs, nothing a person typed. A bucket listing is a flat text file that operators, backups,
+the provider's console and support tickets all see, and it is the one place RLS does not reach; a
+delivered file can be called *Levantamiento predio 41 — Sra. Rosa Chamba.pdf*. The name is kept on
+the row, under RLS, and restored on the download link as a `Content-Disposition` name. This
+**amends `docs/SECURITY.md` §7 and `docs/ARCHITECTURE.md` §5**, which had said the key ends
+`…/{object_id}/{filename}` since Gate 1.
+
+**The client never proposes a key**, because a client that can name one can name another tenant's.
+`createUploadIntent` takes a namespace, a filename, a type and a size, and returns a URL.
+
+**An upload is not true because the browser says so.** Finalize asks the provider: is there an
+object under the key we issued, of a size within the ceiling the intent signed for, whose first
+bytes are the declared format's signature? Then it reads the bytes and computes SHA-256 itself.
+`ETag` is recorded as the provider's entity tag and **never** treated as a content hash — for a
+multipart upload it is a digest of digests. The renamed `.exe` fails there, in a real browser, in
+the e2e suite: everything the upload did succeeded, and no document exists.
+
+**Storage availability is resolved, never defaulted, and never falls back** — the shape of IG4-001.
+Unset is *unavailable*; `memory` is refused outside `local` and `test`, because a `DocumentVersion`
+whose bytes lived in a process that has since exited is a citation nobody can resolve and looks
+exactly like one that can; an unrecognised provider is reported *as itself*, because telling an
+operator a variable is unset when it plainly is set sends them to the wrong place. No process
+refuses to boot over it: the upload panel says why, and every surface that stores no file is
+untouched.
+
+**Uploaded is not processed, and both surfaces say which.** A new version lands `UPLOADED` /
+`PENDING_EXTRACTION` with no pages and no chunks. A version shown as an ordinary document with zero
+passages would read as *this document contains nothing*, which is a statement about the study rather
+than about our pipeline. `REQUIRES_OCR` and `FAILED` are in the enum and are the extraction worker's
+to produce — the next PR.
+
+**The same file twice is answered, not duplicated**; a corrected delivery is v2 and v1's object,
+hash and row are untouched; a code the project already uses is refused with a sentence that says to
+add a version instead, rather than with a constraint violation nobody can act on. Deduplication is
+per project and namespace, never across tenants: whether another firm holds the same file is not a
+fact this product may reveal.
+
+**The privacy classification defaults to *review required*.** Not to "none known": at upload the
+product has read nothing, and a green state nobody checked is the one that would later be quoted.
+
+**Two enums left the domain for the catalogue** (ADR-029's rule, finished for this module):
+`DOCUMENT_KIND_LABELS` and `TEXT_SOURCE_LABELS` were Spanish strings in `packages/domain`, so the
+English UI showed Spanish document kinds. They are `vocabulary.documentKind.*` and
+`vocabulary.textSource.*` now, with the four document enums registered in the catalogue test's
+table, so a new value without a word fails a test rather than a screen.
+
+**TD-089 closed as its removal trigger said.** `project.storage` is the eighth readiness rule:
+advisory — field capture stores no files, so blocking activation over a facility the work does not
+use would be worse than the gap — not applicable when nothing on the project would ever store a
+file, and carrying the reason as a code the catalogue has words for rather than the operator-facing
+detail, which names environment variables.
+
+**Normal CI needs no cloud bucket.** Integration runs MinIO in a Testcontainer from MinIO's own
+registry (`quay.io/minio/minio`, not Docker Hub) with real presigned URLs and real PUTs; e2e runs
+the in-memory store in the test server. **There is no bucket in staging or production** and creating
+one is an owner action — an account, a subscription, a credential — recorded as TD-090 with the
+four-step activation in `docs/OBJECT_STORAGE.md` §7.
+
+**Not built and not pretended**: extraction (next PR), field media rows and the mobile outbox (the
+PR after), content scanning (TD-091), and a download button (TD-093).
+
+**Tests**: unit 482 → **511**, integration 471 → **490**, Playwright +5. Migrations 0037 (tables),
+0038 (grants, FORCE RLS, the consume-once and immutability triggers), 0039 (document version
+columns).

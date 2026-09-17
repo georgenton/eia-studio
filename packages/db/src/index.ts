@@ -17,4 +17,5 @@ export {
   pgasSchema,
   portalSchema,
   reportsSchema,
+  storageSchema,
 } from "./schema/index";

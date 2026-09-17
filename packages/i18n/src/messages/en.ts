@@ -581,6 +581,7 @@ export const messages: Messages = {
       project_capture_channel: "Capture channel configured",
       project_offline_channel: "Channel compatible with the offline policy",
       project_corpus: "Corpus documents",
+      project_storage: "File storage",
     },
     ruleWhat: {
       project_identity:
@@ -597,6 +598,8 @@ export const messages: Messages = {
         "If the project requires capture without a connection, its channel must support it. EIA Studio's web channel does not.",
       project_corpus:
         "There is at least one document in the corpus. Advisory: documents arrive over the life of a study.",
+      project_storage:
+        "This environment can store files. Advisory: it is deployment configuration rather than the project's, and field capture stores no files.",
     },
     ruleDetail: {
       missing: "Missing: {missing}",
@@ -607,6 +610,16 @@ export const messages: Messages = {
       channel: "Channel: {channel}",
       offlineMode: "Policy: {offlineMode}",
       documents: "{documents} document(s)",
+    },
+    /* Why storage is unavailable, as words. The resolver's own `detail` names environment
+       variables and belongs in a log, not on a consultant's screen (ADR-031 §5). */
+    storageReason: {
+      NOT_CONFIGURED: "Object storage is not configured in this environment.",
+      MEMORY_REFUSED_IN_PERSISTENT_ENVIRONMENT:
+        "This environment is configured for the in-memory store, which cannot run here: files would vanish with the process.",
+      BLOCKED_EXTERNAL_CONFIG:
+        "External storage configuration is missing, and nothing falls back to a temporary store.",
+      UNKNOWN: "File storage is not available in this environment.",
     },
   },
   pgas: {
@@ -800,6 +813,46 @@ export const messages: Messages = {
     requiresOcr: "Requires OCR",
     failed: "Processing failed",
     uploadedNotProcessed: "Uploaded · not indexed yet",
+    uploadTitle: "Upload a document",
+    uploadNote: "PDF (up to {pdf}) or DOCX (up to {docx})",
+    uploadLead:
+      "The file is stored as delivered and becomes a version of the document. Uploaded is not processed: the text is extracted afterwards, and until then the version has no passages to cite.",
+    uploadTarget: "Which document does this belong to?",
+    uploadTargetNew: "It is a new document",
+    uploadTargetExisting: "It is a new version of an existing document",
+    uploadExistingLabel: "Document",
+    uploadCode: "Code",
+    uploadCodeHelp: "An identifier of this project, for example DOC-014.",
+    uploadTitleField: "Title",
+    uploadKind: "Kind",
+    uploadFile: "File",
+    uploadPrivacy: "Personal data",
+    uploadPrivacyHelp:
+      "Declared by whoever uploads the file; the system does not infer it. Only a document declared to hold no personal data may leave for a model provider.",
+    uploadSourceDate: "Document date",
+    uploadSourceDateHelp: "The date the document itself bears, if it is known.",
+    uploadSourceNote: "Provenance",
+    uploadSourceNoteHelp: "Where this file came from and who delivered it.",
+    uploadSubmit: "Upload",
+    uploadStored: "Stored as version {version}. It is waiting to be processed.",
+    uploadSameContent:
+      "This file is already version {version} of this document. No new version was created.",
+    uploadTransferFailed:
+      "The file did not reach storage. No version was recorded; you can try again.",
+    uploadNeedsFile: "Choose a file.",
+    storageUnavailable:
+      "Files cannot be uploaded in this environment: object storage is not configured. The rest of the file room works as usual.",
+    storageUnavailableWho:
+      "This is environment configuration rather than a permission: whoever administers the deployment enables it.",
+    privacy: "Personal data",
+    state: "State",
+    fileSize: "Size",
+    originalFilename: "File",
+    notProcessedYet:
+      "This version was uploaded but has not been processed yet, so it has no passages to cite.",
+    requiresOcrNote:
+      "This PDF carries no text: its pages are images. The product does not invent what they say. The file stays available to download and read by hand.",
+    processingFailedNote: "Processing could not complete. The uploaded file is untouched.",
     projectDocuments: "Project documents",
     documentsNote: "{documents} document(s) · {passages} passages",
     emptyBody:
@@ -1196,6 +1249,21 @@ export const messages: Messages = {
       EIA_FIELD_MOBILE:
         "An Android/iOS application. It downloads the assigned work, captures with no connection and syncs when the signal returns; a resent command duplicates nothing.",
     },
+    documentKind: {
+      report: "Report",
+      annex: "Annex",
+      minutes: "Minutes",
+      plan: "Plan",
+      legal: "Legal component",
+      other: "Other",
+    },
+    textSource: {
+      RECONSTRUCTED_EXCERPT: "Excerpt reconstructed from the file",
+      PLAIN_TEXT: "Plain text uploaded",
+      PDF_TEXT: "Text extracted from a PDF",
+      DOCX_TEXT: "Text extracted from a DOCX",
+      PENDING_EXTRACTION: "Not processed yet",
+    },
     documentProcessing: {
       UPLOADED: "Uploaded",
       QUEUED: "Queued",
@@ -1205,7 +1273,7 @@ export const messages: Messages = {
       FAILED: "Failed",
     },
     documentPrivacy: {
-      NO_PERSONAL_DATA: "No identified personal data",
+      NO_PERSONAL_DATA_KNOWN: "No identified personal data",
       CONTAINS_PERSONAL_DATA: "Contains identified personal data",
       REVIEW_REQUIRED: "Review required",
     },

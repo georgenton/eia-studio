@@ -15,3 +15,4 @@ export * from "./social/index";
 export * from "./quality/index";
 export * from "./gis/index";
 export * from "./audit/index";
+export * from "./storage/index";

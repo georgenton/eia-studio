@@ -182,7 +182,9 @@ the capability catalogue so that a disabled capability has **no route**.
   with composite foreign keys `(tenant_id, project_id)` → `project` so a row cannot reference a
   project of another tenant even if application code is wrong.
 - Provenance: single `provenance_id` FK on provenance-bearing tables (ADR-005).
-- Object storage keys are tenant/project prefixed; the DB stores keys, never public URLs.
+- Object storage keys are tenant/project prefixed and carry **no filename**
+  (`t/{tenantId}/p/{projectId}/{namespace}/{objectId}`, ADR-031 §1, amending the layout
+  SECURITY.md §7 originally stated); the DB stores keys, never public URLs.
 
 ## 6. Background jobs
 

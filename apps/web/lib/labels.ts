@@ -61,6 +61,13 @@ export const offlineModeLabel = (t: Translator, value: string) =>
   vocabulary(t, "offlineMode", value);
 export const captureChannelLabel = (t: Translator, value: string) =>
   vocabulary(t, "captureChannel", value);
+export const documentKindLabel = (t: Translator, value: string) =>
+  vocabulary(t, "documentKind", value);
+export const textSourceLabel = (t: Translator, value: string) => vocabulary(t, "textSource", value);
+export const documentProcessingLabel = (t: Translator, value: string) =>
+  vocabulary(t, "documentProcessing", value);
+export const documentPrivacyLabel = (t: Translator, value: string) =>
+  vocabulary(t, "documentPrivacy", value);
 export const surfaceLabel = (t: Translator, key: string) =>
   t(`surface.${key === "command-center" ? "commandCenter" : key}` as MessageKey);
 

@@ -8,7 +8,14 @@ import { useState, useTransition } from "react";
 
 import { useI18n } from "@/components/i18n/locale-provider";
 import { activateProjectAction, saveProjectIntakeAction } from "@/lib/intake-actions";
-import { captureChannelLabel, offlineModeLabel, projectRoleLabel } from "@/lib/labels";
+import {
+  captureChannelLabel,
+  documentKindLabel,
+  documentPrivacyLabel,
+  documentProcessingLabel,
+  offlineModeLabel,
+  projectRoleLabel,
+} from "@/lib/labels";
 
 import { INTAKE_STAGES, type IntakeStage } from "./stages";
 
@@ -289,6 +296,7 @@ function DocumentsStage({ view }: { view: ProjectIntakeView }) {
                 <th scope="col">{t("documents.document")}</th>
                 <th scope="col">{t("documents.kind")}</th>
                 <th scope="col">{t("common.version")}</th>
+                <th scope="col">{t("documents.state")}</th>
               </tr>
             </thead>
             <tbody>
@@ -296,12 +304,25 @@ function DocumentsStage({ view }: { view: ProjectIntakeView }) {
                 <tr key={document.code}>
                   <td className={styles.code}>{document.code}</td>
                   <td>{document.title}</td>
-                  <td>{document.kind}</td>
+                  {/* The stored value is `report`; what a reader sees is the word for it. */}
+                  <td>{documentKindLabel(t, document.kind)}</td>
                   <td className={styles.code}>
                     {document.versionLabel}
                     {document.versionCount > 1
                       ? t("documents.ofVersions", { count: fmt.count(document.versionCount) })
                       : ""}
+                  </td>
+                  <td>
+                    {document.processingState === ""
+                      ? "—"
+                      : documentProcessingLabel(t, document.processingState)}
+                    {document.privacyClassification === "" ||
+                    document.privacyClassification === "NO_PERSONAL_DATA_KNOWN" ? null : (
+                      <span className={styles.subtle}>
+                        {t("documents.privacy")}:{" "}
+                        {documentPrivacyLabel(t, document.privacyClassification)}
+                      </span>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -541,7 +562,11 @@ function detailLine(t: Translate, check: ReadinessCheck): string {
   const detail = check.detail ?? {};
   return Object.entries(detail)
     .map(([field, value]) =>
-      t(`intake.ruleDetail.${field}` as MessageKey, { [field]: String(value) }),
+      // `reason` is a code with its own words, not a value to interpolate: `NOT_CONFIGURED` on a
+      // consultant's screen is the leak `e2e/vocabulary.spec.ts` exists to catch.
+      field === "reason"
+        ? t(`intake.storageReason.${String(value)}` as MessageKey)
+        : t(`intake.ruleDetail.${field}` as MessageKey, { [field]: String(value) }),
     )
     .join(" · ");
 }

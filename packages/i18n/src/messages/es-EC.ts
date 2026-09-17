@@ -587,6 +587,7 @@ export const messages = {
       project_capture_channel: "Canal de captura configurado",
       project_offline_channel: "Canal compatible con la política offline",
       project_corpus: "Documentos del expediente",
+      project_storage: "Almacenamiento de archivos",
     },
     ruleWhat: {
       project_identity:
@@ -603,6 +604,8 @@ export const messages = {
         "Si el proyecto exige captura sin conexión, su canal debe soportarla. El canal web de EIA Studio no la soporta.",
       project_corpus:
         "Hay al menos un documento en el expediente. Informativo: los documentos llegan a lo largo del estudio.",
+      project_storage:
+        "Este entorno puede guardar archivos. Informativo: es configuración del despliegue, no del proyecto, y el trabajo de campo no guarda archivos.",
     },
     ruleDetail: {
       missing: "Falta: {missing}",
@@ -614,7 +617,18 @@ export const messages = {
       offlineMode: "Política: {offlineMode}",
       documents: "{documents} documento(s)",
     },
+    /* Why storage is unavailable, as words. The resolver's own `detail` names environment
+       variables and belongs in a log, not on a consultant's screen (ADR-031 §5). */
+    storageReason: {
+      NOT_CONFIGURED: "El almacenamiento de objetos no está configurado en este entorno.",
+      MEMORY_REFUSED_IN_PERSISTENT_ENVIRONMENT:
+        "Este entorno tiene configurado el almacenamiento en memoria, que no puede usarse aquí: los archivos desaparecerían con el proceso.",
+      BLOCKED_EXTERNAL_CONFIG:
+        "Falta configuración externa del almacenamiento: no se sustituye por un almacén temporal.",
+      UNKNOWN: "El almacenamiento no está disponible en este entorno.",
+    },
   },
+
   pgas: {
     title: "Plan de Manejo Ambiental y Social",
     notImported:
@@ -806,6 +820,46 @@ export const messages = {
     requiresOcr: "Requiere OCR",
     failed: "Falló el procesamiento",
     uploadedNotProcessed: "Cargado · aún no indexado",
+    uploadTitle: "Cargar un documento",
+    uploadNote: "PDF (hasta {pdf}) o DOCX (hasta {docx})",
+    uploadLead:
+      "El archivo se carga tal como llega y queda como una versión del documento. Cargado no es procesado: el texto se extrae después, y hasta entonces la versión no tiene pasajes que citar.",
+    uploadTarget: "¿A qué documento pertenece?",
+    uploadTargetNew: "Es un documento nuevo",
+    uploadTargetExisting: "Es una versión nueva de un documento existente",
+    uploadExistingLabel: "Documento",
+    uploadCode: "Código",
+    uploadCodeHelp: "Un identificador de este proyecto, por ejemplo DOC-014.",
+    uploadTitleField: "Título",
+    uploadKind: "Tipo",
+    uploadFile: "Archivo",
+    uploadPrivacy: "Datos personales",
+    uploadPrivacyHelp:
+      "Lo declara quien carga el archivo; el sistema no lo deduce. Solo un documento declarado sin datos personales puede salir hacia un proveedor de modelos.",
+    uploadSourceDate: "Fecha del documento",
+    uploadSourceDateHelp: "La que trae el documento, si se conoce.",
+    uploadSourceNote: "Procedencia",
+    uploadSourceNoteHelp: "De dónde viene este archivo y quién lo entregó.",
+    uploadSubmit: "Cargar",
+    uploadStored: "Cargado como versión {version}. Queda pendiente de procesar.",
+    uploadSameContent:
+      "Este archivo ya es la versión {version} de este documento. No se creó una versión nueva.",
+    uploadTransferFailed:
+      "El archivo no llegó al almacenamiento. No se registró ninguna versión; se puede volver a intentar.",
+    uploadNeedsFile: "Selecciona un archivo.",
+    storageUnavailable:
+      "En este entorno no se pueden cargar archivos: el almacenamiento de objetos no está configurado. El resto del expediente funciona igual.",
+    storageUnavailableWho:
+      "Es configuración del entorno, no un permiso: la activa quien administra el despliegue.",
+    privacy: "Datos personales",
+    state: "Estado",
+    fileSize: "Tamaño",
+    originalFilename: "Archivo",
+    notProcessedYet:
+      "Esta versión se cargó pero todavía no se ha procesado, así que no tiene pasajes que citar.",
+    requiresOcrNote:
+      "Este PDF no trae texto: son imágenes de páginas. El producto no inventa lo que dicen. El archivo queda disponible para descargar y consultar a mano.",
+    processingFailedNote: "El procesamiento no pudo completarse. El archivo cargado sigue intacto.",
     projectDocuments: "Documentos del proyecto",
     documentsNote: "{documents} documento(s) · {passages} pasajes",
     emptyBody:
@@ -1202,6 +1256,21 @@ export const messages = {
       EIA_FIELD_MOBILE:
         "Aplicación Android/iOS. Descarga el trabajo asignado, captura sin conexión y sincroniza cuando vuelve la señal; una orden reenviada no duplica nada.",
     },
+    documentKind: {
+      report: "Informe",
+      annex: "Anexo",
+      minutes: "Acta",
+      plan: "Plan",
+      legal: "Componente legal",
+      other: "Otro",
+    },
+    textSource: {
+      RECONSTRUCTED_EXCERPT: "Extracto reconstruido del expediente",
+      PLAIN_TEXT: "Texto plano cargado",
+      PDF_TEXT: "Texto extraído de un PDF",
+      DOCX_TEXT: "Texto extraído de un DOCX",
+      PENDING_EXTRACTION: "Sin procesar",
+    },
     documentProcessing: {
       UPLOADED: "Cargado",
       QUEUED: "En cola",
@@ -1211,7 +1280,7 @@ export const messages = {
       FAILED: "Falló",
     },
     documentPrivacy: {
-      NO_PERSONAL_DATA: "Sin datos personales identificados",
+      NO_PERSONAL_DATA_KNOWN: "Sin datos personales identificados",
       CONTAINS_PERSONAL_DATA: "Contiene datos personales identificados",
       REVIEW_REQUIRED: "Requiere revisión",
     },

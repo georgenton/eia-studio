@@ -126,7 +126,12 @@ describe("ingesting a document", () => {
 
     const detail = await loadDocumentVersion(db.runtime, await contextFor(coordinator), "DOC-001");
     expect(detail.chunkingStrategy).toMatch(/@\d+$/);
-    expect(detail.textSourceLabel).toContain("reconstruido");
+    // The value, not a word: the label for it lives in the message catalogue now (ADR-029).
+    expect(detail.textSource).toBe("RECONSTRUCTED_EXCERPT");
+    // Nothing was uploaded, so there is no file behind this version and the row says so.
+    expect(detail.processingState).toBe("READY");
+    expect(detail.storedObjectId).toBeNull();
+    expect(detail.originalFilename).toBeNull();
     expect(detail.superseded).toBe(false);
     expect(detail.passages.length).toBe(result.chunkCount);
     firstChunkId = detail.passages[0]!.chunkId;

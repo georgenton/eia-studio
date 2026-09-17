@@ -1,11 +1,11 @@
 import { withDbContext, type Database } from "@eia/db";
 import {
-  DOCUMENT_KIND_LABELS,
   NotFound,
   requireCapability,
   requirePermission,
-  TEXT_SOURCE_LABELS,
   type DocumentKind,
+  type DocumentPrivacyClassification,
+  type DocumentProcessingState,
   type RequestContext,
   type TextSource,
 } from "@eia/domain";
@@ -24,16 +24,25 @@ export interface DocumentSummary {
   readonly code: string;
   readonly title: string;
   readonly kind: DocumentKind;
-  readonly kindLabel: string;
   readonly versionLabel: string;
   readonly versionId: string;
   readonly textSource: TextSource;
-  readonly textSourceLabel: string;
   readonly sourceNote: string;
   readonly pageCount: number;
   readonly chunkCount: number;
   readonly versionCount: number;
   readonly importedAt: string;
+  /** Where an uploaded file has got to. A transcribed excerpt has always been `READY`. */
+  readonly processingState: DocumentProcessingState;
+  /** Why processing stopped, when it did. Operator-facing and bounded; never the file's text. */
+  readonly processingNote: string | null;
+  readonly privacyClassification: DocumentPrivacyClassification;
+  /** Null for the versions that arrived before there was an object store (ADR-031). */
+  readonly originalFilename: string | null;
+  readonly sizeBytes: number | null;
+  readonly storedObjectId: string | null;
+  /** The date the document itself bears, when the uploader knew it. */
+  readonly sourceDate: string | null;
 }
 
 export interface DocumentVersionDetail extends DocumentSummary {
@@ -71,6 +80,9 @@ export async function loadDocuments(
       select d.id, d.code, d.title, d.kind::text as kind,
              v.id as version_id, v.version_label, v.text_source::text as text_source,
              v.source_note, v.page_count, v.chunk_count, v.imported_at,
+             v.processing_state::text as processing_state, v.processing_note,
+             v.privacy_classification::text as privacy_classification,
+             v.original_filename, v.size_bytes, v.stored_object_id, v.source_date,
              (select count(*)::int from app.document_version av
                where av.tenant_id = d.tenant_id and av.document_id = d.id) as version_count
         from app.source_document d
@@ -97,6 +109,9 @@ export async function loadDocumentVersion(
       select d.id, d.code, d.title, d.kind::text as kind, d.current_version_id,
              v.id as version_id, v.version_label, v.text_source::text as text_source,
              v.source_note, v.page_count, v.chunk_count, v.imported_at,
+             v.processing_state::text as processing_state, v.processing_note,
+             v.privacy_classification::text as privacy_classification,
+             v.original_filename, v.size_bytes, v.stored_object_id, v.source_date,
              v.chunking_strategy, v.provenance_id,
              (select count(*)::int from app.document_version av
                where av.tenant_id = d.tenant_id and av.document_id = d.id) as version_count
@@ -158,6 +173,13 @@ interface RawDocument {
   chunk_count: number;
   version_count: number;
   imported_at: Date | string;
+  processing_state: DocumentProcessingState;
+  processing_note: string | null;
+  privacy_classification: DocumentPrivacyClassification;
+  original_filename: string | null;
+  size_bytes: number | string | null;
+  stored_object_id: string | null;
+  source_date: Date | string | null;
 }
 
 function toSummary(row: RawDocument): DocumentSummary {
@@ -166,15 +188,27 @@ function toSummary(row: RawDocument): DocumentSummary {
     code: row.code,
     title: row.title,
     kind: row.kind,
-    kindLabel: DOCUMENT_KIND_LABELS[row.kind] ?? row.kind,
     versionId: row.version_id,
     versionLabel: row.version_label,
     textSource: row.text_source,
-    textSourceLabel: TEXT_SOURCE_LABELS[row.text_source] ?? row.text_source,
     sourceNote: row.source_note,
     pageCount: Number(row.page_count),
     chunkCount: Number(row.chunk_count),
     versionCount: Number(row.version_count),
     importedAt: iso(row.imported_at),
+    processingState: row.processing_state,
+    processingNote: row.processing_note,
+    privacyClassification: row.privacy_classification,
+    originalFilename: row.original_filename,
+    sizeBytes: row.size_bytes === null ? null : Number(row.size_bytes),
+    storedObjectId: row.stored_object_id,
+    // A calendar date the document bears, not an instant: it keeps the day it was written on
+    // whichever side of a timezone the reader is.
+    sourceDate:
+      row.source_date === null
+        ? null
+        : row.source_date instanceof Date
+          ? row.source_date.toISOString().slice(0, 10)
+          : String(row.source_date).slice(0, 10),
   };
 }

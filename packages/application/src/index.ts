@@ -35,6 +35,20 @@ export {
 export { loadCommandCenter } from "./projects/command-center";
 export type { CommandCenterView, ProjectHeader } from "./projects/command-center";
 export { loadWorkspaceHeader, loadPortfolio } from "./projects/portfolio";
+export { uploadDocumentVersion, uploadDocumentVersionInputSchema } from "./documents/upload";
+export type { UploadedDocumentVersion } from "./documents/upload";
+export { createMemoryStorage } from "./storage/memory-adapter";
+export type { MemoryStorage } from "./storage/memory-adapter";
+export { createS3Storage } from "./storage/s3-adapter";
+export type { S3StorageConfig } from "./storage/s3-adapter";
+export {
+  createUploadIntent,
+  finalizeUpload,
+  finalizeUploadInputSchema,
+  presignStoredObjectDownload,
+  uploadIntentInputSchema,
+} from "./storage/upload";
+export type { FinalizedUpload, IssuedUploadIntent } from "./storage/upload";
 export {
   activateProject,
   loadProjectIntake,
@@ -46,6 +60,7 @@ export type {
   IntakeSurvey,
   IntakeTeamMember,
   ProjectIntakeView,
+  StorageReadiness,
 } from "./projects/intake";
 export type { PortfolioCard, PortfolioView } from "./projects/portfolio";
 export {

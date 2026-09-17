@@ -21,6 +21,22 @@ import { stampEphemeralTestDatabase } from "./ephemeral-guard";
  * real provider is now the job of the non-destructive staging suite (`pnpm test:staging`), which
  * reads a persistent environment without resetting it.
  */
+/**
+ * A throwaway S3-compatible store, beside the throwaway database.
+ *
+ * MinIO speaks the S3 protocol the production adapter speaks, so the integration suite exercises
+ * the **real** adapter — presigned PUT, HEAD, GET — rather than a memory stand-in that would agree
+ * with itself. Nothing billable is reached: the container lives for the run and dies with it
+ * (PART E1 of the wave brief).
+ */
+export interface EiaTestStorage {
+  readonly endpoint: string;
+  readonly region: string;
+  readonly bucket: string;
+  readonly accessKeyId: string;
+  readonly secretAccessKey: string;
+}
+
 export interface EiaTestDatabase {
   readonly migratorUrl: string;
   readonly runtimeUrl: string;
@@ -35,11 +51,19 @@ export interface EiaTestDatabase {
 declare module "vitest" {
   export interface ProvidedContext {
     eiaTestDatabase: EiaTestDatabase;
+    eiaTestStorage: EiaTestStorage;
   }
 }
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const IMAGE = "eia-studio/postgres-test:17-3.5-pgvector";
+/**
+ * The test object store, pinned to a release tag: a store that changed under us would be a flaky
+ * suite. Pulled from **quay.io**, which is MinIO's own registry — Docker Hub's anonymous pull
+ * limits make `minio/minio` unreliable on a CI runner and on a laptop, and a suite that fails
+ * because a registry was busy teaches a team to re-run rather than to read.
+ */
+const MINIO_IMAGE = "quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z";
 
 export default async function setup(project: TestProject): Promise<() => Promise<void>> {
   // A leftover pointer to a real database is a mistake worth naming, not ignoring: the variables
@@ -94,7 +118,55 @@ export default async function setup(project: TestProject): Promise<() => Promise
 
   project.provide("eiaTestDatabase", { migratorUrl, runtimeUrl, runtimeRole, ephemeralToken });
 
+  // The object store. Credentials are generated per run and exist only in this process's memory
+  // and the container's: nothing about this store outlives the suite.
+  const accessKeyId = randomBytes(12).toString("hex");
+  const secretAccessKey = randomBytes(24).toString("hex");
+  const bucket = "eia-test";
+  const minio = await new GenericContainer(MINIO_IMAGE)
+    .withEnvironment({ MINIO_ROOT_USER: accessKeyId, MINIO_ROOT_PASSWORD: secretAccessKey })
+    .withCommand(["server", "/data"])
+    .withExposedPorts(9000)
+    .withWaitStrategy(Wait.forLogMessage(/API:/))
+    .withStartupTimeout(120_000)
+    .start();
+  const storageEndpoint = `http://${minio.getHost()}:${minio.getMappedPort(9000)}`;
+  await createBucket({ endpoint: storageEndpoint, bucket, accessKeyId, secretAccessKey });
+
+  project.provide("eiaTestStorage", {
+    endpoint: storageEndpoint,
+    region: "us-east-1",
+    bucket,
+    accessKeyId,
+    secretAccessKey,
+  });
+
   return async () => {
-    await container.stop();
+    await Promise.all([container.stop(), minio.stop()]);
   };
+}
+
+/**
+ * Create the bucket, with the SDK rather than the `mc` client.
+ *
+ * One fewer binary in the image, and it proves the credentials work against the same protocol the
+ * adapter will use — if this call fails the suite says so here rather than in the first test.
+ */
+async function createBucket(config: {
+  endpoint: string;
+  bucket: string;
+  accessKeyId: string;
+  secretAccessKey: string;
+}): Promise<void> {
+  const { CreateBucketCommand, S3Client } = await import("@aws-sdk/client-s3");
+  const client = new S3Client({
+    region: "us-east-1",
+    endpoint: config.endpoint,
+    forcePathStyle: true,
+    credentials: {
+      accessKeyId: config.accessKeyId,
+      secretAccessKey: config.secretAccessKey,
+    },
+  });
+  await client.send(new CreateBucketCommand({ Bucket: config.bucket }));
 }

@@ -1,39 +1,38 @@
 import { z } from "zod";
 
-import { booleanString } from "./common";
-
 /**
- * S3-compatible object storage boundary (ARCHITECTURE.md §9). Optional in Slice 0: either all
- * connection variables are present (adapter enabled) or none (adapter disabled).
+ * S3-compatible object storage (ARCHITECTURE.md §9, ADR-031).
+ *
+ * **Shape only.** Whether this deployment can actually store a file is decided by
+ * `resolveStorageAvailability` in the domain, which never throws: an unset provider, a missing
+ * bucket or a missing credential all resolve to *unavailable*, with the reason named. Taking a
+ * whole deployment down over a feature it may not use that day would be a worse outcome than
+ * losing the feature, and the surfaces say which of the three reasons it is.
+ *
+ * Nothing here reaches the browser. A storage credential signs URLs on the server; the browser
+ * receives the signature and never the key (contrast `basemapEnvSchema`, whose key is public by
+ * design).
+ *
+ * `STORAGE_ENDPOINT` is omitted for AWS itself and set for MinIO, Cloudflare R2 and anything
+ * self-hosted. Path-style addressing follows from having an endpoint, so it is no longer a
+ * separate switch: a provider that needs a custom endpoint needs path style, and one that does not
+ * is AWS.
  */
 export const storageEnvSchema = z
   .object({
-    STORAGE_ENDPOINT: z.url().optional(),
+    /** `s3` for any S3-compatible provider, `memory` for local and test only. */
+    STORAGE_PROVIDER: z.string().min(1).optional(),
+    /**
+     * Restricted to `http`/`https`. Zod's bare `url()` accepts `localhost:9000` (protocol
+     * `localhost:`) and `ftp://…`, and a signer handed either of those fails at the moment somebody
+     * tries to upload a file rather than at boot.
+     */
+    STORAGE_ENDPOINT: z.url({ protocol: /^https?$/ }).optional(),
     STORAGE_REGION: z.string().min(1).optional(),
     STORAGE_BUCKET: z.string().min(1).optional(),
     STORAGE_ACCESS_KEY_ID: z.string().min(1).optional(),
     STORAGE_SECRET_ACCESS_KEY: z.string().min(1).optional(),
-    STORAGE_FORCE_PATH_STYLE: booleanString.default(true),
   })
-  .strict()
-  .transform((v) => {
-    const values = [
-      v.STORAGE_ENDPOINT,
-      v.STORAGE_REGION,
-      v.STORAGE_BUCKET,
-      v.STORAGE_ACCESS_KEY_ID,
-      v.STORAGE_SECRET_ACCESS_KEY,
-    ];
-    const present = values.filter((x) => x !== undefined).length;
-    return {
-      ...v,
-      configured: present === values.length,
-      partial: present > 0 && present < values.length,
-    };
-  })
-  .refine((v) => !v.partial, {
-    message: "STORAGE_* variables must be all set or all unset",
-    path: ["STORAGE_ENDPOINT"],
-  });
+  .strict();
 
 export type StorageEnv = z.infer<typeof storageEnvSchema>;

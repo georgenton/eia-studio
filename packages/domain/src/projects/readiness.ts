@@ -33,6 +33,7 @@ export const READINESS_RULES = [
   "project.capture_channel",
   "project.offline_channel",
   "project.corpus",
+  "project.storage",
 ] as const;
 export type ReadinessRuleKey = (typeof READINESS_RULES)[number];
 
@@ -93,6 +94,15 @@ export interface ReadinessSnapshot {
   };
   readonly offlineMode: FieldOfflineMode;
   readonly corpus: { readonly documents: number };
+  /**
+   * Whether this **deployment** can store a file, resolved by `resolveStorageAvailability`.
+   *
+   * A deployment-wide fact in a project's report, which is unusual and deliberate: the consequence
+   * is a project's — nobody can load this study's files — and the person reading the intake is the
+   * person who would otherwise spend an afternoon discovering it through a failing upload. The
+   * reason travels with it so the report does not simply say *no*.
+   */
+  readonly storage: { readonly available: boolean; readonly reason: string | null };
 }
 
 const RULE_SEVERITY: Readonly<Record<ReadinessRuleKey, ReadinessSeverity>> = {
@@ -103,6 +113,7 @@ const RULE_SEVERITY: Readonly<Record<ReadinessRuleKey, ReadinessSeverity>> = {
   "project.capture_channel": "advisory",
   "project.offline_channel": "required",
   "project.corpus": "advisory",
+  "project.storage": "advisory",
 };
 
 function check(
@@ -219,6 +230,24 @@ export function evaluateReadiness(snapshot: ReadinessSnapshot): ReadinessReport 
       : snapshot.corpus.documents > 0
         ? check("project.corpus", "satisfied", { documents: snapshot.corpus.documents })
         : check("project.corpus", "blocked"),
+  );
+
+  // 8 · Somewhere to put a file (ADR-031, closing TD-089).
+  //
+  // Advisory, and only advisory: storage being unconfigured is an environment's state rather than
+  // a project's, and blocking activation over it would stop field work — which stores nothing —
+  // because a document could not be uploaded. Not applicable when neither documents nor field
+  // capture is enabled, because then nothing would ever be stored.
+  const storageWouldBeUsed =
+    snapshot.capabilities["core.documents"] || snapshot.capabilities["field.surveys"];
+  checks.push(
+    !storageWouldBeUsed
+      ? check("project.storage", "not_applicable")
+      : snapshot.storage.available
+        ? check("project.storage", "satisfied")
+        : // The reason is a code the surface has words for, never the operator-facing detail: that
+          // text names environment variables and belongs in a log, not on a consultant's screen.
+          check("project.storage", "blocked", { reason: snapshot.storage.reason ?? "UNKNOWN" }),
   );
 
   const blocking = checks

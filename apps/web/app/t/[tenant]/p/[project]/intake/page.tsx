@@ -7,6 +7,7 @@ import { isIntakeStage } from "@/components/intake/stages";
 import { projectBreadcrumb, projectLabel, WorkspaceShell } from "@/components/workspace-shell";
 import { getSessionUser } from "@/lib/context";
 import { getDb } from "@/lib/db";
+import { storageReadiness } from "@/lib/storage";
 import { surfaceLabel } from "@/lib/labels";
 import { getI18n } from "@/lib/locale";
 import { projectPath } from "@/lib/navigation";
@@ -86,7 +87,7 @@ export default async function ProjectIntakePage({
 
   let view;
   try {
-    view = await loadProjectIntake(getDb(), ctx);
+    view = await loadProjectIntake(getDb(), ctx, storageReadiness());
   } catch (error) {
     const outcome = accessForDomainError(error);
     if (outcome?.kind === "not-found") notFound();
