@@ -147,6 +147,26 @@ RLS does not reach.
 | Storage off is a state, not a crash | `resolveStorageAvailability` (the shape of IG4-001): an unset provider is *unavailable*, `memory` is refused outside `local` and `test`, and there is no fallback — a file that is not where the database says it is would be discovered by whoever needed it most |
 | Both tables | `upload_intent` (consumable exactly once, by trigger) and `stored_object` (immutable by `REVOKE UPDATE, DELETE` **and** a trigger), FORCE RLS, tenant/project columns and the composite FK |
 
+### 7b. Reading an uploaded file (ADR-033)
+
+Extraction is the first code in this product that parses **untrusted binary input**, and the
+controls are about what it will not do with it.
+
+| Control | Mechanism |
+|---|---|
+| Nothing is executed | pdf.js runs with `isEvalSupported: false`, no worker, `disableFontFace`, `useSystemFonts: false`. A PDF has a scripting layer; none of it runs, no font is fetched from a network and no external resource is resolved |
+| A DOCX's archive is bounded before it is expanded | `ARCHIVE_LIMITS` is checked against every entry's **declared** size as the central directory is walked — which is where a zip bomb lies — and only `word/document.xml` and `word/styles.xml` are ever decompressed. The macro project is not read at all |
+| A file is bounded in what it may consume | `PDF_LIMITS`: 2 000 pages and 12 M characters. A page count is not bounded by a file's size, and a malformed one can declare a great many |
+| A failure is a state, not a crash | a corrupt or encrypted file becomes `FAILED` with bounded operational text — never a stack trace, never the document's words. The worker keeps running |
+| The job holds no identity of its own | `app.claim_document_extraction` is SECURITY DEFINER, owned by `eia_policy`, and returns **four uuids**: version, tenant, project, uploader. No object key, no filename, no page of text. The worker then opens an ordinary RLS transaction *as the uploader*, so a revoked membership makes the job fail safely |
+| A worker with no storage never claims | claiming and then failing at the first fetch would drain the queue and mark every document `FAILED` over a missing environment variable (IG4-001's rule, one layer across) |
+| Logs | identifiers, a state and counts. A document's text never reaches a log line |
+| No model | nothing in this path calls one. Retrieval remains PostgreSQL full-text (ADR-021) |
+
+**A scanned PDF is `REQUIRES_OCR` and writes no chunk**, so it can never be cited — and OCR is not
+built (TD-098), because it means an external **processor** handling a study's documents and §10a's
+review has assessed no such vendor.
+
 ## 8. Vector / RAG isolation
 
 - Chunk embeddings live in `vec.document_chunk_embedding (tenant_id, project_id, chunk_id,

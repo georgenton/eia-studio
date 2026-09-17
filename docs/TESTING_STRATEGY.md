@@ -31,6 +31,32 @@ The e2e suite is where the renamed `.exe` is proved: the upload succeeds, the fi
 stored bytes, and no document exists. A test that stopped at the file picker would only be
 exercising the `accept` attribute, which is a convenience and not a control.
 
+### Documents that are real files (ADR-033)
+
+The extraction suite **builds its own PDFs and DOCX files, byte by byte** — a PDF with a correct
+cross-reference table, a DOCX with real Word heading styles, an archive that lies about how much it
+expands to. A fixture read off disk would work; a generated one lets a test say what it is testing,
+and the interesting cases are the ones nobody has a sample of: *a PDF whose second page is blank*,
+*a born-digital cover in front of two hundred scanned pages*, *a file that begins `%PDF` and is not
+one*.
+
+The PDF's cross-reference table is correct on purpose: pdf.js reconstructs a broken one, and a test
+that relied on the reconstruction would be exercising the recovery path rather than the reader.
+
+**What no suite covers**: extraction end to end in a browser. The e2e suite runs the web application
+and no worker, over an in-memory store that is per process (TD-100). What it does prove is the half
+a person sees — that an upload leaves a version *En cola* rather than *Cargado* — and the pipeline
+itself is proved in integration, against real MinIO and real PostgreSQL.
+
+### The camera, which no suite can press (ADR-032)
+
+EIA Field's capture path is proved by unit tests over an **injected transport** — the sequence
+failing at each of its four steps, with the same assertion every time: the local file is still
+there — by the integration suite for everything the server does, and by a bundle that exports for
+both platforms. **Not by a handset**: there is no native build artefact (TD-082), so no photograph
+has been taken on real hardware (TD-096). The acceptance procedure is written and unrun in
+`docs/FIELD_MOBILE_OFFLINE_UAT.md` §7.
+
 Fixtures for tests are generic factories (`tenantA`, `tenantB`, `projectX`, `projectY`,
 `userAdminA`, `userViewerB`, `clientGrantX`). Zamora fixtures are used only for scenario tests
 that need the four Quality Gate cases, referenced by rule key, not by project name.

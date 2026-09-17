@@ -1083,3 +1083,43 @@ TD-100 (the worker and the web app resolve their own store, so `memory` is two s
 byte by byte** — a PDF with a correct cross-reference table, a DOCX with real Word heading styles,
 an archive that lies about how much it expands to — because the interesting cases are the ones
 nobody has a sample of. Migrations 0042 and 0043.
+
+## Production V1 · Wave 2 — closing note (17 September 2026)
+
+Five PRs, five ADRs, merged in order: #33 bilingual · #34 intake · #35 object storage and document
+upload · #36 field media · #37 extraction.
+
+**The brief recommended four PRs; this was five**, and the difference is stated rather than
+smoothed over. Its PR 3 bundled storage, field media and document upload/versioning. Field media
+needs a `Media` row, a mobile outbox, EXIF handling and a local retention rule — a second coherent
+change, not a tail on the first — so it became its own. Nothing was dropped and nothing added.
+
+**What the wave was actually about.** Every one of the five landed on the same question in a
+different place: *what may this product claim?*
+
+- A **label** rather than a stored value on screen, in two languages from one catalogue, so an enum
+  without a word fails a test instead of a screen (#33).
+- A **readiness report** that says *EIA Studio can operate this project* and refuses to be read as
+  *the study is complete* or *the study complies* (#34).
+- An **upload** that is true because the provider says so, under a key that names nobody, with a
+  hash this product computed rather than an `ETag` it relabelled (#35).
+- A **photograph** whose local copy is released only when the server acknowledges the row, and
+  which has nowhere to go that somebody did not send it (#36).
+- A **citation** that names a page when there is one and a heading trail when there is not, and a
+  scan that contributes no passage at all (#37).
+
+**Counts across the wave**: unit 466 → **547**, integration 458 → **518**, Playwright 235 → **241**.
+Migrations 0034 … 0043, every one additive and forward-only, no backfill, no destructive change, no
+RLS weakened, no `BYPASSRLS` anywhere.
+
+**Closed**: TD-037, TD-056, TD-080, TD-089, TD-094.
+**Opened**: TD-085…TD-089 (Wave 2 PR 1–2), TD-090…TD-094 (storage), TD-095…TD-097 (media),
+TD-098…TD-100 (extraction). Every one with an owner and a removal trigger.
+
+**What stops here, deliberately**: AI candidate review, vector embeddings, template `.docx`
+automation, OCR, and production deployment. `LIVE_AI` is still `BLOCKED_EXTERNAL_CONFIG`; nothing in
+this wave calls a model.
+
+**The one thing an owner has to do before any of it is usable in a persistent environment**: create
+a bucket. `docs/OBJECT_STORAGE.md` §7 is four steps and five environment variables. Until then the
+deployment reports `NOT_CONFIGURED`, says so on screen, and the rest of the product is unaffected.
