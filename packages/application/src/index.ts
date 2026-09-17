@@ -211,6 +211,8 @@ export {
 export type { ExtractionClaim, ExtractionOutcome } from "./documents/extraction";
 export { extractPdf, PdfUnreadable, PDF_LIMITS } from "./documents/extract-pdf";
 export { extractDocx, DocxUnreadable } from "./documents/extract-docx";
+export { issueDocumentDownload } from "./documents/download";
+export type { DocumentDownloadLink } from "./documents/download";
 export { ingestDocumentVersion } from "./documents/ingest";
 export type { IngestedVersion } from "./documents/ingest";
 export { FullTextRetriever } from "./documents/retriever";

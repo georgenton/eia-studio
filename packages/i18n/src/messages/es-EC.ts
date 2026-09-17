@@ -878,6 +878,11 @@ export const messages = {
     alreadyQueued: "Ya estaba en cola.",
     queuedNote: "En cola para procesar; todavía no tiene pasajes que citar.",
     processingNote: "Procesando en este momento.",
+    download: "Descargar original",
+    downloadNote:
+      "Se abre un enlace temporal firmado por el proveedor de almacenamiento. Caduca en minutos y la descarga queda registrada.",
+    noOriginal:
+      "Esta versión no tiene archivo: su texto se transcribió a mano del expediente, y el PDF original nunca entró al sistema.",
     projectDocuments: "Documentos del proyecto",
     documentsNote: "{documents} documento(s) · {passages} pasajes",
     emptyBody:

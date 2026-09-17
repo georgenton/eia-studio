@@ -17,6 +17,15 @@ export const AUDIT_ACTIONS = [
   "storage.upload.finalized",
   "document.version.uploaded",
   "document.version.extracted",
+  /**
+   * A short-lived link to an original file was minted (ADR-034).
+   *
+   * SECURITY.md §9 already requires auditing "presigned URL issuance for PII objects", and a
+   * delivered study is exactly that kind of object — its `privacy_classification` is a claim
+   * somebody made, and `REVIEW_REQUIRED` means nobody has looked. So every issuance is recorded,
+   * not only the ones somebody declared sensitive.
+   */
+  "document.version.download_issued",
   "project.membership.added",
   "project.membership.removed",
   "capability.tenant.changed",

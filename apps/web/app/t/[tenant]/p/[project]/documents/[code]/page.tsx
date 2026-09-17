@@ -37,6 +37,7 @@ export default async function DocumentPage({
   searchParams: Promise<{ v?: string }>;
 }) {
   const { tenant, project, code } = await params;
+  const basePath = `/t/${tenant}/p/${project}/documents/${code}`;
   const { v } = await searchParams;
   const access = await resolveSurfaceAccess(tenant, project, "documents");
 
@@ -139,6 +140,21 @@ export default async function DocumentPage({
             )}
             <p className={styles.note}>
               <strong>{textSourceLabel(t, document.textSource)}.</strong> {document.sourceNote}
+            </p>
+            {/* The original file, behind a link the server mints one at a time after re-checking
+                `documents.read` and auditing the issuance (ADR-034). A version with no stored
+                object is a transcribed excerpt, and says so rather than offering a dead button. */}
+            <p className={styles.strategy}>
+              {document.storedObjectId === null ? (
+                t("documents.noOriginal")
+              ) : (
+                <>
+                  <a className={styles.docLink} href={`${basePath}/download/${document.versionId}`}>
+                    {t("documents.download")}
+                  </a>{" "}
+                  · {t("documents.downloadNote")}
+                </>
+              )}
             </p>
             <p className={styles.strategy}>
               {t("documents.privacy")}: {documentPrivacyLabel(t, document.privacyClassification)}

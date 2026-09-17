@@ -1,4 +1,44 @@
+import { readFileSync } from "node:fs";
+
 import { defineConfig, devices } from "@playwright/test";
+
+/**
+ * The store the whole e2e stack shares (ADR-034).
+ *
+ * `pnpm e2e` starts one MinIO first (`tooling/scripts/e2e-storage.mjs`) and writes its
+ * configuration here. Until Wave 3 this suite ran `STORAGE_PROVIDER=memory`, which is **per
+ * process**: the web server held bytes no worker could see, so the upload pipeline could only ever
+ * be proved in halves (TD-100). One real store is what lets `document-pipeline.spec.ts` follow a
+ * file from a browser through storage and a worker to a citation.
+ *
+ * Absent, the suite still runs: every other spec is unaffected, and the pipeline spec skips with
+ * the reason on screen rather than failing for a missing container.
+ */
+const STORAGE_CONFIG_PATH = process.env.EIA_E2E_STORAGE_CONFIG ?? "/tmp/eia-e2e-storage.json";
+
+function storageEnv(): Record<string, string> {
+  try {
+    const config = JSON.parse(readFileSync(STORAGE_CONFIG_PATH, "utf8")) as {
+      endpoint: string;
+      region: string;
+      bucket: string;
+      accessKeyId: string;
+      secretAccessKey: string;
+    };
+    return {
+      STORAGE_PROVIDER: "s3",
+      STORAGE_ENDPOINT: config.endpoint,
+      STORAGE_REGION: config.region,
+      STORAGE_BUCKET: config.bucket,
+      STORAGE_ACCESS_KEY_ID: config.accessKeyId,
+      STORAGE_SECRET_ACCESS_KEY: config.secretAccessKey,
+    };
+  } catch {
+    // `memory` is a real implementation of the port and is refused outside `local` and `test`,
+    // so a developer who has not started the container keeps a working upload surface.
+    return { STORAGE_PROVIDER: "memory" };
+  }
+}
 
 /**
  * End-to-end suite for the Slice 1 reviewer journey (TESTING_STRATEGY.md §1).
@@ -53,6 +93,22 @@ export default defineConfig({
       testMatch:
         /(^|\/)(journey|mvp-journey|gis|field-coordinator|field-integration|authorization|screenshots|accessibility|documents|documents-accessibility|documents-screenshots|intake|pgas|reports|vocabulary|journey-integrity|reports-accessibility|reports-screenshots|portal|portal-accessibility|portal-screenshots)\.spec\.ts$/,
       dependencies: ["setup"],
+      use: {
+        ...devices["Desktop Chrome"],
+        viewport: { width: 1440, height: 940 },
+        storageState: "e2e/.auth/coordinator.json",
+      },
+    },
+    {
+      /*
+       * The whole pipeline, in one project of its own, after the coordinator's: browser → upload
+       * intent → storage → QUEUED → worker → READY → chunks → search → a citation on screen. It
+       * runs the real worker's own use-case from the test process against the same database and
+       * the same MinIO, which is the only arrangement in which the topology is the product's.
+       */
+      name: "document-pipeline",
+      testMatch: /(^|\/)document-pipeline\.spec\.ts$/,
+      dependencies: ["setup", "coordinator"],
       use: {
         ...devices["Desktop Chrome"],
         viewport: { width: 1440, height: 940 },
@@ -189,10 +245,10 @@ export default defineConfig({
             // because this is a test run, and nowhere else selects it for us.
             SOCIAL_CLASSIFIER: "fake",
             SOCIAL_CLASSIFIER_MODEL: "fake/deterministic",
-            // Also explicit, for the same reason (ADR-031). `memory` is a real implementation of
-            // the storage port whose bytes live in this server process, and it is refused outside
-            // `local` and `test` — so selecting it here selects it nowhere else.
-            STORAGE_PROVIDER: "memory",
+            // Also explicit, for the same reason (ADR-031): one shared MinIO when `pnpm e2e`
+            // started it, and the per-process in-memory store otherwise. Neither is ever selected
+            // by default — both are refused outside `local` and `test`.
+            ...storageEnv(),
           },
         },
 

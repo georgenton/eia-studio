@@ -130,11 +130,12 @@ worker with no storage never claims: claiming and then failing at the first fetc
 queue and mark every document `FAILED` over a missing environment variable (the rule IG4-001 set
 for the classifier).
 
-**The e2e suite does not exercise extraction end to end**, and the reason is the same topology
-point: it runs the web application and no worker, over the in-memory store. What it does prove is
-the half that belongs to a person — that an upload leaves the version `En cola` rather than
-`Cargado`, which is the distinction `UPLOADED` and `QUEUED` exist to make. The pipeline itself is
-proved by the integration suite, against real PDFs, a real database and real MinIO (TD-100).
+**The e2e suite now exercises extraction end to end** (ADR-034, closing TD-100). `pnpm e2e` starts
+one MinIO that both Playwright web servers use, and `e2e/document-pipeline.spec.ts` follows a file
+the whole way: a browser uploads it, a **separate worker process** claims and reads it, and the same
+browser then sees the passage count, the page locator and a citation from the assistant — and
+downloads the original. Without the container the spec skips and says so; every other spec keeps the
+in-memory store.
 
 One thing to know about topology: **the in-memory store is per process.** A web process that
 accepted an upload into it holds bytes the worker cannot see, so `memory` is useful for a laptop
