@@ -42,11 +42,7 @@ export interface LocalMediaRow {
 }
 
 export interface MediaTransport {
-  requestIntent(input: {
-    filename: string;
-    mimeType: string;
-    sizeBytes: number;
-  }): Promise<{
+  requestIntent(input: { filename: string; mimeType: string; sizeBytes: number }): Promise<{
     intentId: string;
     url: string;
     headers: Record<string, string>;
