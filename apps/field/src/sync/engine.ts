@@ -8,6 +8,7 @@ import {
   applyAssignments,
   applyResult,
   countPending,
+  countPendingMedia,
   pendingCommands,
   readCursor,
   readPack,
@@ -18,6 +19,7 @@ import {
   settleCommand,
 } from "../db/repo";
 import { downloadFieldPack, pullChanges, pushCommands, ServerError, TransportError } from "./api";
+import { acknowledgeMedia, appVersion, sweepUploadedMedia, uploadPendingMedia } from "./media";
 
 /**
  * One synchronisation, start to finish.
@@ -45,12 +47,25 @@ export interface SyncOutcome {
   readonly pendingAfter: number;
   readonly pulled: boolean;
   readonly error: string | null;
+  /** Photographs whose bytes reached the provider and were verified in this run (ADR-032). */
+  readonly mediaUploaded: number;
+  /** Photographs still on the device, acknowledged or not. */
+  readonly mediaPending: number;
 }
 
 export async function synchronise(db: SQLite.SQLiteDatabase): Promise<SyncOutcome> {
   const pack = await readPack(db);
   if (!pack) {
-    return { pushed: 0, settled: 0, conflicts: 0, pendingAfter: 0, pulled: false, error: null };
+    return {
+      pushed: 0,
+      settled: 0,
+      conflicts: 0,
+      pendingAfter: 0,
+      pulled: false,
+      error: null,
+      mediaUploaded: 0,
+      mediaPending: 0,
+    };
   }
   const scope = {
     tenantSlug: pack.project.tenantSlug,
@@ -61,6 +76,16 @@ export async function synchronise(db: SQLite.SQLiteDatabase): Promise<SyncOutcom
   let settled = 0;
   let conflicts = 0;
   let error: string | null = null;
+
+  /*
+   * Photographs first, and *then* the outbox — not the other way round.
+   *
+   * A `media.declare` formed here joins the queue this same run, so one window of signal moves a
+   * photograph all the way rather than half of it. The upload itself never touches the outbox: it
+   * is bytes to a provider, and only the declaration is a command.
+   */
+  const media = await uploadPendingMedia(db, scope, appVersion());
+  if (media.error) await recordSyncError(db, "media", media.error);
 
   const queue = await pendingCommands(db, SYNC_PUSH_LIMIT);
   if (queue.length > 0) {
@@ -85,6 +110,11 @@ export async function synchronise(db: SQLite.SQLiteDatabase): Promise<SyncOutcom
         if (disposition.kind === "done") {
           await settleCommand(db, entry.row.seq, "DONE", null);
           settled += 1;
+          // The only thing that releases a local file. Not the PUT, not the finalize: the server
+          // saying the row exists (ADR-032).
+          if (entry.row.entityKind === "media") {
+            await acknowledgeMedia(db, entry.row.entityLocalId);
+          }
         } else if (disposition.kind === "conflict") {
           await settleCommand(db, entry.row.seq, "CONFLICT", disposition.message);
           await recordSyncError(db, "conflict", disposition.message);
@@ -113,6 +143,8 @@ export async function synchronise(db: SQLite.SQLiteDatabase): Promise<SyncOutcom
         pendingAfter: await countPending(db),
         pulled: false,
         error,
+        mediaUploaded: media.uploaded,
+        mediaPending: media.pendingAfter,
       };
     }
   }
@@ -135,7 +167,19 @@ export async function synchronise(db: SQLite.SQLiteDatabase): Promise<SyncOutcom
     await recordSyncError(db, "pull", detail);
   }
 
-  return { pushed, settled, conflicts, pendingAfter: await countPending(db), pulled, error };
+  // Last, and only for photographs the server acknowledged in this run or an earlier one.
+  await sweepUploadedMedia(db);
+
+  return {
+    pushed,
+    settled,
+    conflicts,
+    pendingAfter: await countPending(db),
+    pulled,
+    error,
+    mediaUploaded: media.uploaded,
+    mediaPending: await countPendingMedia(db),
+  };
 }
 
 async function resolveVisit(db: SQLite.SQLiteDatabase, command: SyncCommand): Promise<SyncCommand> {

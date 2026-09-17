@@ -48,7 +48,10 @@ export {
   presignStoredObjectDownload,
   uploadIntentInputSchema,
 } from "./storage/upload";
+export { resolveFinalizedUpload } from "./storage/upload";
 export type { FinalizedUpload, IssuedUploadIntent } from "./storage/upload";
+export { declareFieldMedia, loadParcelMedia, loadVisitMedia } from "./field/media";
+export type { DeclaredFieldMedia, VisitMedia } from "./field/media";
 export {
   activateProject,
   loadProjectIntake,

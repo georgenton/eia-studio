@@ -224,6 +224,16 @@ export const COMMAND_TYPES = [
   "survey.upsert_draft",
   "survey.submit",
   "visit.finish",
+  /**
+   * Added in Wave 2 (ADR-032) **without** bumping the protocol version, which is worth stating.
+   *
+   * The version exists so that an old device cannot get a command's *meaning* wrong. A new type
+   * changes no existing meaning: an old device never sends it, and an old server rejects it as an
+   * unknown discriminant — which is the correct answer to a device newer than its server. Nothing
+   * was added to `commandResultSchema` either, precisely because that object is `.strict()` and a
+   * new field there *would* break an old device's parse.
+   */
+  "media.declare",
 ] as const;
 export const commandTypeSchema = z.enum(COMMAND_TYPES);
 export type CommandType = z.infer<typeof commandTypeSchema>;
@@ -282,6 +292,31 @@ const surveyDraftPayload = z
 const visitFinishPayload = z.object({ assignmentId: uuid, visitId: uuid }).strict();
 
 /**
+ * A photograph the device has **already uploaded** (ADR-032).
+ *
+ * The bytes never travel on this channel: the device asks `/api/field/media/intent` for a signed
+ * URL, PUTs the file straight to the provider, finalizes, and only then declares. So this command
+ * is small, and by the time it is sent the expensive, failure-prone half is already done — which
+ * is what makes retrying it cheap and safe.
+ *
+ * `localId` is minted when the shutter closes and never regenerated. It is what makes a retry one
+ * photograph rather than two, independently of `commandId`: a device that lost its outbox but kept
+ * its gallery still cannot produce a second row.
+ */
+const mediaDeclarePayload = z
+  .object({
+    assignmentId: uuid,
+    visitId: uuid,
+    localId: uuid,
+    storedObjectId: uuid,
+    kind: z.enum(["parcel", "affectation", "access", "other"]),
+    capturedAt: deviceInstant,
+    note: z.string().max(300).nullable(),
+    location: wireLocationSchema.nullable(),
+  })
+  .strict();
+
+/**
  * The envelope every command shares.
  *
  * `deviceRevision` orders a device's own edits to one entity: draft 3 arriving after draft 5 is
@@ -309,6 +344,9 @@ export const syncCommandSchema = z.discriminatedUnion("type", [
     .strict(),
   z.object({ ...envelope, type: z.literal("survey.submit"), payload: surveyDraftPayload }).strict(),
   z.object({ ...envelope, type: z.literal("visit.finish"), payload: visitFinishPayload }).strict(),
+  z
+    .object({ ...envelope, type: z.literal("media.declare"), payload: mediaDeclarePayload })
+    .strict(),
 ]);
 export type SyncCommand = z.infer<typeof syncCommandSchema>;
 
@@ -431,6 +469,65 @@ export const syncPullResponseSchema = z
 export type SyncPullResponse = z.infer<typeof syncPullResponseSchema>;
 
 /* ---------------------------------------------------------------------------------------------
+ * Media upload — the one thing that does not travel on the command channel (ADR-032)
+ * ------------------------------------------------------------------------------------------ */
+
+/**
+ * Bytes do not go through the sync endpoint, and the reason is the same one the web app has: a
+ * photograph streamed through a request only to be streamed out again is a cost nobody needs to
+ * pay. The device asks for an **intent**, PUTs the file to the URL the provider signed, finalizes,
+ * and only then sends `media.declare`.
+ *
+ * The key is not in this request and never can be: the server mints it (ADR-031 §2).
+ */
+export const mediaIntentRequestSchema = z
+  .object({
+    tenantSlug: z.string().min(1).max(80),
+    projectSlug: z.string().min(1).max(80),
+    filename: z.string().min(1).max(255),
+    mimeType: z.string().min(3).max(200),
+    sizeBytes: z.number().int().positive(),
+  })
+  .strict();
+export type MediaIntentRequest = z.infer<typeof mediaIntentRequestSchema>;
+
+export const mediaIntentResponseSchema = z
+  .object({
+    intentId: uuid,
+    url: z.string().min(1).max(4000),
+    method: z.literal("PUT"),
+    headers: z.record(z.string(), z.string()),
+    /** Stored by the device so it can finalize, and echoed back so the server can check it. */
+    objectKey: z.string().min(1).max(400),
+    expiresAt: deviceInstant,
+    maxBytes: z.number().int().positive(),
+  })
+  .strict();
+export type MediaIntentResponse = z.infer<typeof mediaIntentResponseSchema>;
+
+/**
+ * Prove the upload happened.
+ *
+ * **Idempotent**, unlike the use-case underneath it: a device whose response was lost in the air
+ * cannot tell "already finalized" from "failed", so asking twice answers the same thing twice.
+ * What is not idempotent is the *consumption* of the authorisation, which happens exactly once.
+ */
+export const mediaFinalizeRequestSchema = z
+  .object({
+    tenantSlug: z.string().min(1).max(80),
+    projectSlug: z.string().min(1).max(80),
+    intentId: uuid,
+    objectKey: z.string().min(1).max(400),
+  })
+  .strict();
+export type MediaFinalizeRequest = z.infer<typeof mediaFinalizeRequestSchema>;
+
+export const mediaFinalizeResponseSchema = z
+  .object({ storedObjectId: uuid, sizeBytes: z.number().int().nonnegative() })
+  .strict();
+export type MediaFinalizeResponse = z.infer<typeof mediaFinalizeResponseSchema>;
+
+/* ---------------------------------------------------------------------------------------------
  * Local sync vocabulary — shared so the device's states and the server's outcomes cannot drift.
  * ------------------------------------------------------------------------------------------ */
 
@@ -438,6 +535,18 @@ export type SyncPullResponse = z.infer<typeof syncPullResponseSchema>;
  * What the technician sees about one survey, and the one distinction that must never blur:
  * `READY_TO_SYNC` is *sent on the device*, `SYNCED` is *the server has it*.
  */
+/**
+ * What the **device** believes about one photograph, mirrored from `@eia/domain`'s
+ * `LOCAL_MEDIA_STATES` so the phone's screens and the outbox agree on one vocabulary.
+ *
+ * `UPLOADED` is the only state in which the local file may be deleted, and it is set from the
+ * server's answer to `media.declare` — never from "the PUT returned 200", because bytes being in a
+ * bucket is not the same fact as the row existing.
+ */
+export const LOCAL_MEDIA_STATES = ["PENDING_UPLOAD", "UPLOADING", "UPLOADED", "FAILED"] as const;
+export const localMediaStateSchema = z.enum(LOCAL_MEDIA_STATES);
+export type LocalMediaState = z.infer<typeof localMediaStateSchema>;
+
 export const LOCAL_SURVEY_STATES = [
   "NOT_STARTED",
   "DRAFT",

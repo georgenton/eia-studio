@@ -232,6 +232,12 @@ an integration test asserts each of those is absent from a technician's resolved
 app.current_user_id()` — because a receipt names what one person's device did, and a list of another
 technician's day is not project reference data.
 
+`media.upload` was granted to `FIELD_TECHNICIAN` at Gate 1 and had nothing to grant until ADR-032.
+It now gates `createUploadIntent` for the `field-media` namespace and `declareFieldMedia`, and it is
+deliberately *not* held by a COORDINATOR: filing evidence of a visit is capture work, and somebody
+who never went to the parcel has nothing to declare about it. Reading a photograph is the separate
+`field.responses.read`, for the reason §3.1 gives about a household's answers.
+
 ### 3.5 Preparing a project is not configuring it (ADR-030)
 
 Eight studies cannot each be a developer task, and the people who will load their files are data

@@ -1,4 +1,9 @@
-import { loadParcelVisits, loadParcelWorkspace, loadWorkspaceHeader } from "@eia/application";
+import {
+  loadParcelMedia,
+  loadParcelVisits,
+  loadParcelWorkspace,
+  loadWorkspaceHeader,
+} from "@eia/application";
 import { can } from "@eia/domain";
 import { notFound, redirect } from "next/navigation";
 
@@ -97,6 +102,13 @@ export default async function ParcelWorkspacePage({
   // parcel does not entitle anyone to the field work recorded against it.
   const seesField = ctx.capabilities["field.surveys"] === true && can(ctx, "parcels.read");
   const visits = seesField ? await loadParcelVisits(getDb(), ctx, view.parcel.id) : null;
+  // A photograph of a parcel can hold a person, a house number or a number plate, so it sits
+  // behind `field.responses.read` rather than behind parcel access (ADR-032, SECURITY.md §10b).
+  // The row-level policy says the same thing again underneath.
+  const media =
+    seesField && can(ctx, "field.responses.read")
+      ? await loadParcelMedia(getDb(), ctx, view.parcel.id)
+      : null;
 
   return (
     <WorkspaceShell
@@ -114,6 +126,7 @@ export default async function ParcelWorkspacePage({
         i18n={i18n}
         tab={tab}
         view={view}
+        media={media}
         visits={visits}
       />
     </WorkspaceShell>

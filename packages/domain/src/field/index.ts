@@ -4,3 +4,4 @@ export * from "./capture-channel";
 export * from "./survey";
 export * from "./answers";
 export * from "./workflow";
+export * from "./media";

@@ -281,6 +281,20 @@
       "when": 1789603290030,
       "tag": "0039_document_upload",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1789606306632,
+      "tag": "0040_field_media",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1789606307632,
+      "tag": "0041_field_media_rls",
+      "breakpoints": true
     }
   ]
 }

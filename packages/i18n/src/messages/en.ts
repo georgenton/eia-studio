@@ -463,7 +463,22 @@ export const messages: Messages = {
     tabAffectations: "Affectations",
     tabVisits: "Visits",
     tabInstruments: "Instruments",
-    tabMedia: "Media",
+    tabMedia: "Photographs",
+    mediaDeniedTitle: "Photographs: no access to the field work",
+    mediaDeniedBody:
+      "Your role can read the parcel but not the photographs taken on its visits. A photograph of a parcel can hold a person, a house number or a number plate, which is why it sits behind the same permission as individual responses.",
+    noMedia:
+      "No photographs are recorded for this parcel. They appear here once a technician uploads them from EIA Field.",
+    mediaTitle: "Field photographs",
+    mediaCaption: "Photographs uploaded during visits to this parcel",
+    mediaNever:
+      "Field photographs are not published to the client, not sent to any model provider, not added to the document corpus and not drawn on the map. Downloading one is a deliberate act and is recorded.",
+    mediaKindColumn: "Kind",
+    mediaCapturedAt: "Captured",
+    mediaSize: "Size",
+    mediaNote: "Technician's note",
+    mediaHasLocation: "With the technician's location",
+    mediaNoLocation: "No location",
     tabQuality: "Quality",
     sections: "Parcel sections",
     backToExplorer: "Back to the explorer",
@@ -501,8 +516,6 @@ export const messages: Messages = {
     pendingTitle: "{label}: no data yet",
     instrumentsNote:
       "The socioeconomic forms and other instruments will be listed here once the field inbox is implemented.",
-    mediaNote:
-      "Photographs and field evidence arrive with mobile capture. There are no files attached to this parcel.",
     qualityNote:
       "Consistency-control findings about this parcel will be shown here once the module is implemented.",
   },
@@ -1277,6 +1290,12 @@ export const messages: Messages = {
       CONTAINS_PERSONAL_DATA: "Contains identified personal data",
       REVIEW_REQUIRED: "Review required",
     },
+    mediaKind: {
+      parcel: "Parcel",
+      affectation: "Affected area",
+      access: "Access",
+      other: "Other",
+    },
     mediaState: {
       PENDING_UPLOAD: "Pending upload",
       UPLOADING: "Uploading",
@@ -1299,6 +1318,13 @@ export const messages: Messages = {
     syncing: "Syncing…",
     refreshWork: "Refresh assigned work",
     workUpdated: "Work updated.",
+    photographs: "Photographs",
+    photographsNote:
+      "They are saved on the phone the moment you take them and sent when there is signal. The local file is not deleted until the server confirms the photograph was recorded.",
+    noPhotographs: "You have not taken any photographs on this visit yet.",
+    cameraDenied:
+      "Camera permission was not granted. You can continue the visit without photographs.",
+    captureFailed: "The photograph could not be saved. Try again.",
     startVisit: "Start visit",
     startingVisit: "Starting…",
     continueSurvey: "Continue form",

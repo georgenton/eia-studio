@@ -161,7 +161,14 @@ test.describe("GIS reviewer journey", () => {
     await page.getByRole("link", { name: "Visitas" }).click();
     await expect(main).toContainText("Visitas de campo");
 
-    // 14 · tabs whose modules do not exist still say so instead of inventing content
+    // 14 · Fotografías is a real surface since ADR-032. The demo campaign has no photographs —
+    // nothing can take one without a handset — so what it must show is the *empty* state, and
+    // never an inert "module not built" one.
+    await page.getByRole("link", { name: "Fotografías" }).click();
+    await expect(main).toContainText("No hay fotografías registradas para este predio");
+    await expect(main).not.toContainText("aún sin datos");
+
+    // 15 · tabs whose modules do not exist still say so instead of inventing content
     await page.getByRole("link", { name: "Instrumentos" }).click();
     await expect(main).toContainText("Instrumentos: aún sin datos");
   });

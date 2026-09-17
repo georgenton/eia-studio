@@ -15,6 +15,7 @@ import {
 
 import { app, project, projectMembership, provenanceRecord } from "./app";
 import { parcel } from "./gis";
+import { storedObject } from "./storage";
 
 /**
  * FieldFlow tables (DATA_MODEL.md §3.4, design v0.2 §04–05).
@@ -673,6 +674,7 @@ export const syncCommandType = app.enum("field_sync_command_type", [
   "survey.upsert_draft",
   "survey.submit",
   "visit.finish",
+  "media.declare",
 ]);
 
 export const syncCommandOutcome = app.enum("field_sync_outcome", [
@@ -714,5 +716,99 @@ export const fieldSyncReceipt = app.table(
       columns: [t.tenantId, t.projectId],
       foreignColumns: [project.tenantId, project.id],
     }).onDelete("cascade"),
+  ],
+);
+
+/* ---------------------------------------------------------------------------------------------
+ * Field media (ADR-032)
+ * ------------------------------------------------------------------------------------------ */
+
+export const fieldMediaKind = app.enum("field_media_kind", [
+  "parcel",
+  "affectation",
+  "access",
+  "other",
+]);
+
+/**
+ * A photograph a technician took on a visit.
+ *
+ * **It is not a file.** The bytes are a `stored_object`, verified by this product before this row
+ * exists (ADR-031); this row is the statement that the photograph belongs to this visit, was taken
+ * at this moment, and means this. Deleting the row would orphan an object; there is no path that
+ * deletes either.
+ *
+ * **`local_id` is the idempotency, and it comes from the device.** Minted once when the shutter
+ * closes, never regenerated. A unique index on `(tenant_id, visit_id, local_id)` means a retry —
+ * after a lost response, a crashed application, a reinstalled outbox — cannot produce a second row
+ * for one photograph. The sync receipt would also catch the ordinary retry; this catches the one
+ * where the receipt is gone and the gallery is not.
+ *
+ * **Row ownership, not project access.** A photograph of a parcel can hold a person, a house
+ * number or a number plate, so the policy is the one `survey_instance` uses: your own, or
+ * `field.responses.read`. A GIS specialist may know a parcel was visited without seeing the
+ * photographs taken there (SECURITY.md §10b).
+ *
+ * `location` is where the **technician** stood, like a visit's — never a household's address, and
+ * never fabricated when the device had no fix.
+ */
+export const fieldMedia = app.table(
+  "field_media",
+  {
+    id: uuid("id").primaryKey(),
+    tenantId: uuid("tenant_id").notNull(),
+    projectId: uuid("project_id").notNull(),
+    visitId: uuid("visit_id").notNull(),
+    assignmentId: uuid("assignment_id").notNull(),
+    /** The technician whose device captured it. The session's user, never a value it sent. */
+    capturedByUserId: uuid("captured_by_user_id").notNull(),
+    /** Minted on the device at capture; the unique index below is the no-duplicate guarantee. */
+    localId: uuid("local_id").notNull(),
+    storedObjectId: uuid("stored_object_id").notNull(),
+    kind: fieldMediaKind("kind").notNull(),
+    /** The device's clock at the shutter. A different fact from `created_at`. */
+    capturedAt: timestamp("captured_at", { withTimezone: true, mode: "date" }).notNull(),
+    note: text("note"),
+    location: pointColumn("location"),
+    locationAccuracyM: numeric("location_accuracy_m", { precision: 10, scale: 1 }),
+    provenanceId: uuid("provenance_id").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    unique("field_media_tenant_id_id_key").on(t.tenantId, t.id),
+    // One photograph, however many times its device says so.
+    unique("field_media_local_key").on(t.tenantId, t.visitId, t.localId),
+    // One stored object backs exactly one media row: a second row over the same bytes would be
+    // the duplicate `local_id` prevents, arriving by another door.
+    unique("field_media_object_key").on(t.tenantId, t.storedObjectId),
+    foreignKey({
+      name: "field_media_visit_fk",
+      columns: [t.tenantId, t.visitId],
+      foreignColumns: [fieldVisit.tenantId, fieldVisit.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "field_media_assignment_fk",
+      columns: [t.tenantId, t.assignmentId],
+      foreignColumns: [fieldAssignment.tenantId, fieldAssignment.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "field_media_project_fk",
+      columns: [t.tenantId, t.projectId],
+      foreignColumns: [project.tenantId, project.id],
+    }).onDelete("cascade"),
+    // The bytes must exist and belong to this tenant. A media row pointing at nothing is the
+    // orphan this table's docblock says there is no path to.
+    foreignKey({
+      name: "field_media_object_fk",
+      columns: [t.tenantId, t.storedObjectId],
+      foreignColumns: [storedObject.tenantId, storedObject.id],
+    }),
+    foreignKey({
+      name: "field_media_provenance_fk",
+      columns: [t.tenantId, t.provenanceId],
+      foreignColumns: [provenanceRecord.tenantId, provenanceRecord.id],
+    }),
+    index("field_media_visit_idx").on(t.tenantId, t.visitId),
+    index("field_media_technician_idx").on(t.tenantId, t.projectId, t.capturedByUserId),
   ],
 );

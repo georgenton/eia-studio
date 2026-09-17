@@ -97,6 +97,45 @@ export function visitFinishCommand(
 }
 
 /**
+ * Declare a photograph whose bytes are already stored and verified (ADR-032).
+ *
+ * `localId` comes from the row rather than from `newId()`, and that is the difference between this
+ * and every other command here: `commandId` identifies *this attempt to tell the server*, and
+ * `localId` identifies *the photograph*. A device that lost its outbox and re-formed the command
+ * mints a new `commandId` and keeps the old `localId`, so the server still recognises one
+ * photograph.
+ */
+export function mediaDeclareCommand(
+  ctx: CommandContext,
+  input: {
+    readonly assignmentId: string;
+    readonly visitId: string;
+    readonly localId: string;
+    readonly storedObjectId: string;
+    readonly kind: "parcel" | "affectation" | "access" | "other";
+    readonly note: string | null;
+    readonly location: WireLocation | null;
+  },
+): SyncCommand {
+  return syncCommandSchema.parse({
+    ...envelope(ctx),
+    type: "media.declare",
+    payload: {
+      assignmentId: input.assignmentId,
+      visitId: input.visitId,
+      localId: input.localId,
+      storedObjectId: input.storedObjectId,
+      kind: input.kind,
+      // The device's clock at the shutter is the caller's to supply; here it is the moment the
+      // intent was formed, which for a photograph is the same instant.
+      capturedAt: ctx.occurredAt.toISOString(),
+      note: input.note,
+      location: input.location,
+    },
+  });
+}
+
+/**
  * A queued command may name a visit the device did not have when the command was formed.
  *
  * The sequence that makes this necessary: a technician starts a visit and fills a survey with no

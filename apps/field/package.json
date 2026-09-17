@@ -2,7 +2,7 @@
   "name": "@eia/field",
   "version": "0.0.0",
   "private": true,
-  "description": "EIA Field \u2014 offline-first capture for road-EIA technicians (React Native + Expo)",
+  "description": "EIA Field — offline-first capture for road-EIA technicians (React Native + Expo)",
   "main": "index.js",
   "scripts": {
     "start": "expo start --dev-client",
@@ -22,6 +22,8 @@
     "expo": "57.0.23",
     "expo-constants": "57.0.18",
     "expo-crypto": "57.0.3",
+    "expo-file-system": "57.0.7",
+    "expo-image-picker": "57.0.18",
     "expo-linking": "57.0.10",
     "expo-location": "57.0.18",
     "expo-network": "57.0.2",

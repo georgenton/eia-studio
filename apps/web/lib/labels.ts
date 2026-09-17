@@ -61,6 +61,8 @@ export const offlineModeLabel = (t: Translator, value: string) =>
   vocabulary(t, "offlineMode", value);
 export const captureChannelLabel = (t: Translator, value: string) =>
   vocabulary(t, "captureChannel", value);
+export const mediaKindLabel = (t: Translator, value: string) => vocabulary(t, "mediaKind", value);
+export const mediaStateLabel = (t: Translator, value: string) => vocabulary(t, "mediaState", value);
 export const documentKindLabel = (t: Translator, value: string) =>
   vocabulary(t, "documentKind", value);
 export const textSourceLabel = (t: Translator, value: string) => vocabulary(t, "textSource", value);

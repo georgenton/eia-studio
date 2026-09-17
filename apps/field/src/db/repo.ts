@@ -388,7 +388,7 @@ export async function enqueue(
   db: SQLite.SQLiteDatabase,
   input: {
     command: SyncCommand;
-    entityKind: "visit" | "survey";
+    entityKind: "visit" | "survey" | "media";
     entityLocalId: string;
   },
 ): Promise<void> {
@@ -502,6 +502,18 @@ export async function applyResult(
       result.visitId,
       row.entityKind === "visit" ? row.entityLocalId : "",
     );
+    /*
+     * Photographs taken before the visit was acknowledged have been waiting with no server visit
+     * to belong to (ADR-032). This is the moment they can be declared, so the id reaches them in
+     * the same transaction that reaches the assignment.
+     */
+    await db.runAsync(
+      `update local_media set visit_server_id = ?
+        where visit_server_id is null
+          and assignment_local_id = (select assignment_id from local_visit where id = ?)`,
+      result.visitId,
+      row.entityKind === "visit" ? row.entityLocalId : "",
+    );
   }
   if (row.entityKind === "survey") {
     const current = await db.getFirstAsync<{ state: string }>(
@@ -560,4 +572,196 @@ export async function recordSyncError(
     scope,
     detail.slice(0, 400),
   );
+}
+
+/* ---------------------------------------------------------------------------------------------
+ * Field media (ADR-032)
+ * ------------------------------------------------------------------------------------------ */
+
+interface MediaRow {
+  local_id: string;
+  assignment_local_id: string;
+  visit_server_id: string | null;
+  file_uri: string;
+  mime_type: string;
+  size_bytes: number;
+  kind: string;
+  note: string | null;
+  captured_at: string;
+  latitude: number | null;
+  longitude: number | null;
+  accuracy_m: number | null;
+  state: string;
+  stored_object_id: string | null;
+  server_media_id: string | null;
+  attempts: number;
+  last_error: string | null;
+}
+
+/**
+ * Record a photograph the moment it is taken.
+ *
+ * The row is written **before** anything is attempted, with the file already copied into the
+ * application's own directory. That order is the guarantee: a battery that dies between the
+ * shutter and the network leaves a row and a file, which the next launch picks up.
+ */
+export async function insertLocalMedia(
+  db: SQLite.SQLiteDatabase,
+  input: {
+    localId: string;
+    assignmentLocalId: string;
+    visitServerId: string | null;
+    fileUri: string;
+    mimeType: string;
+    sizeBytes: number;
+    kind: string;
+    note: string | null;
+    latitude: number | null;
+    longitude: number | null;
+    accuracyM: number | null;
+  },
+): Promise<void> {
+  await db.runAsync(
+    `insert into local_media
+       (local_id, assignment_local_id, visit_server_id, file_uri, mime_type, size_bytes, kind,
+        note, captured_at, latitude, longitude, accuracy_m, state)
+     values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING_UPLOAD')`,
+    input.localId,
+    input.assignmentLocalId,
+    input.visitServerId,
+    input.fileUri,
+    input.mimeType,
+    input.sizeBytes,
+    input.kind,
+    input.note,
+    nowIso(),
+    input.latitude,
+    input.longitude,
+    input.accuracyM,
+  );
+}
+
+export interface LocalMediaRecord {
+  readonly localId: string;
+  readonly assignmentId: string;
+  readonly visitId: string | null;
+  readonly fileUri: string;
+  readonly mimeType: string;
+  readonly sizeBytes: number;
+  readonly kind: string;
+  readonly note: string | null;
+  readonly capturedAt: string;
+  readonly latitude: number | null;
+  readonly longitude: number | null;
+  readonly accuracyM: number | null;
+  readonly state: "PENDING_UPLOAD" | "UPLOADING" | "UPLOADED" | "FAILED";
+  readonly storedObjectId: string | null;
+  readonly serverMediaId: string | null;
+  readonly attempts: number;
+  readonly lastError: string | null;
+}
+
+function toMediaRecord(row: MediaRow): LocalMediaRecord {
+  return {
+    localId: row.local_id,
+    assignmentId: row.assignment_local_id,
+    visitId: row.visit_server_id,
+    fileUri: row.file_uri,
+    mimeType: row.mime_type,
+    sizeBytes: row.size_bytes,
+    kind: row.kind,
+    note: row.note,
+    capturedAt: row.captured_at,
+    latitude: row.latitude,
+    longitude: row.longitude,
+    accuracyM: row.accuracy_m,
+    state: row.state as LocalMediaRecord["state"],
+    storedObjectId: row.stored_object_id,
+    serverMediaId: row.server_media_id,
+    attempts: row.attempts,
+    lastError: row.last_error,
+  };
+}
+
+export async function listMediaForAssignment(
+  db: SQLite.SQLiteDatabase,
+  assignmentId: string,
+): Promise<ReadonlyArray<LocalMediaRecord>> {
+  const rows = await db.getAllAsync<MediaRow>(
+    `select * from local_media where assignment_local_id = ? order by captured_at`,
+    assignmentId,
+  );
+  return rows.map(toMediaRecord);
+}
+
+/** Everything the sweep and the uploader work through: oldest first, acknowledged ones included. */
+export async function listAllMedia(
+  db: SQLite.SQLiteDatabase,
+): Promise<ReadonlyArray<LocalMediaRecord>> {
+  const rows = await db.getAllAsync<MediaRow>(`select * from local_media order by captured_at`);
+  return rows.map(toMediaRecord);
+}
+
+export async function countPendingMedia(db: SQLite.SQLiteDatabase): Promise<number> {
+  const row = await db.getFirstAsync<{ n: number }>(
+    `select count(*) as n from local_media where server_media_id is null`,
+  );
+  return row?.n ?? 0;
+}
+
+/**
+ * The visit id a photograph belongs to, once `visit.start` has been acknowledged.
+ *
+ * Photographs taken before the acknowledgement wait with `visit_server_id` null; this is what
+ * releases them, and it is called from the same place that patches queued commands with the id.
+ */
+export async function attachVisitToMedia(
+  db: SQLite.SQLiteDatabase,
+  assignmentId: string,
+  visitServerId: string,
+): Promise<void> {
+  await db.runAsync(
+    `update local_media set visit_server_id = ?
+      where assignment_local_id = ? and visit_server_id is null`,
+    visitServerId,
+    assignmentId,
+  );
+}
+
+export async function setMediaState(
+  db: SQLite.SQLiteDatabase,
+  localId: string,
+  patch: {
+    state?: LocalMediaRecord["state"];
+    storedObjectId?: string | null;
+    serverMediaId?: string | null;
+    lastError?: string | null;
+    bumpAttempt?: boolean;
+  },
+): Promise<void> {
+  await db.runAsync(
+    `update local_media set
+       state = coalesce(?, state),
+       stored_object_id = coalesce(?, stored_object_id),
+       server_media_id = coalesce(?, server_media_id),
+       last_error = ?,
+       attempts = attempts + ?
+     where local_id = ?`,
+    patch.state ?? null,
+    patch.storedObjectId ?? null,
+    patch.serverMediaId ?? null,
+    patch.lastError ?? null,
+    patch.bumpAttempt ? 1 : 0,
+    localId,
+  );
+}
+
+/**
+ * Forget a photograph whose file the sweep has already removed.
+ *
+ * Called only after the file is gone and only for a row `mayDeleteLocalFile` released, so the row
+ * and the file disappear together rather than leaving one pointing at nothing.
+ */
+export async function forgetLocalMedia(db: SQLite.SQLiteDatabase, localId: string): Promise<void> {
+  await db.runAsync(`delete from local_media where local_id = ?`, localId);
 }
