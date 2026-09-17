@@ -1123,3 +1123,61 @@ this wave calls a model.
 **The one thing an owner has to do before any of it is usable in a persistent environment**: create
 a bucket. `docs/OBJECT_STORAGE.md` §7 is four steps and five environment variables. Until then the
 deployment reports `NOT_CONFIGURED`, says so on screen, and the rest of the product is unaffected.
+
+## Production V1 · Wave 3 — closing note (17 September 2026)
+
+Four PRs, three ADRs, merged in order at `da9ad1f`: **#40** the download and the pipeline test ·
+**#41** AI document review · **#42** the template library · **#43** study #2 and readiness.
+
+**What the wave was about.** Wave 2 built the layer a model could read from. Wave 3 let a model
+read it — and the whole wave is one question asked four times: *how does a reader tell what this
+product calculated from what it was told, and from what a machine suggested?*
+
+- A **download** is a navigation, and a pipeline nobody tests end to end is a pipeline in halves
+  (#40). The link contains the object key, because signing a fetch means naming the object — and
+  the key is a namespace and four UUIDs, so what it discloses is *that a document exists*.
+- An **AI candidate is not a finding** (#41). It carries no `requirement_key`, so it cannot be
+  written into `quality_finding` without inventing a rule that never ran. Separate tables, `IA-001`
+  rather than `QG-001`, a page of its own, and the words *Candidato generado por IA*.
+- A **template prints only what this product is willing to say** (#42). A closed placeholder
+  vocabulary rather than object traversal, so what is *absent* from the list — personal data, an
+  AI proposal, a storage key — is checkable rather than intended.
+- And **study #2 exists because somebody made it in the product** (#43), not because a developer
+  ran a script.
+
+**The three refusals this wave added, in one place.** A corpus with one unclassified document is
+refused **entirely** and names what blocked it, because reviewing the rest would make "no candidates
+in the social chapter" come to mean "the social chapter was never read". A template using a
+placeholder nobody declared **cannot be activated**, because a tag that renders blank is how a
+deliverable goes out with a hole in it. And a value the project does not have prints *Dato no
+disponible*, never `0`, because a corridor nobody has measured is not zero kilometres long.
+
+**Counts on merged `main` at `da9ad1f`**, measured rather than summed: unit 551 → **613**,
+integration 518 → **600**, Playwright 241 → **258**, and a staging suite of **99** run against the
+real staging database. Migrations 0044 … 0047, every one additive and forward-only, no backfill, no
+destructive change, no RLS weakened, no `BYPASSRLS`.
+
+**Staging moved.** Migrations 0034 … 0047 are applied — 34 → 48 — with the before/after baseline
+and the exact fourteen-table diff recorded in `STAGING_OPERATIONS.md` §0, and `pnpm test:staging`
+passes 99 assertions there. That is blocker 5's database half, closed by doing it rather than by
+writing a runbook about it.
+
+**One dependency, audited before it was added**: `easy-template-x@7.2.8` (MIT), because Word splits
+a run whenever anything about the text changes and a regex cannot see a placeholder in four pieces.
+`docx-templates` was rejected for evaluating JavaScript from the template. The audit found its
+pinned `@xmldom/xmldom@0.8.13` carries ten open advisories — including quadratic-time parsing
+reachable from an uploaded file — so a workspace override lifts it to `0.8.15`, and `fflate` moved
+to `0.8.3` for its `unzipSync` advisory.
+
+**Closed**: TD-093, TD-100, and go-live blocker 5.
+**Opened**: TD-101…TD-102 (#40), TD-103…TD-106 (#41), TD-107…TD-110 (#42), TD-111…TD-113 (#43).
+
+**What stops here, deliberately**: OCR, vector embeddings, a chapter rendered through a template, a
+correction workflow, a project-members surface, and production deployment. **No live model is
+enabled anywhere** — `SOCIAL_CLASSIFIER`, `ASSISTANT_GENERATOR` and `DOCUMENT_REVIEWER` are unset in
+every environment this repository controls, including staging.
+
+**What an owner still has to do**, and none of it is engineering: the compliance review, an
+object-storage bucket, an Expo/Apple/Google account, and the production hosting decision that
+`docs/PRODUCTION_RECOVERY.md` specifies. The physical-handset UAT is **PREPARED and not executed**,
+and says so where somebody would look.

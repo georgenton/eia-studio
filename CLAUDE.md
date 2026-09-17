@@ -208,8 +208,48 @@ cited; OCR itself is not built (TD-098). Nothing is executed: pdf.js without eva
 and a DOCX archive bounded against every entry's declared size before anything is expanded.
 
 **Nothing in Wave 2 calls a model.** Retrieval is still PostgreSQL full-text and still says so on
-screen. What stands between this and eight production projects is in `docs/PRODUCTION_V1_GO_LIVE.md`,
-and four of the eight blockers are decisions rather than engineering.
+screen.
+
+**Production V1 Wave 3 (17 September 2026)** let a model read the layer Wave 2 built, and asked one
+question four times: *how does a reader tell what this product calculated from what a machine
+suggested?* Four merged changes, three ADRs.
+
+**A download is a navigation** (ADR-034): *Descargar original* is a route that answers 303 to a
+five-minute presigned GET and **404 to everything else**, auditing every issuance without the
+filename, the hash or the key. And the upload → storage → **separate worker process** → chunk →
+citation path is now one end-to-end test against real MinIO, closing TD-093 and TD-100.
+
+**An AI candidate is not a finding** (ADR-035). A `quality_finding` carries a `requirement_key`
+naming a deterministic rule; a model's suggestion has none, so writing one there would attribute a
+finding to a rule that never ran. Four tables of its own, `IA-001` rather than `QG-001`, its own
+page, and *Candidato generado por IA* — never *error detectado*. Retrieval-first over seven bounded
+lenses: **no passage → no model call**, **no citation → no candidate** (refused *and counted*, never
+dropped), and invariant 11's forbidden vocabulary over every field. **The privacy gate refuses, it
+never filters**: a corpus with one `REVIEW_REQUIRED` version stops the whole run and names the
+document, and the refusal is audited in its own transaction. A candidate resting on one passage can
+be dismissed and **cannot be accepted**. The model's words are write-once; every decision, including
+a dismissal, is append-only with a mandatory justification.
+
+**A template prints only what this product is willing to say** (ADR-036). A consultancy's own
+`.docx`, versioned, validated and activated. A **closed placeholder vocabulary** rather than object
+traversal, so what is absent from it — personal data, an AI proposal, a storage key — is checkable
+rather than intended; a tag nobody declared **blocks activation**. **Absence is not zero**: a
+corridor nobody measured prints *Dato no disponible*, and a placeholder a document cannot be honest
+without stops the document. Every output carries **BORRADOR — NO ES UN ENTREGABLE APROBADO**,
+required in the template and verified in the rendered text. ES and EN version independently and are
+never machine translated. `easy-template-x` was adopted after an audit that rejected
+`docx-templates` for evaluating JavaScript from the template; `@xmldom/xmldom` is overridden to an
+advisory-clean patch.
+
+**Study #2 exists because somebody made it in the product** — *Nuevo proyecto* on the Portfolio,
+then *Preparar proyecto* — and a registry test fails the moment a project-scoped table forgets the
+project. Migrations 0034…0047 are applied to **staging**, where `pnpm test:staging` passes 99
+assertions.
+
+**No live model is enabled anywhere**: `SOCIAL_CLASSIFIER`, `ASSISTANT_GENERATOR` and
+`DOCUMENT_REVIEWER` are unset in every environment this repository controls. What stands between
+this and eight production projects is in `docs/PRODUCTION_V1_GO_LIVE.md` and
+`docs/PRODUCTION_RECOVERY.md`; the remaining blockers are decisions rather than engineering.
 
 ## Read before acting
 
