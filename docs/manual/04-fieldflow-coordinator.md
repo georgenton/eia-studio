@@ -36,3 +36,33 @@ Opening one requires `field.responses.read`, which a technician and a GIS specia
 - **A campaign's parcels are not edited after the field work starts.** A campaign records an
   operation, not a plan: when the intended coverage changes, the operation that ran is **closed**
   and a new one opens. Nothing is deleted, and the old campaign keeps everything it did (ADR-026).
+
+## Cuando una respuesta enviada está equivocada
+
+Una ficha enviada **no se edita**. Ni por el técnico, ni por la coordinación, ni por nadie: la base
+de datos rechaza la escritura. Lo que sí se puede hacer es pedir que se levante de nuevo.
+
+1. Abre la respuesta desde _Trabajo de campo_ → la asignación del predio.
+2. Al final de la ficha está **Historial de la respuesta**.
+3. Escribe en **¿Qué hay que corregir?** qué está mal, en tus propias palabras. El técnico lo va a
+   leer. No escribas ahí el dato corregido: eso se captura en campo.
+4. Pulsa **Solicitar corrección**.
+
+Lo que pasa después:
+
+- se crea una **revisita** para el mismo técnico, en el mismo operativo y sobre el mismo predio;
+- **no cambia ninguna cifra todavía**. La respuesta original sigue siendo la vigente para el
+  análisis hasta que alguien levante la corrección. La pantalla lo dice;
+- cuando el técnico envía la captura nueva, ésa pasa a ser la vigente. La anterior se conserva
+  íntegra y aparece marcada **Sustituida**;
+- el avance del operativo **no** cuenta la revisita como un predio más: sigue siendo el mismo
+  predio. Las correcciones pendientes se cuentan aparte.
+
+Si la solicitud ya no hace falta, **Cancelar la solicitud** la retira. La respuesta original nunca
+dejó de ser la vigente.
+
+Una corrección se pide siempre sobre la respuesta **vigente**. Si ya hay una corrección aplicada, la
+siguiente se pide sobre ella, no sobre el envío original: así el historial es una línea y no una
+bifurcación.
+
+Ver `docs/SURVEY_CORRECTIONS.md`.

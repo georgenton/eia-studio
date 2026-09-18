@@ -267,6 +267,23 @@ questionnaire they were asked (ADR-006). `FIELD_SYNC_PROTOCOL_VERSION` is **2**,
 Pack's question gained `section` and the pack's schemas are `.strict()`. The map is
 `docs/SURVEY_AUTHORING.md`; the proof seeds nothing.
 
+**Go-Live Wave A — PR B (18 September 2026)** closes go-live blocker 6: **a correction is a new
+response, and one resolver says which one counts** (ADR-038). A submitted response is still never
+edited; correcting one is a **new capture on a revisit assignment**, in the same campaign, on the
+same parcel, against the same questionnaire, with `survey_correction` recording which response it
+replaces, why and who asked. History keeps both; current analytics count exactly one. **One place
+answers "which response does this study mean?"** — the view `app.effective_survey_instance`,
+`security_invoker = true`, joined by social tabulation, the numeric summary, validated themes, field
+progress and the report snapshot alike; a test walks `packages/application/src` and fails if a
+second implementation appears. Three states — REQUESTED → APPLIED | CANCELLED — and the absent ones
+are the decision: submitting **is** applying, in the same transaction, and **a requested correction
+changes no count**. A lineage is a line by constraint: two partial unique indexes, three CHECKs and
+a cycle-walking trigger. Requesting is `field.corrections.request` (COORDINATOR, SOCIAL_SPECIALIST);
+a technician receives a **revisit** and is told the reason and **no previous answer**.
+`FIELD_SYNC_PROTOCOL_VERSION` is **3**. Campaign progress counts parcels rather than captures. A
+report version already generated is unchanged; the next one uses the correction. The map is
+`docs/SURVEY_CORRECTIONS.md`.
+
 ## Read before acting
 
 Approved design bundle (source of truth; precedence: README → prototype → spec v0.2 → screenshots):
@@ -295,14 +312,14 @@ Also relevant by task: `docs/DATA_MODEL.md`, `docs/PROVENANCE.md`, `docs/AI_GOVE
 `docs/DOCUMENT_UPLOAD_AND_VERSIONING.md`, `docs/FIELD_MEDIA.md`,
 `docs/DOCUMENT_EXTRACTION.md`, `docs/AI_DOCUMENT_REVIEW.md`, `docs/REPORT_TEMPLATES.md`,
 `docs/OFFLINE_SYNC_PROTOCOL.md`, `docs/FIELD_MOBILE_OFFLINE_UAT.md`,
-`docs/SURVEY_AUTHORING.md`,
+`docs/SURVEY_AUTHORING.md`, `docs/SURVEY_CORRECTIONS.md`,
 `docs/PRODUCTION_V1_GO_LIVE.md`, `docs/PRODUCTION_RECOVERY.md`,
 `docs/DATA_CLASSIFICATION_MATRIX.md`, `docs/GENERALISATION_AUDIT.md`, `docs/FIELD_MOBILE_BUILDS.md`,
 `docs/STAGING_OPERATIONS.md`,
 `docs/IMPLEMENTATION_PLAN.md`, `docs/DESIGN_BUNDLE_KNOWN_ISSUES.md`, the delivery docs
 `docs/ENGINEERING_STANDARDS.md`, `docs/RELEASE_POLICY.md`, `docs/CI.md`, `docs/DEPLOYMENT.md`,
 `docs/DEPENDENCIES.md`, `docs/TECH_DEBT.md`, the Gate record `docs/DECISIONS/GATE-1.md`, and
-the ADRs in `docs/DECISIONS/ADR-001` … `ADR-037`. Root `README.md` has the local quick start.
+the ADRs in `docs/DECISIONS/ADR-001` … `ADR-038`. Root `README.md` has the local quick start.
 
 ## Working rules for every session
 

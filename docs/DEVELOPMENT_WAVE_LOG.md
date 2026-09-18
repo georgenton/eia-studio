@@ -1232,3 +1232,46 @@ codes throughout. A proof that used the seeder would be proving the thing this r
 
 **Closed**: TD-088, go-live blocker 8. **Opened**: TD-114 — a *submitted response* still cannot be
 corrected, which is a different problem with a different shape and is PR B's.
+
+### PR B — a correction is a new response, and one resolver says which one counts (ADR-038)
+
+Go-live blocker 6, and TD-036, TD-084 and TD-114 with it. A submitted response is still never
+edited — the triggers of migration 0014 are untouched and a test re-proves both refusals — and
+correcting one now means **capturing a new one**, on a revisit assignment, in the same campaign, on
+the same parcel, against the same questionnaire.
+
+**The audit decided the shape before any schema was written.** `survey_instance` is unique on
+`(tenant, assignment, version)`, which is what makes a retried offline submit a no-op rather than a
+second household; tabulation is scoped by campaign, so a correction outside it would fall out of the
+count it exists to fix. A correction is therefore a **new assignment**, which also means the offline
+protocol learns nothing: `visit.start` → `survey.upsert_draft` → `survey.submit` → `visit.finish`
+work unchanged, and three identical submits still produce one response. The unique constraint that
+said *one assignment per parcel per campaign* became a **partial** unique index saying *one ordinary
+assignment per parcel per campaign* — the rule it was actually written about.
+
+**The part the gate was about is one view.** `app.effective_survey_instance` follows applied
+corrections from each root and returns the last one; social tabulation, the numeric summary,
+validated themes, field progress and the report snapshot all join it, and an integration test walks
+the application source and **fails if a seventh place invents its own `superseded` predicate**.
+`security_invoker = true` is asserted, because a view is exactly the shape in which RLS is
+accidentally bypassed. The same rule exists once more in `@eia/domain`, and a test asserts the two
+agree on the same chain. Wall-clock time decides nothing.
+
+**Three states, and the two that are absent are the decision.** No `IN_PROGRESS` — the correction's
+own assignment already says that — and no `SUBMITTED` beside `APPLIED`, because there is no approval
+step and inventing a state for a review nobody performs is the same fiction as a report status
+nobody sets. **A requested correction changes no count**, and the screen says so rather than leaving
+a coordinator to assume the figure has already gone.
+
+A lineage is a line **by constraint**: two partial unique indexes, three CHECKs, a cycle-walking
+trigger and an apply-time check that the correcting response is the one captured on this
+correction's own assignment against the original's version. Progress counts parcels rather than
+captures, so a correction does not turn 141 into 142; open corrections are a separate figure.
+
+`FIELD_SYNC_PROTOCOL_VERSION` moved **2 → 3**: the pack's assignment gained a `correction` object
+carrying the reason and **no previous answer**, so a phone that would otherwise never hold another
+visit's responses does not start holding them because a figure was wrong.
+
+**Closed**: TD-036, TD-084, TD-114, go-live blocker 6. **Narrowed**: TD-041 — a coding of a
+superseded answer now stops contributing on its own. **Opened**: TD-115 (a correction is never
+reassigned), TD-116 (a cancelled correction leaves a cancelled assignment).

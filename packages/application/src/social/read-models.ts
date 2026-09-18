@@ -19,6 +19,7 @@ import {
 import { sql } from "drizzle-orm";
 
 import { withFieldContext } from "../field/context";
+import { IS_EFFECTIVE_INSTANCE } from "../field/corrections";
 import { resolveCurrentCampaign } from "../field/read-models";
 
 /**
@@ -75,7 +76,15 @@ function instanceInCampaign(alias: string, campaignId: string | null) {
   )`;
 }
 
-/** The same scope, reached from an answer id — for the tables that link to answers, not instances. */
+/**
+ * The same scope, reached from an answer id — for the tables that link to answers, not instances.
+ *
+ * It also requires the answer's response to be the **effective** one (ADR-038). A coding is a
+ * specialist's statement about particular words; when a response is superseded those words are no
+ * longer what the household said, so the coding stops contributing to the current distribution. It
+ * is not deleted and not reused for the corrected answer — a correction that inherited the old
+ * coding would be attributing to a specialist a judgement they never made.
+ */
 function answerInCampaign(answerIdColumn: string, campaignId: string | null) {
   if (campaignId === null) return sql`false`;
   const column = sql.raw(answerIdColumn);
@@ -89,6 +98,7 @@ function answerInCampaign(answerIdColumn: string, campaignId: string | null) {
      where a_scope.tenant_id = i_scope.tenant_id
        and a_scope.id = ${column}
        and fa_scope.campaign_id = ${campaignId}
+       and ${IS_EFFECTIVE_INSTANCE("i_scope")}
   )`;
 }
 
@@ -130,7 +140,7 @@ export async function loadSocialVersions(
              coalesce((
                select count(*)::int from app.survey_instance i
                 where i.tenant_id = v.tenant_id and i.survey_version_id = v.id
-                  and i.status = 'SUBMITTED'
+                  and ${IS_EFFECTIVE_INSTANCE("i")}
                   and exists (
                     select 1 from app.field_assignment fa
                      where fa.tenant_id = i.tenant_id and fa.id = i.assignment_id
@@ -208,7 +218,7 @@ export async function loadTabulation(
     const submittedRow = await tx.execute(sql`
       select count(*)::int as n from app.survey_instance i
        where i.tenant_id = ${ctx.tenantId} and i.project_id = ${ctx.projectId}
-         and i.survey_version_id = ${surveyVersionId} and i.status = 'SUBMITTED'
+         and i.survey_version_id = ${surveyVersionId} and ${IS_EFFECTIVE_INSTANCE("i")}
          and ${scope}
     `);
     const submitted = Number((submittedRow.rows[0] as { n: number }).n);
@@ -238,7 +248,7 @@ export async function loadTabulation(
           from app.survey_answer a
           join app.survey_instance i on i.tenant_id = a.tenant_id and i.id = a.instance_id
          where a.tenant_id = ${ctx.tenantId} and a.question_id = ${question.id}
-           and i.status = 'SUBMITTED' and i.survey_version_id = ${surveyVersionId}
+           and ${IS_EFFECTIVE_INSTANCE("i")} and i.survey_version_id = ${surveyVersionId}
            and ${scope}
       `);
       const answered = Number((answeredRow.rows[0] as { n: number }).n);
@@ -253,7 +263,7 @@ export async function loadTabulation(
             join app.survey_instance i on i.tenant_id = a.tenant_id and i.id = a.instance_id
             join app.survey_option o on o.tenant_id = a.tenant_id and o.id = a.option_id
            where a.tenant_id = ${ctx.tenantId} and a.question_id = ${question.id}
-             and i.status = 'SUBMITTED' and i.survey_version_id = ${surveyVersionId}
+             and ${IS_EFFECTIVE_INSTANCE("i")} and i.survey_version_id = ${surveyVersionId}
              and ${scope}
            group by o.code, o.label, o.ordinal
            order by o.ordinal
@@ -267,7 +277,7 @@ export async function loadTabulation(
             join app.survey_instance i on i.tenant_id = a.tenant_id and i.id = a.instance_id
             join app.survey_option o on o.tenant_id = link.tenant_id and o.id = link.option_id
            where link.tenant_id = ${ctx.tenantId} and a.question_id = ${question.id}
-             and i.status = 'SUBMITTED' and i.survey_version_id = ${surveyVersionId}
+             and ${IS_EFFECTIVE_INSTANCE("i")} and i.survey_version_id = ${surveyVersionId}
              and ${scope}
            group by o.code, o.label, o.ordinal
            order by o.ordinal
@@ -279,7 +289,7 @@ export async function loadTabulation(
             from app.survey_answer a
             join app.survey_instance i on i.tenant_id = a.tenant_id and i.id = a.instance_id
            where a.tenant_id = ${ctx.tenantId} and a.question_id = ${question.id}
-             and i.status = 'SUBMITTED' and i.survey_version_id = ${surveyVersionId}
+             and ${IS_EFFECTIVE_INSTANCE("i")} and i.survey_version_id = ${surveyVersionId}
              and ${scope}
              and a.boolean_value is not null
            group by a.boolean_value
@@ -298,7 +308,7 @@ export async function loadTabulation(
             from app.survey_answer a
             join app.survey_instance i on i.tenant_id = a.tenant_id and i.id = a.instance_id
            where a.tenant_id = ${ctx.tenantId} and a.question_id = ${question.id}
-             and i.status = 'SUBMITTED' and i.survey_version_id = ${surveyVersionId}
+             and ${IS_EFFECTIVE_INSTANCE("i")} and i.survey_version_id = ${surveyVersionId}
              and ${scope}
              and a.number_value is not null
         `);
@@ -455,7 +465,7 @@ export async function loadOpenResponses(
         left join app.human_review h
                on h.tenant_id = a.tenant_id and h.classification_id = latest.id
        where a.tenant_id = ${ctx.tenantId} and a.project_id = ${ctx.projectId}
-         and i.status = 'SUBMITTED'
+         and ${IS_EFFECTIVE_INSTANCE("i")}
          and i.survey_version_id = ${input.surveyVersionId}
          and ${scope}
          and q.type in ('SHORT_TEXT', 'LONG_TEXT')
@@ -614,7 +624,7 @@ export async function loadSocialMetrics(
           join app.survey_instance i on i.tenant_id = a.tenant_id and i.id = a.instance_id
           join app.survey_question q on q.tenant_id = a.tenant_id and q.id = a.question_id
          where a.tenant_id = ${ctx.tenantId} and a.project_id = ${ctx.projectId}
-           and i.status = 'SUBMITTED' and i.survey_version_id = ${surveyVersionId}
+           and ${IS_EFFECTIVE_INSTANCE("i")} and i.survey_version_id = ${surveyVersionId}
            and ${scope}
            and q.type in ('SHORT_TEXT', 'LONG_TEXT')
            and a.text_value is not null and length(btrim(a.text_value)) > 0

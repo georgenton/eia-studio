@@ -28,6 +28,10 @@ export interface LocalAssignmentRow {
   readonly instanceStatus: string | null;
   readonly revokedAt: string | null;
   readonly conflictReason: string | null;
+  /** Set when this assignment is a correction revisit (ADR-038). Never a previous answer. */
+  readonly correctsAssignmentId: string | null;
+  readonly correctionReason: string | null;
+  readonly correctionRequestedAt: string | null;
   /** Local survey state, joined; `NOT_STARTED` when no local survey row exists yet. */
   readonly surveyState: LocalSurveyState;
   readonly localSurveyId: string | null;
@@ -130,14 +134,18 @@ export async function applyAssignments(
     await db.runAsync(
       `insert into local_assignment
          (id, parcel_code, sector_label, chainage_label, side, server_status, open_visit_id,
-          instance_id, instance_status, revision, revoked_at, conflict_reason, updated_at)
-       values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, null, null, ?)
+          instance_id, instance_status, revision, revoked_at, conflict_reason, updated_at,
+          corrects_assignment_id, correction_reason, correction_requested_at)
+       values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, null, null, ?, ?, ?, ?)
        on conflict(id) do update set
          parcel_code = excluded.parcel_code, sector_label = excluded.sector_label,
          chainage_label = excluded.chainage_label, side = excluded.side,
          server_status = excluded.server_status, open_visit_id = excluded.open_visit_id,
          instance_id = excluded.instance_id, instance_status = excluded.instance_status,
-         revision = excluded.revision, revoked_at = null, updated_at = excluded.updated_at`,
+         revision = excluded.revision, revoked_at = null, updated_at = excluded.updated_at,
+         corrects_assignment_id = excluded.corrects_assignment_id,
+         correction_reason = excluded.correction_reason,
+         correction_requested_at = excluded.correction_requested_at`,
       assignment.id,
       assignment.parcel.parcelCode,
       assignment.parcel.sectorLabel,
@@ -149,6 +157,9 @@ export async function applyAssignments(
       assignment.instanceStatus,
       assignment.revision,
       nowIso(),
+      assignment.correction?.correctsAssignmentId ?? null,
+      assignment.correction?.reason ?? null,
+      assignment.correction?.requestedAt ?? null,
     );
   }
   for (const id of revokedIds) {
@@ -180,12 +191,16 @@ export async function listAssignments(
     instance_status: string | null;
     revoked_at: string | null;
     conflict_reason: string | null;
+    corrects_assignment_id: string | null;
+    correction_reason: string | null;
+    correction_requested_at: string | null;
     survey_state: string | null;
     survey_id: string | null;
     visit_id: string | null;
   }>(
     `select a.id, a.parcel_code, a.sector_label, a.chainage_label, a.side, a.server_status,
             a.open_visit_id, a.instance_id, a.instance_status, a.revoked_at, a.conflict_reason,
+            a.corrects_assignment_id, a.correction_reason, a.correction_requested_at,
             s.state as survey_state, s.id as survey_id, v.id as visit_id
        from local_assignment a
        left join local_survey s on s.assignment_id = a.id
@@ -204,6 +219,9 @@ export async function listAssignments(
     instanceStatus: row.instance_status,
     revokedAt: row.revoked_at,
     conflictReason: row.conflict_reason,
+    correctsAssignmentId: row.corrects_assignment_id,
+    correctionReason: row.correction_reason,
+    correctionRequestedAt: row.correction_requested_at,
     surveyState: (row.survey_state ?? "NOT_STARTED") as LocalSurveyState,
     localSurveyId: row.survey_id,
     localVisitId: row.visit_id,

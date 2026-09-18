@@ -62,3 +62,14 @@ why the document says it is not.
 
 Reading requires `reports.write` **and** `field.responses.read`: the chapter counts validated
 codings of individual responses, so reading it needs the same permission the responses do.
+
+## Correcciones y versiones del informe
+
+Un `ReportVersion` es una **fotografía congelada** (ADR-022) y una corrección posterior no la
+reescribe.
+
+- El informe **v1** generado antes de una corrección conserva exactamente sus cifras. Es el
+  documento que alguien pudo haber entregado.
+- El **v2** generado después usa la respuesta corregida.
+- Ninguno de los dos cuenta dos veces el mismo hogar: el generador lee la respuesta vigente
+  (`docs/SURVEY_CORRECTIONS.md`).

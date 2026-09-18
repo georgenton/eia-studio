@@ -125,6 +125,10 @@ function AssignmentRow({
       <Heading>
         {t("mobile.parcel")} {assignment.parcelCode}
       </Heading>
+      {/* A revisit is not a second household (ADR-038); the row says so before it is opened. */}
+      {assignment.correctsAssignmentId !== null ? (
+        <Chip text={t("mobile.correctionRevisit")} tone="warn" />
+      ) : null}
       <Body muted>
         {[
           assignment.sectorLabel,

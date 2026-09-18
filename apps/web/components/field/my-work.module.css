@@ -114,3 +114,12 @@
     grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   }
 }
+
+/* A correction revisit, marked on the card. Warn rather than critical: nothing is wrong with the
+   technician's work item — it is simply not an ordinary first visit. */
+.correction {
+  margin: 0 0 4px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--eia-warn, #9a6b1f);
+}

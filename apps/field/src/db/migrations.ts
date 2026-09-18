@@ -190,6 +190,23 @@ export const LOCAL_MIGRATIONS: ReadonlyArray<LocalMigration> = [
       `create index if not exists local_media_pending_idx on local_media (state, captured_at)`,
     ],
   },
+  {
+    version: 3,
+    name: "correction_revisits",
+    statements: [
+      /*
+       * Why this assignment exists, when it exists to correct another (ADR-038).
+       *
+       * Three columns and no answers: a technician needs to know they are re-asking rather than
+       * meeting a second household, and the reason a coordinator wrote. The previous response
+       * stays on the server — a device that would otherwise never hold another visit's answers
+       * does not start holding them because a figure was wrong.
+       */
+      `alter table local_assignment add column corrects_assignment_id text`,
+      `alter table local_assignment add column correction_reason text`,
+      `alter table local_assignment add column correction_requested_at text`,
+    ],
+  },
 ];
 
 export const LOCAL_SCHEMA_VERSION = LOCAL_MIGRATIONS[LOCAL_MIGRATIONS.length - 1]!.version;

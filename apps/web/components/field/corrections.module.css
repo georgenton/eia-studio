@@ -1,0 +1,109 @@
+.note {
+  margin: 0 0 10px;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--eia-text-secondary);
+}
+.pending {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  border: 1px solid var(--eia-hairline);
+  border-left: 3px solid var(--eia-warn, #9a6b1f);
+  border-radius: 2px;
+}
+.lineage {
+  list-style: none;
+  margin: 0 0 14px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.entry {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--eia-hairline);
+}
+.entryLabel {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--eia-text-primary);
+}
+.meta {
+  font-size: 11.5px;
+  color: var(--eia-text-secondary);
+}
+.reason {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 12px;
+  color: var(--eia-text-primary);
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.label {
+  font-size: 10.5px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--eia-text-secondary);
+}
+.input {
+  padding: 7px 9px;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--eia-text-primary);
+  background: var(--eia-surface, #fff);
+  border: 1px solid var(--eia-hairline);
+  border-radius: 2px;
+  resize: vertical;
+}
+.actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 10px;
+}
+.primary {
+  padding: 7px 14px;
+  font: inherit;
+  font-size: 12px;
+  color: #fff;
+  background: var(--eia-accent, #1f4f46);
+  border: 1px solid var(--eia-accent, #1f4f46);
+  border-radius: 2px;
+  cursor: pointer;
+}
+.primary:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.linkish {
+  align-self: flex-start;
+  padding: 0;
+  font: inherit;
+  font-size: 11.5px;
+  color: var(--eia-accent, #1f4f46);
+  background: none;
+  border: none;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.feedback {
+  margin: 10px 0 0;
+  font-size: 11.5px;
+}
+.ok {
+  color: var(--eia-accent, #1f4f46);
+}
+.bad {
+  color: var(--eia-crit, #8c2f26);
+}

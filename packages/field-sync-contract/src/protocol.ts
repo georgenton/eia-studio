@@ -29,13 +29,22 @@ import { z } from "zod";
 
 /** Bumped when a command's meaning changes in a way an old device could get wrong. */
 /**
- * Bumped to **2** by ADR-037, and the reason is the rule stated at `COMMAND_TYPES` below: a new
- * field on a `.strict()` object breaks an older device's parse. `packQuestionSchema` gains
- * `section`, so a device built against version 1 could not read a pack from this server at all —
- * and the honest failure is "your application is older than this server", which the version
- * literal produces, rather than an unexplained validation error deep inside a questionnaire.
+ * Bumped for the same reason twice, and the reason is the rule stated at `COMMAND_TYPES` below: a
+ * new field on a `.strict()` object breaks an older device's parse, and the honest failure is
+ * "your application is older than this server" rather than an unexplained validation error deep
+ * inside a pack.
+ *
+ * - **2** (ADR-037): `packQuestionSchema` gained `section`.
+ * - **3** (ADR-038): `packAssignmentSchema` gained `correction`, because a technician sent back to
+ *   a parcel must be told it is a revisit and not a second household — and being told is a typed
+ *   field, not a sentence squeezed into the assignment's free-text note.
+ *
+ * Neither bump cost anybody anything: no signed build has been distributed
+ * (`docs/FIELD_MOBILE_BUILDS.md`), so the remedy is a rebuild. The version is not a formality to be
+ * economical with — it is the one thing standing between an old device and a pack it would
+ * misread.
  */
-export const FIELD_SYNC_PROTOCOL_VERSION = 2;
+export const FIELD_SYNC_PROTOCOL_VERSION = 3;
 
 /** Bumped when the Field Pack's shape changes; a device with an older pack re-downloads. */
 export const FIELD_PACK_SCHEMA_VERSION = 1;
@@ -136,11 +145,31 @@ export const packParcelContextSchema = z
   .strict();
 export type PackParcelContext = z.infer<typeof packParcelContextSchema>;
 
+/**
+ * Why a technician is being sent back (ADR-038).
+ *
+ * Present only on a correction revisit. It carries **no old answer**: knowing which question was
+ * wrong is what a technician needs to re-ask it, and the previous household's responses are not
+ * downloaded to a device that would otherwise never hold them (SECURITY.md §10e). The reason is
+ * operational text a coordinator wrote, shown so the revisit is not a mystery.
+ */
+export const packCorrectionContextSchema = z
+  .object({
+    /** The assignment whose response is being corrected. Never the response itself. */
+    correctsAssignmentId: uuid,
+    reason: z.string().min(1).max(500),
+    requestedAt: z.string().min(1).max(40),
+  })
+  .strict();
+export type PackCorrectionContext = z.infer<typeof packCorrectionContextSchema>;
+
 export const packAssignmentSchema = z
   .object({
     id: uuid,
     status: z.enum(["PENDING", "IN_PROGRESS", "COMPLETED", "CANCELLED"]),
     parcel: packParcelContextSchema,
+    /** Null for ordinary work; set when this assignment exists to correct another. */
+    correction: packCorrectionContextSchema.nullable(),
     /** The open visit the server already knows about, when there is one. */
     openVisitId: uuid.nullable(),
     /** The response the server already holds for this assignment, when there is one. */
