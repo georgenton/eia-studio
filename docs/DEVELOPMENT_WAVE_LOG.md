@@ -1282,3 +1282,45 @@ first **view** this schema has ever had. The ledger moved 48 → 52, which is ev
 journal, and `pnpm test:staging` passes **109** assertions there — ten of them new, including the
 one that matters most on a real database rather than a container: `app.effective_survey_instance`
 runs as the **caller**, not as its owner.
+
+### Go-Live readiness wave — making a go/no-go decision possible (18 September 2026)
+
+No new product domain. One script, one shell drill, six documents, and a set of facts that were
+checked rather than assumed. The wave's question was not *what else can this build?* but *what
+stands between here and 15 October, and who owns each piece?*
+
+**What was found by looking, not by inferring.**
+
+- **Object storage still does not exist**, verified three ways: no `STORAGE_*` on the Railway
+  worker, none on the Vercel preview project, and `buckets: []` in the Railway staging environment.
+- **The Vercel production environment holds zero variables.** Production does not exist, and the
+  honest way to say that is to read it.
+- **No build machine capability exists**: no Expo session, no EAS project id, no Android SDK, no
+  JDK, no full Xcode, no handset. Both routes to an Android build are closed, and the cheaper one to
+  open is an Expo account, which is free.
+- **MapTiler's Free and Flex plans forbid commercial use.** A key that works in staging is not a key
+  the consultancy may use. This is the finding most likely to have been assumed settled.
+- **`survey_instance.respondent_user_id` holds the *technician's* id**, not a respondent's — found
+  while writing the privacy checklist and recorded as TD-117 rather than renamed in a readiness
+  wave.
+
+**What was executed rather than described.** `pnpm restore:drill` dumps the local database, restores
+it into an empty one and verifies it: 52 of 52 migrations, **71 tables all with FORCE RLS**, 142
+policies, 57 triggers, `app.effective_survey_instance` back **with `security_invoker=true`**, and 141
+parcels and 124 audit rows readable. It **passed**. It proves the procedure and deliberately claims
+nothing about a provider's PITR, because no provider has been chosen.
+
+**`pnpm go-live:doctor`** is the second operator script, kept separate from `ops:doctor` because the
+two answer different questions: *is this deployment stuck?* fails when a queue is blocked, and
+*can we go live?* would otherwise fail on staging for ever because hosting has not been decided. It
+prints `VERIFICACIÓN EXTERNA REQUERIDA` for legal approval, the handset UAT and the restore drill,
+**with no machine-readable state behind them** — a boolean there would let a green tick stand in for
+a review nobody performed.
+
+One lint rule earned its place: the first version counted "road projects" by the pilot's profile key,
+and `check-forbidden-strings` refused it (CLAUDE.md rule 3). It now reports **per profile, read from
+the rows**, and the programme's target of eight lives in the onboarding sheet where a programme fact
+belongs.
+
+**Opened**: TD-117. **Nothing closed** — every gate in this wave ends at an owner action, which is
+the finding.

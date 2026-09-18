@@ -2,7 +2,7 @@
   "name": "eia-studio",
   "version": "0.0.0",
   "private": true,
-  "description": "EIA Studio — multi-tenant workspace for environmental and social impact studies",
+  "description": "EIA Studio \u2014 multi-tenant workspace for environmental and social impact studies",
   "packageManager": "pnpm@10.33.2",
   "engines": {
     "node": ">=24.0.0 <25",
@@ -35,6 +35,8 @@
     "db:seed:demo-project": "pnpm --filter @eia/application seed:demo-project --fixture zamora-puente-del-amor",
     "demo:doctor": "pnpm --filter @eia/application demo:doctor",
     "ops:doctor": "pnpm --filter @eia/application ops:doctor",
+    "go-live:doctor": "pnpm --filter @eia/application go-live:doctor",
+    "restore:drill": "bash tooling/scripts/restore-drill.sh",
     "demo:preflight": "pnpm --filter @eia/application demo:preflight",
     "social:drain": "pnpm --filter @eia/application social:drain",
     "quality:run": "pnpm --filter @eia/application quality:run",
