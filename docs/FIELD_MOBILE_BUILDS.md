@@ -107,3 +107,48 @@ Steps 2 and 3 are the ones with real lead time — identity verification can tak
 | Development build produced | **no** |
 | Physical-handset UAT | **PREPARED, not executed** (`FIELD_MOBILE_OFFLINE_UAT.md`) |
 | Store submission | **not attempted, and out of scope for this wave** |
+
+## 7. The build capability audit (Go-Live readiness wave)
+
+Checked on the machine this repository is developed on, **18 September 2026**. Nothing is assumed:
+each row is the result of running the command in the last column.
+
+| Capability | Status | Blocking? | Owner action | Exact next command |
+|---|---|---|---|---|
+| **Expo account** | **absent** — `~/.expo/state.json` holds a device uuid and no session | **yes**, for any EAS build | Create an Expo account (free) | `npx eas-cli login` |
+| **EAS CLI** | **not installed** | yes | — (installed on demand) | `pnpm add -g eas-cli` |
+| **EAS project** | **not linked** — `expo.extra.eas.projectId` and `expo.owner` are both unset in `app.json` | yes | Link once the account exists | `cd apps/field && npx eas-cli init` |
+| **Apple Developer account** | **unknown to this machine**; no credential and no Xcode to use one | yes, for iOS only | $99/year, the owner's own identity and payment | — |
+| **Google Play account** | **unknown to this machine** | **no** for UAT — an internal APK needs no Play account | $25 once, when publishing | — |
+| **Android SDK** | **absent** — `ANDROID_HOME` unset, no `~/Library/Android/sdk`, `adb` not on the path | yes, for a *local* build. **No** for an EAS cloud build | Either install the SDK, or use EAS and skip it | `brew install --cask android-commandlinetools` |
+| **JDK** | **absent** — "Unable to locate a Java Runtime" | same as above | Install a JDK 17+ | `brew install --cask temurin@17` |
+| **Xcode** | **absent** — only Command Line Tools; `xcodebuild` refuses | yes, for a local iOS build or the Simulator | Install Xcode from the App Store (~15 GB) | `xcode-select --install` then full Xcode |
+| **Android handset** | **none detectable** — `adb` is not installed, so none can be enumerated | **yes, for UAT** | Provide a real Android phone | `adb devices` |
+| **iPhone** | **none detectable** | no — iOS does not block Android field validation | — | — |
+| **JS bundle for both platforms** | **works** — verified 18 Sep 2026 | no | — | `cd apps/field && pnpm bundle` |
+
+### What this adds up to
+
+**No Android build can be produced today**, by either route:
+
+- **via EAS** — no Expo account, so no project to build in;
+- **locally** — no Android SDK and no JDK.
+
+Both are fixable, and the EAS route is the cheaper one: an Expo account is free, the build happens
+in their cloud, and neither the SDK nor a JDK is needed on this machine. **That is the recommended
+path**, and §4 already describes it.
+
+The only step that is genuinely unavoidable and not ours is the **handset**. A build can be produced
+without one; the UAT cannot be run without one.
+
+### Android first, and why iOS waiting is acceptable
+
+An **internal APK is enough to validate the field system** — offline capture, sync idempotency,
+photographs, the correction revisit. It needs no Play account, no store review and no submission.
+iOS needs an Apple account *and* a Mac with full Xcode, and gives no additional confidence about
+whether the offline protocol works.
+
+So the order is: Expo account → `eas init` → `eas build -p android --profile staging` → install the
+APK → run `FIELD_MOBILE_OFFLINE_UAT.md` on a real phone. iOS follows whenever the account exists.
+
+**Neither path submits anything to a store**, and this wave attempted no submission.

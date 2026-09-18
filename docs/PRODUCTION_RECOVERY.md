@@ -16,7 +16,7 @@
 | Staging database backups | **none.** `railway postgres pitr schedule set --daily` and the volume-backup mutations are refused for this workspace (`DEPLOYMENT.md` §4b) |
 | Staging point-in-time recovery | **not applicable.** PITR runs only inside Railway's own database images; ours is a PostGIS image, and switching would lose PostGIS |
 | Object storage | **no bucket exists** in staging or production (TD-090) |
-| A restore ever performed | **no** |
+| A restore ever performed | **partly.** The *procedure* was drilled on 18 September 2026 against synthetic local data and passed — §5a records exactly what it proved and what it did not. A **provider** restore has still never been performed, because no provider has been chosen |
 
 Staging is therefore **disposable by design** and says so. Production cannot inherit that, and this
 document is the specification the hosting decision has to satisfy — not a description of something
@@ -181,11 +181,41 @@ adapter and the availability state without printing a value.
 6. Afterwards: what was lost, what the recovery point was, and which of §3's requirements was
    missing. If the answer is "none, the provider did everything", the gap was ours.
 
+## 5a. The restore drill, and what it is worth
+
+`pnpm restore:drill` executes the procedure of §4 on synthetic data, against the local PostgreSQL
+container. It refuses to run against anything else — a drill that could be pointed at a deployed
+database is the shape of the accident IG3-001 exists to prevent (SECURITY.md §12a).
+
+**Executed 18 September 2026. Result: passed.** What it proved, measured rather than asserted:
+
+| Check | Result |
+|---|---|
+| Dump and restore into an empty database | 1 078 169 bytes, restored with `--exit-on-error` |
+| Migration ledger at the repository's head | repository 52 · restored **52** |
+| Row level security survived | 71 tables in `app`/`portal`/`audit`, **71 with RLS enabled, 71 forced**; zero without |
+| Policies, triggers and the view | **142** policies, **57** triggers, and `app.effective_survey_instance` restored **with `security_invoker=true`** |
+| The application's rows are readable | 3 projects · 141 parcels · 5 submitted responses · 30 answers · 124 audit entries |
+| Objects reconcilable against the database | the §4a query runs; 11 `stored_object` rows to check against a bucket that does not exist |
+
+**What it does not prove, and no local drill can:**
+
+- that a **provider's** backup can be restored, because no provider has been chosen (G7 §3);
+- that **point-in-time** recovery works, because nothing has WAL archiving today (§0);
+- the **RTO** of §2, because restoring 1 MB of synthetic data says nothing about restoring a real
+  programme under time pressure;
+- that **objects** come back, because there is no bucket.
+
+The value is narrower than "recovery is ready" and worth stating exactly: the restore **order**, the
+**verification queries** and the **schema-level guarantees** of §5 are executable and were executed,
+rather than being a procedure nobody has ever run. The provider half remains **NOT EXECUTED**.
+
 ## 9. What this document does not claim
 
 - That backups exist. They do not (§0).
-- That a restore has been tested. It has not.
-- That the RPO and RTO in §2 are met. They are targets for a decision nobody has made.
+- That a **provider** restore has been tested. It has not — only the procedure, locally (§5a).
+- That the RPO and RTO in §2 are met. They are targets for a decision nobody has made, and §5a's
+  drill measures neither.
 - That an object-storage lifecycle is configured. There is no bucket.
 - That field devices can be recovered. They cannot; §6 is a human procedure, not a mechanism.
 

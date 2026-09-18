@@ -18,9 +18,10 @@ The last step is the one that matters. Everything before it is setup.
 
 | | |
 |---|---|
-| Procedure | **PREPARED** — written, reproducible, and expanded in Wave 3 to 23 steps |
+| Procedure | **PREPARED** — written, reproducible, expanded in Wave 3 to 23 steps, and again in the Go-Live readiness wave for protocol **version 3** and the correction revisit (§4a) |
 | Executed on a physical handset | **NO** |
 | Passed | **NO** — a procedure nobody has run has not passed |
+| Why not | **No installable build exists.** Verified 18 Sep 2026: no Expo account, no EAS project, no Android SDK and no JDK on the build machine, and no handset detectable. `docs/FIELD_MOBILE_BUILDS.md` §7 is the audit |
 
 This distinction is the whole point of this section. *Prepared* and *passed* are different claims,
 and a wave report that blurs them is telling somebody eight studies can go to the field on the
@@ -122,12 +123,52 @@ Run each on a device that is offline and holding a draft, then reconnect.
 | Close the campaign | `requiere revisión`; the draft is still there |
 | Publish a new `SurveyVersion` and point the campaign at it | `requiere revisión`; the answers are **not** reinterpreted against the new questions |
 | Let the pack's offline window expire while a draft is held (§5) | `Iniciar visita` is disabled for **new** work; everything captured is still there and still pending |
+| **Cancel a correction** the device already downloaded (ADR-038) | the revisit row reports `asignación cancelada`; **any correction already captured on the device is still there** and is not discarded |
 
 In every case: nothing on the device is deleted, and nothing on the server is written.
 
 Run each case twice — once with the device in Spanish and once in English — and confirm the row
 reaches the same state. A conflict that resolved differently depending on the display language would
 mean the language had reached the state machine, which it must not.
+
+## 4a. A correction revisit (ADR-038)
+
+Added in the Go-Live readiness wave. It is the one capture flow the earlier procedure had never
+seen, and it exercises the part of the protocol that changed.
+
+**Before the device goes offline**, on the web, as a coordinator or social specialist: open a
+response the test technician has already submitted, and use *Solicitar corrección* with a reason.
+
+| # | Step | Expected on the device |
+|---|---|---|
+| 1 | Sync, then go offline | *Mi trabajo* shows a **new** row for a parcel already surveyed, marked **Revisita de corrección** |
+| 2 | Open it | The chip again, a notice saying the previous response is kept and not modified, and **the reason the coordinator wrote** |
+| 3 | Look for the previous answers | **They are not there.** The pack carries the reason and no old answer, deliberately (SECURITY.md §10e) |
+| 4 | Look for a way to edit the original | **There is none**, on any screen |
+| 5 | Capture the correction offline: start the visit, answer, submit locally | Behaves exactly like a first visit |
+| 6 | Force-kill the application, reopen | The captured correction is still there, still pending |
+| 7 | Reconnect and sync | It uploads |
+| 8 | **Sync again** | Nothing changes |
+| 9 | In the web, open the original response | **Historial de la respuesta** lists *Envío original* → *Corrección 1*, with exactly one marked **Vigente para análisis** |
+| 10 | Check Social Intelligence | The corrected value is counted, the superseded one is not, and the **denominator has not moved** |
+| 11 | Check field progress | The parcel count is **unchanged** — a revisit is not a new parcel |
+
+**Required after step 8**: exactly **one** correcting `SurveyInstance`, exactly **one**
+`survey_correction` row in state `APPLIED`, and **zero** duplicates of either.
+
+### Protocol version 3
+
+The Field Pack now declares `protocolVersion: 3`. An application built against **2** — anything from
+before ADR-038 — will be **refused by the server**, and that is the designed behaviour rather than a
+fault: the version exists so an old device cannot misread a pack.
+
+| Step | Expected |
+|---|---|
+| Install a build older than the current protocol, if one exists | Sync refuses with a version mismatch, **not** a validation error deep inside a questionnaire |
+| Install the current build | Sync proceeds normally |
+
+If no older build exists — which is the case today — record this row as **not applicable** rather
+than as passed.
 
 ## 5. The offline window
 

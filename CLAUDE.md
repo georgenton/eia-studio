@@ -284,6 +284,21 @@ a technician receives a **revisit** and is told the reason and **no previous ans
 report version already generated is unchanged; the next one uses the correction. The map is
 `docs/SURVEY_CORRECTIONS.md`.
 
+**The Go-Live readiness wave (18 September 2026)** built no product. It turned what was known into
+what a person can act on: `docs/PRODUCTION_PRIVACY_CHECKLIST.md` (thirteen data classes, twelve
+questions each, with every legal answer left as **OWNER / LEGAL REVIEW REQUIRED** and a sign-off
+appendix that is deliberately **not** a database boolean), `docs/PRODUCTION_INFRASTRUCTURE_DECISION.md`
+(the one hard blocker being that Railway can serve PostGIS **or** point-in-time recovery, never
+both), `docs/CONSULTANCY_TEMPLATE_REQUEST.md`, `docs/EIGHT_ROAD_ONBOARDING.md` — which holds
+**zero fake projects**, because eight rows in a table would prove nothing — and
+`docs/OWNER_GO_LIVE_ACTIONS.md`. Two operator tools: **`pnpm go-live:doctor`**, kept separate from
+`ops:doctor` because *is this stuck?* and *can we go live?* fail for different reasons, and
+**`pnpm restore:drill`**, which was **run and passed** on synthetic local data — 52 of 52 migrations,
+71 tables all FORCE RLS, 142 policies, the effective-response view back with `security_invoker` —
+while claiming nothing about a provider restore nobody can perform yet. Storage is still
+`NOT_CONFIGURED` everywhere, no mobile build exists on any machine, MapTiler's non-custom plans
+**forbid commercial use**, and every remaining gate ends at an owner action rather than at code.
+
 ## Read before acting
 
 Approved design bundle (source of truth; precedence: README → prototype → spec v0.2 → screenshots):
@@ -314,6 +329,9 @@ Also relevant by task: `docs/DATA_MODEL.md`, `docs/PROVENANCE.md`, `docs/AI_GOVE
 `docs/OFFLINE_SYNC_PROTOCOL.md`, `docs/FIELD_MOBILE_OFFLINE_UAT.md`,
 `docs/SURVEY_AUTHORING.md`, `docs/SURVEY_CORRECTIONS.md`,
 `docs/PRODUCTION_V1_GO_LIVE.md`, `docs/PRODUCTION_RECOVERY.md`,
+`docs/PRODUCTION_PRIVACY_CHECKLIST.md`, `docs/PRODUCTION_INFRASTRUCTURE_DECISION.md`,
+`docs/OWNER_GO_LIVE_ACTIONS.md`, `docs/EIGHT_ROAD_ONBOARDING.md`,
+`docs/CONSULTANCY_TEMPLATE_REQUEST.md`,
 `docs/DATA_CLASSIFICATION_MATRIX.md`, `docs/GENERALISATION_AUDIT.md`, `docs/FIELD_MOBILE_BUILDS.md`,
 `docs/STAGING_OPERATIONS.md`,
 `docs/IMPLEMENTATION_PLAN.md`, `docs/DESIGN_BUNDLE_KNOWN_ISSUES.md`, the delivery docs
