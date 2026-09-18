@@ -62,9 +62,9 @@ Derived from the README role list and the prototype matrix (PRODUCT.md §3):
 
 | Role | Label (UI) | Permissions (project scope) |
 |---|---|---|
-| `COORDINATOR` | Coordinador de proyecto | project.configure, project.members.manage, project.intake.read, project.intake.write, parcels.write, field.write, field.validate, field.instruments.author, field.instruments.publish, social.read, quality.write, reports.write, deliverables.approve, portal.publish, pii.read (audited) |
+| `COORDINATOR` | Coordinador de proyecto | project.configure, project.members.manage, project.intake.read, project.intake.write, parcels.write, field.write, field.validate, field.instruments.author, field.instruments.publish, field.corrections.request, social.read, quality.write, reports.write, deliverables.approve, portal.publish, pii.read (audited) |
 | `PROJECT_DATA_MANAGER` | Gestor de información | project.intake.read, project.intake.write, parcels.read, parcels.write, geometry.import, field.read, field.instruments.author, documents.read, documents.write, provenance.read |
-| `SOCIAL_SPECIALIST` | Especialista social | parcels.read, field.read, social.write (coding, taxonomy proposal decisions), quality.write, reports.write, pii.read, pii.export (audited) |
+| `SOCIAL_SPECIALIST` | Especialista social | parcels.read, field.read, field.corrections.request, social.write (coding, taxonomy proposal decisions), quality.write, reports.write, pii.read, pii.export (audited) |
 | `ENVIRONMENTAL_SPECIALIST` | Especialista ambiental | parcels.read, field.read, documents.write, quality.write, reports.write |
 | `GIS_SPECIALIST` | Cartógrafo / GIS | parcels.write, geometry.import, field.read (no PII), quality.read |
 | `FIELD_TECHNICIAN` | Técnico de campo | parcels.read, field.assignments.read_own, field.capture (own assignments), media.upload |
@@ -107,6 +107,7 @@ project:   project.configure, project.members.manage,
            field.assignments.read_own, field.responses.read,
            field.capture, field.validate, field.write,
            field.instruments.author, field.instruments.publish,
+           field.corrections.request,
            media.upload, documents.read, documents.write, social.read, social.write,
            social.ai.run, social.coding.review,
            taxonomy.approve, quality.read, quality.write, quality.review,
@@ -138,6 +139,7 @@ place in the product where project access is deliberately not enough.
 | `field.responses.read` | read an individual response and its answers, whoever captured it | COORDINATOR, SOCIAL_SPECIALIST, REVIEWER |
 | `field.instruments.author` | write a **draft** questionnaire: questions, order, options, the second language | COORDINATOR, PROJECT_DATA_MANAGER |
 | `field.instruments.publish` | publish it, so a campaign may resolve answers against it for ever | COORDINATOR |
+| `field.corrections.request` | ask for a submitted response to be captured again, and withdraw the request | COORDINATOR, SOCIAL_SPECIALIST |
 
 A `FIELD_TECHNICIAN` holds neither `field.read` nor `field.responses.read`: they see their own
 work and no one else's. A `GIS_SPECIALIST` holds `field.read` but not `field.responses.read`: they
@@ -285,6 +287,33 @@ else about the role moved: no `field.responses.read`, no `pii.read`, no `social.
 
 Neither key authorizes reading an answer. The questionnaire is the form, not anybody's responses,
 and §3.1's door is unchanged.
+
+### 3.7 Asking for a response to be captured again (ADR-038)
+
+A submitted response is never edited. Correcting one means **a new capture on a new assignment**,
+with an explicit relation saying which response it replaces — and one permission decides who may
+start that.
+
+| Key | Grants | Held by |
+|---|---|---|
+| `field.corrections.request` | request a correction of a submitted response, and cancel a request that has not been captured | COORDINATOR, SOCIAL_SPECIALIST |
+
+The two roles that hold it are the two that read an individual response (§3.1, §3.2) and are
+therefore the people who notice one is wrong.
+
+It is deliberately **not** `field.capture`: somebody who could decide their own work was wrong and
+quietly replace it is the failure invariant 9 exists to prevent. It is not `field.validate` either
+— validating is accepting what arrived; this is saying it must be captured again.
+
+A `FIELD_TECHNICIAN` holds neither this key nor `field.responses.read`: they receive the revisit,
+capture it, and see the reason it exists — never the previous household's answers.
+`PROJECT_DATA_MANAGER` gains nothing at all, because a correction names a household's response and
+that role reads none (ADR-030).
+
+Reading the **lineage** — what was submitted, what replaced it, and why — is `field.responses.read`,
+because it is a statement about a household's answers and belongs behind the same door
+(SECURITY.md §10b). A technician's own correction row is visible to them through the policy's second
+branch, which admits the caller's own correction assignment and nothing else.
 
 ## 3a. Identity provider boundary (Gate 1 D-016, ADR-010)
 

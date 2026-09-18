@@ -121,6 +121,38 @@ export const messages: Messages = {
     online: "Online",
   },
   field: {
+    /*
+     * Correcting a submitted response (ADR-038). One word is avoided throughout: nothing is
+     * "edited" and nothing is "deleted". A submitted response is kept; what changes is which of
+     * them the analysis currently means.
+     */
+    requestCorrection: "Request correction",
+    correctionRequested: "Correction requested",
+    correctionReason: "What needs correcting?",
+    correctionReasonHint:
+      "It is shown to the technician who will make the revisit and stays in the response's history. Do not write the corrected value here: it is captured in the field.",
+    correctionAssignee: "Who captures it",
+    correctionAssigneeSame: "The same technician as the original response",
+    correctionSubmit: "Request",
+    correctionSubmitting: "Requesting…",
+    correctionDone: "Correction requested. A revisit was created for the technician.",
+    correctionCancel: "Cancel the request",
+    correctionCancelled:
+      "Request cancelled. The original response is still the one current for analysis.",
+    correctionPendingNotice:
+      "A correction has been requested and not yet captured. Until it is, the response below is still the one current for analysis.",
+    lineageTitle: "Response history",
+    lineageNote:
+      "No response is ever modified. A correction is a new capture that replaces the previous one for current analysis; the previous one is kept whole, with its technician and its date.",
+    lineageOriginal: "Original submission",
+    lineageCorrection: "Correction {n}",
+    lineageEffective: "Current for analysis",
+    lineageSuperseded: "Superseded",
+    lineageBy: "Captured by {name}",
+    lineageRequestedBy: "Requested by {name}",
+    lineageUnknownPerson: "No name on record",
+    correctionsOpen: "{count} correction(s) pending",
+    correctionsNone: "No corrections pending",
     currentOperation: "Current operation",
     previousOperation: "Previous operation",
     viewProvenance: "Show provenance",
@@ -174,7 +206,7 @@ export const messages: Messages = {
     visitCompleted: "Completed",
     visitInProgress: "In progress",
     submittedNote:
-      "This form was submitted and can no longer be edited. A correction will be a reviewed flow, not a silent edit.",
+      "This form was submitted and is not edited. Correcting it means requesting a new capture, which is recorded with its reason and whoever asked for it (ADR-038).",
     saved: "Saved.",
     backToMyWork: "Back to my work",
     saveDraft: "Save draft",
@@ -1639,6 +1671,10 @@ export const messages: Messages = {
     },
   },
   mobile: {
+    correctionRevisit: "Correction revisit",
+    correctionWhy: "Reason: {reason}",
+    correctionNotice:
+      "This is a new capture of a parcel already surveyed. The previous response is kept and is not modified; the one you send here becomes the one current for analysis.",
     appName: "EIA Field",
     signInHint:
       "Sign in once while you have a connection. After that you can work with no signal until the downloaded work expires.",

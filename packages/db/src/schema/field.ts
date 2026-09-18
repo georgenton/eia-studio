@@ -102,6 +102,13 @@ export const locationOutcome = app.enum("field_location_outcome", [
 
 export const instanceStatus = app.enum("survey_instance_status", ["IN_PROGRESS", "SUBMITTED"]);
 
+/** A correction settles once: requested, then applied or cancelled (ADR-038). */
+export const correctionState = app.enum("survey_correction_state", [
+  "REQUESTED",
+  "APPLIED",
+  "CANCELLED",
+]);
+
 /* ---------------------------------------------------------------------------------------------
  * Project configuration (FEATURES.md §4)
  * ------------------------------------------------------------------------------------------ */
@@ -352,6 +359,16 @@ export const fieldAssignment = app.table(
     /** Denormalised from the membership so RLS can compare without a recursive policy. */
     assigneeUserId: uuid("assignee_user_id").notNull(),
     status: assignmentStatus("status").notNull().default("PENDING"),
+    /**
+     * Set when this assignment exists only to capture a correction of another one (ADR-038).
+     *
+     * A correction is a **new** assignment rather than a reopening of the original, so *who was
+     * originally assigned* and *who performed the correction* are two rows rather than one
+     * overwritten column, and `survey_instance`'s `(assignment, version)` uniqueness — what makes
+     * a retried offline submit a no-op — is untouched. It stays in the same campaign and on the
+     * same parcel, because tabulation is scoped by campaign.
+     */
+    correctsAssignmentId: uuid("corrects_assignment_id"),
     note: text("note"),
     assignedAt: timestamp("assigned_at", { withTimezone: true, mode: "date" })
       .notNull()
@@ -362,8 +379,12 @@ export const fieldAssignment = app.table(
     createdAt: createdAt(),
   },
   (t) => [
-    /** One live assignment per parcel per campaign; re-assignment moves the row, not a new one. */
-    unique("field_assignment_campaign_parcel_key").on(t.tenantId, t.campaignId, t.parcelId),
+    /*
+     * One live *ordinary* assignment per parcel per campaign; re-assignment moves the row, not a
+     * new one. Migration 0051 replaces the plain unique constraint this used to be with a partial
+     * unique index excluding correction assignments (ADR-038), so the rule is unchanged for the
+     * assignments it was written about and a correction can sit beside the work it corrects.
+     */
     unique("field_assignment_tenant_id_id_key").on(t.tenantId, t.id),
     foreignKey({
       name: "field_assignment_campaign_fk",
@@ -389,6 +410,11 @@ export const fieldAssignment = app.table(
       name: "field_assignment_provenance_fk",
       columns: [t.tenantId, t.provenanceId],
       foreignColumns: [provenanceRecord.tenantId, provenanceRecord.id],
+    }),
+    foreignKey({
+      name: "field_assignment_corrects_fk",
+      columns: [t.tenantId, t.correctsAssignmentId],
+      foreignColumns: [t.tenantId, t.id],
     }),
     index("field_assignment_assignee_idx").on(t.tenantId, t.projectId, t.assigneeUserId),
     index("field_assignment_campaign_status_idx").on(t.tenantId, t.campaignId, t.status),
@@ -579,6 +605,72 @@ export const surveyAnswerOption = app.table(
       foreignColumns: [project.tenantId, project.id],
     }).onDelete("cascade"),
     index("survey_answer_option_option_idx").on(t.tenantId, t.optionId),
+  ],
+);
+
+/**
+ * Which response replaces which, and why (ADR-038).
+ *
+ * The row *is* the supersession: there is no `superseded` flag on `survey_instance`, because a
+ * boolean on the thing being replaced is a fact two writers can disagree about, and because
+ * "replaced by what?" is the question every reader actually has.
+ *
+ * `correcting_instance_id` is null while the correction is `REQUESTED` — nobody has captured
+ * anything yet — and is set in the same transaction that submits the correcting response. Until
+ * then the original stays effective, which is what makes an unfinished correction harmless.
+ *
+ * `reason` is a person's operational words and is shown beside the lineage. It never reaches the
+ * audit log, because a reason can quote an answer (SECURITY.md §9).
+ */
+export const surveyCorrection = app.table(
+  "survey_correction",
+  {
+    id: uuid("id").primaryKey(),
+    tenantId: uuid("tenant_id").notNull(),
+    projectId: uuid("project_id").notNull(),
+    /** The submitted response being replaced. Effective at the moment of the request. */
+    originalInstanceId: uuid("original_instance_id").notNull(),
+    /** The assignment created to carry the correction capture. */
+    correctionAssignmentId: uuid("correction_assignment_id").notNull(),
+    /** The response that replaced it, once one has been submitted. */
+    correctingInstanceId: uuid("correcting_instance_id"),
+    state: correctionState("state").notNull().default("REQUESTED"),
+    reason: text("reason").notNull(),
+    requestedByUserId: uuid("requested_by_user_id").notNull(),
+    requestedAt: timestamp("requested_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .defaultNow(),
+    appliedAt: timestamp("applied_at", { withTimezone: true, mode: "date" }),
+    cancelledAt: timestamp("cancelled_at", { withTimezone: true, mode: "date" }),
+    cancelledByUserId: uuid("cancelled_by_user_id"),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    unique("survey_correction_tenant_id_id_key").on(t.tenantId, t.id),
+    /** One assignment carries one correction, so a work item is never ambiguous. */
+    unique("survey_correction_assignment_key").on(t.tenantId, t.correctionAssignmentId),
+    foreignKey({
+      name: "survey_correction_original_fk",
+      columns: [t.tenantId, t.originalInstanceId],
+      foreignColumns: [surveyInstance.tenantId, surveyInstance.id],
+    }),
+    foreignKey({
+      name: "survey_correction_correcting_fk",
+      columns: [t.tenantId, t.correctingInstanceId],
+      foreignColumns: [surveyInstance.tenantId, surveyInstance.id],
+    }),
+    foreignKey({
+      name: "survey_correction_assignment_fk",
+      columns: [t.tenantId, t.correctionAssignmentId],
+      foreignColumns: [fieldAssignment.tenantId, fieldAssignment.id],
+    }),
+    foreignKey({
+      name: "survey_correction_project_fk",
+      columns: [t.tenantId, t.projectId],
+      foreignColumns: [project.tenantId, project.id],
+    }).onDelete("cascade"),
+    index("survey_correction_original_idx").on(t.tenantId, t.originalInstanceId),
+    index("survey_correction_state_idx").on(t.tenantId, t.projectId, t.state),
   ],
 );
 

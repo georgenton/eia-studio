@@ -197,11 +197,25 @@ function documentXml(paragraphs: ReadonlyArray<TemplateParagraph>): string {
 }
 
 /** A Word package whose body is exactly these paragraphs, run by run. */
+/**
+ * A fixed modification time for every archive these helpers build.
+ *
+ * `zipSync` stamps each entry with the current time by default, at the ZIP format's two-second
+ * granularity — so the *same* template built twice produces *different* bytes, depending only on
+ * which side of a two-second boundary the two calls fell. That made "the same bytes twice are
+ * answered rather than duplicated" (ADR-031, ADR-036) a test that passed when the suite was fast
+ * and failed when it was not, which is the worst kind: it looks like a product regression.
+ *
+ * Fixed here rather than worked around in the assertion, because *same input, same bytes* is what
+ * a fixture owes a test about content hashing.
+ */
+const FIXTURE_MTIME = new Date("2026-01-01T00:00:00Z");
+
 export function buildDocxTemplate(paragraphs: ReadonlyArray<TemplateParagraph>): Uint8Array {
   return zipSync({
-    "[Content_Types].xml": strToU8(CONTENT_TYPES),
-    "_rels/.rels": strToU8(RELS),
-    "word/document.xml": strToU8(documentXml(paragraphs)),
+    "[Content_Types].xml": [strToU8(CONTENT_TYPES), { mtime: FIXTURE_MTIME }],
+    "_rels/.rels": [strToU8(RELS), { mtime: FIXTURE_MTIME }],
+    "word/document.xml": [strToU8(documentXml(paragraphs)), { mtime: FIXTURE_MTIME }],
   });
 }
 
@@ -215,18 +229,24 @@ export function buildMacroEnabledTemplate(
   paragraphs: ReadonlyArray<TemplateParagraph>,
 ): Uint8Array {
   return zipSync({
-    "[Content_Types].xml": strToU8(CONTENT_TYPES),
-    "_rels/.rels": strToU8(RELS),
-    "word/document.xml": strToU8(documentXml(paragraphs)),
+    "[Content_Types].xml": [strToU8(CONTENT_TYPES), { mtime: FIXTURE_MTIME }],
+    "_rels/.rels": [strToU8(RELS), { mtime: FIXTURE_MTIME }],
+    "word/document.xml": [strToU8(documentXml(paragraphs)), { mtime: FIXTURE_MTIME }],
     // Not a real VBA project — the name is what makes a package macro-enabled.
-    "word/vbaProject.bin": strToU8("this stands in for a macro project"),
+    "word/vbaProject.bin": [
+      strToU8("this stands in for a macro project"),
+      { mtime: FIXTURE_MTIME },
+    ],
   });
 }
 
 /** A ZIP that is not a Word document: the case the magic bytes cannot tell apart from one. */
 export function buildNotAWordPackage(): Uint8Array {
   return zipSync({
-    "readme.txt": strToU8("A container with no Word main part inside it."),
-    "data/rows.csv": strToU8("a,b,c\n1,2,3\n"),
+    "readme.txt": [
+      strToU8("A container with no Word main part inside it."),
+      { mtime: FIXTURE_MTIME },
+    ],
+    "data/rows.csv": [strToU8("a,b,c\n1,2,3\n"), { mtime: FIXTURE_MTIME }],
   });
 }

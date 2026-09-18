@@ -9,6 +9,8 @@ import {
 } from "@eia/domain";
 import { sql } from "drizzle-orm";
 
+import { IS_EFFECTIVE_INSTANCE } from "../field/corrections";
+
 /**
  * Computing what a social chapter says, from validated data only.
  *
@@ -83,9 +85,9 @@ export async function buildSocialSnapshot(tx: DbTx, input: SnapshotInput): Promi
   // ── universe ─────────────────────────────────────────────────────────────────────────────
   const universe = await tx.execute(sql`
     select
-      count(*) filter (where i.status = 'SUBMITTED')::int as submitted,
+      count(*) filter (where ${IS_EFFECTIVE_INSTANCE("i")})::int as submitted,
       count(*)::int as total,
-      count(distinct a.parcel_id) filter (where i.status = 'SUBMITTED')::int as parcels
+      count(distinct a.parcel_id) filter (where ${IS_EFFECTIVE_INSTANCE("i")})::int as parcels
       from app.survey_instance i
       left join app.field_visit fv on fv.tenant_id = i.tenant_id and fv.id = i.visit_id
       left join app.field_assignment a on a.tenant_id = fv.tenant_id and a.id = fv.assignment_id
@@ -133,7 +135,8 @@ export async function buildSocialSnapshot(tx: DbTx, input: SnapshotInput): Promi
     select q.id, q.code, q.prompt, q.type::text as type,
            (select count(*)::int from app.survey_answer a
              join app.survey_instance i2 on i2.tenant_id = a.tenant_id and i2.id = a.instance_id
-            where a.tenant_id = q.tenant_id and a.question_id = q.id and i2.status = 'SUBMITTED'
+            where a.tenant_id = q.tenant_id and a.question_id = q.id
+               and ${IS_EFFECTIVE_INSTANCE("i2")}
               and ${inCampaign("i2")}
            ) as answered
       from app.survey_question q
@@ -160,7 +163,7 @@ export async function buildSocialSnapshot(tx: DbTx, input: SnapshotInput): Promi
           on sel.tenant_id = a.tenant_id and sel.answer_id = a.id
         left join app.survey_option o on o.tenant_id = sel.tenant_id and o.id = sel.option_id
        where a.tenant_id = ${input.tenantId} and a.question_id = ${row.id}
-         and i.status = 'SUBMITTED'
+         and ${IS_EFFECTIVE_INSTANCE("i")}
          and ${inCampaign("i")}
        group by 1
        order by 2 desc, 1

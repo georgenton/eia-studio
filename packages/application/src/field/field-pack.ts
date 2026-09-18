@@ -247,6 +247,9 @@ export async function readAssignmentsForPull(
            open_visit.id as open_visit_id,
            si.id as instance_id,
            si.status as instance_status,
+           fa.corrects_assignment_id,
+           corr.reason as correction_reason,
+           corr.requested_at as correction_requested_at,
            extract(epoch from greatest(
              fa.assigned_at,
              coalesce(fa.completed_at, fa.assigned_at),
@@ -265,6 +268,13 @@ export async function readAssignmentsForPull(
          order by fv.started_at desc
          limit 1
       ) open_visit on true
+      /*
+       * Why the technician is being sent back (ADR-038) — the reason and nothing else. The
+       * previous household's answers stay on the server: a device that would otherwise never hold
+       * them does not start holding them because a figure was wrong (SECURITY.md §10e).
+       */
+      left join app.survey_correction corr
+        on corr.tenant_id = fa.tenant_id and corr.correction_assignment_id = fa.id
       left join app.survey_instance si
         on si.tenant_id = fa.tenant_id and si.assignment_id = fa.id
        and si.survey_version_id = ${versionId}
@@ -288,6 +298,9 @@ export async function readAssignmentsForPull(
       open_visit_id: string | null;
       instance_id: string | null;
       instance_status: InstanceStatus | null;
+      corrects_assignment_id: string | null;
+      correction_reason: string | null;
+      correction_requested_at: Date | null;
       revision: string | number;
     }>
   ).map((row) => ({
@@ -300,6 +313,14 @@ export async function readAssignmentsForPull(
       chainageLabel: row.chainage_m === null ? null : formatChainage(Number(row.chainage_m)),
       side: row.side,
     },
+    correction:
+      row.corrects_assignment_id === null
+        ? null
+        : {
+            correctsAssignmentId: row.corrects_assignment_id,
+            reason: row.correction_reason ?? "",
+            requestedAt: new Date(row.correction_requested_at ?? Date.now()).toISOString(),
+          },
     openVisitId: row.open_visit_id,
     instanceId: row.instance_id,
     instanceStatus: row.instance_status,

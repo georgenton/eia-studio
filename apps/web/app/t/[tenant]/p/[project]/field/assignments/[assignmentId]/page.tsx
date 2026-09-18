@@ -1,8 +1,14 @@
-import { loadAssignmentDetail, loadWorkspaceHeader } from "@eia/application";
-import { ASSIGNMENT_STATUS_PRESENTATION, formatChainage } from "@eia/domain";
+import {
+  loadAssignmentDetail,
+  loadCorrectionLineage,
+  loadWorkspaceHeader,
+  type CorrectionLineage,
+} from "@eia/application";
+import { ASSIGNMENT_STATUS_PRESENTATION, can, formatChainage } from "@eia/domain";
 import { Chip } from "@eia/ui";
 import { notFound, redirect } from "next/navigation";
 
+import { ResponseCorrections } from "@/components/field/response-corrections";
 import { SurveyForm } from "@/components/field/survey-form";
 import { projectBreadcrumb, projectLabel, WorkspaceShell } from "@/components/workspace-shell";
 import { getSessionUser } from "@/lib/context";
@@ -64,6 +70,16 @@ export default async function AssignmentPage({
     throw error;
   }
 
+  /*
+   * The response's history, for a caller who may read the response at all (ADR-038). A technician
+   * holds no `field.responses.read`, so they get no lineage — and need none: their own screen is
+   * the capture in front of them.
+   */
+  let lineage: CorrectionLineage | null = null;
+  if (detail.assignment.instanceId !== null && can(ctx, "field.responses.read")) {
+    lineage = await loadCorrectionLineage(getDb(), ctx, detail.assignment.instanceId);
+  }
+
   return (
     <WorkspaceShell
       ctx={ctx}
@@ -118,6 +134,16 @@ export default async function AssignmentPage({
           project={project}
           tenant={ctx.tenantSlug}
         />
+
+        {detail.assignment.instanceStatus === "SUBMITTED" ? (
+          <ResponseCorrections
+            canRequest={can(ctx, "field.corrections.request")}
+            instanceId={detail.assignment.instanceId}
+            lineage={lineage}
+            project={project}
+            tenant={ctx.tenantSlug}
+          />
+        ) : null}
       </div>
     </WorkspaceShell>
   );

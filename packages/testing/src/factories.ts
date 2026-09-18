@@ -423,6 +423,11 @@ export async function createPublishedSurvey(
      */
     openTextCode?: string;
     /**
+     * Add an `INTEGER` question before publishing, for the same reason and with the same timing.
+     * Off by default, so every existing fixture keeps the questionnaire it had.
+     */
+    numericCode?: string;
+    /**
      * Publish the same questions in a second language. Also before the flip: a translation is part
      * of the definition (ADR-029), so the same trigger refuses it afterwards.
      */
@@ -534,6 +539,23 @@ export async function createPublishedSurvey(
     });
   }
 
+  const numericId = input.numericCode ? randomUUID() : null;
+  if (numericId && input.numericCode) {
+    await db.insert(fieldSchema.surveyQuestion).values({
+      id: numericId,
+      tenantId: input.tenantId,
+      projectId: input.projectId,
+      versionId,
+      code: input.numericCode,
+      ordinal: 3,
+      type: "INTEGER",
+      prompt: "¿Cuántas personas habitan el predio?",
+      helpText: null,
+      required: false,
+      sensitivity: "NON_PERSONAL",
+    });
+  }
+
   const openText = input.openTextCode
     ? await addOpenTextQuestion(db, {
         tenantId: input.tenantId,
@@ -548,6 +570,7 @@ export async function createPublishedSurvey(
     has_concern: requiredId,
     services_present: multiId,
     ...(openText && input.openTextCode ? { [input.openTextCode]: openText.questionId } : {}),
+    ...(numericId && input.numericCode ? { [input.numericCode]: numericId } : {}),
   };
 
   if (input.translations) {

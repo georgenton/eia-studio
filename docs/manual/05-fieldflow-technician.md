@@ -30,3 +30,22 @@ project's households, cannot open the coordinator's inbox, and cannot reach Soci
 Nothing personal: no names, identity numbers, phone numbers, addresses, health or disability data,
 individual income, or household coordinates. All answers are synthetic and labelled
 `DEMO_SIMULATION`.
+
+## Revisita de corrección
+
+A veces vas a ver en _Mi trabajo_ un predio que ya levantaste, marcado **Corrección solicitada**.
+
+No es un error ni una segunda vivienda: alguien de coordinación pidió que se vuelva a levantar esa
+ficha, y debajo del predio está el motivo que escribió.
+
+- Se levanta **igual que cualquier otra**: iniciar visita, llenar, enviar. Funciona sin señal
+  exactamente igual.
+- **No vas a ver las respuestas anteriores.** No se descargan al teléfono. El motivo es lo que te
+  dice qué hay que volver a preguntar.
+- La ficha que envíes pasa a ser la vigente para el análisis. La anterior no se borra: queda
+  guardada tal como la enviaste.
+- Si la solicitud se cancela mientras estás sin señal, tu captura **no se pierde**: el aparato la
+  conserva y te avisa al sincronizar.
+
+Lo que **no** vas a encontrar en ninguna pantalla es un botón para editar una ficha ya enviada. No
+existe, a propósito.

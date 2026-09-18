@@ -66,3 +66,20 @@ is only permitted locally and in tests.
 
 `road_social_concerns_demo` v1, eight categories, badged **DEMO / RECONSTRUIDA**. It was derived
 from the themes the demo questionnaire can produce, not supplied by the consultancy.
+
+## Qué pasa con las cifras cuando hay una corrección
+
+Las tabulaciones, el resumen numérico y la distribución de temas validados leen siempre la
+respuesta **vigente** de cada hogar (ADR-038).
+
+- Si una ficha se corrigió, cuenta **la corregida**, y sólo ella. La anterior no se suma como un
+  segundo hogar: el denominador no cambia.
+- Una corrección **solicitada y todavía sin levantar** no cambia ninguna cifra. La original sigue
+  contando hasta que la corrección se capture.
+- Si la respuesta abierta cambió, la codificación que hiciste sobre la anterior **deja de sumar** a
+  la distribución actual — no se reutiliza para la respuesta nueva, porque era una afirmación sobre
+  unas palabras que ya no son la respuesta. La respuesta corregida aparece como **sin codificar**
+  hasta que alguien la revise. Tu codificación anterior se conserva.
+
+Un informe ya generado **no cambia**: guarda lo que era cierto cuando se generó. La siguiente
+versión usa la respuesta corregida.

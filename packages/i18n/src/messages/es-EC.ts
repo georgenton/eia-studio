@@ -125,6 +125,38 @@ export const messages = {
     online: "Con conexión",
   },
   field: {
+    /*
+     * Corregir una respuesta enviada (ADR-038). El vocabulario evita una palabra en todo el flujo:
+     * nada se «edita» y nada se «elimina». Una respuesta enviada se conserva; lo que cambia es cuál
+     * de ellas es la vigente para el análisis.
+     */
+    requestCorrection: "Solicitar corrección",
+    correctionRequested: "Corrección solicitada",
+    correctionReason: "¿Qué hay que corregir?",
+    correctionReasonHint:
+      "Se muestra al técnico que hará la revisita y queda en el historial de la respuesta. No escribas aquí el dato corregido: se captura en campo.",
+    correctionAssignee: "Quién la levanta",
+    correctionAssigneeSame: "El mismo técnico de la respuesta original",
+    correctionSubmit: "Solicitar",
+    correctionSubmitting: "Solicitando…",
+    correctionDone: "Corrección solicitada. Se creó una revisita para el técnico.",
+    correctionCancel: "Cancelar la solicitud",
+    correctionCancelled:
+      "Solicitud cancelada. La respuesta original sigue siendo la vigente para el análisis.",
+    correctionPendingNotice:
+      "Hay una corrección solicitada y todavía sin levantar. Mientras tanto, la respuesta que se muestra abajo sigue siendo la vigente para el análisis.",
+    lineageTitle: "Historial de la respuesta",
+    lineageNote:
+      "Ninguna respuesta se modifica. Una corrección es una captura nueva que sustituye a la anterior para el análisis actual; la anterior se conserva íntegra, con su técnico y su fecha.",
+    lineageOriginal: "Envío original",
+    lineageCorrection: "Corrección {n}",
+    lineageEffective: "Vigente para análisis",
+    lineageSuperseded: "Sustituida",
+    lineageBy: "Levantada por {name}",
+    lineageRequestedBy: "Solicitada por {name}",
+    lineageUnknownPerson: "Sin nombre registrado",
+    correctionsOpen: "{count} corrección(es) pendiente(s)",
+    correctionsNone: "Sin correcciones pendientes",
     currentOperation: "Operativo actual",
     previousOperation: "Operativo anterior",
     viewProvenance: "Ver origen",
@@ -178,7 +210,7 @@ export const messages = {
     visitCompleted: "Completada",
     visitInProgress: "En curso",
     submittedNote:
-      "Esta ficha fue enviada y ya no puede editarse. Una corrección será un flujo revisado, no una edición silenciosa.",
+      "Esta ficha fue enviada y no se edita. Corregirla es solicitar una captura nueva, que queda registrada con su motivo y su responsable (ADR-038).",
     saved: "Guardado.",
     backToMyWork: "Volver a mi trabajo",
     saveDraft: "Guardar borrador",
@@ -1648,6 +1680,10 @@ export const messages = {
     appName: "EIA Field",
     signInHint:
       "Inicia sesión con conexión una vez. Después podrás trabajar sin señal hasta que venza el trabajo descargado.",
+    correctionRevisit: "Revisita de corrección",
+    correctionWhy: "Motivo: {reason}",
+    correctionNotice:
+      "Esta es una captura nueva de un predio ya levantado. La respuesta anterior se conserva y no se modifica; la que envíes aquí pasa a ser la vigente para el análisis.",
     myWork: "Mi trabajo",
     parcel: "Predio",
     chainageAbbrev: "ABS",

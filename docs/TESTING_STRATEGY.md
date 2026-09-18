@@ -575,3 +575,55 @@ not change `surveyVersionHash`**, because a heading touches nothing an answer me
 fixture and no SQL: the stage, the form, the save, the publication warning stated *before* the
 button, and then the assertion that matters — after publication there is no *Editar* link at all,
 only *Ver como se lee*.
+
+## 22. Correcting a response, and the one thing every analytic must agree about (ADR-038)
+
+The suite is arranged around one sentence: **history keeps both responses, and current analytics
+count exactly one.**
+
+**The workflow** — `packages/application/test/survey-corrections.integration.test.ts`:
+
+```
+submit baseline → request (coordinator) → cancel → request again
+  → Field Pack shows a revisit → capture offline → the same submit three times
+  → tabulation, progress, lineage → a second correction → a report before and after
+```
+
+| It asserts | Because otherwise |
+|---|---|
+| the `UPDATE` on a submitted instance and on its answers is still refused | the whole design would be decoration over an edit |
+| a technician cannot request a correction of their own work | somebody could decide their own capture was wrong and replace it |
+| a `PROJECT_DATA_MANAGER` cannot read a response **or its lineage** | the history would be the hole through which response data reaches a preparation surface |
+| a reason of `"ok"` writes nothing at all | the recorded reason a household's answer was replaced would be meaningless |
+| a requested correction leaves every count where it was | the obvious wrong assumption — that asking already removed the figure — would be true |
+| a cancelled one leaves the original effective, and the response correctable again | cancelling would be a trap |
+| the Field Pack carries the reason and **no previous answer** | a phone would start holding responses it otherwise never holds |
+| three identical submits produce one correcting response and apply the correction once | a bad connection would fork a lineage |
+| tabulation counts the corrected value, denominator 1, with the superseded value absent | the brief's own example |
+| campaign progress stays 1 parcel and 1 submitted after a correction | 141 parcels would become 142 |
+| a second correction supersedes the first, generation 2, still one effective | the chain would be two claimants |
+| the lineage lists 0, 1, 2 with exactly one marked effective | the screen would have to guess |
+| report v1 is byte-for-byte what it was, and v2 uses the correction | a delivered document would quietly change |
+| no audit line contains the reason or an option code | a reason quotes the answer that was wrong |
+
+**The structure** — `packages/testing/test/rls/survey-corrections.integration.test.ts`: FORCE RLS,
+the composite FK, no DELETE grant *and* a trigger, every policy naming tenant and project, the
+partial unique indexes that make a lineage a line, the CHECKs, and the index that keeps *one
+ordinary assignment per parcel per campaign* exactly what it was.
+
+Two assertions in that file are about the resolver rather than about a row:
+
+- **the view runs as the caller** (`security_invoker=true`). Without it a view returns rows the
+  caller's policies refuse, and the whole product reads this one;
+- **nothing else invents its own idea of superseded.** The test walks
+  `packages/application/src` and fails if any file other than `field/corrections.ts` names the view
+  or writes a `superseded = …` predicate. `where superseded = false` in six modules is six chances
+  to disagree, and the disagreement would be silent.
+
+**The rule twice** — `packages/domain/test/survey-corrections.test.ts` states it in TypeScript
+(fork refused, cycle refused, requested ignored, cancelled ignored, order independent of read
+order), and the integration suite asserts the SQL view and the domain function return the same
+answer for the same chain.
+
+**The browser** — `e2e/survey-corrections.spec.ts`, in both languages, ending on the word that must
+never appear: no *Editar respuesta enviada*, no *Eliminar*, in Spanish or in English.

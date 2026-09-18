@@ -74,6 +74,14 @@ export function MyWork({
                     {assignmentStatusLabel(t, assignment.status)}
                   </span>
                 </div>
+                {/* A revisit is not a second household (ADR-038); the card says so before it is
+                    opened, and carries the reason rather than the previous answers. */}
+                {assignment.correctsAssignmentId !== null ? (
+                  <p className={styles.correction}>
+                    {t("field.correctionRequested")}
+                    {assignment.correctionReason ? ` · ${assignment.correctionReason}` : ""}
+                  </p>
+                ) : null}
                 <p className={styles.context}>
                   {assignment.sectorLabel ?? t("gis.noSector")}
                   {assignment.chainageM === null

@@ -2,6 +2,8 @@ import { type DbTx } from "@eia/db";
 import { assertCampaignClosable, type CampaignStatus } from "@eia/domain";
 import { sql } from "drizzle-orm";
 
+import { IS_EFFECTIVE_INSTANCE } from "./corrections";
+
 /**
  * Making one campaign the current operation without rewriting the ones that came before (ADR-026).
  *
@@ -44,7 +46,7 @@ export async function supersedeOtherCampaigns(
               join app.field_assignment fa2
                 on fa2.tenant_id = si.tenant_id and fa2.id = si.assignment_id
              where si.tenant_id = c.tenant_id and fa2.campaign_id = c.id
-               and si.status = 'SUBMITTED') as submitted
+               and ${IS_EFFECTIVE_INSTANCE("si")}) as submitted
       from app.survey_campaign c
      where c.tenant_id = ${input.tenantId} and c.project_id = ${input.projectId}
        and c.id <> ${input.currentCampaignId}

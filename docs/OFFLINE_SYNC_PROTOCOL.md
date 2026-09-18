@@ -45,7 +45,7 @@ version carries (ADR-037). Presentation only: an answer points at a question cod
 touches a code. The grouping is derived from the questions by the device rather than sent as a
 structure, so a heading can never disagree with the questions it claims to hold.
 
-### 3a. Protocol version 2
+### 3a. Protocol versions 2 and 3
 
 `FIELD_SYNC_PROTOCOL_VERSION` moved from 1 to 2 when `section` was added, and the reason is the rule
 §4 relies on: the pack's schemas are `.strict()`, so a **new field** breaks an older device's parse.
@@ -53,9 +53,29 @@ That is what distinguishes this from `media.declare`, which was added in Wave 2 
 new command *type* changes no existing meaning, and an old device simply never sends it.
 
 The version literal turns the failure into *your application is older than this server*, which is a
-sentence somebody can act on, rather than a validation error deep inside a questionnaire. Devices
-built against version 1 must be rebuilt; none is in anybody's hands
-(`docs/FIELD_MOBILE_BUILDS.md`).
+sentence somebody can act on, rather than a validation error deep inside a questionnaire.
+
+**Version 3** (ADR-038) is the same rule again: `packAssignmentSchema` gained a `correction` object
+— the assignment being corrected, the reason a coordinator wrote, and when it was asked for — so a
+technician sent back to a parcel is told it is a **revisit** rather than a second household.
+
+It carries **no previous answer**, deliberately. Knowing which question to re-ask is what the reason
+is for, and a device that would otherwise never hold another visit's responses does not start
+holding them because a figure was wrong (SECURITY.md §10e).
+
+Devices built against an earlier version must be rebuilt; none is in anybody's hands
+(`docs/FIELD_MOBILE_BUILDS.md`). The version is not a formality to be economical with — it is the
+one thing standing between an old device and a pack it would misread.
+
+### 3b. A correction needs no new command
+
+A correction assignment **is** an assignment, so the four domain commands are unchanged:
+`visit.start` → `survey.upsert_draft` → `survey.submit` → `visit.finish`, with the same
+`commandId` idempotency, the same five outcomes and the same conflict handling. A retried submit
+produces one correcting response and applies the correction once.
+
+That is the main reason ADR-038 made a correction a new assignment rather than a reopening of the
+old one: the offline protocol did not have to learn anything.
 
 ## 4. The command envelope
 

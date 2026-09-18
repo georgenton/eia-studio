@@ -13,6 +13,7 @@ out, and §0 records what it found.
 | | Status | When |
 |---|---|---|
 | Migrations 0034 … 0047 applied to staging | **DONE** | 17 September 2026, during Wave 3 |
+| Migrations **0048 … 0049** applied to staging | **DONE** — 0 new tables; 3 new columns (`survey_question.section`, `survey_question_translation.section`, `survey_version.published_by_user_id`) and 2 new CHECKs. Ledger 48 → 50 | 18 September 2026, Go-Live Wave A PR A |
 | Baseline before and after, and the table diff | **DONE** — §2 records the exact diff | same |
 | `pnpm test:staging` | **DONE — 99 passed, 8 files**, including 8 new Wave 3 assertions against the real database | same |
 | Object storage activated on staging | **BLOCKED** — there is no bucket; §3 is the four-step activation and every step is an owner action (TD-090) | — |
@@ -24,7 +25,8 @@ Facts about staging, recorded so the next operator does not have to rediscover t
 - roles present: `eia_app`, `eia_app_login`, `eia_policy`. **There is no `eia_migrator` role** —
   staging was provisioned with the platform's `postgres` superuser as the schema owner, so the
   migrator URL below is that superuser's, not a separate migration role;
-- before Wave 3: **34** migrations applied. After: **48**, which is every entry in the journal.
+- before Wave 3: **34** migrations applied. After Wave 3: **48**. After Go-Live Wave A PR A: **50**, which is
+  every entry in the journal. `pnpm test:staging` passes 99 assertions at that point.
 
 The credentials themselves are in the platform's environment configuration and are not in this
 repository — only the procedure is (CLAUDE.md rule 20).

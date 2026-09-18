@@ -64,6 +64,16 @@ export const PROJECT_PERMISSIONS = [
    */
   "field.instruments.author",
   "field.instruments.publish",
+  /*
+   * Asking for a submitted response to be corrected (ADR-038).
+   *
+   * It is not `field.capture`: a technician captures, and somebody who could decide their own work
+   * was wrong and quietly replace it is the failure invariant 9 exists to prevent. It is not
+   * `field.validate` either — validating is accepting what arrived; this is saying it must be
+   * captured again. Requesting and cancelling are the same key, because withdrawing a request one
+   * made is part of making it.
+   */
+  "field.corrections.request",
   "media.upload",
   "documents.read",
   "documents.write",

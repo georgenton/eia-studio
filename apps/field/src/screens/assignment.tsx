@@ -207,6 +207,22 @@ export function AssignmentScreen({
           </Body>
         </View>
 
+        {/*
+            A correction revisit says what it is and why, and nothing about the previous answers
+            (ADR-038). The reason is a coordinator's own words; the old response stays on the
+            server, where reading it is a permission this technician does not hold.
+        */}
+        {assignment.correctsAssignmentId !== null ? (
+          <>
+            <Chip text={t("mobile.correctionRevisit")} tone="warn" />
+            <Notice text={t("mobile.correctionNotice")} tone="warn" />
+            {assignment.correctionReason ? (
+              <Body muted>
+                {t("mobile.correctionWhy", { reason: assignment.correctionReason })}
+              </Body>
+            ) : null}
+          </>
+        ) : null}
         {assignment.revokedAt ? <Notice text={t("mobile.assignmentRevoked")} tone="crit" /> : null}
         {offlineState === "expired" ? (
           <Notice text={t("mobile.offlineExpired")} tone="crit" />

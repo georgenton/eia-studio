@@ -28,6 +28,7 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 
 import { recordAudit } from "../audit/record";
+import { applyCorrectionIfAny } from "./corrections";
 import { withFieldContext } from "./context";
 import { loadSurveyQuestions } from "./read-models";
 
@@ -855,6 +856,19 @@ export async function submitSurveyInstance(
            and technician_user_id = ${ctx.userId} and status = 'IN_PROGRESS'
       `);
     }
+
+    /*
+     * If this capture was a correction, it takes effect **now**, in this transaction (ADR-038).
+     *
+     * Submitting is applying: there is no approval step between the two, and a separate call would
+     * open a window in which a response is submitted and not yet effective — which is a window in
+     * which two screens disagree about what the study says.
+     */
+    await applyCorrectionIfAny(tx, ctx, {
+      assignmentId: assignment.id,
+      instanceId: instance.id,
+      projectId,
+    });
 
     await recordAudit(
       tx,

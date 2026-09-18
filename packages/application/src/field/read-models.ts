@@ -22,6 +22,7 @@ import { sql } from "drizzle-orm";
 
 import { facetsOf, loadProvenanceRecords } from "../projects/provenance";
 import { readsAllFieldResponses, withFieldContext } from "./context";
+import { IS_EFFECTIVE_INSTANCE } from "./corrections";
 
 /** Shape check only; whether the row exists, and whose it is, stays the database's answer. */
 const UUID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -54,6 +55,14 @@ export interface FieldCampaignSummary {
   readonly targetOn: string | null;
   readonly progress: CampaignProgress;
   readonly submittedCount: number;
+  /**
+   * Correction revisits asked for and not yet captured (ADR-038).
+   *
+   * Kept out of `progress`, which is about the parcels the campaign set out to survey: a correction
+   * is a second capture of a parcel already counted, so counting it there would move a percentage
+   * for a reason nobody reading it could see.
+   */
+  readonly openCorrections: number;
   readonly provenanceId: string;
   readonly provenance: ProvenanceFacets;
   /**
@@ -108,10 +117,18 @@ export async function loadFieldOverview(db: Database, ctx: RequestContext): Prom
              coalesce(a.in_progress, 0)::int as in_progress,
              coalesce(a.completed, 0)::int as completed,
              coalesce(a.cancelled, 0)::int as cancelled,
-             coalesce(s.submitted, 0)::int as submitted
+             coalesce(s.submitted, 0)::int as submitted,
+             coalesce(corr.corrections_open, 0)::int as corrections_open
       from app.survey_campaign c
       join app.survey_version v on v.tenant_id = c.tenant_id and v.id = c.survey_version_id
       join app.survey_template t on t.tenant_id = v.tenant_id and t.id = v.template_id
+      /*
+       * Progress is about the work the campaign set out to do, so a **correction assignment is not
+       * a parcel** (ADR-038): counting it would turn 141 parcels into 142 the moment somebody asked
+       * for one response to be captured again, and a coordinator reading a falling percentage would
+       * have no way to tell why. Corrections are counted separately, beside the four states, and
+       * the surface says so in words.
+       */
       left join lateral (
         select count(*) filter (where fa.status = 'PENDING') as pending,
                count(*) filter (where fa.status = 'IN_PROGRESS') as in_progress,
@@ -119,7 +136,19 @@ export async function loadFieldOverview(db: Database, ctx: RequestContext): Prom
                count(*) filter (where fa.status = 'CANCELLED') as cancelled
         from app.field_assignment fa
         where fa.tenant_id = c.tenant_id and fa.campaign_id = c.id
+          and fa.corrects_assignment_id is null
       ) a on true
+      left join lateral (
+        select count(*) filter (where fa.status in ('PENDING', 'IN_PROGRESS'))
+                 as corrections_open
+        from app.field_assignment fa
+        where fa.tenant_id = c.tenant_id and fa.campaign_id = c.id
+          and fa.corrects_assignment_id is not null
+      ) corr on true
+      /*
+       * One effective response per household, whatever its lineage: a corrected parcel has two
+       * submitted responses and is still one answered parcel.
+       */
       left join lateral (
         select count(*) as submitted
         from app.survey_instance si
@@ -127,7 +156,7 @@ export async function loadFieldOverview(db: Database, ctx: RequestContext): Prom
           on fa2.tenant_id = si.tenant_id and fa2.id = si.assignment_id
         where si.tenant_id = c.tenant_id
           and fa2.campaign_id = c.id
-          and si.status = 'SUBMITTED'
+          and ${IS_EFFECTIVE_INSTANCE("si")}
       ) s on true
       where c.tenant_id = ${ctx.tenantId} and c.project_id = ${projectId}
       order by c.created_at desc
@@ -151,6 +180,7 @@ export async function loadFieldOverview(db: Database, ctx: RequestContext): Prom
       completed: number;
       cancelled: number;
       submitted: number;
+      corrections_open: number;
     }>;
 
     const provenance = await loadProvenanceRecords(
@@ -181,6 +211,7 @@ export async function loadFieldOverview(db: Database, ctx: RequestContext): Prom
           CANCELLED: row.cancelled,
         }),
         submittedCount: row.submitted,
+        openCorrections: row.corrections_open,
         provenanceId: row.provenance_id,
         provenance: facetsOf(record),
       };
@@ -247,6 +278,15 @@ export interface MyAssignment {
   readonly visitStatus: VisitStatus | null;
   readonly instanceId: string | null;
   readonly instanceStatus: InstanceStatus | null;
+  /**
+   * The assignment this one exists to correct, and the reason somebody gave (ADR-038).
+   *
+   * The reason and nothing else: a technician sent back to a parcel needs to know they are
+   * re-asking rather than meeting a second household, and the previous response stays where
+   * reading it is a permission they do not hold.
+   */
+  readonly correctsAssignmentId: string | null;
+  readonly correctionReason: string | null;
 }
 
 /**
@@ -267,6 +307,8 @@ export async function loadMyWork(
       select fa.id,
              fa.status,
              fa.note,
+             fa.corrects_assignment_id,
+             corr.reason as correction_reason,
              c.id as campaign_id,
              c.name as campaign_name,
              p.id as parcel_id,
@@ -290,6 +332,8 @@ export async function loadMyWork(
         order by fv.started_at desc
         limit 1
       ) open_visit on true
+      left join app.survey_correction corr
+        on corr.tenant_id = fa.tenant_id and corr.correction_assignment_id = fa.id
       left join app.survey_instance si
         on si.tenant_id = fa.tenant_id and si.assignment_id = fa.id
        and si.survey_version_id = v.id
@@ -307,6 +351,8 @@ export async function loadMyWork(
         id: string;
         status: AssignmentStatus;
         note: string | null;
+        corrects_assignment_id: string | null;
+        correction_reason: string | null;
         campaign_id: string;
         campaign_name: string;
         parcel_id: string;
@@ -336,6 +382,8 @@ export async function loadMyWork(
       visitStatus: row.visit_status,
       instanceId: row.instance_id,
       instanceStatus: row.instance_status,
+      correctsAssignmentId: row.corrects_assignment_id,
+      correctionReason: row.correction_reason,
     }));
   });
 }
@@ -419,6 +467,8 @@ export async function loadAssignmentDetail(
       select fa.id,
              fa.status,
              fa.note,
+             fa.corrects_assignment_id,
+             corr.reason as correction_reason,
              c.id as campaign_id,
              c.name as campaign_name,
              p.id as parcel_id,
@@ -446,6 +496,8 @@ export async function loadAssignmentDetail(
         where fv2.tenant_id = fa.tenant_id and fv2.assignment_id = fa.id
         order by fv2.started_at desc limit 1
       ) fv on true
+      left join app.survey_correction corr
+        on corr.tenant_id = fa.tenant_id and corr.correction_assignment_id = fa.id
       left join app.survey_instance si
         on si.tenant_id = fa.tenant_id and si.assignment_id = fa.id and si.survey_version_id = v.id
       where fa.tenant_id = ${ctx.tenantId}
@@ -458,6 +510,8 @@ export async function loadAssignmentDetail(
           id: string;
           status: AssignmentStatus;
           note: string | null;
+          corrects_assignment_id: string | null;
+          correction_reason: string | null;
           campaign_id: string;
           campaign_name: string;
           parcel_id: string;
@@ -502,6 +556,8 @@ export async function loadAssignmentDetail(
         visitStatus: row.visit_status,
         instanceId: row.instance_id,
         instanceStatus: row.instance_status,
+        correctsAssignmentId: row.corrects_assignment_id,
+        correctionReason: row.correction_reason,
       },
       questions,
       answers,

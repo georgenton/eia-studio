@@ -150,6 +150,22 @@ export default defineConfig({
     },
     {
       /*
+       * Correcting a submitted response (ADR-038). Serial — each test is a stage of one journey —
+       * and after the technician project, because it corrects a response that suite submitted. It
+       * drives two roles, so it opens its own pages rather than taking one storage state.
+       */
+      name: "survey-corrections",
+      testMatch: /(^|\/)survey-corrections\.spec\.ts$/,
+      fullyParallel: false,
+      dependencies: ["setup", "technician"],
+      use: {
+        ...devices["Desktop Chrome"],
+        viewport: { width: 1440, height: 940 },
+        storageState: "e2e/.auth/coordinator.json",
+      },
+    },
+    {
+      /*
        * Writing a questionnaire in the product (ADR-037). Serial — each test is a stage of one act
        * — and on its own project, because publishing a questionnaire into the pilot would change
        * what every other spec's counts and tabulations are about.

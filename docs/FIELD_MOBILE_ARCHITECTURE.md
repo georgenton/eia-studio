@@ -128,3 +128,25 @@ every chip has a word in it.
 | A correction workflow | a submitted response is immutable by design (invariant 9); reopening one quietly on a phone is exactly what that invariant forbids |
 | Any model call | this wave has no AI requirement and no code path to one |
 | Bilingual UI | Spanish only, with the language placeholder in `Ajustes` ready for Wave 2 |
+
+## Correction revisits (ADR-038)
+
+A technician can be sent back to a parcel they have already surveyed, when a submitted response
+needs correcting. On the device this is an ordinary assignment with one extra fact attached:
+
+```ts
+correction: { correctsAssignmentId, reason, requestedAt } | null
+```
+
+*Mi trabajo* marks the row **Revisita de corrección**; the assignment screen repeats the chip, shows
+a notice saying the previous response is kept and not modified, and prints the reason a coordinator
+wrote. Capture proceeds exactly as it does for a first visit — draft, restart, submit, sync — and a
+retry produces one response.
+
+Three columns were added to `local_assignment` (local migration 3) and **no answers**: the previous
+household's responses stay on the server, where reading them is a permission a technician does not
+hold. A phone is lost, stolen and resold, and the blast radius of that event is exactly what this
+schema chooses to hold.
+
+There is still **no** way to reopen a submitted response from the device, and `SYNCED` is still
+terminal. A correction is a different work item, not a door back into an old one.

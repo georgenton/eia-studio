@@ -126,7 +126,7 @@ test.describe("FieldFlow · technician", () => {
     await page.getByRole("button", { name: "Enviar ficha" }).click();
 
     // 9 · submitted is read-only for the technician: no edit action, and the form says why.
-    await expect(main.getByText(/fue enviada y ya no puede editarse/)).toBeVisible({
+    await expect(main.getByText(/fue enviada y no se edita/)).toBeVisible({
       timeout: 20_000,
     });
     await expect(page.getByRole("button", { name: "Enviar ficha" })).toHaveCount(0);
@@ -149,6 +149,6 @@ test.describe("FieldFlow · technician", () => {
     // A submitted response offers no mutation at all — the guard is server-side, and the UI
     // simply has nothing to press.
     await expect(page.getByRole("button", { name: "Enviar ficha" })).toHaveCount(0);
-    await expect(page.getByRole("main").getByText(/ya no puede editarse/)).toBeVisible();
+    await expect(page.getByRole("main").getByText(/fue enviada y no se edita/)).toBeVisible();
   });
 });

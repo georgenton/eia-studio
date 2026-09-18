@@ -49,6 +49,18 @@ export const AUDIT_ACTIONS = [
    */
   "field.survey.drafted",
   "field.survey.published",
+  /*
+   * Correcting a submitted response (ADR-038). Three moments: somebody asked for a response to be
+   * captured again, a technician captured it, or the request was withdrawn.
+   *
+   * The line carries **identifiers only** — which response, which correction, which assignment.
+   * Never the reason, because a coordinator explaining an error naturally quotes the answer that
+   * was wrong; never the old value and never the new one. What changed lives in the two responses,
+   * each attributed and each permanent, and a second copy here would be a second place to leak it.
+   */
+  "field.survey.correction_requested",
+  "field.survey.correction_applied",
+  "field.survey.correction_cancelled",
   "field.survey.submitted",
   "field.media.declared",
   // Social Intelligence (Slice 4). Two events, for the two moments that matter: text left this

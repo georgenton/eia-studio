@@ -61,7 +61,7 @@ test.describe("FieldFlow · the technician's device", () => {
     const done = page.getByRole("link").filter({ hasText: "Ver ficha enviada" }).first();
     await expect(done).toBeVisible();
     await done.click();
-    await expect(page.getByRole("main").getByText(/ya no puede editarse/)).toBeVisible();
+    await expect(page.getByRole("main").getByText(/fue enviada y no se edita/)).toBeVisible();
     await scan(page);
   });
 
@@ -105,7 +105,7 @@ test.describe("FieldFlow · the technician's device", () => {
     const done = page.getByRole("link").filter({ hasText: "Ver ficha enviada" }).first();
     if ((await done.count()) > 0) {
       await done.click();
-      await expect(page.getByRole("main").getByText(/ya no puede editarse/)).toBeVisible();
+      await expect(page.getByRole("main").getByText(/fue enviada y no se edita/)).toBeVisible();
       await page.screenshot({ path: `${OUT}/03-submitted-mobile.png`, fullPage: true });
     }
   });

@@ -130,6 +130,18 @@ export type {
   SaveSurveyDefinitionInput,
   SurveyAuthoringView,
 } from "./field/authoring";
+export {
+  cancelSurveyCorrection,
+  loadCorrectionLineage,
+  requestSurveyCorrection,
+} from "./field/corrections";
+export type {
+  CancelCorrectionInput,
+  CorrectionLineage,
+  CorrectionLineageEntry,
+  RequestCorrectionInput,
+  RequestedCorrection,
+} from "./field/corrections";
 export { readsAllFieldResponses, withFieldContext } from "./field/context";
 // EIA Field (Production V1, Wave 1): the scoped download a technician works from offline.
 export { buildFieldPack, decodeCursor, encodeCursor } from "./field/field-pack";
