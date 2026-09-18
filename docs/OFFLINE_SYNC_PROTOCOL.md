@@ -40,6 +40,23 @@ exactly five keys) rather than by string search.
 application, or syncs from a second device, must not start a second visit or a second response for
 work the server already holds.
 
+Each question also carries its **section** — the heading it is read under, in every language the
+version carries (ADR-037). Presentation only: an answer points at a question code, and no heading
+touches a code. The grouping is derived from the questions by the device rather than sent as a
+structure, so a heading can never disagree with the questions it claims to hold.
+
+### 3a. Protocol version 2
+
+`FIELD_SYNC_PROTOCOL_VERSION` moved from 1 to 2 when `section` was added, and the reason is the rule
+§4 relies on: the pack's schemas are `.strict()`, so a **new field** breaks an older device's parse.
+That is what distinguishes this from `media.declare`, which was added in Wave 2 without a bump — a
+new command *type* changes no existing meaning, and an old device simply never sends it.
+
+The version literal turns the failure into *your application is older than this server*, which is a
+sentence somebody can act on, rather than a validation error deep inside a questionnaire. Devices
+built against version 1 must be rebuilt; none is in anybody's hands
+(`docs/FIELD_MOBILE_BUILDS.md`).
+
 ## 4. The command envelope
 
 ```ts

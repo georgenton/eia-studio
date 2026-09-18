@@ -1,4 +1,9 @@
-import { loadProjectIntake, loadWorkspaceHeader } from "@eia/application";
+import {
+  loadProjectIntake,
+  loadSurveyAuthoring,
+  loadWorkspaceHeader,
+  type SurveyAuthoringView,
+} from "@eia/application";
 import { can } from "@eia/domain";
 import { notFound, redirect } from "next/navigation";
 
@@ -29,10 +34,10 @@ export default async function ProjectIntakePage({
   searchParams,
 }: {
   params: Promise<{ tenant: string; project: string }>;
-  searchParams: Promise<{ stage?: string }>;
+  searchParams: Promise<{ stage?: string; version?: string }>;
 }) {
   const { tenant, project } = await params;
-  const { stage: rawStage } = await searchParams;
+  const { stage: rawStage, version: rawVersion } = await searchParams;
   const access = await resolveSurfaceAccess(tenant, project, "intake");
 
   if (access.kind === "unauthenticated") redirect("/sign-in");
@@ -105,12 +110,31 @@ export default async function ProjectIntakePage({
     throw error;
   }
 
+  /*
+   * The questionnaires stage reads its own model (ADR-037), and only when it is the stage being
+   * looked at: authoring is the largest read on this page and the other seven stages have no use
+   * for it. A caller who may not read it gets `null` and the stage falls back to the summary it
+   * has always shown, rather than a denial for a page they are otherwise entitled to.
+   */
+  let authoring: SurveyAuthoringView | null = null;
+  const stage = isIntakeStage(rawStage) ? rawStage : "project";
+  if (stage === "surveys") {
+    try {
+      authoring = await loadSurveyAuthoring(getDb(), ctx, rawVersion ?? null);
+    } catch (error) {
+      // `accessForDomainError` answers `null` for anything that is not an access outcome, and an
+      // unexpected error must still reach the error boundary rather than becoming a quiet fallback.
+      if (accessForDomainError(error) === null) throw error;
+    }
+  }
+
   return (
     <WorkspaceShell {...shell}>
       <ProjectIntake
+        authoring={authoring}
         basePath={basePath}
         project={project}
-        stage={isIntakeStage(rawStage) ? rawStage : "project"}
+        stage={stage}
         tenant={ctx.tenantSlug}
         view={view}
       />

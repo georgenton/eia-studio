@@ -29,7 +29,8 @@ It is reached at `/t/:tenant/p/:project/intake`, governed by the `core.projects`
 is assigned to a project, like every other project role, and has no standing outside it.
 
 **Holds:** `project.intake.read`, `project.intake.write`, `parcels.read`, `parcels.write`,
-`geometry.import`, `field.read`, `documents.read`, `documents.write`, `provenance.read`.
+`geometry.import`, `field.read`, `field.instruments.author` (ADR-037), `documents.read`,
+`documents.write`, `provenance.read`.
 
 **Does not hold, and this is the role:**
 
@@ -37,6 +38,9 @@ is assigned to a project, like every other project role, and has no standing out
   assignments, counts) is a different grant, and the row-level policies enforce the distinction
   again underneath (SECURITY.md §10b).
 - `pii.read`, `pii.export`.
+- `field.instruments.publish` — they **write** the questionnaire and do not decide that households
+  will be asked it. Writing the instrument is preparation; publishing it is a statement the firm
+  makes (ADR-037).
 - `social.coding.review`, `social.ai.run`, `quality.write`, `quality.review` — they settle nothing.
 - `portal.preview`, `portal.publish` — they make no statement to the client.
 - `project.configure`, `project.members.manage`, and anything tenant-wide.
@@ -57,7 +61,7 @@ a part of the project they have not filled in, and *Preparación* is the one pla
 | 2 | Equipo / Team | who is on the project and in what role, active and suspended | no — assigning is the coordinator's act |
 | 3 | Cartografía / Cartography | active layer versions and parcels with geometry | no — importing uses the product's import contract |
 | 4 | Documentos / Documents | the corpus by code, its current version and how many versions exist | no in this wave |
-| 5 | Formularios / Questionnaires | every version, published or draft, and the languages it carries (ADR-029) | no — see §6 |
+| 5 | Formularios / Questionnaires | every version, published or draft, the languages it carries (ADR-029), **and where a questionnaire is written** (ADR-037) | yes — `field.instruments.author`, and `field.instruments.publish` to publish |
 | 6 | Plantillas / Templates | what the project's profile brings: instruments and the consistency rule set | no — see §6 |
 | 7 | Preparación / Readiness | the deterministic report | — |
 | 8 | Activación / Activation | move the project out of planning | yes, when operable |
@@ -111,10 +115,13 @@ Today exactly one channel earns it: `EIA_FIELD_MOBILE` (ADR-028). The native web
 
 ## 6. What preparing a project does **not** include
 
-- **Authoring questionnaires and templates.** The stages report what exists and say so plainly. No
-  permission is minted for authoring, because nothing would read it — an unread permission is a
-  switch that appears to do something and does not (TD-088). A questionnaire is still published
-  with the provisioning tools.
+- **Authoring report templates.** The *Plantillas* stage reports what the profile brings. A firm's
+  own `.docx` is uploaded and activated under *Informes* (ADR-036), not here.
+
+  Authoring **questionnaires** was in this list until Go-Live Wave A, and is not any more: stage 5
+  is where a `SurveyVersion` comes from (ADR-037, `docs/SURVEY_AUTHORING.md`). Two permissions were
+  minted for it, and neither is an orphan — both are read by that stage and by the use-cases behind
+  it.
 - **Importing cartography.** The GIS stage reports status; importing uses the product's own import
   contract (`docs/GIS_IMPORT_CONTRACT.md`). This screen converts no formats and reimplements no
   QGIS.

@@ -11,6 +11,7 @@ const question: PackQuestion = {
   helpText: "Marca una sola opción.",
   required: true,
   sensitivity: "NON_PERSONAL",
+  section: "Vivienda",
   options: [
     { code: "owner_occupier", label: "Propietario ocupante", ordinal: 0 },
     { code: "tenant", label: "Arrendatario", ordinal: 1 },
@@ -19,6 +20,7 @@ const question: PackQuestion = {
     en: {
       prompt: "Relationship to the parcel?",
       helpText: "Choose one option.",
+      section: "Housing",
       options: { owner_occupier: "Owner-occupier", tenant: "Tenant" },
     },
   },
@@ -54,6 +56,7 @@ describe("reading a questionnaire in another language", () => {
         en: {
           prompt: "Relationship to the parcel?",
           helpText: null,
+          section: "Housing",
           options: { tenant: "Tenant" },
         },
       },

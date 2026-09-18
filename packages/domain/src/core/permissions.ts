@@ -50,6 +50,20 @@ export const PROJECT_PERMISSIONS = [
   "field.responses.read",
   "field.validate",
   "field.write",
+  /*
+   * Writing the questionnaire, and deciding that people may be asked it, are two acts (ADR-037).
+   *
+   * `field.instruments.author` edits a DRAFT definition: questions, their order, their options and
+   * their second language. It touches nothing anybody has answered, because a published version is
+   * frozen by trigger and a correction is the next version.
+   *
+   * `field.instruments.publish` is the decision. From that moment a campaign can resolve answers
+   * against the definition for ever, so it is held by the coordinator alone — the same split the
+   * Quality Gate makes between running a check and settling a finding, and the one ADR-036 makes
+   * between validating a template and activating it.
+   */
+  "field.instruments.author",
+  "field.instruments.publish",
   "media.upload",
   "documents.read",
   "documents.write",

@@ -113,6 +113,23 @@ export type {
   StartVisitInput,
   VisitResult,
 } from "./field/use-cases";
+export {
+  createSurveyDraft,
+  createSurveyTemplate,
+  loadSurveyAuthoring,
+  publishSurveyVersion,
+  saveSurveyDefinition,
+} from "./field/authoring";
+export type {
+  AuthoringSelection,
+  AuthoringTemplateSummary,
+  AuthoringVersionSummary,
+  CreateSurveyDraftInput,
+  CreateSurveyTemplateInput,
+  PublishSurveyVersionInput,
+  SaveSurveyDefinitionInput,
+  SurveyAuthoringView,
+} from "./field/authoring";
 export { readsAllFieldResponses, withFieldContext } from "./field/context";
 // EIA Field (Production V1, Wave 1): the scoped download a technician works from offline.
 export { buildFieldPack, decodeCursor, encodeCursor } from "./field/field-pack";

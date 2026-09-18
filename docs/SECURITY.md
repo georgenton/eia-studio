@@ -237,7 +237,7 @@ what was answered there.
 | Application | `withFieldContext` sets `app.field_responses_access` from the resolved permission; use-cases check ownership before every mutation |
 | Row level | `field_assignment`, `field_visit`, `survey_instance` and `survey_answer` require *(this row is mine) OR `app.can_read_field_responses()`* in addition to tenant, project and project access |
 | Route | an assignment that is not the caller's own answers **404**, not a denial: a distinguishable error would confirm the row exists, which is what someone editing ids wants to learn |
-| Definition | the questionnaire itself is not an individual's data and stays readable to the project, so a technician can read the form they must fill in |
+| Definition | the questionnaire itself is not an individual's data and stays readable to the project, so a technician can read the form they must fill in. **Writing** it is the separate `field.instruments.author`, and **publishing** it the separate `field.instruments.publish` (ADR-037); neither grants anything about an answer, and a technician holds neither |
 
 `app.field_responses_access` is transaction-local and set only after `requirePermission` has
 passed; forging it would still leave every other conjunct in each policy — tenant, project,

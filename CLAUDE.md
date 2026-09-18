@@ -251,6 +251,22 @@ assertions.
 this and eight production projects is in `docs/PRODUCTION_V1_GO_LIVE.md` and
 `docs/PRODUCTION_RECOVERY.md`; the remaining blockers are decisions rather than engineering.
 
+**Go-Live Wave A — PR A (17 September 2026)** closes go-live blocker 8: **a questionnaire is written
+inside the product, and a published one is never edited** (ADR-037). *Preparar proyecto* →
+*Formularios* is where a `SurveyVersion` now comes from, behind two permissions rather than one —
+`field.instruments.author` writes a `DRAFT`, `field.instruments.publish` decides households may be
+asked it, and a *Gestor de información* holds the first and not the second. What is **not** built is
+the decision: no conditional logic, no expression syntax, no calculated question, no matrix, no
+repeating group, no new question type — each is a language four independent renderers would have to
+agree about exactly, and the surface writes only the questionnaire this product already asks,
+answers offline, synchronises and counts. A **section** is a heading, not an entity: moving a
+question between headings changes no code, no option, no denominator and not even the definition
+hash. A second language is complete or absent, checked at publication. Editing a published version
+is offered nowhere; a correction is the next version, copied, and the answers already given keep the
+questionnaire they were asked (ADR-006). `FIELD_SYNC_PROTOCOL_VERSION` is **2**, because the Field
+Pack's question gained `section` and the pack's schemas are `.strict()`. The map is
+`docs/SURVEY_AUTHORING.md`; the proof seeds nothing.
+
 ## Read before acting
 
 Approved design bundle (source of truth; precedence: README → prototype → spec v0.2 → screenshots):
@@ -279,13 +295,14 @@ Also relevant by task: `docs/DATA_MODEL.md`, `docs/PROVENANCE.md`, `docs/AI_GOVE
 `docs/DOCUMENT_UPLOAD_AND_VERSIONING.md`, `docs/FIELD_MEDIA.md`,
 `docs/DOCUMENT_EXTRACTION.md`, `docs/AI_DOCUMENT_REVIEW.md`, `docs/REPORT_TEMPLATES.md`,
 `docs/OFFLINE_SYNC_PROTOCOL.md`, `docs/FIELD_MOBILE_OFFLINE_UAT.md`,
+`docs/SURVEY_AUTHORING.md`,
 `docs/PRODUCTION_V1_GO_LIVE.md`, `docs/PRODUCTION_RECOVERY.md`,
 `docs/DATA_CLASSIFICATION_MATRIX.md`, `docs/GENERALISATION_AUDIT.md`, `docs/FIELD_MOBILE_BUILDS.md`,
 `docs/STAGING_OPERATIONS.md`,
 `docs/IMPLEMENTATION_PLAN.md`, `docs/DESIGN_BUNDLE_KNOWN_ISSUES.md`, the delivery docs
 `docs/ENGINEERING_STANDARDS.md`, `docs/RELEASE_POLICY.md`, `docs/CI.md`, `docs/DEPLOYMENT.md`,
 `docs/DEPENDENCIES.md`, `docs/TECH_DEBT.md`, the Gate record `docs/DECISIONS/GATE-1.md`, and
-the ADRs in `docs/DECISIONS/ADR-001` … `ADR-036`. Root `README.md` has the local quick start.
+the ADRs in `docs/DECISIONS/ADR-001` … `ADR-037`. Root `README.md` has the local quick start.
 
 ## Working rules for every session
 

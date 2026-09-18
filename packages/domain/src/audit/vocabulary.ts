@@ -38,6 +38,16 @@ export const AUDIT_ACTIONS = [
   "field.campaign.activated",
   "field.campaign.closed",
   "field.assignment.reassigned",
+  /*
+   * Writing a questionnaire inside the product (ADR-037). Two lines, for the two moments that
+   * matter: a new definition was opened for editing, and somebody decided households may be asked
+   * it. Saving a draft is not audited — a draft is a document being written, and a row per
+   * keystroke is noise nobody reads; what the draft finally said is what publication records.
+   *
+   * Neither line carries a prompt, an option's words or a section heading: a questionnaire's text
+   * lives on the version, once, and a second copy here would be a second thing to keep in step.
+   */
+  "field.survey.drafted",
   "field.survey.published",
   "field.survey.submitted",
   "field.media.declared",

@@ -57,6 +57,10 @@ export const locationOutcomeLabel = (t: Translator, value: string) =>
   vocabulary(t, "locationOutcome", value);
 export const reviewDecisionLabel = (t: Translator, value: string) =>
   vocabulary(t, "reviewDecision", value);
+export const questionTypeLabel = (t: Translator, value: string) =>
+  vocabulary(t, "questionType", value);
+export const questionSensitivityLabel = (t: Translator, value: string) =>
+  vocabulary(t, "questionSensitivity", value);
 export const offlineModeLabel = (t: Translator, value: string) =>
   vocabulary(t, "offlineMode", value);
 export const captureChannelLabel = (t: Translator, value: string) =>

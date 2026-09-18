@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Switch, TextInput, View } from "react-native";
 
 import { validateSubmission, type FieldIssue } from "../core/answers";
-import { localizeQuestion, type LocalizedQuestion } from "../core/localized-question";
+import { localizedSections, type LocalizedQuestion } from "../core/localized-question";
 import { surveyDraftCommand, surveySubmitCommand } from "../core/commands";
 import { fieldConfig } from "../config";
 import { useLocaleState, useT } from "../i18n";
@@ -157,16 +157,29 @@ export function SurveyScreen({
           />
         ) : null}
 
+        {/*
+            Grouped by heading (ADR-037), derived from the questions rather than sent as a
+            structure. A long form reads as a form; the order, the codes and what an answer means
+            are exactly what they were before headings existed.
+        */}
         {loaded
-          ? questions.map((question) => (
-              <QuestionField
-                answer={answers[question.code]}
-                editable={editable}
-                key={question.code}
-                localized={localizeQuestion(question, locale)}
-                onChange={(value) => void setAnswer(question, value)}
-                question={question}
-              />
+          ? localizedSections(questions, locale).map((group, index) => (
+              <View key={group.section ?? `__ungrouped_${index}`} style={styles.section}>
+                {group.section !== null ? <Heading>{group.section}</Heading> : null}
+                {group.questions.map((localized) => {
+                  const question = questions.find((entry) => entry.code === localized.code)!;
+                  return (
+                    <QuestionField
+                      answer={answers[question.code]}
+                      editable={editable}
+                      key={question.code}
+                      localized={localized}
+                      onChange={(value) => void setAnswer(question, value)}
+                      question={question}
+                    />
+                  );
+                })}
+              </View>
             ))
           : null}
 
@@ -331,6 +344,7 @@ const styles = StyleSheet.create({
   content: { padding: theme.space.lg, gap: theme.space.md },
   header: { gap: theme.space.xs },
   actions: { gap: theme.space.sm, marginTop: theme.space.md },
+  section: { gap: theme.space.md },
   input: {
     minHeight: theme.touch,
     borderWidth: 1,

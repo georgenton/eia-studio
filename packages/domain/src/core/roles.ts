@@ -69,6 +69,10 @@ export const PROJECT_ROLE_PERMISSIONS: Readonly<
     "field.responses.read",
     "field.write",
     "field.validate",
+    // Writes the questionnaire *and* decides it may be asked (ADR-037). The second key is the
+    // coordinator's alone: a published definition is what a campaign resolves answers against.
+    "field.instruments.author",
+    "field.instruments.publish",
     "documents.read",
     "documents.write",
     "social.read",
@@ -103,6 +107,11 @@ export const PROJECT_ROLE_PERMISSIONS: Readonly<
     // The operational workflow — campaigns, assignments, counts — which the readiness report and
     // the intake's field stage read. Deliberately *not* `field.responses.read` (SECURITY.md §10b).
     "field.read",
+    // Writing the instrument is preparation: it is the form, not anybody's answers, and a project
+    // that has no questionnaire cannot be operated at all (ADR-037). Deliberately *not*
+    // `field.instruments.publish`: deciding that households will be asked this is the
+    // coordinator's decision, and this role decides nothing.
+    "field.instruments.author",
     "documents.read",
     "documents.write",
     "provenance.read",

@@ -62,8 +62,8 @@ Derived from the README role list and the prototype matrix (PRODUCT.md §3):
 
 | Role | Label (UI) | Permissions (project scope) |
 |---|---|---|
-| `COORDINATOR` | Coordinador de proyecto | project.configure, project.members.manage, project.intake.read, project.intake.write, parcels.write, field.write, field.validate, social.read, quality.write, reports.write, deliverables.approve, portal.publish, pii.read (audited) |
-| `PROJECT_DATA_MANAGER` | Gestor de información | project.intake.read, project.intake.write, parcels.read, parcels.write, geometry.import, field.read, documents.read, documents.write, provenance.read |
+| `COORDINATOR` | Coordinador de proyecto | project.configure, project.members.manage, project.intake.read, project.intake.write, parcels.write, field.write, field.validate, field.instruments.author, field.instruments.publish, social.read, quality.write, reports.write, deliverables.approve, portal.publish, pii.read (audited) |
+| `PROJECT_DATA_MANAGER` | Gestor de información | project.intake.read, project.intake.write, parcels.read, parcels.write, geometry.import, field.read, field.instruments.author, documents.read, documents.write, provenance.read |
 | `SOCIAL_SPECIALIST` | Especialista social | parcels.read, field.read, social.write (coding, taxonomy proposal decisions), quality.write, reports.write, pii.read, pii.export (audited) |
 | `ENVIRONMENTAL_SPECIALIST` | Especialista ambiental | parcels.read, field.read, documents.write, quality.write, reports.write |
 | `GIS_SPECIALIST` | Cartógrafo / GIS | parcels.write, geometry.import, field.read (no PII), quality.read |
@@ -106,6 +106,7 @@ project:   project.configure, project.members.manage,
            geometry.import, field.read, field.campaigns.manage, field.assignments.manage,
            field.assignments.read_own, field.responses.read,
            field.capture, field.validate, field.write,
+           field.instruments.author, field.instruments.publish,
            media.upload, documents.read, documents.write, social.read, social.write,
            social.ai.run, social.coding.review,
            taxonomy.approve, quality.read, quality.write, quality.review,
@@ -135,6 +136,8 @@ place in the product where project access is deliberately not enough.
 | `field.assignments.read_own` | see *my* assignments and nobody else's | FIELD_TECHNICIAN (and implied for anyone with `field.read`) |
 | `field.capture` | start a visit, save a draft, submit a response — on my own assignments | FIELD_TECHNICIAN, COORDINATOR |
 | `field.responses.read` | read an individual response and its answers, whoever captured it | COORDINATOR, SOCIAL_SPECIALIST, REVIEWER |
+| `field.instruments.author` | write a **draft** questionnaire: questions, order, options, the second language | COORDINATOR, PROJECT_DATA_MANAGER |
+| `field.instruments.publish` | publish it, so a campaign may resolve answers against it for ever | COORDINATOR |
 
 A `FIELD_TECHNICIAN` holds neither `field.read` nor `field.responses.read`: they see their own
 work and no one else's. A `GIS_SPECIALIST` holds `field.read` but not `field.responses.read`: they
@@ -260,6 +263,28 @@ nothing. No `portal.publish`, so they make no statement to the client. Nothing t
 
 `field.read` *is* granted: the operational workflow — campaigns, assignments, counts — which the
 readiness report reads, and which §3.1 already distinguishes from an individual's answers.
+
+### 3.6 Writing the questionnaire is not deciding it is asked (ADR-037)
+
+Until Go-Live Wave A a `SurveyVersion` could be created only by the demonstration seeder. Writing
+one is now a product act, and it is **two** grants rather than one.
+
+| Key | Grants | Held by |
+|---|---|---|
+| `field.instruments.author` | edit a `DRAFT` definition: its questions, their order, their options, their second language | COORDINATOR, PROJECT_DATA_MANAGER |
+| `field.instruments.publish` | publish it — from that moment a campaign resolves answers against it for ever, and nothing about it may change again | COORDINATOR |
+
+The split is the one the Quality Gate already makes between running a check and settling a finding
+(§3.3), and ADR-036 makes between validating a template and activating it.
+
+`PROJECT_DATA_MANAGER` gains the first because writing the instrument *is* preparation — a project
+with no questionnaire cannot be operated at all — and not the second, because deciding that
+households will be asked something is a statement the firm makes and this role makes none. Nothing
+else about the role moved: no `field.responses.read`, no `pii.read`, no `social.coding.review`, no
+`quality.review`, no `portal.publish`, and an integration test asserts each absence.
+
+Neither key authorizes reading an answer. The questionnaire is the form, not anybody's responses,
+and §3.1's door is unchanged.
 
 ## 3a. Identity provider boundary (Gate 1 D-016, ADR-010)
 

@@ -537,3 +537,41 @@ question whatever language it was read in, and that adding, rewording or deletin
 `packages/application/test/field-sync.integration.test.ts` asserts the Field Pack carries both
 languages, that the codes are identical in both, and that an untranslated question keeps its
 Spanish wording rather than vanishing from the English form.
+
+## 21. Writing a questionnaire, and what is proved about it (ADR-037)
+
+A `SurveyVersion` used to come only from the demonstration seeder. It now comes from the product,
+and the tests are arranged so that **nothing about the proof depends on the seeder**.
+
+**The contract test** — `packages/application/test/survey-authoring.integration.test.ts` — is one
+sentence: a form written in the web application is the same form the phone asks, and the answers it
+produces tabulate.
+
+```
+createSurveyTemplate (data manager) → saveSurveyDefinition → publishSurveyVersion (coordinator)
+  → buildFieldPack → the device's own render → survey.submit, offline
+  → the same command again → loadTabulation
+```
+
+| It asserts | Because otherwise |
+|---|---|
+| a `PROJECT_DATA_MANAGER` writes the definition and is **refused** publication | a role that prepares a project would also be deciding what households are asked |
+| that role still holds no `field.responses.read`, `pii.read`, `social.coding.review`, `quality.review` or `portal.publish` | a convenience added one of them and nobody noticed |
+| a `FIELD_TECHNICIAN` can write nothing | the person filling in the form could rewrite it |
+| a published version refuses every edit, whoever asks | an answer's meaning could change after it was given (ADR-006) |
+| `published_by_user_id` names who decided, beside when | *who published this?* stops being answerable |
+| a correction is `v2`, copied, and `v1` keeps its words | an edit would be an edit |
+| one draft per questionnaire | *what is being written* would have two answers |
+| the Field Pack carries the section, the heading's other language, and **one set of codes for both** | an English screen would produce answers no Spanish reader could join back |
+| the same submit twice is one response | ADR-028's invariant, over an authored questionnaire rather than a seeded one |
+| the tabulation counts it, with the definition's own words as labels | the path would be proved up to the database and no further |
+
+**The domain rules** are `packages/domain/test/survey-authoring.test.ts`: codes, ordinals, bounds,
+the heading that may not be interrupted, the locale coverage that makes a second language complete
+or absent, and the one that is easiest to break quietly — **moving a question between headings does
+not change `surveyVersionHash`**, because a heading touches nothing an answer means.
+
+**The browser half** is `e2e/survey-authoring.spec.ts`, on a project it creates itself, with no
+fixture and no SQL: the stage, the form, the save, the publication warning stated *before* the
+button, and then the assertion that matters — after publication there is no *Editar* link at all,
+only *Ver como se lee*.
