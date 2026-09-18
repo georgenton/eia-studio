@@ -627,3 +627,12 @@ answer for the same chain.
 
 **The browser** — `e2e/survey-corrections.spec.ts`, in both languages, ending on the word that must
 never appear: no *Editar respuesta enviada*, no *Eliminar*, in Spanish or in English.
+
+**On staging** — `packages/testing/test/staging/corrections.staging.test.ts`, read-only, asserting
+the half of a migration a container cannot vouch for: FORCE RLS, the composite FK, the absent DELETE
+grant and its trigger, the partial unique indexes and CHECKs, and the index that keeps *one ordinary
+assignment per parcel per campaign* what it was. The assertion worth running there more than
+anywhere is that **the effective view runs as the caller** — without `security_invoker` it hands
+back rows the caller's policies refuse, and every analytic in this product reads it. It also checks
+ADR-037's two heading CHECKs and reads the immutability function's own source to confirm
+`published_by_user_id` is frozen with the rest of a published version.

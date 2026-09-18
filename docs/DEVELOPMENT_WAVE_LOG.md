@@ -1275,3 +1275,10 @@ visit's responses does not start holding them because a figure was wrong.
 **Closed**: TD-036, TD-084, TD-114, go-live blocker 6. **Narrowed**: TD-041 — a coding of a
 superseded answer now stops contributing on its own. **Opened**: TD-115 (a correction is never
 reassigned), TD-116 (a cancelled correction leaves a cancelled assignment).
+
+**Staging, after both PRs.** Migrations 0048 … 0051 applied with a before/after baseline recorded in
+`STAGING_OPERATIONS.md` §0: four new columns, one new table, two new CHECK constraints, and the
+first **view** this schema has ever had. The ledger moved 48 → 52, which is every entry in the
+journal, and `pnpm test:staging` passes **109** assertions there — ten of them new, including the
+one that matters most on a real database rather than a container: `app.effective_survey_instance`
+runs as the **caller**, not as its owner.
