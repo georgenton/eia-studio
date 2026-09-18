@@ -636,3 +636,35 @@ anywhere is that **the effective view runs as the caller** — without `security
 back rows the caller's policies refuse, and every analytic in this product reads it. It also checks
 ADR-037's two heading CHECKs and reads the immutability function's own source to confirm
 `published_by_user_id` is frozen with the rest of a published version.
+
+## 23. Why the e2e suite is serial, and what would have to change
+
+`playwright.config.ts` sets `fullyParallel: false` and `workers: 1`. That is a decision, not a
+default nobody revisited, and it is written down here because the obvious optimisation — raise the
+worker count, halve the wall clock — would be wrong today.
+
+**The suite is not independent checks over a read-only fixture.** It is journeys that write to one
+database, and several projects depend on rows an earlier one left behind. The `dependencies` chains
+say so:
+
+```
+setup → coordinator → document-pipeline → document-review → templates → second-project
+```
+
+and beside them: the technician's capture path, the correction revisit that corrects a response the
+technician project submitted, the quality workflow whose reviewer settles a finding the coordinator
+produced, the portal publication, and report versions generated from data the social project
+validated.
+
+Two workers running those concurrently would race on the same rows. The failure mode is not a red
+build — it is a red build **sometimes**, which is the most expensive kind. TD-118 is what one
+intermittent e2e failure costs to investigate honestly.
+
+**The precondition for changing it**, stated so nobody has to re-derive it: each mutating suite gets
+its own project — or its own database — through an intentional fixture strategy, so two workers
+cannot touch the same rows. Sharding across runners has the same precondition. Until then the
+honest optimisation is elsewhere, and the largest one available was removing the duplicate CI
+workflow (`docs/CI.md` §3.0), which deleted no coverage at all.
+
+**Measured cost**, so the trade is visible: Playwright itself is about **8 minutes** of a roughly
+**10-minute** `e2e` job, at 268 tests on one worker (`docs/CI.md` §3.2).

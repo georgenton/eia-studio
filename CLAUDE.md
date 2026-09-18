@@ -296,8 +296,9 @@ both), `docs/CONSULTANCY_TEMPLATE_REQUEST.md`, `docs/EIGHT_ROAD_ONBOARDING.md` �
 **`pnpm restore:drill`**, which was **run and passed** on synthetic local data — 52 of 52 migrations,
 71 tables all FORCE RLS, 142 policies, the effective-response view back with `security_invoker` —
 while claiming nothing about a provider restore nobody can perform yet. Storage is still
-`NOT_CONFIGURED` everywhere, no mobile build exists on any machine, MapTiler's non-custom plans
-**forbid commercial use**, and every remaining gate ends at an owner action rather than at code.
+`NOT_CONFIGURED` everywhere, no mobile build exists on any machine, the staging MapTiler key is a **Free**
+key and Free permits no commercial use, and every remaining gate ends at an owner action rather
+than at code.
 
 ## Read before acting
 

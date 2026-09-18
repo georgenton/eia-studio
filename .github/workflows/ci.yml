@@ -3,11 +3,31 @@
 # "db" runs migrations, extension verification, RLS and the cross-tenant harness via Testcontainers.
 name: ci
 
+# One run per commit, not two.
+#
+# `push: ["**"]` beside `pull_request` meant every commit on a branch with an open PR built the
+# same code twice — measured on PR #48's head `6fbb39b`, which produced runs 35380531656 (push)
+# and 35380537345 (pull_request), each running quality, db and e2e to completion. Roughly fifteen
+# minutes of identical work per commit, and two green ticks that proved one thing.
+#
+# The fix is the trigger, not the jobs: a PR branch is covered by `pull_request`, and `main` — which
+# has no PR of its own once a merge lands — is covered by `push`. Coverage is unchanged.
+#
+# Deliberately not done: querying the API for "does this branch have an open PR?". That is a
+# condition evaluated per job, in a step, after the runner has already started — it saves nothing
+# and adds a failure mode.
 on:
-  push:
-    branches: ["**"]
   pull_request:
+  push:
+    branches:
+      - main
 
+# Unchanged, and correct after the trigger change rather than by coincidence.
+#
+# `github.ref` is `refs/pull/N/merge` for a pull_request event and `refs/heads/main` for a push to
+# main, so the two can never share a group: a feature branch cannot cancel a main run. Pushing a new
+# commit to an open PR raises a second `pull_request` event with the *same* ref, which is exactly
+# the run that should be cancelled.
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -195,3 +215,21 @@ jobs:
           name: playwright-report
           path: playwright-report/
           retention-days: 7
+
+      # The raw evidence, which the HTML report summarises rather than contains: the trace zips
+      # Playwright keeps on failure (`trace: retain-on-failure`), the screenshots, and the
+      # `error-context.md` page snapshot. Diagnosing TD-118 needed exactly these and they were not
+      # retained, so the failure had to be reproduced locally to be looked at.
+      #
+      # Safe to keep: every environment this suite runs in holds synthetic, PII-free demo data by
+      # construction (SECURITY.md §12a), and the artefact expires in seven days on a private
+      # repository. It carries no database dump, no environment file and no credential — the web
+      # server's own output is already in the job log, which is where it belongs.
+      - name: Upload the raw failure evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-failure-evidence
+          path: test-results/
+          retention-days: 7
+          if-no-files-found: ignore

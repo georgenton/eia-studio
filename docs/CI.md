@@ -11,7 +11,8 @@
   `engines`; pnpm pinned via `packageManager`.
 - Caching: pnpm store keyed by lockfile; Turborepo remote cache optional later.
 - Secrets never printed; CI has no production credentials at any stage.
-- Concurrency: one run per branch (`cancel-in-progress: true`) to save minutes.
+- Concurrency: one run per branch (`cancel-in-progress: true`), and **one workflow per commit** —
+  a PR branch runs `pull_request` only and `main` runs `push` only (§3.0).
 
 ## 2. Stages
 
@@ -110,11 +111,57 @@ the production-readiness gate (DEPLOYMENT.md §6).
 
 | Job | Trigger | Required for merge | Introduced |
 |---|---|---|---|
-| `quality` | push to branches, PRs | yes | Stage A (grows B, E) |
-| `db` | PRs, push to `main` | yes | Stage C |
-| `e2e` | nightly, PRs labelled `e2e`, push to `main` | no (advisory) | Stage D |
+| `quality` | every PR; push to `main` | yes | Stage A (grows B, E) |
+| `db` | every PR; push to `main` | yes | Stage C |
+| `e2e` | every PR; push to `main` | yes in practice | Stage D |
 | `release` | push to `main` | n/a | Stage F |
 | `deploy-staging` | push to `main` (only if CI-driven deploys are chosen) | n/a | Stage G |
+
+### 3.0 One run per commit (18 September 2026)
+
+The workflow used to trigger on `push: ["**"]` **and** `pull_request`. On a branch with an open PR
+that is two complete runs of the same three jobs over the same code — measured on PR #48's head
+`6fbb39b`, which produced run `35380531656` (push) and run `35380537345` (pull_request), both
+running `quality`, `db` and `e2e` to completion, for roughly fifteen minutes of duplicated work.
+
+The trigger is now:
+
+```yaml
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+```
+
+A feature branch is covered by `pull_request`; `main` — which has no pull request of its own once a
+merge lands — is covered by `push`. **No job was removed and no coverage changed**; the largest
+available saving here was the duplicate workflow, not a deleted test.
+
+The concurrency key is unchanged and correct for the same reason it always was: `github.ref` is
+`refs/pull/N/merge` for a pull-request event and `refs/heads/main` for a push to main, so the two
+can never share a group and a feature branch cannot cancel a main run — while a new commit on an
+open PR raises a second event with the *same* ref, which is the run that should be cancelled.
+
+### 3.2 What a run actually costs
+
+Measured on PR #48's two runs (18 September 2026). These are **observations, not a service level**:
+a hosted runner varies, and nothing in the repository asserts or enforces these numbers.
+
+| Job | `pull_request` run `35380537345` | `push` run `35380531656` |
+|---|---|---|
+| `quality` | 2m20s | 2m11s |
+| `db` | 2m00s | 2m14s |
+| `e2e` (whole job) | 10m11s | 9m51s |
+| — of which Playwright itself | **7m59s** | **7m43s** |
+
+`quality` and `db` run in parallel; `e2e` sets up a database, seeds the demo fixture, builds the web
+application and then runs the suite, so the job is always several minutes longer than the suite.
+
+**Playwright runs with one worker and no parallelism, deliberately** — the suite is a set of
+journeys that write to one database and depend on each other through `dependencies` chains, so
+raising the worker count would trade wall-clock for nondeterministic races. The reasoning and the
+precondition for changing it are in `playwright.config.ts`, beside the setting.
 
 ### 3.1 The database CI runs on an ephemeral database, and only on one (IG3-001)
 
