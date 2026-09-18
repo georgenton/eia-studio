@@ -128,7 +128,9 @@ imagery, and the road is the subject of the study.
 demonstration** (owner authorisation, 7 September 2026). This is not a commercial production
 licence and says nothing about production readiness: **Production is not configured, and the
 production branch was not touched.** Before a real engagement is served from this, the plan and its
-terms are the owner's decision to revisit.
+terms are the owner's decision to revisit. Which paid plan that has to be — Flex covers commercial
+use for a standard use case, and only Custom permits reselling — is set out as an open licensing
+question in `docs/PRODUCTION_INFRASTRUCTURE_DECISION.md` §5a.
 
 | | |
 |---|---|

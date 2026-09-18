@@ -24,13 +24,14 @@ magnitude, not so anybody can budget from them.
 | Persistent worker | **Railway** | Hobby → Pro | $5–20 + usage | **Keep.** Already running for staging |
 | PostgreSQL + PostGIS | **Neon** (recommended) | Launch + instant restore | ~$25–40 | **Change.** The current image cannot do PITR — §3 |
 | Object storage | **Cloudflare R2** (recommended) | pay-as-you-go | ~$1–5 | **New.** Nothing exists — §4 |
-| Reference basemap | **MapTiler** | **Custom contract required** | to be quoted | **Blocker.** Free and Flex forbid commercial use — §5 |
+| Reference basemap | **MapTiler** | Flex, or Custom — §5a | $30, or quoted | **Buy.** The staging key is a Free key, which permits no commercial use |
 | Mobile distribution | **EAS** | Free → Production | $0–99 | **New.** No account exists — §6 |
 
 Approximate floor, excluding the MapTiler contract and any Apple/Google fees: **$50–85 per month**.
 
-**Two of these are not engineering decisions.** The database has a hard technical blocker (§3) and
-the basemap has a licensing one (§5). The rest is filling in accounts.
+**Two of these are not engineering decisions.** The database has a hard technical blocker (§3); the
+basemap needs a paid plan and a licensing question answered about which one (§5a). The rest is
+filling in accounts.
 
 ## 2. Web application — Vercel
 
@@ -121,19 +122,49 @@ To be set **at creation**, before any object exists:
 | Credential | **Least privilege**: `GetObject`, `PutObject`, `HeadObject`, `DeleteObject`, `ListBucket` on **this bucket only**. No account-level key, no bucket creation, no policy modification | A key that can create buckets is a key that can create a public one |
 | Lifecycle to archive / cold tiers | **Not enabled.** A paid decision nobody has taken | The hard stop |
 
-## 5. Reference basemap — a licensing blocker
+## 5. Reference basemap
 
 | | |
 |---|---|
 | **Provider** | MapTiler. A `MAPTILER_KEY` exists in the Vercel **Preview** environment; production has none |
-| **Tier** | **Published terms read 18 September 2026**: Free (5,000 sessions, *"testing, personal or non-commercial use"*) and Flex ($30/month, 25,000 sessions) **do not permit commercial use**. Only a **Custom prepaid contract** does |
-| **≈ / month** | **Unknown — must be quoted.** A consultancy delivering paid studies to a government customer is commercial use by any reading |
+| **Tier** | **Published terms read 18 September 2026.** **Free** is *"suitable for testing, personal or non-commercial use"* and permits no commercial use. **Flex** ($30/month, 25,000 sessions) is *"pay-as-you-go with all the features needed for any standard use case"* and **does permit commercial use**. **Custom** is the plan for high traffic, an SLA, team accounts — and it is the **only plan that permits reselling**: *"The only plan which allows reselling is the CUSTOM plan"* |
+| **≈ / month** | **$30 if Flex fits; otherwise a Custom quotation.** Which one applies is §5a's question |
 | **Failure mode** | Already handled: no key configured → the GIS surface renders *sin fondo*, every layer, the selection and both legends intact. A revoked key behaves the same way, and there is an e2e project that proves it |
-| **Owner action** | **Contact MapTiler for a commercial quotation**, or choose an alternative whose licence permits commercial use, and restrict the production key by origin |
-| **Why it is flagged** | This is the one line item that could be assumed settled because a key already exists. It is not: the key that works is not necessarily a key that may be used |
+| **Owner action** | Decide with MapTiler which plan the production model falls under (§5a), then buy it and **restrict the production key by origin** |
+| **Why it is flagged** | The staging key is a **Free** key, and Free permits no commercial use. Something has to be bought before production regardless; what remains open is only *which* |
 
-An acceptable alternative is any basemap whose terms permit commercial use; the product reads a tile
-URL template and one key from configuration, so changing provider is configuration, not code.
+### 5a. Which plan, and the question that decides it
+
+**Correction, recorded rather than quietly edited.** An earlier draft of this document said *"Free
+and Flex plans forbid commercial use"*. That was overbroad and wrong about Flex: MapTiler's published
+comparison marks commercial use as **permitted** on Flex, and describes it as covering *"any standard
+use case"*. What Flex does **not** cover is **reselling**, which is Custom's alone.
+
+So the open question is not *may this be used commercially* — it may, on a paid plan — but:
+
+> **Does serving MapTiler tiles inside EIA Studio to a consulting firm's own staff, as part of a
+> licensed product they pay us for, count as a standard use case or as reselling MapTiler's
+> service?**
+
+Reasonable arguments exist both ways, and this document is not the place they get settled:
+
+- it looks like a **standard use case**: the tiles are a background inside an application that does
+  something else entirely, the audience is the consultancy's own staff, and nobody is being sold a
+  map;
+- it looks like it could touch **reselling**: MapTiler's service is reaching end users who have a
+  commercial relationship with us rather than with MapTiler.
+
+**This is a licensing question for MapTiler and for whoever advises on the contract — not an
+engineering judgement, and explicitly not one this document makes.** What is written here must not
+be read as *"Flex is sufficient for EIA Studio"*.
+
+What is certain: **the current staging key is a Free key, and Free permits no commercial use.** A
+paid arrangement of some kind is required before production, and confirming which one is the owner
+action.
+
+An acceptable alternative is any basemap whose terms cover the final usage model; the product reads
+a tile URL template and one key from configuration, so changing provider is configuration, not
+code.
 
 ## 6. Mobile distribution
 
@@ -222,6 +253,7 @@ the same check applies.
 - It does not purchase, provision or deploy anything.
 - It does not choose a region; §7 says why that is not ours to choose.
 - It does not claim a price. Every figure is a list price read on one day and must be re-verified.
-- It does not treat the MapTiler key that works today as a key that may be used commercially.
+- It does not treat the MapTiler key that works today as a key that may be used commercially — it is a
+  Free key. Nor does it claim which paid plan applies; §5a says why that is not ours to decide.
 - It does not call recovery ready. That needs a restore somebody actually performed
   (`PRODUCTION_RECOVERY.md` §6), and nobody has.

@@ -511,7 +511,7 @@ model call, no production deployment, no persistent staging mutation.
 | Branch / PR | `feat/consultancy-validation-readiness` · PR #25 |
 | Merge SHA | `6f3c7ee` |
 | Migrations | **none** |
-| Tests | unit **705**, integration **398**, Playwright **177** |
+| Tests | unit **307**, integration **398**, Playwright **177** — corrected 18 Sep 2026 from a recorded *705*, which was a slip: CI run 34059256343 on `6f3c7ee` logs `307 passed` for the unit suite and `177 passed` for Playwright |
 
 **Scope delivered.** `pnpm demo:preflight` (seven checks: which database was reached, migrations
 against the repository's journal, PostGIS, `eia_app` without `BYPASSRLS`, RLS forced everywhere, the
@@ -754,8 +754,8 @@ with nobody behind it (TD-005, TD-078).
 
 | | |
 |---|---|
-| Branch / PR | `feat/field-mobile-foundation` · PR pending |
-| Merge SHA | pending |
+| Branch / PR | `feat/field-mobile-foundation` · **PR #32** |
+| Merge SHA | **`2d7f7dd2`** |
 | Migrations | `0031_eia_field_capture_channel` (enum value) · `0032_field_sync_receipt` (table) · `0033_field_sync_receipt_rls` (grants, FORCE RLS, write-once) |
 | ADR | **ADR-028** — EIA Field is the offline capture channel, and it syncs commands rather than rows |
 | Scope | the offline pipeline end to end. No media, no background sync, no native release build, no production |
@@ -797,8 +797,12 @@ toolchain is publicly hoisted in a scoped pattern rather than switching the mono
 graph — needed because *pure* and *bundle-safe* are different properties and `documents/chunking.ts`
 imports `node:crypto`.
 
-**Tests**: unit 358 → **403**, integration 427 → **452**, plus the reproducible handset procedure in
-`docs/FIELD_MOBILE_OFFLINE_UAT.md`. Both platform bundles build (`expo export`); native builds need
+**Tests**: unit 358 → **403**, integration 427 → **452**, **Playwright 215**, plus the reproducible
+handset procedure in `docs/FIELD_MOBILE_OFFLINE_UAT.md`.
+
+*(The PR number, the merge SHA and the Playwright count were left blank when this entry was written
+before the merge, and were never filled in. Recovered 18 Sep 2026 from CI run 35152229858 on
+`2d7f7dd2`, which logs `215 passed`.)* Both platform bundles build (`expo export`); native builds need
 SDKs this machine does not have, which is recorded rather than glossed.
 
 ## Production V1 · Wave 2 · PR 1 — the product is bilingual (16 September 2026)
@@ -1108,7 +1112,7 @@ different place: *what may this product claim?*
 - A **citation** that names a page when there is one and a heading trail when there is not, and a
   scan that contributes no passage at all (#37).
 
-**Counts across the wave**: unit 403 → **551**, integration 452 → **518**, Playwright 235 → **241** — measured on merged `main` at `a6e7769`, not summed from the entries above.
+**Counts across the wave**: unit 403 → **551**, integration 452 → **518**, Playwright **215 → 241** — measured on merged `main` at `a6e7769`, not summed from the entries above. *(The starting Playwright figure was recorded as 235 and is corrected here to 215: CI run 35152229858 on `2d7f7dd2`, the commit this wave started from, logs `215 passed`, and run 35174680696 on `a6e7769` logs `241 passed`. The wave added 26 Playwright tests, not 6.)*
 Migrations 0034 … 0043, every one additive and forward-only, no backfill, no destructive change, no
 RLS weakened, no `BYPASSRLS` anywhere.
 
@@ -1298,8 +1302,11 @@ stands between here and 15 October, and who owns each piece?*
 - **No build machine capability exists**: no Expo session, no EAS project id, no Android SDK, no
   JDK, no full Xcode, no handset. Both routes to an Android build are closed, and the cheaper one to
   open is an Expo account, which is free.
-- **MapTiler's Free and Flex plans forbid commercial use.** A key that works in staging is not a key
-  the consultancy may use. This is the finding most likely to have been assumed settled.
+- **The staging MapTiler key is a Free key, and Free permits no commercial use.** A key that works
+  is not a key the consultancy may use. *(This entry first said "Free **and Flex** forbid commercial
+  use", which was wrong about Flex and is corrected in the CI-hygiene wave below: Flex does permit
+  commercial use; Custom is the plan required for **reselling**, and which of the two applies is a
+  licensing question rather than an engineering one.)*
 - **`survey_instance.respondent_user_id` holds the *technician's* id**, not a respondent's — found
   while writing the privacy checklist and recorded as TD-117 rather than renamed in a readiness
   wave.
@@ -1324,3 +1331,53 @@ belongs.
 
 **Opened**: TD-117. **Nothing closed** — every gate in this wave ends at an owner action, which is
 the finding.
+
+### CI hygiene — one run per commit, and three corrections (18 September 2026)
+
+No product change. A workflow trigger, a comment beside a setting, and three things the record got
+wrong.
+
+**Every commit on a branch with an open PR was built twice.** `push: ["**"]` beside `pull_request`
+meant the same three jobs ran over the same code under two events. Measured rather than assumed: PR
+#48's head `6fbb39b` produced run `35380531656` (push) and run `35380537345` (pull_request), each
+running `quality`, `db` and `e2e` to completion — about fifteen minutes of duplicated work per
+commit, and two green ticks that proved one thing. The trigger is now `pull_request` plus
+`push: [main]`. **No job removed, no coverage changed**, and the concurrency key was left alone
+because it was already correct: a pull-request event's ref is `refs/pull/N/merge` and a main push's
+is `refs/heads/main`, so a feature branch cannot cancel a main run.
+
+**Playwright stays at one worker**, and the reason is now written beside the setting rather than
+assumed. The suite is journeys that write to one database with explicit `dependencies` chains;
+raising the worker count trades six minutes of wall clock for races between suites that share rows,
+and the failure mode is a build that is red *sometimes*. The precondition for changing it — per-suite
+project or database isolation — is recorded in `TESTING_STRATEGY.md` §23.
+
+**Three corrections, each provable from retained CI logs rather than reasoned about:**
+
+| Recorded | Actual | Evidence |
+|---|---|---|
+| Validation 1 (`6f3c7ee`): unit **705** | **307** | run 34059256343 logs `307 passed` |
+| Wave 1 (PR #32): PR *pending*, SHA *pending*, no Playwright count | **#32**, **`2d7f7dd2`**, **215** | run 35152229858 logs `215 passed` |
+| Wave 2 closing: Playwright **235** → 241 | **215** → 241 | the two runs above and 35174680696 |
+
+The Wave 2 note claimed the wave added six Playwright tests. It added **twenty-six**. The Wave 1
+entry was written before its merge and never backfilled, which is how the baseline went missing in
+the first place.
+
+**And a fourth correction, of this programme's own work.** The Go-Live readiness wave wrote that
+*"MapTiler's Free and Flex plans forbid commercial use"*. That was overbroad and wrong about Flex:
+their published comparison marks commercial use **permitted** on Flex, which covers *"any standard
+use case"*. Custom is the only plan that permits **reselling**. So the open question is not whether
+this may be used commercially but **whether serving tiles inside a licensed product to a paying
+consultancy is a standard use case or reselling** — a licensing question for MapTiler, set out both
+ways in `PRODUCTION_INFRASTRUCTURE_DECISION.md` §5a and deliberately not decided there. What remains
+certain is narrower and still true: the staging key is a **Free** key, and Free permits no commercial
+use.
+
+**TD-118 stays open** and gains the CI evidence that makes contention the more likely explanation —
+268/268 twice on a different machine — without being called fixed: a flake absent from two runs is a
+flake nobody has explained. Retries stay at 1. What *was* missing is now uploaded: the
+`playwright-failure-evidence` artefact carries the traces, screenshots and page snapshots that had to
+be reproduced locally last time. **Opened**: TD-119 — a Next production build replaces a server
+error's stack with a digest, and mapping one back needs application code written for CI's benefit,
+which this wave declined to write.

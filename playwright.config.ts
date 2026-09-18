@@ -73,6 +73,31 @@ const basemapBaseURL = `http://127.0.0.1:${BASEMAP_PORT}`;
 
 export default defineConfig({
   testDir: "./e2e",
+  /*
+   * One worker, no parallelism, and this is a decision rather than a default nobody revisited.
+   *
+   * The suite is not a set of independent checks over a read-only fixture. It is a series of
+   * **journeys that write to one database**, and several of them depend on what an earlier project
+   * left behind — the `dependencies` chains say so out loud:
+   *
+   *   setup → coordinator → document-pipeline → document-review → templates → second-project
+   *
+   * and beside them the technician's capture path, the correction revisit that corrects a response
+   * the technician project submitted, the quality workflow whose reviewer settles a finding the
+   * coordinator produced, the portal publication, and the report versions generated from data the
+   * social project validated.
+   *
+   * Raising `workers` before Go-Live would trade about six minutes of wall clock for
+   * nondeterministic races between suites that share rows — and the failure mode is not a red
+   * build, it is a red build **sometimes**, which is the most expensive kind to diagnose. TD-118 is
+   * a live demonstration of how much time one intermittent e2e failure costs.
+   *
+   * **The boundary for changing this**: parallelise only when each mutating suite can be given its
+   * own project (or its own database) by an intentional fixture strategy, so that two workers
+   * cannot touch the same rows. Sharding across runners has the same precondition. Until then the
+   * honest optimisation is elsewhere — removing the duplicate workflow saved more than parallelism
+   * would have, and deleted no coverage.
+   */
   fullyParallel: false,
   workers: 1,
   retries: process.env.CI ? 1 : 0,

@@ -14,7 +14,7 @@
 | 3 | Create an Expo account and build an APK | Jorge | offline field capture, the physical UAT | free |
 | 4 | Provide one Android handset | Jorge / consultancy | the UAT — nothing else can substitute | a phone |
 | 5 | Verify a database provider, then buy it | Jorge | production, backups, PITR | ~$25–40/mo |
-| 6 | Get a commercial basemap licence | Jorge | the map in production, legally | to be quoted |
+| 6 | Buy a basemap plan, and confirm which one | Jorge | the map in production, legally | $30/mo, or quoted |
 | 7 | Send 2–5 real deliverable templates | Carlos | generated Word deliverables | none |
 | 8 | Send the eight road intake sheets | Carlos | the other seven projects | none |
 
@@ -81,16 +81,17 @@ involves a real person.
 | **Cost** | ~$25–40/month once bought. Supabase is the fallback at roughly four times the price for the same PITR guarantee |
 | **Then decide** | Launch gives 7 days of history; `PRODUCTION_RECOVERY.md` §3 asks for ≥ 14. Either take Scale or amend §3 with a reason |
 
-### J6 · Get a commercially licensed basemap
+### J6 · Buy a basemap plan, and confirm which one applies
 
 | | |
 |---|---|
-| **What** | A MapTiler contract that permits commercial use, or an alternative provider |
-| **Why** | **MapTiler's Free and Flex plans do not permit commercial use** — read from their published terms on 18 Sep 2026. Only a Custom prepaid contract does. A consultancy delivering paid studies to a government customer is commercial use |
+| **What** | A paid MapTiler plan — **Flex** or **Custom** — or an alternative provider |
+| **Why** | **The staging key is a Free key, and Free permits no commercial use** (*"testing, personal or non-commercial use"*, their published terms, 18 Sep 2026). Something paid is needed before production regardless |
+| **Which plan** | **Flex does permit commercial use** and covers *"any standard use case"*. **Custom is the only plan that permits reselling.** Whether serving tiles inside a licensed product to a paying consultancy is a standard use case or reselling is a **licensing question for MapTiler**, not an engineering judgement — `PRODUCTION_INFRASTRUCTURE_DECISION.md` §5a sets it out both ways |
 | **Blocks** | The map in production, legally. **Not** technically — with no key the GIS surface renders *sin fondo* with every layer and both legends intact |
-| **Needs** | A quotation from MapTiler, or another provider whose licence permits it |
-| **Evidence** | The contract, and a production key **restricted by origin** to the production hostname |
-| **Note** | Easy to assume settled because a key already works in staging. It is not: the key that works is not necessarily one that may be used |
+| **Needs** | A short conversation with MapTiler describing the actual model: a multi-tenant SaaS whose tenants are consulting firms paying for the product, with the map as a background inside it |
+| **Evidence** | The plan or contract, and a production key **restricted by origin** to the production hostname |
+| **Note** | Easy to assume settled because a key already works in staging. It is a Free key, so it is not settled — but the gap may be $30 a month rather than a contract negotiation |
 
 ### J7 · Decide the region
 
