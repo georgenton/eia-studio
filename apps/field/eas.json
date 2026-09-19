@@ -18,7 +18,7 @@
       "android": { "buildType": "apk" },
       "ios": { "simulator": false },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://eia-studio-web-git-main-georgentons-projects.vercel.app"
+        "EXPO_PUBLIC_API_URL": "https://eia-field-uat.vercel.app"
       }
     },
     "production": {
