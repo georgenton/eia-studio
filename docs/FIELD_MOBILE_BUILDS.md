@@ -152,3 +152,88 @@ So the order is: Expo account → `eas init` → `eas build -p android --profile
 APK → run `FIELD_MOBILE_OFFLINE_UAT.md` on a real phone. iOS follows whenever the account exists.
 
 **Neither path submits anything to a store**, and this wave attempted no submission.
+
+## 8. Activation attempt — Operational Wave B (18 September 2026)
+
+An attempt to produce an internal Android build, and what it found. **No build was produced**, for
+one reason and one reason only: nobody is signed in to an Expo account.
+
+### What is ready, verified rather than assumed
+
+| | State |
+|---|---|
+| `eas.json` staging profile | **correct** — `distribution: "internal"` and `android.buildType: "apk"`, which is what produces an installable APK rather than an AAB |
+| Android package / iOS bundle / scheme | **stable** — `ec.eiastudio.field`, `eiafield`. Unchanged and not to be renamed |
+| `expo-sqlite` with `useSQLCipher: true` | **present.** Without it the native build would ship a plain SQLite, `PRAGMA key` would silently do nothing, and the application would refuse to open its database on first run (ADR-028) |
+| `expo-location`, `expo-image-picker` (`photosPermission: false`), `expo-secure-store` | present, with permission copy in both languages |
+| Android permissions | `ACCESS_COARSE_LOCATION`, `ACCESS_FINE_LOCATION`, `CAMERA` |
+| Field Sync protocol | **v3**, which the server speaks |
+| `eiafield://` trusted by Better Auth | **yes, automatically** — `apps/web/lib/trusted-origins.ts` adds the first-party scheme, so `AUTH_TRUSTED_ORIGINS` being unset on Preview is not a problem |
+| JS bundle for both platforms | builds (`pnpm bundle`) |
+
+### What is missing
+
+| | State |
+|---|---|
+| EAS CLI | not installed |
+| Expo account | **not signed in** — `~/.expo/state.json` holds a device uuid and no session |
+| `extra.eas.projectId` / `expo.owner` | **not set**, which is what `eas init` writes |
+
+### OWNER ACTION — Expo authentication
+
+**A free Expo account is sufficient.** Verified against Expo's own documentation on 18 September
+2026: *"EAS Build is available to anyone with an Expo account, regardless of whether you pay for EAS
+or use the Free plan."* Internal distribution needs **no Google Play account** — `distribution:
+"internal"` produces an APK, and only AAB binaries have to go through the Play Store.
+
+```bash
+npm install --global eas-cli     # or: pnpm add -g eas-cli
+eas login                        # the one step nobody else can do
+cd apps/field && eas init        # creates/links the EAS project, writes extra.eas.projectId
+```
+
+**After `eas login` succeeds, everything else can be automated**: linking the project, committing
+the (non-secret) project id, producing the build, and recording its id, profile, version and git SHA.
+The build itself runs in Expo's cloud, so **neither the Android SDK nor a JDK is needed on this
+machine** — which is why this route is recommended over a local build.
+
+```bash
+cd apps/field && eas build --platform android --profile staging
+```
+
+**Do not run `eas submit`.** Store submission is out of scope.
+
+## 9. The blocker nobody had connected: staging is behind deployment protection
+
+Found while validating the staging build profile before spending a build, and it would otherwise
+have surfaced as *"the app installs and sign-in does nothing"* on a technician's phone.
+
+The staging profile points at the branch alias in `eas.json`. That host answers **302** to
+`https://vercel.com/sso-api?...` for **every** path, including `/health`:
+
+```
+$ curl -sD - -o /dev/null .../health
+HTTP/2 302
+location: https://vercel.com/sso-api?url=...
+```
+
+This is Vercel **deployment protection**, and it is *deliberate* — `docs/STAGING_OPERATIONS.md` §4
+lists "exposing staging publicly" among the things that must never be done, precisely because it
+sits behind that protection. A phone has no Vercel session, so **a build pointing at this host
+cannot sign in, cannot pull a Field Pack and cannot sync.**
+
+### The options, with what each costs
+
+| | Option | Cost |
+|---|---|---|
+| a | **Disable deployment protection** on the staging branch alias | Weakens a control that was added on purpose. Staging holds only synthetic data, but it is also where a reviewer signs in |
+| b | Vercel **Protection Bypass for Automation** token, sent by the app | **Refused.** That is a shared secret in a React Native bundle, which ADR-028 forbids in as many words: no service token, no signing key, no shared credential. `apps/field/test/bundle-safety.test.ts` would fail it |
+| c | A **second deployment alias** for mobile UAT with protection off, pointing at the same staging database | A little setup; keeps the reviewer-facing alias protected. **Recommended for a durable arrangement** |
+| d | Run the first UAT against a **development build on the local network** | Free, immediate, and enough for the first pass. `EXPO_PUBLIC_API_URL` in the `development` profile is `http://localhost:3000`, which on a phone means *the phone* — it must be the build machine's LAN address |
+
+**Recommendation**: (d) for the first handset session, because it needs no owner decision and proves
+the offline protocol; (c) before the UAT becomes routine. **(b) is not available to us**, and (a) is
+the owner's to weigh.
+
+This is recorded as **TD-120** rather than resolved here: changing a deliberate security posture is
+not a decision a build script should make.

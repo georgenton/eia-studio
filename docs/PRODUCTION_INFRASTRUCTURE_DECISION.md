@@ -119,7 +119,7 @@ To be set **at creation**, before any object exists:
 | Object versioning | **Enabled** | `PRODUCTION_RECOVERY.md` §2: RPO 0 for objects, which versioning plus replication gives |
 | Lifecycle | Expire **non-current** versions after a retention the privacy review sets. **Never expire current versions** | Expiring a current version deletes a study's evidence |
 | Server-side encryption | **Enabled** | SECURITY.md §7 |
-| Credential | **Least privilege**: `GetObject`, `PutObject`, `HeadObject`, `DeleteObject`, `ListBucket` on **this bucket only**. No account-level key, no bucket creation, no policy modification | A key that can create buckets is a key that can create a public one |
+| Credential | **Least privilege**: `GetObject`, `PutObject`, `HeadObject`, `DeleteObject` on **this bucket only** — and **no `ListBucket`**. No account-level key, no bucket creation, no policy modification | An earlier draft of this row listed `ListBucket`; the adapter never calls it (`packages/application/src/storage/s3-adapter.ts` issues exactly those four commands), so granting it would be over-privilege in the one direction ADR-031 cares most about — a bucket listing is the place RLS does not reach, and a leaked application credential should not be able to enumerate one. A key that can create buckets is a key that can create a public one |
 | Lifecycle to archive / cold tiers | **Not enabled.** A paid decision nobody has taken | The hard stop |
 
 ## 5. Reference basemap
@@ -239,14 +239,31 @@ helpers used inside every RLS policy are owned by that role. Neon's `neon_superu
 holds itself, so it *should* work. **Should is not verified.**
 
 ```bash
-# On a FREE Neon project. No payment, no commitment.
-export DATABASE_MIGRATOR_URL='postgres://…?sslmode=verify-full'
+# On a FREE Neon project. No payment, no commitment. Four commands, in this order.
+export PROBE_DATABASE_URL='postgres://…?sslmode=verify-full'
+pnpm db:probe          # the capability probe: extensions, TLS, the ADR-004 privilege model,
+                       # FORCE RLS, SECURITY DEFINER, and security_invoker views
+
+export DATABASE_MIGRATOR_URL="$PROBE_DATABASE_URL"
 pnpm db:migrate        # must reach 52 of 52
 pnpm db:check          # must report no drift
 ```
 
 If that succeeds, Neon is the answer and the rest is paperwork. If it fails, Supabase is next and
 the same check applies.
+
+**`pnpm db:probe` is the one to run first**, because it fails in seconds rather than after a
+migration. It creates a temporary schema and roles prefixed `probe_`, drops them again, and prints
+findings only — never a connection string or a password. It was run against staging on 18 September
+2026 and passed every check, which is what makes it a usable yardstick for a candidate provider
+rather than an untested script.
+
+Among the things it now proves is one the product could not do without and the probe did not used to
+check: **a `security_invoker` view applies the caller's row level security**. Every analytic reads
+`app.effective_survey_instance` (ADR-038), and a provider that ignored the option would return rows
+the caller's policies refuse — silently, and in the direction that leaks. The check has a negative
+control: an ordinary view over the same table must come back **unfiltered**, or the positive result
+proves nothing.
 
 ## 9. What this document does not do
 

@@ -300,6 +300,20 @@ while claiming nothing about a provider restore nobody can perform yet. Storage 
 key and Free permits no commercial use, and every remaining gate ends at an owner action rather
 than at code.
 
+**Operational Wave B (18 September 2026)** tried to turn things on and reported what could not be.
+**Expo/EAS is blocked on one step only** — a signed-in account; everything else is verified ready,
+including `useSQLCipher: true`, without which a native build would refuse to open its own database.
+A free Expo account suffices and internal distribution needs no Play account, both confirmed against
+Expo's current documentation. **The finding that would have cost a build**: staging sits behind
+Vercel deployment protection, deliberately, so **a phone cannot sign in, pull a Field Pack or sync**
+— two correct decisions in conflict, recorded as TD-120 with four options rather than resolved by
+weakening a control, and Vercel's bypass token refused because it would be a shared secret in a
+React Native bundle. Storage is still absent, verified a third way. Two corrections of this
+programme's own work: the storage credential needs **no `ListBucket`** (the adapter never lists), and
+`pnpm db:probe` — the yardstick a candidate database provider is judged by — never checked that a
+**`security_invoker` view applies the caller's RLS**, which every analytic now depends on. It does
+now, **by behaviour and with a negative control**, and passes against staging.
+
 ## Read before acting
 
 Approved design bundle (source of truth; precedence: README → prototype → spec v0.2 → screenshots):

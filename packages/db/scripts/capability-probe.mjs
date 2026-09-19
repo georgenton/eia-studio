@@ -46,6 +46,16 @@ async function attempt(client, sql) {
   }
 }
 
+/** Like `attempt`, but keeps the rows when the statement is a query that may legitimately fail. */
+async function attempt2(client, sql) {
+  try {
+    const result = await client.query(sql);
+    return { rows: result.rows, error: null };
+  } catch (error) {
+    return { rows: null, error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
 const admin = new pg.Client({
   connectionString: url,
   application_name: "eia-capability-probe",
@@ -326,6 +336,86 @@ try {
     noContext.rows[0].n === 0 ? "PASS" : "FAIL",
     `rows=${noContext.rows[0].n}`,
   );
+
+  /*
+   * A `security_invoker` view, which every analytic in this product now reads (ADR-038).
+   *
+   * `app.effective_survey_instance` answers *which response does this study currently mean?*, and
+   * social tabulation, the numeric summary, validated themes, field progress and the report
+   * snapshot all join it. A view without `security_invoker` runs as its **owner**, so on a provider
+   * that ignored the option every one of those would return rows the caller's policies refuse —
+   * silently, and in the direction that leaks.
+   *
+   * The option arrived in PostgreSQL 15, so this is also a version floor with teeth: a provider
+   * advertising "PostgreSQL" is not evidence.
+   *
+   * Tested by behaviour rather than by parsing, and with a **negative control**: the same view
+   * without the option must return the other tenant's row. Without that, this passes on a provider
+   * that silently ignores `security_invoker` — because RLS would appear to work for the wrong
+   * reason.
+   */
+  const invokerErr = await attempt(
+    admin,
+    `create view ${SCHEMA}.tenant_view with (security_invoker = true) as
+       select * from ${SCHEMA}.tenant_row`,
+  );
+  record(
+    "rls",
+    "CREATE VIEW ... WITH (security_invoker = true)",
+    invokerErr ? "FAIL" : "PASS",
+    invokerErr ?? undefined,
+  );
+
+  if (!invokerErr) {
+    await attempt(admin, `grant select on ${SCHEMA}.tenant_view to ${APP_ROLE}`);
+    const opts = await admin.query(
+      `select coalesce(c.reloptions::text, '') as o from pg_class c
+         join pg_namespace n on n.oid = c.relnamespace
+        where n.nspname = $1 and c.relname = 'tenant_view'`,
+      [SCHEMA],
+    );
+    record(
+      "rls",
+      "security_invoker persisted on the view",
+      /security_invoker=true/.test(opts.rows[0]?.o ?? "") ? "PASS" : "FAIL",
+      opts.rows[0]?.o || "(no reloptions)",
+    );
+
+    // The control: an ordinary view over the same table, which must NOT be filtered.
+    await attempt(
+      admin,
+      `create view ${SCHEMA}.tenant_view_owner as select * from ${SCHEMA}.tenant_row`,
+    );
+    await attempt(admin, `grant select on ${SCHEMA}.tenant_view_owner to ${APP_ROLE}`);
+
+    await loginClient.query("begin");
+    await loginClient.query(
+      "select set_config('app.tenant_id', '11111111-1111-4111-8111-111111111111', true)",
+    );
+    const throughInvoker = await loginClient.query(
+      `select count(*)::int as n from ${SCHEMA}.tenant_view`,
+    );
+    const throughOwner = await attempt2(
+      loginClient,
+      `select count(*)::int as n from ${SCHEMA}.tenant_view_owner`,
+    );
+    await loginClient.query("commit");
+
+    record(
+      "runtime",
+      "a security_invoker view applies the CALLER's row level security",
+      throughInvoker.rows[0].n === 1 ? "PASS" : "FAIL",
+      `rows through the invoker view=${throughInvoker.rows[0].n} (expected 1)`,
+    );
+    record(
+      "runtime",
+      "control: an ordinary view runs as its owner and is NOT filtered",
+      throughOwner.rows?.[0]?.n === 2 ? "PASS" : "WARN",
+      throughOwner.error
+        ? `owner view refused: ${throughOwner.error}`
+        : `rows through the owner view=${throughOwner.rows?.[0]?.n} (expected 2; anything else means this provider does not distinguish the two, and the check above proves nothing)`,
+    );
+  }
 
   await loginClient.query("begin");
   await loginClient.query(
