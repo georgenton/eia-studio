@@ -54,10 +54,22 @@ involves a real person.
 | **What** | An Expo account, link the project, build an internal APK |
 | **Why** | There is no installable build of EIA Field anywhere. Offline capture — the reason the mobile application exists — has never run on a phone |
 | **Blocks** | Offline field capture, and therefore the physical UAT and any campaign with `offline_mode = required` |
-| **Needs** | An email address. **The account is free and the build is free**; no Google Play account is needed for an internal APK |
+| **Needs** | An email address. **The account is free and the build is free** — verified against Expo's own docs, 18 Sep 2026: *"EAS Build is available to anyone with an Expo account, regardless of whether you pay for EAS or use the Free plan."* No Google Play account is needed: `distribution: "internal"` produces an APK, and only AAB binaries must go through the Play Store |
 | **Evidence** | An `.apk` a technician can install, and `pnpm go-live:doctor` reporting the EAS project as linked |
-| **Commands** | `pnpm add -g eas-cli` → `npx eas-cli login` → `cd apps/field && npx eas-cli init` → `npx eas-cli build -p android --profile staging` |
-| **Note** | **Do not submit to the Play Store.** An internal APK is sufficient and store submission is out of scope |
+| **Commands** | `npm install --global eas-cli` → `eas login` → `cd apps/field && eas init` → `eas build --platform android --profile staging` |
+| **Only the login is yours** | After `eas login` succeeds, the linking, the build and the recording of its id, profile, version and SHA can all be automated. The build runs in Expo's cloud, so **no Android SDK and no JDK are needed on the build machine** |
+| **Note** | **Do not run `eas submit`.** An internal APK is sufficient and store submission is out of scope |
+
+### J3b · Decide how a phone reaches staging
+
+| | |
+|---|---|
+| **What** | Choose one of the four options in `FIELD_MOBILE_BUILDS.md` §9 |
+| **Why** | Staging sits behind Vercel deployment protection — deliberately. A phone has no Vercel session, so **a staging build cannot sign in at all**. Found before a build was spent on it (TD-120) |
+| **Blocks** | The handset UAT against staging. **Not** the build itself |
+| **Recommended** | For the first session, run against a **development build on the local network** — no owner decision needed. For a durable arrangement, a **second deployment alias** with protection off against the same staging database |
+| **Not available** | Vercel's bypass token. It would be a shared secret in the mobile bundle, which ADR-028 forbids and a test enforces |
+| **Evidence** | A phone that can sign in and pull a Field Pack |
 
 ### J4 · Provide one Android handset
 

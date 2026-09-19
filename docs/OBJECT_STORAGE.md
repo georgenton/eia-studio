@@ -128,15 +128,48 @@ Backblaze B2, a self-hosted MinIO — anything that speaks the S3 protocol.
 What the owner does, once, per environment:
 
 1. create a **private** bucket (`eia-studio-staging`, `eia-studio-production`), no public access,
-   server-side encryption on;
-2. create a credential scoped to that bucket with `GetObject`, `PutObject`, `HeadObject`,
-   `DeleteObject` — and nothing else, in particular no `ListAllMyBuckets`;
-3. set `STORAGE_PROVIDER=s3`, `STORAGE_BUCKET`, `STORAGE_REGION`, `STORAGE_ACCESS_KEY_ID`,
-   `STORAGE_SECRET_ACCESS_KEY` (and `STORAGE_ENDPOINT` unless it is AWS) in the environment;
+   **no public list**, server-side encryption on;
+2. create a credential scoped to that bucket with **exactly** `GetObject`, `PutObject`,
+   `HeadObject`, `DeleteObject` — and nothing else. In particular **no `ListBucket`** and no
+   `ListAllMyBuckets`: the adapter issues those four commands and no other
+   (`packages/application/src/storage/s3-adapter.ts`), so a credential that could enumerate the
+   bucket would be able to do something the product never does — and a listing is the one place
+   row level security does not reach (§1);
+3. set the six variables — `STORAGE_PROVIDER=s3`, `STORAGE_BUCKET`, `STORAGE_REGION`,
+   `STORAGE_ACCESS_KEY_ID`, `STORAGE_SECRET_ACCESS_KEY`, and `STORAGE_ENDPOINT` unless it is AWS —
+   **on both the web project and the worker service**, naming the **same bucket**. The web process
+   writes the bytes and the worker reads them back; `memory`, the only alternative, is per process
+   and is refused outside `local` and `test` anyway (TD-100);
 4. nothing else. No migration, no deploy of a different build, no code change.
+
+**Staging and production get different buckets and different credentials.** Sharing either would
+mean a staging test could read or overwrite a real study's evidence, and a rotation in one
+environment would silently break the other.
 
 Until step 3 the deployment reports `NOT_CONFIGURED`, the upload panel says so, and the rest of the
 product is unaffected. Secret **names** are in the repository; values never are.
+
+### What to run the moment the credentials land
+
+In this order, because each one depends on the one before:
+
+| # | Check | Expected |
+|---|---|---|
+| 1 | `pnpm go-live:doctor` against that environment | *almacenamiento de objetos* reports the provider, not `NOT_CONFIGURED` |
+| 2 | Anonymous `GET` of a known object key, with no credential | **403 or 404 — never 200** |
+| 3 | Anonymous bucket listing | **refused** |
+| 4 | Upload a PDF on *Documentos* | the row reads **En cola** |
+| 5 | Wait for the worker | **Listo**, with passages and a locator |
+| 6 | Search for a phrase from that PDF | a citation naming the **version** |
+| 7 | *Descargar original* | the file comes back; `audit.log` holds `document.version.download_issued` **with no filename** |
+| 8 | Upload the same bytes again | **answered as the existing version**, not a second one |
+| 9 | Upload a `.docx` template under *Informes*, validate, activate, generate | a draft carrying the **BORRADOR** banner |
+| 10 | Declare a field photograph, then retry the same command | **exactly one** `field_media` row |
+
+Then assert, in the database: **zero duplicate `document_version`**, **zero duplicate `field_media`**,
+**zero duplicate `generated_document`**, and **no object key containing a filename** — the key is six
+segments and four UUIDs by construction (§1), and a key that carried a name would be a defect in the
+key builder rather than in the bucket.
 
 ## 8. Tables
 

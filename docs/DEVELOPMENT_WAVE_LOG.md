@@ -1381,3 +1381,49 @@ flake nobody has explained. Retries stay at 1. What *was* missing is now uploade
 be reproduced locally last time. **Opened**: TD-119 — a Next production build replaces a server
 error's stack with a digest, and mapping one back needs application code written for CI's benefit,
 which this wave declined to write.
+
+### Operational Wave B — activation attempted, and what it found (18 September 2026)
+
+An operational wave: try to actually turn things on, and report honestly when they cannot be.
+**Nothing was provisioned, nothing paid for, nothing deployed.** One code change, justified below.
+
+**Expo/EAS — blocked on one step, and only one.** Everything else is ready and was verified rather
+than assumed: the staging profile already produces an APK (`distribution: "internal"`,
+`buildType: "apk"`), the native identifiers are stable, `expo-sqlite` carries
+**`useSQLCipher: true`** — without which a native build would ship plain SQLite and the application
+would refuse to open its own database — and `eiafield://` is trusted automatically, so
+`AUTH_TRUSTED_ORIGINS` being unset on Preview is not a problem. What is missing is a signed-in Expo
+account. Confirmed against Expo's current documentation rather than from memory: **a free account is
+enough**, and internal distribution needs **no Google Play account**.
+
+**The finding that would have cost a build and an afternoon.** Validating the staging profile before
+spending a build: the staging host answers **302 to `vercel.com/sso-api` on every path, including
+`/health`**. Staging is behind Vercel deployment protection — *deliberately*, per
+`STAGING_OPERATIONS.md` §4 — so **a phone cannot sign in, pull a Field Pack or sync at all**. Two
+correct decisions in conflict, not a defect. Vercel's bypass token is refused on our side: it is a
+shared secret in a React Native bundle, which ADR-028 forbids and a test enforces. Recorded as
+**TD-120** with four options and their costs, rather than resolved by quietly weakening a control.
+
+**Object storage — still absent**, verified a third way: no `STORAGE_*` on the worker, none on the
+Vercel project, `buckets: []` on Railway. The activation runbook gained what Wave B showed it was
+missing: the variables go on **both** services naming the **same** bucket, staging and production get
+**different** buckets and credentials, and a ten-step smoke list to run the moment credentials land.
+
+**Two corrections of this programme's own recent work**, both found by reading code rather than
+re-reading prose. The infrastructure decision said the storage credential needs `ListBucket`; the
+adapter issues exactly `GetObject`, `PutObject`, `HeadObject` and `DeleteObject` and **never lists**,
+so granting it would be over-privilege in the one direction ADR-031 cares most about — a bucket
+listing is the place row level security does not reach.
+
+**The code change, and why it is not a manufactured PR.** `pnpm db:probe` is what a candidate
+database provider would be judged by, and it predates ADR-038: it never checked whether a
+**`security_invoker` view applies the caller's row level security**. Every analytic in the product
+now reads `app.effective_survey_instance`, and a provider that ignored the option would return rows
+the caller's policies refuse — silently, and in the leaking direction. The probe now checks it **by
+behaviour, with a negative control**: an ordinary view over the same table must come back
+unfiltered, or the positive result proves nothing. Run against staging: `security_invoker` view **1
+row**, ordinary view **2 rows**, every other check passing, and zero `probe_*` objects left behind.
+
+**Nothing else moved.** No managed database was supplied, so the compatibility probe is an owner
+action with an exact four-command sequence. No handset and no APK, so the physical UAT stays
+**PREPARED**. No Carlos inputs, no privacy sign-off, no MapTiler purchase.
