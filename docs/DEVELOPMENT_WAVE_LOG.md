@@ -1427,3 +1427,48 @@ row**, ordinary view **2 rows**, every other check passing, and zero `probe_*` o
 **Nothing else moved.** No managed database was supplied, so the compatibility probe is an owner
 action with an exact four-command sequence. No handset and no APK, so the physical UAT stays
 **PREPARED**. No Carlos inputs, no privacy sign-off, no MapTiler purchase.
+
+### Operational Wave C — the phone gets a door (19 September 2026)
+
+Wave B found that a technician's phone could not reach staging at all, and stopped rather than
+spending a build on a phone that would have failed at sign-in. Wave C resolved it — by checking
+what the platform actually offers instead of reasoning from what a platform of that shape usually
+offers.
+
+**Two natural assumptions were wrong, and both were load-bearing.** Protection Exceptions are not a
+paid feature: Vercel's own plan table reads *Deployment Protection Exceptions — Hobby: Included*,
+and this team is Hobby. And "deploy to production, the production URL is exempt" is false twice
+over: Standard Protection exempts *custom* domains, Vercel's migration note says the production
+**generated** URL becomes restricted, the account owns no domain, and this project's production
+branch is `production`, which this programme never touches. Reading the project through the API
+settled the rest: **every deployment here is a preview**, and exceptions are documented as
+*"designed for Preview Deployment domains"*. The mechanism the situation called for was the one the
+platform provides for exactly this, at no cost.
+
+**So the exception is scoped to a hostname that exists for this purpose.** `eia-field-uat.vercel.app`
+is bound to branch `main`; the reviewer-facing alias keeps its protection. Better Auth trusts that
+**exact origin** and no wildcard — `trusted-origins.ts` already says why: `.vercel.app` "is not a
+trust boundary, it is a landlord". `PUBLIC_APP_URL` and `BETTER_AUTH_URL` were deliberately left
+unset, because either would move the base URL for every preview to serve one phone.
+
+**Vercel-reachable is not EIA-Studio-public**, and that is a claim with a table behind it rather
+than a reassurance. Proven against the production build, unauthenticated: `/health` **200**,
+`/sign-in` **200**, `/t/{tenant}` and `/t/{tenant}/p/{project}` and `/portal/…` **307 → /sign-in**,
+`POST /api/field/pack` **401 `unauthenticated`**. The exception removes Vercel's outer barrier and
+nothing of this product's own. What it *does* do, said plainly rather than glossed: the staging
+instance becomes reachable from the internet, and keeping the reviewer alias protected reduces
+discovery, not access — both hostnames serve the same deployment and the same database. That is
+acceptable because staging holds synthetic, PII-free data, and would not be for a deployment holding
+a study's real records. `STAGING_OPERATIONS.md` §4 now says so in those words.
+
+**Two mechanisms were refused and one control was not automated.** The automation bypass token and
+shareable links are a long-lived secret the binary would carry, and a React Native bundle is
+recoverable by whoever holds the phone (ADR-028, enforced by `bundle-safety.test.ts`). Disabling
+protection project-wide would have unprotected every branch, including unreviewed work. And the
+exception itself is left to the owner: Vercel guards it with a typed confirmation meant for a
+human, and reaching around that through an undocumented endpoint would be defeating a control
+rather than using a feature.
+
+**No build was produced**, because nobody is signed in to Expo — the single step Wave B identified,
+unchanged and still the owner's. Storage is still absent, verified again by name on both services.
+No managed database was supplied. No handset. The physical UAT stays **PREPARED**.

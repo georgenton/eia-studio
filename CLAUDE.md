@@ -314,6 +314,22 @@ programme's own work: the storage credential needs **no `ListBucket`** (the adap
 **`security_invoker` view applies the caller's RLS**, which every analytic now depends on. It does
 now, **by behaviour and with a negative control**, and passes against staging.
 
+**Operational Wave C (19 September 2026)** gave the phone a door. Wave B's blocker — staging behind
+Vercel deployment protection, so a technician's phone could not sign in at all — is resolved by the
+mechanism the platform provides for exactly this, found by **checking rather than recalling**: two
+natural assumptions were wrong (Protection Exceptions are *Included on Hobby*, and the production
+URL is **not** exempt under Standard Protection), and every deployment of this project is a preview,
+which is what exceptions are designed for. A **dedicated** hostname `eia-field-uat.vercel.app` is
+bound to `main`, its **exact** origin is trusted by Better Auth (never a `*.vercel.app` wildcard —
+that domain "is not a trust boundary, it is a landlord"), and `eas.json` staging targets it; the
+reviewer alias keeps its protection. **Vercel-reachable is not EIA-Studio-public**, proven
+unauthenticated request by request: `/health` 200, `/sign-in` 200, workspace and portal routes 307 →
+`/sign-in`, `POST /api/field/pack` 401. Refused: the bypass token and shareable links, both a
+long-lived secret in a distributable binary (ADR-028); and disabling protection project-wide. The
+exception itself is the owner's — Vercel guards it with a typed confirmation meant for a human, and
+automating around that would defeat a control rather than use a feature. Still blocked on one Expo
+login; storage still absent; the handset UAT stays PREPARED.
+
 ## Read before acting
 
 Approved design bundle (source of truth; precedence: README → prototype → spec v0.2 → screenshots):

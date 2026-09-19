@@ -203,37 +203,78 @@ cd apps/field && eas build --platform android --profile staging
 
 **Do not run `eas submit`.** Store submission is out of scope.
 
-## 9. The blocker nobody had connected: staging is behind deployment protection
+## 9. How a phone reaches staging (TD-120, resolved in Wave C)
 
-Found while validating the staging build profile before spending a build, and it would otherwise
-have surfaced as *"the app installs and sign-in does nothing"* on a technician's phone.
+Found in Wave B while validating the staging build profile before spending a build, and it would
+otherwise have surfaced as *"the app installs and sign-in does nothing"* on a technician's phone:
+the branch alias answers **302** to `https://vercel.com/sso-api?...` for **every** path, including
+`/health`. That is Vercel **deployment protection**, and it is deliberate. A phone has no Vercel
+session, so a build pointing at that host cannot sign in, cannot pull a Field Pack and cannot sync.
 
-The staging profile points at the branch alias in `eas.json`. That host answers **302** to
-`https://vercel.com/sso-api?...` for **every** path, including `/health`:
+### What the platform actually offers, verified rather than assumed
 
-```
-$ curl -sD - -o /dev/null .../health
-HTTP/2 302
-location: https://vercel.com/sso-api?url=...
-```
+Wave C read Vercel's current documentation and the project's own configuration instead of
+reasoning from memory, and two of the assumptions that would have been natural are **wrong**:
 
-This is Vercel **deployment protection**, and it is *deliberate* — `docs/STAGING_OPERATIONS.md` §4
-lists "exposing staging publicly" among the things that must never be done, precisely because it
-sits behind that protection. A phone has no Vercel session, so **a build pointing at this host
-cannot sign in, cannot pull a Field Pack and cannot sync.**
+| Assumption | What is actually true |
+|---|---|
+| "Protection Exceptions are a paid feature" | **Included on Hobby.** The plan table lists *Deployment Protection Exceptions — Hobby: Included*. The team is Hobby |
+| "The production URL is exempt, so deploy to production" | **No.** The project's setting is Standard Protection, which exempts *production domains* — custom domains — and Vercel's own migration note says the production **generated** URL "becomes restricted". The account owns no domain, `eia-studio-web.vercel.app` answers `DEPLOYMENT_NOT_FOUND`, and the production branch is `production`, which this programme never touches |
 
-### The options, with what each costs
+Two further facts about this project, read from the API: every deployment is a **preview**
+(`target: preview`, branch `main`), and Protection Exceptions are *"designed for Preview Deployment
+domains"*. So the scoped exception the situation calls for is exactly the mechanism the platform
+provides, at no cost, for precisely this shape of deployment.
 
-| | Option | Cost |
-|---|---|---|
-| a | **Disable deployment protection** on the staging branch alias | Weakens a control that was added on purpose. Staging holds only synthetic data, but it is also where a reviewer signs in |
-| b | Vercel **Protection Bypass for Automation** token, sent by the app | **Refused.** That is a shared secret in a React Native bundle, which ADR-028 forbids in as many words: no service token, no signing key, no shared credential. `apps/field/test/bundle-safety.test.ts` would fail it |
-| c | A **second deployment alias** for mobile UAT with protection off, pointing at the same staging database | A little setup; keeps the reviewer-facing alias protected. **Recommended for a durable arrangement** |
-| d | Run the first UAT against a **development build on the local network** | Free, immediate, and enough for the first pass. `EXPO_PUBLIC_API_URL` in the `development` profile is `http://localhost:3000`, which on a phone means *the phone* — it must be the build machine's LAN address |
+### What Wave C did
 
-**Recommendation**: (d) for the first handset session, because it needs no owner decision and proves
-the offline protocol; (c) before the UAT becomes routine. **(b) is not available to us**, and (a) is
-the owner's to weigh.
+| | |
+|---|---|
+| A **dedicated** hostname | `eia-field-uat.vercel.app`, added to the project and bound to git branch `main`. The reviewer-facing branch alias is left alone |
+| The exact origin trusted | `AUTH_TRUSTED_ORIGINS=https://eia-field-uat.vercel.app` on Preview. Not a wildcard, and not `*.vercel.app` — `trusted-origins.ts` says why in as many words: that domain "is not a trust boundary, it is a landlord". `PUBLIC_APP_URL` and `BETTER_AUTH_URL` are deliberately **not** set, because either would move the base URL for every preview |
+| Redeployed | so the new origin is in the running deployment before the exception exists |
+| The mobile profile | `eas.json` staging now targets the UAT host |
+| **Not** done | the exception itself — see below |
 
-This is recorded as **TD-120** rather than resolved here: changing a deliberate security posture is
-not a decision a build script should make.
+### The one step that is the owner's
+
+Adding a Deployment Protection Exception is a dashboard action guarded by a typed confirmation
+(*"unprotect my domain"*). That gate exists for a human, and automating around it through an
+undocumented endpoint would be defeating a control rather than using a feature.
+
+> **Project → Settings → Deployment Protection → Deployment Protection Exceptions → Add Domain**
+> → `eia-field-uat.vercel.app` → type `unprotect my domain` → Confirm.
+
+### What the exception does and does not do
+
+It removes **Vercel's outer barrier on one hostname**. It removes nothing of EIA Studio's own:
+Better Auth, tenant and project membership, capability resolution, row level security and field
+assignment isolation are all inside the application and are untouched by it. Proven locally against
+the production build, unauthenticated:
+
+| Request | Answer |
+|---|---|
+| `GET /health` | **200** `{"status":"ok",…}` |
+| `GET /sign-in` | **200** |
+| `GET /t/{tenant}` | **307 → /sign-in** |
+| `GET /t/{tenant}/p/{project}` | **307 → /sign-in** |
+| `GET /portal/{tenant}/{project}` | **307 → /sign-in** |
+| `POST /api/field/pack` | **401** `{"error":"unauthenticated"}` |
+
+**Vercel-reachable is not EIA-Studio-public**, and the table is what that sentence means.
+
+Being honest about what is still true: the exception makes the staging *instance* reachable from
+the internet. Keeping the reviewer alias protected reduces incidental discovery; it does not
+restrict access, because both hostnames serve the same deployment and the same database. Staging
+holds synthetic, PII-free demo data only (`STAGING_OPERATIONS.md` §4), and that is the reason this
+is acceptable here and would not be acceptable for a project holding real data.
+
+### What was refused
+
+**Protection Bypass for Automation**, and **Shareable Links**. Both are a long-lived secret that the
+application would have to carry, and a React Native binary is distributable: anything inside it is
+recoverable by whoever holds the phone. ADR-028 forbids it in as many words — no service token, no
+signing key, no shared credential — and `apps/field/test/bundle-safety.test.ts` enforces it.
+
+**Disabling protection for the project**, which would have unprotected every preview of every
+branch, including the ones that carry unreviewed work.

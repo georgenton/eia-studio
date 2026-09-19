@@ -152,7 +152,7 @@ own storage variables are missing.
 | Real personal data | forbidden until the compliance review of SECURITY.md §10a passes. Staging holds synthetic, PII-free demo data |
 | A public bucket | every object is private; every read is a short-lived signed URL |
 | `pnpm test:integration` against staging | it truncates. Use `pnpm test:staging` |
-| Exposing staging publicly | it sits behind deployment protection, and the client view is an internal session (TD-078) |
+| Exposing staging publicly | it sits behind deployment protection, and the client view is an internal session (TD-078). **Amended in Wave C (TD-120)**: exactly one hostname, `eia-field-uat.vercel.app`, is exempted so a technician's phone can sign in at all — a phone has no Vercel session and never will. The exemption removes Vercel's outer barrier and **nothing of this product's own**: Better Auth, memberships, capabilities, RLS and field assignment isolation are unchanged, and `FIELD_MOBILE_BUILDS.md` §9 proves it request by request. It is acceptable here because staging holds synthetic, PII-free data; it would not be acceptable for a deployment that held a study's real records. Disabling protection project-wide, and any bypass secret carried by the mobile bundle, stay forbidden |
 | A production deploy | manual, gated, and not from here (`DEPLOYMENT.md` §6) |
 
 ## 5. Local equivalent, for rehearsal

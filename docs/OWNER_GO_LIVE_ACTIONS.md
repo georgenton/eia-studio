@@ -60,16 +60,21 @@ involves a real person.
 | **Only the login is yours** | After `eas login` succeeds, the linking, the build and the recording of its id, profile, version and SHA can all be automated. The build runs in Expo's cloud, so **no Android SDK and no JDK are needed on the build machine** |
 | **Note** | **Do not run `eas submit`.** An internal APK is sufficient and store submission is out of scope |
 
-### J3b · Decide how a phone reaches staging
+### J3b · Unprotect the one hostname a phone can use
 
 | | |
 |---|---|
-| **What** | Choose one of the four options in `FIELD_MOBILE_BUILDS.md` §9 |
-| **Why** | Staging sits behind Vercel deployment protection — deliberately. A phone has no Vercel session, so **a staging build cannot sign in at all**. Found before a build was spent on it (TD-120) |
+| **What** | Add **one** Deployment Protection Exception on `eia-studio-web`: the domain `eia-field-uat.vercel.app` |
+| **Why** | A phone has no Vercel session and never will, so without this a staging build cannot sign in, pull a Field Pack or sync at all (TD-120) |
 | **Blocks** | The handset UAT against staging. **Not** the build itself |
-| **Recommended** | For the first session, run against a **development build on the local network** — no owner decision needed. For a durable arrangement, a **second deployment alias** with protection off against the same staging database |
-| **Not available** | Vercel's bypass token. It would be a shared secret in the mobile bundle, which ADR-028 forbids and a test enforces |
-| **Evidence** | A phone that can sign in and pull a Field Pack |
+| **Already done for you** | The hostname exists and is bound to branch `main`; its exact origin is trusted by Better Auth; the deployment carrying that setting is live; `eas.json` staging targets it. Everything except the confirmation |
+| **Action** | Project → **Settings** → **Deployment Protection** → **Deployment Protection Exceptions** → **Add Domain** → `eia-field-uat.vercel.app` → confirm by typing `unprotect my domain` |
+| **Why not automated** | Vercel guards it with a typed confirmation meant for a human. Reaching around that with an undocumented endpoint would be defeating a control rather than using a feature |
+| **Cost** | **None.** *Deployment Protection Exceptions — Hobby: Included* |
+| **What it does not do** | It removes Vercel's outer barrier on that one host. Better Auth, tenant and project membership, capabilities, RLS and field assignment isolation are inside the application and are untouched — `FIELD_MOBILE_BUILDS.md` §9 proves each one unauthenticated |
+| **Not available** | The bypass token and shareable links: a long-lived secret in a distributable binary, which ADR-028 forbids and a test enforces |
+| **Evidence** | `curl https://eia-field-uat.vercel.app/health` → **200**, while `/t/{tenant}` still redirects to `/sign-in` |
+| **To undo** | Same screen, Remove, confirm with `reprotect my domain` |
 
 ### J4 · Provide one Android handset
 
