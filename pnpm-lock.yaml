@@ -153,6 +153,9 @@ importers:
       '@eia/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@expo/config-plugins':
+        specifier: 57.0.9
+        version: 57.0.9(typescript@5.9.3)
       '@types/react':
         specifier: 19.2.9
         version: 19.2.9

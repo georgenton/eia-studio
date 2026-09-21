@@ -41,6 +41,7 @@
   },
   "devDependencies": {
     "@eia/config": "workspace:*",
+    "@expo/config-plugins": "57.0.9",
     "@types/react": "19.2.9",
     "babel-preset-expo": "~57.0.12",
     "typescript": "5.9.3",

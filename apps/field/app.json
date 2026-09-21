@@ -44,7 +44,8 @@
           "microphonePermission": false
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      "./plugins/with-default-locale-permission-copy"
     ],
     "experiments": {
       "typedRoutes": false
