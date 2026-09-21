@@ -236,14 +236,20 @@ provides, at no cost, for precisely this shape of deployment.
 | The mobile profile | `eas.json` staging now targets the UAT host |
 | **Not** done | the exception itself — see below |
 
-### The one step that is the owner's
-
-Adding a Deployment Protection Exception is a dashboard action guarded by a typed confirmation
-(*"unprotect my domain"*). That gate exists for a human, and automating around it through an
-undocumented endpoint would be defeating a control rather than using a feature.
+### The exception, applied 21 September 2026
 
 > **Project → Settings → Deployment Protection → Deployment Protection Exceptions → Add Domain**
 > → `eia-field-uat.vercel.app` → type `unprotect my domain` → Confirm.
+
+Vercel guards it with a typed confirmation, which is why it was done through that form rather than
+through an undocumented endpoint: the gate is a control to use, not one to route around. The
+listing now shows `eia-field-uat.vercel.app` under **Unprotected Domains**, and nothing else.
+
+It is reversible from the same screen — Remove, confirmed with `reprotect my domain`.
+
+**The docs contradict themselves on availability and the dashboard settles it**: Vercel's pricing
+table says *Deployment Protection Exceptions — Hobby: Included*, another of its pages describes the
+feature as Pro-or-Enterprise. On this Hobby team the section is present and functional.
 
 ### What the exception does and does not do
 
@@ -262,6 +268,9 @@ the production build, unauthenticated:
 | `POST /api/field/pack` | **401** `{"error":"unauthenticated"}` |
 
 **Vercel-reachable is not EIA-Studio-public**, and the table is what that sentence means.
+
+Re-measured against the live host once the exception was applied, and it holds there too — with
+`/health` returning the running `gitSha`, so the answer is this deployment's and not a cache's.
 
 Being honest about what is still true: the exception makes the staging *instance* reachable from
 the internet. Keeping the reviewer alias protected reduces incidental discovery; it does not
