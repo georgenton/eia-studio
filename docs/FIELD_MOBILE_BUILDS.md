@@ -331,3 +331,37 @@ TD-121 rather than removed in the hour before the first installable build, becau
 update mechanism. That is the current state rather than an oversight: this application has never had
 OTA updates, and a build that could silently replace its own JavaScript in a technician's hands is a
 decision to take deliberately, not to acquire by installing a package to quiet a warning.
+
+## 11. The first build failed, and the gate that should have caught it
+
+`56b2eaf7` ran Gradle and CMake to completion and then failed at
+`:app:createBundleReleaseJsAndAssets`. The Gradle error EAS reports —
+`EAS_BUILD_UNKNOWN_GRADLE_ERROR` — is not the cause; ninety lines earlier the log says:
+
+```
+Failed to construct transformer:  Error: Cannot find module 'babel-preset-expo'
+```
+
+`apps/field/babel.config.js` names `babel-preset-expo`, and **no `package.json` declared it**. pnpm
+links only what is declared, so Babel could not resolve it, Metro's transformer was never
+constructed, and the bundle was empty.
+
+### The part worth keeping: the gate was passing vacuously
+
+`expo export` **exits 0 when it bundles nothing.** `pnpm bundle` had been printing
+
+```
+› Files (1):
+metadata.json (150B)
+Exported: .expo-export
+```
+
+— no `android bundles`, no `.hbc`, 150 bytes — and being read as a passing check, here and in the
+wave reports before it. A bundle of zero modules is not a smaller bundle; it is no application at
+all, and the exit code said nothing. With the preset declared, the same command reports **852
+modules** and a **2.9 MB** Hermes bundle per platform.
+
+So `pnpm bundle` now ends in `scripts/assert-bundle.mjs`, which asserts the **artefact**: every
+requested platform must have a `.hbc` or `.js` bundle above a floor far below a real one and far
+above an empty one. The failure now surfaces in seconds, locally, instead of four minutes into a
+native build — or on a technician's phone.
