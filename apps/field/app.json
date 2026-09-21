@@ -40,16 +40,24 @@
         "expo-image-picker",
         {
           "cameraPermission": "EIA Field usa la cámara para registrar fotografías de la visita. Se guardan en el dispositivo y se envían al estudio.",
-          "photosPermission": false
+          "photosPermission": false,
+          "microphonePermission": false
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      "./plugins/with-default-locale-permission-copy"
     ],
     "experiments": {
       "typedRoutes": false
     },
     "locales": {
       "en": "./locales/en.json"
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "08dc4e60-d223-43aa-a5f3-19b72442cfd0"
+      }
+    },
+    "owner": "georgenton0316"
   }
 }

@@ -278,3 +278,148 @@ signing key, no shared credential — and `apps/field/test/bundle-safety.test.ts
 
 **Disabling protection for the project**, which would have unprotected every preview of every
 branch, including the ones that carry unreviewed work.
+
+## 10. The project is linked, and the first APK exists (21 September 2026)
+
+`eas init` created **`@georgenton0316/eia-field`** (`08dc4e60-d223-43aa-a5f3-19b72442cfd0`) and wrote
+two non-secret values into `app.json`: `extra.eas.projectId` and `owner`. Android credentials are
+**EAS-managed** — the keystore was generated in Expo's cloud and never touches this repository.
+
+### What the linking step tried to change, and did not get to keep
+
+`eas init` also rewrote `android.permissions` into fully-qualified names and **added
+`android.permission.RECORD_AUDIO`**. That was reverted, and the finding underneath it is the part
+worth keeping:
+
+**The microphone permission was already there.** Resolving the configuration at `main` — before any
+of this wave's changes — with `expo config --type introspect` returns `RECORD_AUDIO` in the Android
+permission list. `expo-image-picker`'s config plugin adds it unless told otherwise, so **the first
+native build would have asked a technician for microphone access**, and nobody would have found out
+until the APK was on a phone. `eas init` did not introduce it; it made it visible.
+
+The fix is the idiom ADR-032 already uses for the photo library: `microphonePermission: false`, which
+both withholds the permission and puts it on the plugin's *blocked* list. Verified by resolving the
+configuration again:
+
+```
+android.permission.ACCESS_COARSE_LOCATION
+android.permission.ACCESS_FINE_LOCATION
+android.permission.CAMERA
+android.permission.READ_EXTERNAL_STORAGE      ← TD-121
+android.permission.WRITE_EXTERNAL_STORAGE     ← TD-121
+android.permission.INTERNET
+```
+
+The two storage permissions come from the same library and are **not** used by this application —
+field media is copied into the app's own documents directory at capture. They are recorded as
+TD-121 rather than removed in the hour before the first installable build, because an untested
+`blockedPermissions` that broke the camera path would have no handset in the loop to reveal it.
+
+### Recorded for the build
+
+| | |
+|---|---|
+| Expo account | `georgenton0316` |
+| EAS project | `@georgenton0316/eia-field` · `08dc4e60-d223-43aa-a5f3-19b72442cfd0` |
+| Profile | `staging` — `distribution: internal`, `android.buildType: apk` |
+| API target | `https://eia-field-uat.vercel.app` |
+| App version | `1.0.0`, versionCode `1` |
+| Field Sync protocol | **3** |
+| Credentials | EAS-managed remote keystore; nothing committed |
+
+**`expo-updates` is not installed**, so the profile's `channel: "staging"` carries no over-the-air
+update mechanism. That is the current state rather than an oversight: this application has never had
+OTA updates, and a build that could silently replace its own JavaScript in a technician's hands is a
+decision to take deliberately, not to acquire by installing a package to quiet a warning.
+
+## 11. The first build failed, and the gate that should have caught it
+
+`56b2eaf7` ran Gradle and CMake to completion and then failed at
+`:app:createBundleReleaseJsAndAssets`. The Gradle error EAS reports —
+`EAS_BUILD_UNKNOWN_GRADLE_ERROR` — is not the cause; ninety lines earlier the log says:
+
+```
+Failed to construct transformer:  Error: Cannot find module 'babel-preset-expo'
+```
+
+`apps/field/babel.config.js` names `babel-preset-expo`, and **no `package.json` declared it**. pnpm
+links only what is declared, so Babel could not resolve it, Metro's transformer was never
+constructed, and the bundle was empty.
+
+### The part worth keeping: the gate was passing vacuously
+
+`expo export` **exits 0 when it bundles nothing.** `pnpm bundle` had been printing
+
+```
+› Files (1):
+metadata.json (150B)
+Exported: .expo-export
+```
+
+— no `android bundles`, no `.hbc`, 150 bytes — and being read as a passing check, here and in the
+wave reports before it. A bundle of zero modules is not a smaller bundle; it is no application at
+all, and the exit code said nothing. With the preset declared, the same command reports **852
+modules** and a **2.9 MB** Hermes bundle per platform.
+
+So `pnpm bundle` now ends in `scripts/assert-bundle.mjs`, which asserts the **artefact**: every
+requested platform must have a `.hbc` or `.js` bundle above a floor far below a real one and far
+above an empty one. The failure now surfaces in seconds, locally, instead of four minutes into a
+native build — or on a technician's phone.
+
+## 12. The second failure: iOS permission copy in Android's resources
+
+With the preset declared, build `b665c60b` got the bundle through and failed further along, at
+`:app:lintVitalRelease`:
+
+```
+values-b+en/strings.xml:2: Error: "NSLocationWhenInUseUsageDescription" is translated here
+but not found in default locale [ExtraTranslation]
+```
+
+`expo.locales` exists so an English-language device shows the English permission prompts ADR-029
+requires. `@expo/config-plugins` reads `config.locales` with **no platform scoping**
+(`android/Locales.js`: `return config.locales ?? null`), so the English file is also written as
+Android string resources. The default `res/values/strings.xml` held only `app_name`, so Lint was
+right: a translation exists for a string the default locale does not have.
+
+**The lint is not disabled.** `ExtraTranslation` is a real check, and a genuine Android translation
+missing from the default locale should still fail a release. What was missing was the default
+itself. This app's default language is Spanish (ADR-025), so `plugins/with-default-locale-permission-copy.js`
+puts the Spanish copy in the default resources and leaves `values-b+en` with the English — a
+coherent bilingual resource set rather than a suppressed warning.
+
+Two details that cost a round trip each, recorded so the next person does not pay them again:
+
+- **A `withDangerousMod(['android', …])` runs at the *start* of the Android mod chain**, so a first
+  attempt that deleted the generated file was undone by the locales mod writing it afterwards.
+  `withStringsXml` targets a different file and is order-independent.
+- **`translatable="false"` is the other half of the same lint error.** Marking the default strings
+  untranslatable makes Lint object to the English file translating them. They carry no such flag.
+
+## 13. The first APK — verified, not assumed (21 September 2026)
+
+| | |
+|---|---|
+| EAS build | **`f882d36e-c5ea-4385-9555-cfe6ffb93659`** · status **FINISHED** |
+| Expo account / project | `georgenton0316` · `@georgenton0316/eia-field` (`08dc4e60-d223-43aa-a5f3-19b72442cfd0`) |
+| Git commit | `69f57ea` |
+| Profile / distribution | `staging` · internal · **APK** |
+| Version | `1.0.0`, versionCode `1` |
+| Field Sync protocol | **3** |
+| Artefact | 92 MB `.apk` — the install link is on the build page; it is not recorded here, because an EAS artefact URL is a download credential for a build |
+
+**What was checked inside the file**, rather than inferred from the build succeeding:
+
+| Claim | Evidence |
+|---|---|
+| It is a real Android application | `classes.dex` ×3, `lib/{arm64-v8a,armeabi-v7a,x86,x86_64}/*.so` |
+| The JavaScript is embedded and not empty | `assets/index.android.bundle`, **2 381 448 bytes** |
+| It talks to the UAT host | `https://eia-field-uat.vercel.app` in the bundle; the old branch alias appears nowhere |
+| Identifiers are unchanged | `ec.eiastudio.field`, scheme `eiafield` in the manifest |
+| **SQLCipher is genuinely compiled in** | `sqlcipher_extra_init`, `sqlcipherPagerSetCodec`, `sqlcipherPagerGetCodec` in `libexpo-sqlite.so`. `useSQLCipher: true` is a configuration flag; this is the native library it produced (ADR-028) |
+| **No microphone** | `android.permission.RECORD_AUDIO` is absent from the manifest, probed by exact byte sequence |
+| Permissions shipped | `ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION`, `CAMERA`, `INTERNET`, and `READ_/WRITE_EXTERNAL_STORAGE` (TD-121). No `READ_MEDIA_IMAGES` |
+
+What this does **not** establish: that the camera, GPS, offline capture or sync work. Nothing here
+has run on a handset. The physical UAT is `FIELD_MOBILE_OFFLINE_UAT.md`, and it waits on the
+Deployment Protection exception of §9 and on a phone.

@@ -52,8 +52,11 @@ export default [
      * Two of its files are CommonJS by requirement rather than by choice: Metro and Babel load
      * `metro.config.js` and `babel.config.js` with `require`, before any bundler or transform is
      * involved, so they cannot be ES modules and cannot be typechecked as browser code.
+     *
+     * The same holds for `plugins/`: an Expo config plugin is `require`d by the config resolver
+     * during prebuild, outside any bundler, so it is CommonJS for the same reason.
      */
-    files: ["apps/field/*.config.js"],
+    files: ["apps/field/*.config.js", "apps/field/plugins/*.js"],
     languageOptions: {
       sourceType: "commonjs",
       globals: { module: "writable", require: "readonly", __dirname: "readonly" },
