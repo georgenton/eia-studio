@@ -278,3 +278,56 @@ signing key, no shared credential — and `apps/field/test/bundle-safety.test.ts
 
 **Disabling protection for the project**, which would have unprotected every preview of every
 branch, including the ones that carry unreviewed work.
+
+## 10. The project is linked, and the first APK exists (21 September 2026)
+
+`eas init` created **`@georgenton0316/eia-field`** (`08dc4e60-d223-43aa-a5f3-19b72442cfd0`) and wrote
+two non-secret values into `app.json`: `extra.eas.projectId` and `owner`. Android credentials are
+**EAS-managed** — the keystore was generated in Expo's cloud and never touches this repository.
+
+### What the linking step tried to change, and did not get to keep
+
+`eas init` also rewrote `android.permissions` into fully-qualified names and **added
+`android.permission.RECORD_AUDIO`**. That was reverted, and the finding underneath it is the part
+worth keeping:
+
+**The microphone permission was already there.** Resolving the configuration at `main` — before any
+of this wave's changes — with `expo config --type introspect` returns `RECORD_AUDIO` in the Android
+permission list. `expo-image-picker`'s config plugin adds it unless told otherwise, so **the first
+native build would have asked a technician for microphone access**, and nobody would have found out
+until the APK was on a phone. `eas init` did not introduce it; it made it visible.
+
+The fix is the idiom ADR-032 already uses for the photo library: `microphonePermission: false`, which
+both withholds the permission and puts it on the plugin's *blocked* list. Verified by resolving the
+configuration again:
+
+```
+android.permission.ACCESS_COARSE_LOCATION
+android.permission.ACCESS_FINE_LOCATION
+android.permission.CAMERA
+android.permission.READ_EXTERNAL_STORAGE      ← TD-121
+android.permission.WRITE_EXTERNAL_STORAGE     ← TD-121
+android.permission.INTERNET
+```
+
+The two storage permissions come from the same library and are **not** used by this application —
+field media is copied into the app's own documents directory at capture. They are recorded as
+TD-121 rather than removed in the hour before the first installable build, because an untested
+`blockedPermissions` that broke the camera path would have no handset in the loop to reveal it.
+
+### Recorded for the build
+
+| | |
+|---|---|
+| Expo account | `georgenton0316` |
+| EAS project | `@georgenton0316/eia-field` · `08dc4e60-d223-43aa-a5f3-19b72442cfd0` |
+| Profile | `staging` — `distribution: internal`, `android.buildType: apk` |
+| API target | `https://eia-field-uat.vercel.app` |
+| App version | `1.0.0`, versionCode `1` |
+| Field Sync protocol | **3** |
+| Credentials | EAS-managed remote keystore; nothing committed |
+
+**`expo-updates` is not installed**, so the profile's `channel: "staging"` carries no over-the-air
+update mechanism. That is the current state rather than an oversight: this application has never had
+OTA updates, and a build that could silently replace its own JavaScript in a technician's hands is a
+decision to take deliberately, not to acquire by installing a package to quiet a warning.
