@@ -1,0 +1,163 @@
+{
+  "$comment": "Fixture de la demostración de ocho proyectos. Instrumento único, idéntico en los ocho; datos sintéticos. No describe ningún estudio, predio ni persona reales, y no depende del fixture del proyecto piloto: una demostración que leyese los datos de un estudio real quedaría acoplada a él y dejaría de ser una simulación.",
+  "safetyClassification": "synthetic-no-personal-data",
+  "profileKey": "road_eia_social",
+  "template": {
+    "key": "demo_social_survey",
+    "name": "Ficha social — demostración",
+    "description": "Instrumento único de la demostración. Idéntico en los ocho proyectos; datos sintéticos."
+  },
+  "version": {
+    "versionLabel": "v1",
+    "questions": [
+      {
+        "code": "tenure_category",
+        "ordinal": 0,
+        "type": "SINGLE_CHOICE",
+        "prompt": "¿Cuál es la relación de la persona informante con el predio?",
+        "helpText": "Categoría general; no se registra ningún documento ni número de identidad.",
+        "required": true,
+        "sensitivity": "NON_PERSONAL",
+        "options": [
+          {
+            "code": "owner_occupier",
+            "label": "Propietario/a que reside en el predio",
+            "ordinal": 0
+          },
+          {
+            "code": "owner_absent",
+            "label": "Propietario/a que no reside en el predio",
+            "ordinal": 1
+          },
+          {
+            "code": "tenant",
+            "label": "Arrendatario/a",
+            "ordinal": 2
+          },
+          {
+            "code": "caretaker",
+            "label": "Cuidador/a o encargado/a",
+            "ordinal": 3
+          },
+          {
+            "code": "other",
+            "label": "Otra relación",
+            "ordinal": 4
+          }
+        ]
+      },
+      {
+        "code": "main_activity",
+        "ordinal": 1,
+        "type": "SINGLE_CHOICE",
+        "prompt": "¿Cuál es la principal actividad económica asociada al predio?",
+        "helpText": "Categoría de actividad; no se registran ingresos.",
+        "required": true,
+        "sensitivity": "NON_PERSONAL",
+        "options": [
+          {
+            "code": "agriculture",
+            "label": "Agricultura",
+            "ordinal": 0
+          },
+          {
+            "code": "livestock",
+            "label": "Ganadería",
+            "ordinal": 1
+          },
+          {
+            "code": "commerce",
+            "label": "Comercio o servicios",
+            "ordinal": 2
+          },
+          {
+            "code": "employment",
+            "label": "Empleo fuera del predio",
+            "ordinal": 3
+          },
+          {
+            "code": "none",
+            "label": "Sin actividad económica en el predio",
+            "ordinal": 4
+          }
+        ]
+      },
+      {
+        "code": "expected_benefits",
+        "ordinal": 2,
+        "type": "MULTI_CHOICE",
+        "prompt": "¿Qué beneficios espera del proyecto vial? (puede elegir varios)",
+        "helpText": null,
+        "required": false,
+        "sensitivity": "NON_PERSONAL",
+        "options": [
+          {
+            "code": "access",
+            "label": "Mejor acceso a la vía",
+            "ordinal": 0
+          },
+          {
+            "code": "transport_cost",
+            "label": "Menor costo de transporte",
+            "ordinal": 1
+          },
+          {
+            "code": "market",
+            "label": "Mejor acceso a mercados",
+            "ordinal": 2
+          },
+          {
+            "code": "services",
+            "label": "Mejor acceso a servicios (salud, educación)",
+            "ordinal": 3
+          },
+          {
+            "code": "none_expected",
+            "label": "No espera beneficios",
+            "ordinal": 4
+          }
+        ]
+      },
+      {
+        "code": "has_concern",
+        "ordinal": 3,
+        "type": "BOOLEAN",
+        "prompt": "¿Tiene alguna preocupación respecto del proyecto?",
+        "helpText": null,
+        "required": true,
+        "sensitivity": "NON_PERSONAL",
+        "options": []
+      },
+      {
+        "code": "concern_text",
+        "ordinal": 4,
+        "type": "LONG_TEXT",
+        "prompt": "Si tiene una preocupación o comentario, descríbalo en sus propias palabras.",
+        "helpText": "Respuesta abierta. Se transcribe tal como se expresa y no se edita, ni siquiera la ortografía.",
+        "required": false,
+        "sensitivity": "NON_PERSONAL",
+        "options": []
+      },
+      {
+        "code": "household_size",
+        "ordinal": 5,
+        "type": "INTEGER",
+        "prompt": "¿Cuántas personas habitan el predio?",
+        "helpText": "Número de personas; no se registran nombres ni edades individuales.",
+        "required": false,
+        "sensitivity": "NON_PERSONAL",
+        "options": []
+      },
+      {
+        "code": "interview_date",
+        "ordinal": 6,
+        "type": "DATE",
+        "prompt": "Fecha de la entrevista",
+        "helpText": null,
+        "required": false,
+        "sensitivity": "NON_PERSONAL",
+        "options": []
+      }
+    ]
+  }
+}
