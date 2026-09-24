@@ -50,7 +50,8 @@ Add to `quality`, in this order (fail fast, cheapest first):
 Add job `db` (needs Docker):
 
 1. start PostgreSQL with PostGIS + pgvector via Testcontainers (or a service container), and
-   MinIO for the object-storage suite — from `quay.io/minio/minio`, so no Docker Hub pull
+   MinIO for the object-storage suite — `chainguard/minio` pinned by digest, because
+   `quay.io/minio/minio` stopped serving anonymous pulls on 24 Sep 2026; no registry
    limit and **no cloud bucket or credential** is needed for a normal run (ADR-031);
 2. `pnpm db:migrate` against an empty database → **migration verification** (applies cleanly,
    is idempotent on re-run, `drizzle-kit check` reports no drift between schema and migrations);

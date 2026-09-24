@@ -113,7 +113,7 @@ firm holds the same file is not a fact this product may reveal.
 | Environment | Store | Why |
 |---|---|---|
 | Unit tests | none | the domain's rules are pure and need no store |
-| Integration (CI, local) | **MinIO in a Testcontainer**, from MinIO's own registry `quay.io/minio/minio` | real presigned URLs, real PUTs over the wire, real `HeadObject`. **Normal CI needs no cloud bucket and no credential** |
+| Integration (CI, local) | **MinIO in a Testcontainer**, an S3-compatible store pinned **by digest** (`chainguard/minio`). It was `quay.io/minio/minio` until 24 Sep 2026, when that image stopped being pullable anonymously — quay answers 401 and Docker Hub's `minio/minio` no longer resolves, so both CI jobs failed while cached laptops kept passing | real presigned URLs, real PUTs over the wire, real `HeadObject`. **Normal CI needs no cloud bucket and no credential** |
 | e2e (CI, local) | `memory` | one server process; the bytes are the same bytes the use-cases verify |
 | Local development | `memory`, or MinIO if a developer runs one | either is `local`, so either is allowed |
 | **Staging** | **not provisioned** | see below |

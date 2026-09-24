@@ -10,15 +10,24 @@
 // process that created it — the Playwright web server, the browser and the worker drain all use
 // it — and Testcontainers' whole value is tying a container's life to a test run.
 //
-// `quay.io/minio/minio` is MinIO's own registry: Docker Hub's anonymous pull limits fail a CI run
-// for reasons that have nothing to do with the change (ADR-031 §7).
+// The image is pinned **by digest**, and to a registry that still serves anonymous pulls.
+//
+// It used to be `quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z`. On 24 September 2026 that
+// stopped being pullable without credentials — `401 UNAUTHORIZED` from quay.io, and Docker Hub's
+// `minio/minio` answers `pull access denied … repository does not exist`. Both `db` and `e2e`
+// failed on it in CI while every developer machine kept passing on a cached layer, which is the
+// worst shape a supply change can take: green locally, red for everyone who starts clean.
+//
+// A digest rather than a tag because a store that changed under us would be a flaky suite, and
+// because a moving `:latest` is exactly what the old comment was right to avoid (ADR-031 §7).
 import { execFileSync } from "node:child_process";
 import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 
-const IMAGE = "quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z";
+const IMAGE =
+  "chainguard/minio@sha256:bd014394a80898e68c149f2311fdf8d5a2c2f3bb2c33b9327ae6d02b4b065ae1";
 const NAME = "eia-e2e-storage";
 const PORT = Number(process.env.EIA_E2E_STORAGE_PORT ?? 9400);
 const ACCESS_KEY = "eia-e2e-access";

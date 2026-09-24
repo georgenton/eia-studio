@@ -58,12 +58,21 @@ declare module "vitest" {
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const IMAGE = "eia-studio/postgres-test:17-3.5-pgvector";
 /**
- * The test object store, pinned to a release tag: a store that changed under us would be a flaky
- * suite. Pulled from **quay.io**, which is MinIO's own registry — Docker Hub's anonymous pull
- * limits make `minio/minio` unreliable on a CI runner and on a laptop, and a suite that fails
- * because a registry was busy teaches a team to re-run rather than to read.
+ * The test object store, pinned **by digest** to a registry that still serves anonymous pulls.
+ *
+ * It used to be `quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z`. On 24 September 2026 that
+ * stopped being pullable without credentials — quay.io answers `401 UNAUTHORIZED` and Docker Hub's
+ * `minio/minio` answers `pull access denied … repository does not exist`. This suite failed at
+ * global setup with `(HTTP code 500) unauthorized`, which surfaces as *"No test files found"*
+ * because setup dies before a file is collected; the e2e job failed on the same image a minute
+ * later. Every developer machine kept passing on a cached layer, which is the worst shape a supply
+ * change can take: green locally, red for everyone who starts clean.
+ *
+ * A digest rather than a tag, for the reason the previous pin existed: a store that changed under
+ * us would be a flaky suite, and a moving `:latest` is not a pin.
  */
-const MINIO_IMAGE = "quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z";
+const MINIO_IMAGE =
+  "chainguard/minio@sha256:bd014394a80898e68c149f2311fdf8d5a2c2f3bb2c33b9327ae6d02b4b065ae1";
 
 export default async function setup(project: TestProject): Promise<() => Promise<void>> {
   // A leftover pointer to a real database is a mistake worth naming, not ignoring: the variables
@@ -127,7 +136,15 @@ export default async function setup(project: TestProject): Promise<() => Promise
     .withEnvironment({ MINIO_ROOT_USER: accessKeyId, MINIO_ROOT_PASSWORD: secretAccessKey })
     .withCommand(["server", "/data"])
     .withExposedPorts(9000)
-    .withWaitStrategy(Wait.forLogMessage(/API:/))
+    /*
+     * Ready means *answering*, not *having printed a line*.
+     *
+     * This waited on `/API:/` in the log, which upstream MinIO prints and this image does not —
+     * it prints `WebUI:` — so the first run after the image changed timed out at startup rather
+     * than failing with anything that named the cause. The health endpoint is what the suite
+     * actually needs to be true, and it does not depend on how a build formats its banner.
+     */
+    .withWaitStrategy(Wait.forHttp("/minio/health/live", 9000).forStatusCode(200))
     .withStartupTimeout(120_000)
     .start();
   const storageEndpoint = `http://${minio.getHost()}:${minio.getMappedPort(9000)}`;
