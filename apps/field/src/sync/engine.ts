@@ -18,7 +18,14 @@ import {
   setCursor,
   settleCommand,
 } from "../db/repo";
-import { downloadFieldPack, pullChanges, pushCommands, ServerError, TransportError } from "./api";
+import {
+  downloadFieldPack,
+  pullChanges,
+  pushCommands,
+  resolveFieldScope,
+  ServerError,
+  TransportError,
+} from "./api";
 import { acknowledgeMedia, appVersion, sweepUploadedMedia, uploadPendingMedia } from "./media";
 
 /**
@@ -200,6 +207,53 @@ async function refreshPackValidity(
   validity: FieldPack["validity"],
 ): Promise<void> {
   await saveFieldPack(db, { ...pack, validity });
+}
+
+/**
+ * What asking for a first pack can end in. Three shapes rather than one with optional fields, so a
+ * caller that forgets a case does not compile.
+ */
+export type AcquireFirstPackResult =
+  | { readonly ok: true; readonly pack: FieldPack }
+  | { readonly ok: false; readonly reason: "no_field_project" }
+  | { readonly ok: false; readonly reason: "multiple_field_projects"; readonly count: number }
+  | { readonly ok: false; readonly reason: "error"; readonly message: string };
+
+/**
+ * The **first** pack, on a device that holds none.
+ *
+ * `refreshFieldPack` needs a scope, and every caller derived one from the pack already stored —
+ * which a fresh installation does not have. So this asks the server the prior question, then hands
+ * the answer to the ordinary download path. Two of the three answers are refusals the technician
+ * can act on rather than a silent empty screen.
+ *
+ * Once a pack exists this is never called again: `acquireFieldPack` is reached only from the
+ * `pack === null` branch, and refresh and sync behave exactly as they did.
+ */
+export async function acquireFirstFieldPack(
+  db: SQLite.SQLiteDatabase,
+): Promise<AcquireFirstPackResult> {
+  let scope: Awaited<ReturnType<typeof resolveFieldScope>>;
+  try {
+    scope = await resolveFieldScope();
+  } catch (cause) {
+    const detail = cause instanceof Error ? cause.message : "error desconocido";
+    await recordSyncError(db, "pack", detail);
+    return { ok: false, reason: "error", message: detail };
+  }
+
+  if (scope.kind === "no_field_project") return { ok: false, reason: "no_field_project" };
+  if (scope.kind === "multiple_field_projects") {
+    return { ok: false, reason: "multiple_field_projects", count: scope.count };
+  }
+
+  const result = await refreshFieldPack(db, {
+    tenantSlug: scope.tenantSlug,
+    projectSlug: scope.projectSlug,
+  });
+  return result.ok
+    ? { ok: true, pack: result.pack }
+    : { ok: false, reason: "error", message: result.message };
 }
 
 /**

@@ -145,6 +145,7 @@ export type {
 export { readsAllFieldResponses, withFieldContext } from "./field/context";
 // EIA Field (Production V1, Wave 1): the scoped download a technician works from offline.
 export { buildFieldPack, decodeCursor, encodeCursor } from "./field/field-pack";
+export { resolveFieldScope } from "./field/scope";
 export type { FieldPackOptions } from "./field/field-pack";
 export { processSyncCommands, pullFieldChanges } from "./field/sync";
 export type { ProcessSyncOptions } from "./field/sync";
