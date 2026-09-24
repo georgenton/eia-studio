@@ -51,7 +51,8 @@
     "changeset": "changeset",
     "version-packages": "changeset version",
     "ci:local": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test:unit && pnpm build && pnpm test:integration",
-    "e2e:storage": "node tooling/scripts/e2e-storage.mjs"
+    "e2e:storage": "node tooling/scripts/e2e-storage.mjs",
+    "demo:eight-projects": "pnpm --filter @eia/application demo:eight-projects"
   },
   "lint-staged": {
     "*.{ts,tsx,mts,mjs,js,cjs}": [
