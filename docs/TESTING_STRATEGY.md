@@ -24,7 +24,7 @@ no credential.**
 | Suite | Store | Why |
 |---|---|---|
 | unit | none | the rules — the key, the format gate, the archive limits, availability — are pure |
-| integration | **MinIO in a Testcontainer**, image `quay.io/minio/minio` | real presigned URLs, real `PUT` over `fetch`, real `HeadObject`. MinIO's own registry rather than Docker Hub, whose anonymous pull limits fail a CI run for reasons that have nothing to do with the change |
+| integration | **MinIO in a Testcontainer**, an S3-compatible store pinned **by digest** (`chainguard/minio`). It was `quay.io/minio/minio` until 24 Sep 2026, when that image stopped being pullable anonymously — quay answers 401 and Docker Hub's `minio/minio` no longer resolves, so both CI jobs failed while cached laptops kept passing | real presigned URLs, real `PUT` over `fetch`, real `HeadObject` |
 | e2e | the in-memory store (`STORAGE_PROVIDER=memory` in `playwright.config.ts`) | one server process holds the bytes, and the use-cases verify them exactly as they verify a provider's. The browser sends them through a server action because that store has no URL to PUT to (TD-092) |
 
 The e2e suite is where the renamed `.exe` is proved: the upload succeeds, the finalize reads the

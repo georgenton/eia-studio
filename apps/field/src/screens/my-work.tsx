@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { RefreshControl, ScrollView, StyleSheet, TextInput, View } from "react-native";
 
-import { refreshFieldPack } from "../sync/engine";
+import { acquireFirstFieldPack, refreshFieldPack } from "../sync/engine";
 import { useT } from "../i18n";
 import { useField } from "../store";
 import { theme } from "../theme";
@@ -23,8 +23,32 @@ export function MyWorkScreen({ onOpen }: { onOpen: (assignmentId: string) => voi
   const [query, setQuery] = useState("");
   const [message, setMessage] = useState<string | null>(null);
 
+  /*
+   * Two paths, and the first one is the whole point of this button on a fresh installation.
+   *
+   * With no pack there is nothing to derive a tenant and a project from, so the device asks the
+   * server whose work it is here to do and then downloads it. With a pack, the behaviour is
+   * exactly what it always was: refresh the one already held. Nothing about the second path
+   * changed, and the first never runs again once a pack is stored.
+   */
   const download = async () => {
-    if (!db || !pack) return;
+    if (!db) return;
+
+    if (!pack) {
+      const first = await acquireFirstFieldPack(db);
+      setMessage(
+        first.ok
+          ? t("mobile.workUpdated")
+          : first.reason === "no_field_project"
+            ? t("mobile.noFieldProject")
+            : first.reason === "multiple_field_projects"
+              ? t("mobile.multipleFieldProjects")
+              : first.message,
+      );
+      await refresh();
+      return;
+    }
+
     const result = await refreshFieldPack(db, {
       tenantSlug: pack.project.tenantSlug,
       projectSlug: pack.project.projectSlug,

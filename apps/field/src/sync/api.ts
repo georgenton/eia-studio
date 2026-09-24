@@ -1,10 +1,12 @@
 import {
   fieldPackResponseSchema,
+  fieldScopeResponseSchema,
   mediaFinalizeResponseSchema,
   mediaIntentResponseSchema,
   syncPullResponseSchema,
   syncPushResponseSchema,
   type FieldPackResponse,
+  type FieldScopeResponse,
   type MediaFinalizeResponse,
   type MediaIntentResponse,
   type SyncCommand,
@@ -61,6 +63,16 @@ async function post(path: string, body: unknown): Promise<unknown> {
     throw new ServerError(response.status, detail.slice(0, 300));
   }
   return response.json();
+}
+
+/**
+ * Asked once, by a device that holds no pack: *whose work am I here to do?*
+ *
+ * Every other call here names a tenant and a project because the pack already said which. This is
+ * the one that comes before it, and it sends nothing at all — the session is the whole question.
+ */
+export async function resolveFieldScope(): Promise<FieldScopeResponse> {
+  return fieldScopeResponseSchema.parse(await post("/api/field/scope", {}));
 }
 
 export async function downloadFieldPack(input: {

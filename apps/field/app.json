@@ -16,12 +16,12 @@
         "NSCameraUsageDescription": "EIA Field usa la cámara para registrar fotografías de la visita: el predio, la afectación y el acceso. Las fotografías se guardan en el dispositivo y se envían al estudio; no se publican al cliente ni se envían a ningún proveedor de modelos.",
         "ITSAppUsesNonExemptEncryption": false
       },
-      "buildNumber": "1"
+      "buildNumber": "2"
     },
     "android": {
       "package": "ec.eiastudio.field",
       "permissions": ["ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION", "CAMERA"],
-      "versionCode": 1
+      "versionCode": 2
     },
     "plugins": [
       [

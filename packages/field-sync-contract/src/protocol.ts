@@ -261,6 +261,43 @@ export const fieldPackResponseSchema = z.discriminatedUnion("kind", [
 ]);
 export type FieldPackResponse = z.infer<typeof fieldPackResponseSchema>;
 
+/**
+ * Which project a device with **no pack yet** should ask for.
+ *
+ * A Field Pack is requested by tenant and project slug, and the application derived both from the
+ * pack it already held — so a fresh installation had nowhere to get the first one from, and both
+ * *Actualizar trabajo* and *Sincronizar* returned before doing anything. This is the answer to the
+ * question that came before the pack: *whose work am I here to do?*
+ *
+ * It is **discovery, not a protocol revision.** `FIELD_SYNC_PROTOCOL_VERSION` is unchanged, the
+ * pack schema is untouched, and a device that already holds a pack never asks. An older build that
+ * knows nothing of this endpoint behaves exactly as it did.
+ *
+ * The three outcomes are the whole design. **One** eligible project is the only case that yields a
+ * scope; the other two are named states rather than a guess, because a device that silently picked
+ * the first of several projects would be choosing, on a technician's behalf, which study their
+ * morning belongs to.
+ */
+export const fieldScopeResponseSchema = z.discriminatedUnion("kind", [
+  z
+    .object({
+      kind: z.literal("scope"),
+      tenantSlug: z.string().min(1).max(80),
+      projectSlug: z.string().min(1).max(80),
+      projectName: z.string().min(1).max(200),
+    })
+    .strict(),
+  /* No assignment anywhere. Not an error, and not a failed download. */
+  z.object({ kind: z.literal("no_field_project") }).strict(),
+  /*
+   * Work in more than one project. Deliberately terminal: this application holds one pack by
+   * database constraint (`field_pack … check (id = 1)`), so there is nothing honest for it to do
+   * here but say so and name the projects' count.
+   */
+  z.object({ kind: z.literal("multiple_field_projects"), count: z.number().int().min(2) }).strict(),
+]);
+export type FieldScopeResponse = z.infer<typeof fieldScopeResponseSchema>;
+
 /* ---------------------------------------------------------------------------------------------
  * Commands — what the device asks the server to do, once connectivity returns.
  * ------------------------------------------------------------------------------------------ */

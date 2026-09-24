@@ -1695,6 +1695,10 @@ export const messages = {
     syncing: "Sincronizando…",
     refreshWork: "Actualizar trabajo asignado",
     workUpdated: "Trabajo actualizado.",
+    noFieldProject:
+      "No tienes trabajo de campo asignado. Cuando la coordinación te asigne predios, vuelve a pulsar Actualizar trabajo asignado.",
+    multipleFieldProjects:
+      "Tienes trabajo asignado en más de un proyecto. Este teléfono solo puede llevar uno a la vez: habla con la coordinación para preparar el dispositivo.",
     photographs: "Fotografías",
     photographsNote:
       "Se guardan en el teléfono al momento de tomarlas y se envían cuando hay señal. El archivo local no se borra hasta que el servidor confirma que la fotografía quedó registrada.",

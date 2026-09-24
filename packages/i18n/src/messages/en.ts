@@ -1689,6 +1689,10 @@ export const messages: Messages = {
     syncing: "Syncing…",
     refreshWork: "Refresh assigned work",
     workUpdated: "Work updated.",
+    noFieldProject:
+      "You have no field work assigned. When the coordination team assigns you parcels, tap Refresh assigned work again.",
+    multipleFieldProjects:
+      "You have work assigned in more than one project. This phone can only carry one at a time: talk to the coordination team to prepare the device.",
     photographs: "Photographs",
     photographsNote:
       "They are saved on the phone the moment you take them and sent when there is signal. The local file is not deleted until the server confirms the photograph was recorded.",
