@@ -15,6 +15,14 @@ The image is the same; only the command differs.
 | worker  | `node apps/worker/dist/main.js`    | **no**                      |
 | migrate | `node packages/db/dist/migrate.js` | one-shot, not a service     |
 
+## Before the first deployment: how Coolify reaches GHCR
+
+`EIA_IMAGE` names a digest; it does not grant access to it. Either the package is public and
+Coolify pulls anonymously, or it stays private and Coolify holds a **pull-only** registry
+credential. Neither is configured, and the choice is the owner's — see
+`docs/EIA_COOLIFY_DEPLOYMENT.md`. Without it the first pull fails in a way that looks like a
+broken image.
+
 ## Deploying a version
 
 1. Find the digest. The `image` workflow prints it in the run summary; it is also

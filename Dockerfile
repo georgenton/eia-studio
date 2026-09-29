@@ -13,7 +13,8 @@
 # Supply chain (DEPENDENCIES.md): the base is pinned by the digest of its *manifest list*, so both
 # architectures resolve to reviewed content while multi-architecture builds keep working. Update
 # procedure: `docker buildx imagetools inspect node:24-bookworm-slim`, compare release notes, bump
-# the digest in a `chore(deploy)` PR.
+# the digest in a `chore(release)` PR. (`deploy` is not a permitted commitlint scope; the
+#   allowed list is in commitlint.config.mjs.)
 #   Tag at the time of pinning: node:24-bookworm-slim (Node 24 LTS, Debian bookworm).
 ARG NODE_IMAGE=node:24-bookworm-slim@sha256:0e0ff40c39bc087845bfb27465a0df4ea419520094bc35842ff83dd8cbe6f9b6
 

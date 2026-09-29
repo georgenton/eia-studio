@@ -1,0 +1,91 @@
+name: Build and smoke the EIA Studio image
+description: >
+  Builds the application image from the repository Dockerfile and proves the web process starts
+  and reports the commit it was built from. One definition, used by the pull-request gate and by
+  the publish job, so the two cannot drift.
+
+inputs:
+  git-sha:
+    description: Commit being built; baked in and asserted by the smoke test.
+    required: true
+  build-id:
+    description: Build identifier for the OCI version label.
+    required: true
+  push:
+    description: '"true" publishes to GHCR; "false" loads the image into the local daemon only.'
+    required: true
+  image-name:
+    description: Registry repository, used only when pushing.
+    required: false
+    default: ""
+
+outputs:
+  digest:
+    description: Image digest; empty when the image was not pushed.
+    value: ${{ steps.build.outputs.digest }}
+
+runs:
+  using: composite
+  steps:
+    - uses: docker/setup-buildx-action@v3
+
+    - name: Build
+      id: build
+      uses: docker/build-push-action@v6
+      with:
+        context: .
+        # The OVH host is x86_64. Building arm64 under emulation would double the time for an
+        # architecture nothing deploys.
+        platforms: linux/amd64
+        push: ${{ inputs.push == 'true' }}
+        # A pull request keeps the image in the local daemon so it can be run and never leaves
+        # the runner. Attestations need the registry exporter, so they are published only.
+        load: ${{ inputs.push != 'true' }}
+        provenance: ${{ inputs.push == 'true' }}
+        sbom: ${{ inputs.push == 'true' }}
+        tags: ${{ inputs.push == 'true' && format('{0}:{1}', inputs.image-name, inputs.git-sha) || 'eia-studio:ci' }}
+        build-args: |
+          GIT_SHA=${{ inputs.git-sha }}
+          BUILD_ID=${{ inputs.build-id }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Smoke the image that was just built
+      shell: bash
+      env:
+        PUSHED: ${{ inputs.push }}
+        REF: ${{ inputs.push == 'true' && format('{0}@{1}', inputs.image-name, steps.build.outputs.digest) || 'eia-studio:ci' }}
+        EXPECTED_SHA: ${{ inputs.git-sha }}
+      run: |
+        set -euo pipefail
+        echo "smoking $REF"
+        docker run -d --name eia-smoke -p 3000:3000 \
+          -e APP_ENV=test -e PUBLIC_APP_URL=http://localhost:3000 "$REF"
+
+        # A bounded wait for the process to bind, not a retry of a failing request: if /health
+        # never answers the loop ends and the step fails. No attempt is silently swallowed.
+        ok=""
+        for _ in $(seq 1 30); do
+          if curl -fsS --max-time 3 http://localhost:3000/health -o /tmp/health.json; then ok=1; break; fi
+          sleep 2
+        done
+        if [ -z "$ok" ]; then
+          echo "::error::/health never answered"
+          docker logs eia-smoke || true
+          exit 1
+        fi
+
+        cat /tmp/health.json; echo
+        # The build argument must reach the running process, not just the build stage. This
+        # assertion exists because it once did not.
+        grep -q "\"gitSha\":\"$EXPECTED_SHA\"" /tmp/health.json \
+          || { echo "::error::/health reports a different commit than the one built"; exit 1; }
+        # Non-root runtime, asserted rather than assumed.
+        test "$(docker exec eia-smoke id -un)" = node \
+          || { echo "::error::container is not running as the node user"; exit 1; }
+        # No configuration file may travel inside the image.
+        test -z "$(docker exec eia-smoke sh -c 'find /app -maxdepth 4 -name ".env*" 2>/dev/null')" \
+          || { echo "::error::an .env file is present inside the image"; exit 1; }
+
+        docker rm -f eia-smoke >/dev/null
+        echo "web starts, /health reports $EXPECTED_SHA, runs as node, carries no .env"
