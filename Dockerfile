@@ -57,6 +57,10 @@ ENV NEXT_PUBLIC_GIT_SHA=${GIT_SHA} GIT_SHA=${GIT_SHA} BUILD_ID=${BUILD_ID} \
 # `next build` needs a URL-shaped value to satisfy the env schema; it is a build-time placeholder
 # and every deployment overrides it at runtime.
 ENV PUBLIC_APP_URL=https://build.invalid
+# Asks Next for the standalone server. It is off by default because Vercel, where staging runs
+# today, builds its own output format and fails on a missing next-server.js.nft.json when
+# standalone is on. The container is the only consumer that wants it.
+ENV NEXT_OUTPUT=standalone
 RUN pnpm --filter @eia/web build \
  && pnpm --filter @eia/worker build \
  && pnpm --filter @eia/db build
