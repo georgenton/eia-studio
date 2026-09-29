@@ -2,7 +2,23 @@ import { z } from "zod";
 
 import { booleanString } from "./common";
 
-export const APP_ENVIRONMENTS = ["local", "test", "preview", "staging", "production"] as const;
+/**
+ * The environments this product knows about.
+ *
+ * `demo` is the permanent showcase environment (Cinta Vera three-environment model): synthetic
+ * data, its own database, bucket, secrets and domain. It sits between `preview` and `staging`
+ * deliberately — it is **persistent**, so `isPersistentEnvironment` treats it exactly like
+ * staging and production: no `fake` classifier, no in-memory storage. What `demo` allows that
+ * production does not is `DEMO_FIXTURES_ENABLED`, and that stays an explicit opt-in.
+ */
+export const APP_ENVIRONMENTS = [
+  "local",
+  "test",
+  "preview",
+  "demo",
+  "staging",
+  "production",
+] as const;
 export type AppEnvironment = (typeof APP_ENVIRONMENTS)[number];
 
 export const appEnvSchema = z

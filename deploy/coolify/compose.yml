@@ -1,0 +1,120 @@
+# EIA Studio — one application stack, three environments.
+#
+# The same file serves demo, staging and production. Nothing here names an environment: the
+# differences are the image digest, the variables and the resource limits, all supplied by
+# Coolify. Three forked compose files would drift, and the drift would show up as "it worked in
+# staging" — the exact failure the three-environment model exists to prevent.
+#
+# PostgreSQL is deliberately absent (ADR-039). The application consumes DATABASE_URL and
+# DATABASE_MIGRATOR_URL; whether the server behind them is a Coolify resource on the same host or
+# a managed provider is a deployment decision, not an application one.
+#
+# Migrations are NOT run by these services. See deploy/coolify/README.md: the migration runner is
+# a one-shot invocation of the same image, before the new version starts serving. Web and worker
+# must never race to migrate.
+
+services:
+  web:
+    # Immutable digest, supplied per environment. Never a moving tag: the record of what is
+    # deployed must be the thing that was validated.
+    image: ${EIA_IMAGE}
+    command: ["node", "apps/web/server.js"]
+    restart: unless-stopped
+    # The only service Coolify routes publicly. Coolify reads this to place the Traefik labels;
+    # no host port is published, so nothing bypasses the proxy.
+    expose:
+      - "3000"
+    environment:
+      APP_ENV: ${APP_ENV}
+      PUBLIC_APP_URL: ${PUBLIC_APP_URL}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      DEMO_FIXTURES_ENABLED: ${DEMO_FIXTURES_ENABLED:-false}
+      DATABASE_URL: ${DATABASE_URL}
+      DATABASE_APP_ROLE_NAME: ${DATABASE_APP_ROLE_NAME:-}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL}
+      AUTH_TRUSTED_ORIGINS: ${AUTH_TRUSTED_ORIGINS}
+      STORAGE_PROVIDER: ${STORAGE_PROVIDER:-}
+      STORAGE_BUCKET: ${STORAGE_BUCKET:-}
+      STORAGE_REGION: ${STORAGE_REGION:-}
+      STORAGE_ENDPOINT: ${STORAGE_ENDPOINT:-}
+      STORAGE_ACCESS_KEY_ID: ${STORAGE_ACCESS_KEY_ID:-}
+      STORAGE_SECRET_ACCESS_KEY: ${STORAGE_SECRET_ACCESS_KEY:-}
+      BASEMAP_PROVIDER: ${BASEMAP_PROVIDER:-}
+      BASEMAP_TILE_URL: ${BASEMAP_TILE_URL:-}
+      BASEMAP_ATTRIBUTION: ${BASEMAP_ATTRIBUTION:-}
+      MAPTILER_KEY: ${MAPTILER_KEY:-}
+      EMAIL_ADAPTER: ${EMAIL_ADAPTER:-}
+      EMAIL_FROM: ${EMAIL_FROM:-}
+      # AI stays unset unless a compliance decision says otherwise (IG4-001). Unset means the
+      # feature is unavailable and says so on screen; it never means a stand-in runs.
+      SOCIAL_CLASSIFIER: ${SOCIAL_CLASSIFIER:-}
+      SOCIAL_CLASSIFIER_MODEL: ${SOCIAL_CLASSIFIER_MODEL:-}
+      DOCUMENT_REVIEWER: ${DOCUMENT_REVIEWER:-}
+      DOCUMENT_REVIEWER_MODEL: ${DOCUMENT_REVIEWER_MODEL:-}
+      ASSISTANT_GENERATOR: ${ASSISTANT_GENERATOR:-}
+      ASSISTANT_GENERATOR_MODEL: ${ASSISTANT_GENERATOR_MODEL:-}
+      AI_GATEWAY_API_KEY: ${AI_GATEWAY_API_KEY:-}
+    healthcheck:
+      # Liveness only, matching what /health actually asserts: the process answers. It reads no
+      # database and no configuration, so it must not be read as readiness.
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 4
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: ${WEB_CPUS:-1.0}
+          memory: ${WEB_MEMORY:-1g}
+
+  worker:
+    image: ${EIA_IMAGE}
+    command: ["node", "apps/worker/dist/main.js"]
+    restart: unless-stopped
+    # No `expose`, no ports. The worker's health server listens on the container's loopback and
+    # is reached by the healthcheck below; nothing outside the container can call it.
+    environment:
+      APP_ENV: ${APP_ENV}
+      PUBLIC_APP_URL: ${PUBLIC_APP_URL}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      DATABASE_URL: ${DATABASE_URL}
+      WORKER_DB_CHECK: ${WORKER_DB_CHECK:-true}
+      WORKER_HEALTH_PORT: ${WORKER_HEALTH_PORT:-3100}
+      WORKER_HEARTBEAT_MS: ${WORKER_HEARTBEAT_MS:-}
+      WORKER_SHUTDOWN_TIMEOUT_MS: ${WORKER_SHUTDOWN_TIMEOUT_MS:-}
+      STORAGE_PROVIDER: ${STORAGE_PROVIDER:-}
+      STORAGE_BUCKET: ${STORAGE_BUCKET:-}
+      STORAGE_REGION: ${STORAGE_REGION:-}
+      STORAGE_ENDPOINT: ${STORAGE_ENDPOINT:-}
+      STORAGE_ACCESS_KEY_ID: ${STORAGE_ACCESS_KEY_ID:-}
+      STORAGE_SECRET_ACCESS_KEY: ${STORAGE_SECRET_ACCESS_KEY:-}
+      SOCIAL_CLASSIFIER: ${SOCIAL_CLASSIFIER:-}
+      SOCIAL_CLASSIFIER_MODEL: ${SOCIAL_CLASSIFIER_MODEL:-}
+      DOCUMENT_REVIEWER: ${DOCUMENT_REVIEWER:-}
+      DOCUMENT_REVIEWER_MODEL: ${DOCUMENT_REVIEWER_MODEL:-}
+      AI_GATEWAY_API_KEY: ${AI_GATEWAY_API_KEY:-}
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:'+(process.env.WORKER_HEALTH_PORT||3100)+'/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          cpus: ${WORKER_CPUS:-0.5}
+          memory: ${WORKER_MEMORY:-768m}

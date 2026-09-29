@@ -1,0 +1,106 @@
+# Builds the EIA Studio application image and publishes it to GHCR.
+#
+# This is a build artefact, never a deployment. Nothing here touches OVH, Coolify or DNS: the
+# output is a digest, and a human decides where a digest goes.
+#
+# The release authority is the **digest**, not a tag. `latest` is deliberately absent: a moving
+# tag cannot answer "which code is running in production?", and that question is the whole point
+# of the three-environment model.
+name: image
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Commit or branch to build"
+        required: false
+
+concurrency:
+  group: image-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: build and publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+
+      - name: Resolve the commit actually built
+        id: sha
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          # GITHUB_TOKEN is enough for packages:write on this repository's own registry.
+          # A personal access token would be a long-lived credential for no added capability.
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          # linux/amd64 only: the OVH host is x86_64. Building arm64 under emulation would double
+          # the build time for an architecture nothing deploys.
+          platforms: linux/amd64
+          push: true
+          # Only the commit SHA. No `latest`, no branch tag: a deployment record names a digest,
+          # and a tag that moves makes that record a lie.
+          tags: ghcr.io/${{ github.repository }}:${{ steps.sha.outputs.sha }}
+          build-args: |
+            GIT_SHA=${{ steps.sha.outputs.sha }}
+            BUILD_ID=${{ github.run_id }}
+          # No secrets are passed: the image carries configuration for nothing and reads it all at
+          # runtime. `build-args` above are a commit identifier and a run number.
+          provenance: true
+          sbom: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Smoke the image that was just published
+        run: |
+          set -euo pipefail
+          IMAGE="ghcr.io/${{ github.repository }}@${{ steps.build.outputs.digest }}"
+          echo "::group::web answers /health"
+          docker run -d --name web -p 3000:3000 \
+            -e APP_ENV=test -e PUBLIC_APP_URL=http://localhost:3000 "$IMAGE"
+          for i in $(seq 1 30); do
+            curl -fsS http://localhost:3000/health && break || sleep 2
+          done
+          curl -fsS http://localhost:3000/health | tee /tmp/health.json
+          grep -q '"gitSha":"${{ steps.sha.outputs.sha }}"' /tmp/health.json
+          echo "::endgroup::"
+          echo "::group::the image reports the digest it is"
+          docker image inspect "$IMAGE" --format '{{index .Config.Labels "org.opencontainers.image.revision"}}'
+          echo "::endgroup::"
+          docker rm -f web
+
+      - name: Record the digest
+        run: |
+          {
+            echo "### EIA Studio image"
+            echo
+            echo '```'
+            echo "repository ghcr.io/${{ github.repository }}"
+            echo "commit     ${{ steps.sha.outputs.sha }}"
+            echo "digest     ${{ steps.build.outputs.digest }}"
+            echo '```'
+            echo
+            echo "Deploy by digest. The tag exists to find the image; the digest is what is deployed."
+          } >> "$GITHUB_STEP_SUMMARY"
