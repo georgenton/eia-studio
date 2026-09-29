@@ -1,0 +1,51 @@
+# Everything the image must not carry. The build context is the repository root because the
+# workspace packages are part of the application; this file keeps that from meaning "everything".
+
+# Version control and CI
+.git
+.github
+.husky
+
+# Installed and generated
+node_modules
+**/node_modules
+**/.next
+**/dist
+**/.turbo
+**/.expo
+**/.expo-export
+apps/web/public/vendor
+
+# Secrets and local configuration — must never enter the build context, let alone a layer
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+*.pem
+*.key
+
+# Test artefacts and reports
+coverage
+playwright-report
+test-results
+blob-report
+**/*.tsbuildinfo
+e2e/screenshots
+design/reference/**/screenshots
+
+# Editor and OS
+.vscode
+.idea
+.DS_Store
+**/.DS_Store
+
+# Native mobile build output: never part of the server image
+apps/field/android
+apps/field/ios
+
+# Documentation and design assets add weight and no runtime value
+docs
+design
+fixtures/**/*.zip

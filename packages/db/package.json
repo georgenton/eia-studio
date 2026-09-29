@@ -8,16 +8,17 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "typecheck": "tsc -p tsconfig.json",
-    "generate": "drizzle-kit generate",
+    "build": "tsup",
     "check": "node scripts/check-migrations.mjs",
-    "migrate": "tsx scripts/migrate.ts",
-    "provision-runtime-role": "tsx scripts/provision-runtime-role.ts",
-    "seed:dev": "tsx scripts/seed-dev.ts",
     "check-seeder-idempotency": "node scripts/check-seeder-idempotency.mjs",
-    "staging:baseline": "node scripts/staging-baseline.mjs",
+    "generate": "drizzle-kit generate",
+    "migrate": "tsx scripts/migrate.ts",
+    "probe": "node scripts/capability-probe.mjs",
+    "provision-runtime-role": "tsx scripts/provision-runtime-role.ts",
     "reset:local": "node scripts/reset-local-db.mjs",
-    "probe": "node scripts/capability-probe.mjs"
+    "seed:dev": "tsx scripts/seed-dev.ts",
+    "staging:baseline": "node scripts/staging-baseline.mjs",
+    "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
     "@eia/contracts": "workspace:*",
@@ -30,6 +31,7 @@
     "@types/pg": "8.23.1",
     "dotenv": "17.4.2",
     "drizzle-kit": "0.31.10",
+    "tsup": "8.5.1",
     "tsx": "4.23.13",
     "typescript": "5.9.3",
     "vitest": "4.1.11"

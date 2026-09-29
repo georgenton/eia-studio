@@ -1,0 +1,94 @@
+# Builds the EIA Studio application image.
+#
+# A pull request **proves the image builds and runs**; it publishes nothing and never obtains
+# write access to the registry. A push to `main` publishes, and the digest it prints is a build
+# artefact — **not** an accepted release. A digest becomes eligible for an environment only after
+# main CI is green and a deployment review accepts it. Nothing here deploys anything.
+#
+# The build and smoke steps live in .github/actions/build-eia-image so the gate and the publish
+# job cannot drift apart.
+name: image
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Commit or branch to build"
+        required: false
+
+concurrency:
+  group: image-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # ---------------------------------------------------------------- pull request
+  gate:
+    name: container build gate
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    # No packages:write. A pull request has no business holding a registry credential.
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+      - id: sha
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - uses: ./.github/actions/build-eia-image
+        with:
+          git-sha: ${{ steps.sha.outputs.sha }}
+          build-id: pr-${{ github.event.pull_request.number }}-${{ github.run_id }}
+          push: "false"
+
+  # ----------------------------------------------------------------------- main
+  publish:
+    name: build and publish
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+      - id: sha
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          # GITHUB_TOKEN is enough for packages:write on this repository's own registry. A
+          # personal access token would be a long-lived credential for no added capability.
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: image
+        uses: ./.github/actions/build-eia-image
+        with:
+          git-sha: ${{ steps.sha.outputs.sha }}
+          build-id: ${{ github.run_id }}
+          push: "true"
+          image-name: ghcr.io/${{ github.repository }}
+
+      - name: Record the digest
+        run: |
+          {
+            echo "### EIA Studio image"
+            echo
+            echo '```'
+            echo "repository ghcr.io/${{ github.repository }}"
+            echo "commit     ${{ steps.sha.outputs.sha }}"
+            echo "digest     ${{ steps.image.outputs.digest }}"
+            echo '```'
+            echo
+            echo "**This is a build artefact, not an accepted release.** A digest becomes"
+            echo "eligible for demo or staging only after main CI is green and a deployment"
+            echo "review accepts it. Deploy by digest; the tag exists to find the image."
+          } >> "$GITHUB_STEP_SUMMARY"
