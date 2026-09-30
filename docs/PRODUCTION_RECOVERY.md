@@ -53,6 +53,15 @@ effective RPO is *everything since the environment was created*.
 
 ## 3. What the provider must offer
 
+> **ADR-040: the provider is us.** Cinta Vera self-hosts PostgreSQL on its own OVH host, so this
+> list stopped being a purchasing filter and became a build list. **Nothing on it is relaxed.**
+> Items 1 and 5 are met by the artefact; item 2 is designed and not configured (pgBackRest is
+> installed and pinned, `archive_command` is not set), item 3 is met for staging only and by
+> logical dumps rather than base backups, and item 4 is met by Cloudflare R2 once versioning is
+> confirmed on the buckets. `docs/DATABASE_PLATFORM.md` §5 is where each one is tracked.
+>
+> Item 6 is unchanged and is still a legal question this document does not answer.
+
 The production hosting decision is constrained by this list. A provider that cannot do all of it is
 not a candidate, whatever else it offers.
 

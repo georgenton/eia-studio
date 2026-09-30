@@ -330,6 +330,24 @@ exception itself is the owner's — Vercel guards it with a typed confirmation m
 automating around that would defeat a control rather than use a feature. Still blocked on one Expo
 login; storage still absent; the handset UAT stays PREPARED.
 
+**The database is ours (30 September 2026, ADR-040).** The owner decided that Cinta Vera
+self-hosts PostgreSQL on the OVH host through Coolify for demo, staging and production alike,
+which resolves the question ADR-039 left `OWNER_INPUT_REQUIRED` and supersedes the managed-provider
+recommendation in `docs/PRODUCTION_INFRASTRUCTURE_DECISION.md` §3 — its *evidence* stands, its
+conclusion does not. The rule is that **nothing a managed provider would have sold us is dropped
+because the deployment became ours**: TLS, off-host backups, PITR and an RPO of five minutes are
+now a build list rather than a purchasing filter. `docker/postgres` becomes *the* database
+artefact — both apt packages pinned by exact version (closing TD-001), pgBackRest installed and
+deliberately unconfigured, published multi-architecture to GHCR and **deployed by digest, never a
+tag**, because an image that moves under a running volume is the supply-chain change nobody
+notices until a restore. TLS comes from an **internal CA whose private key never reaches the
+VPS**; the entrypoint prefers provided material, emits a SAN so a client can actually verify it,
+and `EIA_SSL_REQUIRE_PROVIDED=true` refuses to fall back to a self-signed pair. The client
+trusts it through `sslrootcert` and `packages/db/src/client.ts` needs **no change**, proven by a
+test with two negative controls. `verify-full`, not `verify-ca`, because the client library
+treats them as the same thing. The map is `docs/DATABASE_PLATFORM.md`; the artefact is ahead of
+every deployment on purpose, and migrating one is the next wave.
+
 ## Read before acting
 
 Approved design bundle (source of truth; precedence: README → prototype → spec v0.2 → screenshots):
@@ -361,6 +379,7 @@ Also relevant by task: `docs/DATA_MODEL.md`, `docs/PROVENANCE.md`, `docs/AI_GOVE
 `docs/SURVEY_AUTHORING.md`, `docs/SURVEY_CORRECTIONS.md`,
 `docs/PRODUCTION_V1_GO_LIVE.md`, `docs/PRODUCTION_RECOVERY.md`,
 `docs/PRODUCTION_PRIVACY_CHECKLIST.md`, `docs/PRODUCTION_INFRASTRUCTURE_DECISION.md`,
+`docs/DATABASE_PLATFORM.md`,
 `docs/OWNER_GO_LIVE_ACTIONS.md`, `docs/EIGHT_ROAD_ONBOARDING.md`,
 `docs/CONSULTANCY_TEMPLATE_REQUEST.md`,
 `docs/DATA_CLASSIFICATION_MATRIX.md`, `docs/GENERALISATION_AUDIT.md`, `docs/FIELD_MOBILE_BUILDS.md`,
@@ -368,7 +387,7 @@ Also relevant by task: `docs/DATA_MODEL.md`, `docs/PROVENANCE.md`, `docs/AI_GOVE
 `docs/IMPLEMENTATION_PLAN.md`, `docs/DESIGN_BUNDLE_KNOWN_ISSUES.md`, the delivery docs
 `docs/ENGINEERING_STANDARDS.md`, `docs/RELEASE_POLICY.md`, `docs/CI.md`, `docs/DEPLOYMENT.md`,
 `docs/DEPENDENCIES.md`, `docs/TECH_DEBT.md`, the Gate record `docs/DECISIONS/GATE-1.md`, and
-the ADRs in `docs/DECISIONS/ADR-001` … `ADR-038`. Root `README.md` has the local quick start.
+the ADRs in `docs/DECISIONS/ADR-001` … `ADR-040`. Root `README.md` has the local quick start.
 
 ## Working rules for every session
 

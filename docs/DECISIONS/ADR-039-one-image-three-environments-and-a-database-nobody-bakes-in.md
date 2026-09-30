@@ -51,7 +51,7 @@ recovery objective is *reseed*, not *restore*.
 **Staging and production must use the same database strategy**, because staging exists to
 validate what production will do, and a staging database of a different kind validates a
 different system. The preferred direction is managed PostgreSQL offering PostgreSQL 17, PostGIS,
-pgvector and PITR together. **The provider stays undecided** and is OWNER_INPUT_REQUIRED.
+pgvector and PITR together. ~~**The provider stays undecided** and is OWNER_INPUT_REQUIRED.~~ **Resolved by ADR-040 (30 September 2026): self-hosted PostgreSQL on the OVH host, through Coolify, for all three environments.** The paragraph below about self-hosting therefore applies, and its gates are mandatory rather than conditional.
 
 **If self-hosting is chosen for staging and production**, off-host WAL archiving, backup and a
 restore drill become mandatory gates, not follow-up work. A backup on the same VPS is not a
