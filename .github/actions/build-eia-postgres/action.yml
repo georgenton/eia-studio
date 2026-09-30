@@ -98,10 +98,22 @@ runs:
         san="$(docker exec "$name" openssl x509 -in /var/lib/postgresql/certs/server.crt -noout -ext subjectAltName)"
         case "$san" in *DNS:*) ;; *) echo "::error::the certificate carries no subject alternative name"; exit 1 ;; esac
 
-        # Nothing that looks like a credential may travel inside a database image.
+        # No private key material may travel inside the image.
+        #
+        # Two false positives shaped this check, both found by writing it wrong first. The signal
+        # is not `*.pem`: the system CA bundle is hundreds of them and every one is public. And it
+        # is not the string "PRIVATE KEY" either — libcrypto, GnuTLS and gpg all carry the PEM
+        # header as data, so the search must skip binaries (`-I`) and anchor on a real header.
+        #
+        # `/var/lib/postgresql` is excluded: once staged, that is where the key the container was
+        # *given* legitimately lives.
         echo "--- no secrets ---"
-        found="$(docker exec "$name" sh -c 'find / -xdev \( -name ".env*" -o -name "*.pem" -o -name "id_rsa*" \) -not -path "/proc/*" 2>/dev/null' || true)"
-        [ -z "$found" ] || { echo "::error::unexpected credential-shaped files: $found"; exit 1; }
+        found="$(docker exec "$name" sh -c '
+          find / -xdev \( -name ".env*" -o -name "id_rsa*" -o -name "id_ed25519*" -o -name "id_ecdsa*" \) \
+            -not -path "/proc/*" 2>/dev/null
+          grep -rlI -E "^-----BEGIN ([A-Z ]+ )?PRIVATE KEY-----" /etc /usr /opt /root /home 2>/dev/null
+        ' || true)"
+        [ -z "$found" ] || { echo "::error::private key material or env files inside the image:"; echo "$found"; exit 1; }
 
         docker rm -f "$name" >/dev/null
         echo "image verified: extensions present, TLS served, no credential-shaped files"

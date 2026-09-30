@@ -45,7 +45,12 @@ RUN set -eux; \
       "postgresql-17-pgvector=${PGVECTOR_VERSION}" \
       "pgbackrest=${PGBACKREST_VERSION}" \
       openssl; \
-    rm -rf /var/lib/apt/lists/*
+    rm -rf /var/lib/apt/lists/*; \
+    # Debian's `ssl-cert` package leaves a "snakeoil" self-signed key in the image. Nothing here
+    # uses it, and it is world-readable to anyone who pulls the image — which is fine for what it
+    # is and not fine as a thing an operator could point `ssl_cert_file` at by accident. A
+    # database image that serves TLS should carry exactly one private key: the one it was given.
+    rm -f /etc/ssl/private/ssl-cert-snakeoil.key /etc/ssl/certs/ssl-cert-snakeoil.pem
 
 # TLS. Upstream postgres/postgis images ship without it; this wrapper turns it on and decides
 # where the key pair comes from (ADR-040 §3). It prefers material an internal CA signed, and falls
