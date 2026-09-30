@@ -98,27 +98,54 @@ and **data restore** (backup plus PITR). Never `git reset` on the host as a depl
 
 ## The intermittent build failure, and its cause
 
-**Reproduced on 30 September 2026, in the pull-request gate of PR #57.** The pre-deploy wave
-recorded a `docker build` that failed inside `next build` while identical builds before and after
-succeeded, and could not reproduce it: two further builds with `--no-cache --pull` both exited 0.
-It was recorded as *observed, not reproduced*, with no retry added and no error suppressed —
-which is why there was something to recognise when it happened again.
+The pre-deploy implementation recorded a `docker build` that failed inside `next build` while an
+identical build immediately before and after succeeded. It was investigated rather than waved away:
+two further builds with `--no-cache --pull`, from no prior layers, both completed with exit code 0
+and zero error lines in 368 and 331 log lines respectively. It was recorded as **observed locally,
+not reproduced** — no retry added, no Next error suppressed, no timeout raised, each of which would
+have hidden the next occurrence instead of catching it — and the pull-request container gate was
+made to build the image on every change so that a real flake would have somewhere to show up.
 
-The cause is `next/font/google`. `apps/web/app/layout.tsx` imports Archivo, JetBrains Mono and
-Source Serif 4 from it, and Next.js **downloads those fonts from Google's CDN during the build**.
-When the build container cannot reach `fonts.googleapis.com`, Next still emits the font CSS
-module and the build then fails resolving files it never fetched:
+It did. On **30 September 2026** the gate of PR #57 reproduced it.
+
+**The cause.** `apps/web/app/layout.tsx` loaded its three fonts through `next/font/google`, which
+downloads them from `fonts.gstatic.com` **during `next build`**. When the build container cannot
+reach Google, Next emits a warning, still emits the generated font CSS module, and the build then
+fails resolving files it never fetched:
 
 ```
+Warning: Error while requesting resource
+There was an issue establishing a connection while requesting
+https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600&display=swap
+...
 Module not found  [next]/internal/font/google/jetbrains_mono_23b75448.module.css
 ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @eia/web@0.0.0 build: `next build`
 ```
 
-So the image build is **not hermetic**: it depends on a third party's CDN being reachable at
-build time, which is why it is intermittent, why it never reproduced on a warm developer machine,
-and why it cannot be fixed by retrying.
+That is why it was intermittent: nothing about this repository decided it. A transient DNS answer,
+a slow resolver or a restricted egress path did — which is exactly the failure mode a build should
+not have, and exactly the one a retry would have made invisible.
 
-**The fix is to stop fetching at build time** — `next/font/local` with the font files committed,
-which Next supports and which removes the dependency entirely. That is an application change and
-belongs in its own pull request; a retry here would only make the flake quieter.
+**The fix is the removal of the dependency, not a retry.** The three families are committed under
+`apps/web/app/fonts/` and loaded with `next/font/local`. Same families, same weights, same CSS
+variables, same `display: swap`; the font bytes are the ones Google was serving, and the rendered
+output is pixel-identical — the same page built both ways produced byte-identical screenshots.
+`docs/DEPENDENCIES.md` § *Self-hosted fonts* is the supply-chain record, including the licences and
+the one behavioural narrowing the change makes.
 
+**Proved, not assumed.** With the `deps` layer already built, the image builds with no network at
+all:
+
+```bash
+docker build --target deps -t eia-deps .
+docker build --build-context deps=docker-image://eia-deps:latest --network=none .
+```
+
+`deps` is pinned to the prebuilt image because `--network=none` applies to every stage and pnpm
+genuinely needs a registry; everything after it does not. The same command against the previous
+`next/font/google` layout fails with the message above — the negative control, and the reproduction
+the earlier investigation could not obtain.
+
+`apps/web/test/build-hermeticity.test.ts` keeps it that way: it fails if anything under `apps/web`
+imports a build-time network font loader again. That guard runs in the ordinary unit suite, so the
+next occurrence is a red test on a developer's machine rather than a deployment that will not build.

@@ -113,6 +113,91 @@ and the image is published to `ghcr.io/georgenton/eia-studio-postgres` and deplo
 An apt pin is reproducible while PGDG keeps the version in its index and fails the build loudly
 when it does not; the published digest is what makes the artefact permanent.
 
+## Self-hosted fonts, and why the build fetches nothing
+
+The three families of the approved typographic system (design v0.2) are committed as `.woff2`
+under `apps/web/app/fonts/` and loaded through `next/font/local`. They used to be
+`next/font/google`, which **downloads them from `fonts.gstatic.com` while `next build` runs**.
+
+That is not a caching detail, it is a build-time dependency on a third party. When the build host
+cannot reach Google, Next emits a warning, still emits the generated font CSS module, and the build
+then fails resolving files it never fetched:
+
+```
+Warning: Error while requesting resource
+There was an issue establishing a connection while requesting
+https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600&display=swap
+...
+Module not found  [next]/internal/font/google/jetbrains_mono_23b75448.module.css
+ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @eia/web@0.0.0 build: `next build`
+```
+
+It was seen once locally during the pre-deploy wave, could not be reproduced then, and was recorded
+as an open question rather than dismissed. It reproduced in the container gate of PR #57 on
+30 September 2026. `docs/EIA_COOLIFY_DEPLOYMENT.md` carries the operational account; this section
+is the supply-chain record.
+
+### What is committed
+
+| File | Family | Weights declared | Subset | SHA-256 |
+|---|---|---|---|---|
+| `source-serif-4-latin.woff2` | Source Serif 4 (v14) | 400, 600 | `latin` | `286e05e5…d08ca122` |
+| `archivo-latin.woff2` | Archivo (v25) | 400, 500, 600 | `latin` | `7150c0ec…f87c4ba4` |
+| `jetbrains-mono-latin.woff2` | JetBrains Mono (v24) | 400, 500 | `latin` | `2c32b9b3…8e400af4` |
+
+**One file per family**, because Google serves one *variable* woff2 per family and subset: the
+per-weight `@font-face` rules in its CSS all point at the same file, and `apps/web/app/layout.tsx`
+reproduces exactly that — one `src` entry per weight against one file. The bytes are the ones
+`next/font/google` was fetching: the identical build, run before and after the change, emitted
+woff2 files with these same three hashes.
+
+These are the Google Fonts API's builds — subsetted derivatives of the upstream releases — not the
+upstream release files. `tooling/scripts/fetch-web-fonts.mjs` re-derives them, reproducing the same
+`css2` URL and the same user agent the Next loader used (Google serves `ttf` to anything that does
+not look like a browser), and fails if either the committed file or upstream has moved:
+
+```
+pnpm fonts:check                                    verify against upstream
+node tooling/scripts/fetch-web-fonts.mjs --write     refresh, then review the diff
+```
+
+It is **not** wired into `build`, `dev` or CI, and must not be: a check that reaches the network is
+the thing this change removed. `apps/web/test/build-hermeticity.test.ts` runs in the ordinary unit
+suite instead — it fails if anything under `apps/web` imports a network font loader again, and pins
+the three hashes so a swapped font file fails a test rather than being noticed in a screenshot.
+
+### Licences
+
+All three are under the **SIL Open Font License, Version 1.1**, with no Reserved Font Name, which
+permits redistribution of the files and of subsetted derivatives provided the licence travels with
+them. The licence text sits beside each font as `<family>-OFL.txt`, copied from each family's
+directory in `github.com/google/fonts`:
+
+| Font | Copyright | Upstream |
+|---|---|---|
+| Source Serif 4 | 2014 The Source Serif 4 Project Authors | `adobe-fonts/source-serif` |
+| Archivo | 2020 The Archivo Project Authors | `Omnibus-Type/Archivo` |
+| JetBrains Mono | 2020 The JetBrains Mono Project Authors | `JetBrains/JetBrainsMono` |
+
+### The one behavioural narrowing, stated rather than discovered later
+
+`subsets: ["latin"]` in `next/font/google` selects what is **preloaded**, not what is downloaded:
+the loader served every subset Google returns — latin, latin-ext, greek, cyrillic, cyrillic-ext and
+vietnamese, 15 files and 348 KB — each with its own `unicode-range`. Only `latin` is committed here,
+so a character in one of the other five ranges now renders in the CSS fallback chain
+(`Georgia` / `system-ui` / `Menlo`, `packages/ui/src/tokens.css`) rather than in the brand font. The
+glyph is correct; the typeface is not the brand one for that character.
+
+Measured exposure at the time of the change: **none**. A scan of `packages/i18n/src`,
+`packages/ui/src`, `apps/web/app`, `apps/web/components` and all of `fixtures/` found no character
+in any of the five. The seven non-ASCII characters in the interface — `→ ↗ ↕ ▾ ● ○ ✓` — fall in no
+Google subset of these families and were already rendering from the system font.
+
+What could surface it is **project source data**, which is user input: a Shuar name carrying `ĩ`,
+`ũ` or `ẽ` (the `vietnamese` range), or a document with a Central-European name (`latin-ext`). The
+remedy is to add that subset's file and its `unicode-range`, which costs one `localFont` call per
+subset, because `next/font/local` takes one `declarations` list per call.
+
 ## Better Auth upgrade guard (IG0-M02)
 
 `better-auth` is pinned to an exact version. `apps/web/test/auth-schema-compat.test.ts` asks the
