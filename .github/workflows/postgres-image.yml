@@ -1,0 +1,98 @@
+# Builds the EIA Studio PostgreSQL image (ADR-040).
+#
+# Separate from `image.yml` and triggered by path, because a database image and an application
+# image have different lifetimes. The application is rebuilt on every merge; the database is
+# rebuilt when somebody changes its Dockerfile, its entrypoint or its pins. Rebuilding it on
+# unrelated commits would produce a new digest nobody asked for, under a volume that is running.
+#
+# A pull request **proves the image builds and serves TLS**; it publishes nothing and holds no
+# registry credential. A push to `main` publishes, and the digest it prints is a build artefact —
+# **not an accepted release**. Nothing here deploys anything.
+name: postgres-image
+
+on:
+  pull_request:
+    paths:
+      - docker/postgres/**
+      - .github/workflows/postgres-image.yml
+      - .github/actions/build-eia-postgres/**
+  push:
+    branches: [main]
+    paths:
+      - docker/postgres/**
+      - .github/workflows/postgres-image.yml
+      - .github/actions/build-eia-postgres/**
+  workflow_dispatch:
+
+concurrency:
+  group: postgres-image-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # ---------------------------------------------------------------- pull request
+  gate:
+    name: postgres image gate
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    # No packages:write. A pull request has no business holding a registry credential.
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+      - id: sha
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - uses: ./.github/actions/build-eia-postgres
+        with:
+          git-sha: ${{ steps.sha.outputs.sha }}
+          build-id: pr-${{ github.event.pull_request.number }}-${{ github.run_id }}
+          push: "false"
+
+  # ----------------------------------------------------------------------- main
+  publish:
+    name: build and publish postgres
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v5
+      - id: sha
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          # GITHUB_TOKEN is enough for packages:write on this repository's own registry. A
+          # personal access token would be a long-lived credential for no added capability.
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: image
+        uses: ./.github/actions/build-eia-postgres
+        with:
+          git-sha: ${{ steps.sha.outputs.sha }}
+          build-id: ${{ github.run_id }}
+          push: "true"
+          image-name: ghcr.io/${{ github.repository }}-postgres
+
+      - name: Record the digest
+        run: |
+          {
+            echo "### EIA Studio PostgreSQL image"
+            echo
+            echo '```'
+            echo "repository ghcr.io/${{ github.repository }}-postgres"
+            echo "commit     ${{ steps.sha.outputs.sha }}"
+            echo "digest     ${{ steps.image.outputs.digest }}"
+            echo '```'
+            echo
+            echo "**Deploy by digest.** The SHA tag exists to find the image; a database resource"
+            echo "pinned to a tag would change underneath a running volume the next time this"
+            echo "workflow ran. Adopting a new digest is a deliberate act with a backup taken"
+            echo "first — see docs/DATABASE_PLATFORM.md."
+          } >> "$GITHUB_STEP_SUMMARY"

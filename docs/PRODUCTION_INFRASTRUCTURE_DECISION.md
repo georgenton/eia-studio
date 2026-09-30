@@ -50,6 +50,21 @@ filling in accounts.
 
 ## 3. PostgreSQL + PostGIS — the one component that must change
 
+> **Superseded by ADR-040 (30 September 2026), by an owner decision this section did not have.**
+>
+> The recommendation below is **Neon**. The owner has decided that Cinta Vera will **self-host
+> PostgreSQL** on the existing OVH VPS through Coolify, for demo, staging and production alike.
+>
+> What survives unchanged is this section's *evidence*, which is why it is kept rather than
+> deleted: Railway can serve PostGIS or PITR and not both; Neon was the only managed candidate
+> verified to offer PostGIS, pgvector and self-service PITR together; Supabase costs roughly four
+> times as much for the same guarantee. Any future reconsideration starts from these facts.
+>
+> What is superseded is the conclusion, and the sentence that carried it — *"Somebody would have
+> to operate it, and there is no somebody."* There is now. ADR-040 §Consequences lists exactly
+> what that somebody has taken on, and `docs/DATABASE_PLATFORM.md` is the map.
+
+
 ### The blocker, stated factually
 
 Staging runs a **custom PostGIS image** (`docker/postgres/Dockerfile`, from `imresamu/postgis:17-3.5`

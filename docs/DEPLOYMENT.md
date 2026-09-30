@@ -139,11 +139,17 @@ and point-in-time recovery; region/data-residency acceptable for the compliance 
 and CPU sizing for PostGIS indexes. If any item fails, choose a managed alternative with the
 same extensions; the application does not change.
 
-Local and CI image: `docker/postgres/Dockerfile` = `imresamu/postgis:17-3.5` (multi-arch
-amd64/arm64 build of the official PostGIS image recipe, Debian bookworm + PGDG) plus
-`postgresql-17-pgvector` from the same PGDG repository. Verified in Slice 0: PostgreSQL 17.6,
-PostGIS 3.5.3, pgvector 0.8.6, pg_trgm 1.6. No maintained upstream image ships both extensions
-(`postgis/postgis` lacks pgvector, `pgvector/pgvector` lacks PostGIS); see TECH_DEBT.md TD-001.
+**Amended by ADR-040.** The database is self-hosted on the OVH host through Coolify for every
+environment, so `docker/postgres/Dockerfile` is no longer only a local/CI image: it is *the*
+database artefact, published to `ghcr.io/georgenton/eia-studio-postgres` and deployed **by
+digest**. It builds on `imresamu/postgis:17-3.5` (multi-arch amd64/arm64 build of the official
+PostGIS image recipe, Debian bookworm + PGDG) and adds `postgresql-17-pgvector` and `pgbackrest`,
+both **pinned by exact version**. Contents: PostgreSQL 17.6, PostGIS 3.5.3, pgvector 0.8.6,
+pg_trgm 1.6, pgBackRest 2.59.1. No maintained upstream image ships both extensions
+(`postgis/postgis` lacks pgvector, `pgvector/pgvector` lacks PostGIS).
+
+TLS, the internal CA, the per-environment resources, backup and point-in-time recovery, and the
+capacity gate before production are all in **`docs/DATABASE_PLATFORM.md`**.
 
 ## 4a. Staging as actually built (Slice 0.5)
 

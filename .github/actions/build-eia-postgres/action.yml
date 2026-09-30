@@ -1,0 +1,128 @@
+name: Build and verify the EIA Studio PostgreSQL image
+description: >
+  Builds docker/postgres and proves, by starting it, that the extensions the product requires are
+  present and that it serves TLS. One definition, used by the pull-request gate and by the publish
+  job, so the two cannot drift.
+
+inputs:
+  git-sha:
+    description: Commit being built; recorded as the OCI revision.
+    required: true
+  build-id:
+    description: Build identifier for the OCI version label.
+    required: true
+  push:
+    description: '"true" publishes to GHCR; "false" loads a single-architecture image locally.'
+    required: true
+  image-name:
+    description: Registry repository, used only when pushing.
+    required: false
+    default: ""
+  platforms:
+    description: Platforms to publish. Verification always runs on the runner's own.
+    required: false
+    default: linux/amd64,linux/arm64
+
+outputs:
+  digest:
+    description: Image digest; empty when the image was not pushed.
+    value: ${{ steps.publish.outputs.digest }}
+
+runs:
+  using: composite
+  steps:
+    - uses: docker/setup-qemu-action@v3
+      if: inputs.push == 'true'
+    - uses: docker/setup-buildx-action@v3
+
+    # Verification first, on one architecture, because a multi-architecture build cannot be
+    # loaded into the daemon and an image nobody started is an image nobody has checked.
+    - name: Build for verification
+      uses: docker/build-push-action@v6
+      with:
+        context: docker/postgres
+        platforms: linux/amd64
+        load: true
+        push: false
+        tags: eia-studio/postgres:verify
+        cache-from: type=gha,scope=postgres
+        cache-to: type=gha,mode=max,scope=postgres
+
+    - name: Verify the image that was just built
+      shell: bash
+      run: |
+        set -euo pipefail
+        name=eia-pg-verify
+        docker rm -f "$name" >/dev/null 2>&1 || true
+        docker run -d --name "$name" \
+          -e POSTGRES_PASSWORD=verify -e POSTGRES_DB=verify eia-studio/postgres:verify >/dev/null
+
+        # Wait for the *final* server. The official entrypoint runs initdb against a temporary
+        # one and restarts; a client that arrives in that window is disconnected mid-statement.
+        ok=""
+        for _ in $(seq 1 90); do
+          if docker logs "$name" 2>&1 | grep -q "PostgreSQL init process complete"; then ok=1; break; fi
+          sleep 1
+        done
+        [ -n "$ok" ] || { echo "::error::initialisation never completed"; docker logs "$name"; exit 1; }
+        for _ in $(seq 1 60); do
+          docker exec "$name" pg_isready -U postgres -d verify >/dev/null 2>&1 && break
+          sleep 1
+        done
+
+        q() { docker exec "$name" psql -U postgres -d verify -tAc "$1"; }
+
+        echo "--- versions ---"
+        q "select version()"
+        docker exec "$name" pgbackrest version
+
+        # The three the product actually requires. Migration 0000 creates all three
+        # unconditionally, so a missing one is a migration that cannot run.
+        echo "--- extensions ---"
+        for ext in postgis vector pg_trgm; do
+          docker exec "$name" psql -U postgres -d verify -qc "CREATE EXTENSION IF NOT EXISTS $ext" >/dev/null
+        done
+        installed="$(q "select string_agg(extname || ' ' || extversion, ', ' order by extname) from pg_extension where extname in ('postgis','vector','pg_trgm')")"
+        echo "$installed"
+        for ext in postgis vector pg_trgm; do
+          case "$installed" in *"$ext "*) ;; *) echo "::error::$ext is missing"; exit 1 ;; esac
+        done
+
+        # TLS capability, asserted from the client's side rather than from a setting: `show ssl`
+        # says what was asked for, pg_stat_ssl says what happened.
+        echo "--- TLS ---"
+        [ "$(q "show ssl")" = "on" ] || { echo "::error::ssl is not on"; exit 1; }
+        encrypted="$(docker exec "$name" psql "postgres://postgres:verify@127.0.0.1:5432/verify?sslmode=require" \
+          -tAc "select ssl from pg_stat_ssl where pid = pg_backend_pid()")"
+        [ "$encrypted" = "t" ] || { echo "::error::a TLS connection did not report as encrypted"; exit 1; }
+        san="$(docker exec "$name" openssl x509 -in /var/lib/postgresql/certs/server.crt -noout -ext subjectAltName)"
+        case "$san" in *DNS:*) ;; *) echo "::error::the certificate carries no subject alternative name"; exit 1 ;; esac
+
+        # Nothing that looks like a credential may travel inside a database image.
+        echo "--- no secrets ---"
+        found="$(docker exec "$name" sh -c 'find / -xdev \( -name ".env*" -o -name "*.pem" -o -name "id_rsa*" \) -not -path "/proc/*" 2>/dev/null' || true)"
+        [ -z "$found" ] || { echo "::error::unexpected credential-shaped files: $found"; exit 1; }
+
+        docker rm -f "$name" >/dev/null
+        echo "image verified: extensions present, TLS served, no credential-shaped files"
+
+    - name: Publish
+      id: publish
+      if: inputs.push == 'true'
+      uses: docker/build-push-action@v6
+      with:
+        context: docker/postgres
+        # Multi-architecture on purpose: the deployments are amd64 and the developer machines are
+        # arm64, and one image for both is what keeps `pnpm db:up` and staging the same database.
+        platforms: ${{ inputs.platforms }}
+        push: true
+        provenance: true
+        sbom: true
+        tags: ${{ inputs.image-name }}:${{ inputs.git-sha }}
+        labels: |
+          org.opencontainers.image.title=EIA Studio PostgreSQL
+          org.opencontainers.image.source=https://github.com/${{ github.repository }}
+          org.opencontainers.image.revision=${{ inputs.git-sha }}
+          org.opencontainers.image.version=${{ inputs.build-id }}
+        cache-from: type=gha,scope=postgres
+        cache-to: type=gha,mode=max,scope=postgres

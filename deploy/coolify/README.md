@@ -45,6 +45,23 @@ Set `EIA_IMAGE` to the previous digest and redeploy. That reverses the **applica
 else: migrations are forward-only, so if the version being rolled back applied one, the schema
 stays. Reversing a schema is a restore, not a redeploy — `docs/EIA_BACKUP_RECOVERY.md`.
 
+## The database is a separate resource, and its own artefact
+
+This compose declares `web` and `worker` and **no PostgreSQL**, and that does not change
+(ADR-039). Since ADR-040 the database is self-hosted as a separate Coolify resource per
+environment, built from `docker/postgres` and deployed by digest. How it is built, how its TLS
+works, how it is backed up and what must be measured before production are in
+`docs/DATABASE_PLATFORM.md`.
+
+Two things this compose does **not** do yet, and both belong to the migration wave rather than
+here:
+
+- it declares no mount, so it cannot deliver the internal CA certificate the application needs to
+  connect with `sslmode=verify-full&sslrootcert=…`;
+- `connect_to_docker_network` must be set to `true` on the Coolify service **by a PATCH after
+  creation** — the creation endpoint rejects the field — or the stack is isolated on its own
+  network and the worker fails with `getaddrinfo ENOTFOUND` against the database hostname.
+
 ## What is deliberately absent
 
 **PostgreSQL.** The application consumes URLs. Demo may point at a Coolify database resource;

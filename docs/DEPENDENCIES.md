@@ -102,11 +102,16 @@ advisory):
 
 1. `docker buildx imagetools inspect imresamu/postgis:17-3.5` and read the manifest-list digest;
 2. compare upstream release notes and the PGDG package versions;
-3. update the digest in `docker/postgres/Dockerfile` in a `chore(db)` pull request;
-4. CI's `db` job rebuilds and re-runs the extension and RLS suites against it.
+3. update the digest **and the two apt pins** in `docker/postgres/Dockerfile` in a `chore(db)`
+   pull request;
+4. CI's `db` job rebuilds and re-runs the extension and RLS suites against it, and
+   `postgres-image.yml` starts the built image and asserts the versions it actually contains.
 
-Residual gap: the `postgresql-17-pgvector` apt package is resolved at build time, so the built
-layer is not bit-reproducible (TECH_DEBT.md TD-001).
+**Closed (ADR-040).** The apt layer is pinned too — `postgresql-17-pgvector=0.8.6-1.pgdg12+2`
+and `pgbackrest=2.59.1-1.pgdg12+1`, both from the PGDG repository the base image already trusts —
+and the image is published to `ghcr.io/georgenton/eia-studio-postgres` and deployed **by digest**.
+An apt pin is reproducible while PGDG keeps the version in its index and fails the build loudly
+when it does not; the published digest is what makes the artefact permanent.
 
 ## Better Auth upgrade guard (IG0-M02)
 
