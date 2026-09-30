@@ -96,14 +96,29 @@ Set `EIA_IMAGE` to the previous digest and redeploy. Distinguish three things th
 confused: **application rollback** (change the digest), **migration rollback** (does not exist),
 and **data restore** (backup plus PITR). Never `git reset` on the host as a deployment mechanism.
 
-## One build failure that was not reproduced
+## The intermittent build failure, and its cause
 
-The pre-deploy implementation recorded a `docker build` that failed inside `next build` while an
-identical build immediately before and after succeeded. It was investigated rather than waved
-away: two further builds with `--no-cache --pull`, from no prior layers, both completed with exit
-code 0 and zero error lines in 368 and 331 log lines respectively.
+**Reproduced on 30 September 2026, in the pull-request gate of PR #57.** The pre-deploy wave
+recorded a `docker build` that failed inside `next build` while identical builds before and after
+succeeded, and could not reproduce it: two further builds with `--no-cache --pull` both exited 0.
+It was recorded as *observed, not reproduced*, with no retry added and no error suppressed —
+which is why there was something to recognise when it happened again.
 
-It is recorded as **observed locally, not reproduced**. No retry was added, no Next error was
-suppressed and no timeout was raised — each of those would hide the next occurrence instead of
-catching it. The pull-request container gate now builds the image on every change, so a real
-flake has somewhere to show up.
+The cause is `next/font/google`. `apps/web/app/layout.tsx` imports Archivo, JetBrains Mono and
+Source Serif 4 from it, and Next.js **downloads those fonts from Google's CDN during the build**.
+When the build container cannot reach `fonts.googleapis.com`, Next still emits the font CSS
+module and the build then fails resolving files it never fetched:
+
+```
+Module not found  [next]/internal/font/google/jetbrains_mono_23b75448.module.css
+ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @eia/web@0.0.0 build: `next build`
+```
+
+So the image build is **not hermetic**: it depends on a third party's CDN being reachable at
+build time, which is why it is intermittent, why it never reproduced on a warm developer machine,
+and why it cannot be fixed by retrying.
+
+**The fix is to stop fetching at build time** — `next/font/local` with the font files committed,
+which Next supports and which removes the dependency entirely. That is an application change and
+belongs in its own pull request; a retry here would only make the flake quieter.
+
