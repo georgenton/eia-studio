@@ -138,9 +138,12 @@ switch for a per-connection fact: it would make every outbound TLS connection fr
 trust our CA, including those to Cloudflare R2 and to a model provider. `sslrootcert` scopes the
 trust to the connection that needs it.
 
-Both mechanisms need the CA file inside the application container, which `deploy/coolify/compose.yml`
-has no way to deliver today. **That is the one piece of deployment work this ADR names and does
-not do**, because it belongs with the migration of an environment rather than with the artefact.
+Both mechanisms need the CA file inside the application container. The compose declares no
+mounts, but it does not have to: **Coolify delivers a file mount through its own API**
+(`POST /services/{uuid}/storages` with `type: "file"` and a `mount_path`), so the CA arrives with
+**no repository change at all**. The trade-off is that the path then lives in Coolify's database
+rather than in git, which is how environments drift — so `docs/DATABASE_PLATFORM.md` §2 fixes one
+path for all three and the migration checks it rather than trusting it.
 
 ### 5. Point-in-time recovery with pgBackRest
 
@@ -200,8 +203,7 @@ availability of a single host with no replica: if it is down, the workspace is d
 and only for capture, by offline field work (ADR-028).
 
 **What is not solved by this ADR.** Archiving is designed and not configured, so the effective
-RPO is still 24 hours. There is no replica and no failover. The CA does not exist yet. And
-`deploy/coolify/compose.yml` still cannot deliver a CA file to the application containers.
+RPO is still 24 hours. There is no replica and no failover. And the CA does not exist yet.
 
 ## Alternatives considered
 

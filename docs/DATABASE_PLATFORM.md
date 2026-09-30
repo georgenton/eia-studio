@@ -66,8 +66,23 @@ the VPS. `cinta-vera-ca.crt` is public and is the file the applications trust.
 
 ### Issuing a server certificate
 
-The SAN is the load-bearing part, because `verify-full` verifies the hostname. For a Coolify
-resource the hostname is its UUID:
+The SAN is the load-bearing part, because `verify-full` verifies the hostname. **The hostname is
+the Coolify resource UUID**, established from the generated compose rather than assumed: Coolify
+writes the UUID as both the compose *service name* and the `container_name`, so Docker resolves
+it twice over. The readable resource name (`eia-staging-postgres`) exists only as a label and
+**does not resolve** — checked from inside the application container, where it answers
+`EAI_AGAIN`.
+
+It survives container restarts and application redeploys, because the compose is regenerated from
+the resource and the UUID does not change. **Deleting and recreating the resource changes it**,
+which has one consequence for the migration: a new database resource has a new UUID, so its
+certificate cannot be issued until the resource exists. Renaming the resource does not change it.
+
+```bash
+# Read it from the resource rather than typing it
+HOST=<resource-uuid>            # staging today: wdjaezmgckj9j7xylw5nskvg
+```
+
 
 ```bash
 HOST=<resource-uuid>            # e.g. the staging database's Coolify UUID
@@ -91,8 +106,22 @@ would then unlock production.
 The entrypoint stages the pair into `EIA_SSL_DIR`, fixes ownership and mode, and checks that the
 certificate and the key belong together before PostgreSQL sees them.
 
-**`deploy/coolify/compose.yml` cannot deliver the CA file today** — it declares no mounts. That is
-deployment work for the migration wave, not a property of the artefact.
+**The compose declares no mounts, and does not need to.** Coolify mounts a file through its own
+API — `POST /services/{uuid}/storages` with `type: "file"` and a `mount_path` — so the CA arrives
+with no repository change. Established by probing the API's validation; the exact `resource_uuid`
+(the service *application*, `web` and `worker`, rather than the service) and the content field are
+confirmed by the first call in the migration wave.
+
+**One path for all three environments**, because a path that lives in Coolify rather than in git
+is how environments drift:
+
+```
+/run/eia-ca/cinta-vera-root-ca.crt
+```
+
+mounted read-only on both `web` and `worker`, with `DATABASE_URL` ending
+`?sslmode=verify-full&sslrootcert=/run/eia-ca/cinta-vera-root-ca.crt`. The migration verifies the
+file is present in both containers rather than trusting that the mount was configured.
 
 ### Environment variables the image reads
 
@@ -172,6 +201,76 @@ with `archive_mode = on` and `archive_command = pgbackrest --stanza=eia archive-
 
 Restore is one command with a target time: `pgbackrest --stanza=eia --type=time --target=… restore`.
 
+### The staging archive, concretely
+
+Three buckets, and none of them is either of the two that already exist:
+
+| Bucket | Holds | Credential |
+|---|---|---|
+| `syntavera-eia-staging` | application objects — documents, media, templates | the application's |
+| `syntavera-coolify-backups` | Coolify's `pg_dump` files | Coolify's |
+| **`syntavera-eia-staging-pgbackrest`** | **the WAL archive and base backups** | **its own, pgBackRest only** |
+
+Sharing any of them would mean one credential that can both write a study's documents and delete
+the archive that would recover them.
+
+**Configuration**, mounted as a file at `/etc/pgbackrest/pgbackrest.conf`:
+
+```ini
+[global]
+repo1-type=s3
+repo1-s3-endpoint=<account>.r2.cloudflarestorage.com
+repo1-s3-uri-style=path
+repo1-s3-bucket=syntavera-eia-staging-pgbackrest
+repo1-s3-region=auto
+repo1-path=/staging
+repo1-retention-full=2
+repo1-retention-full-type=count
+repo1-retention-archive=2
+repo1-cipher-type=aes-256-cbc
+repo1-cipher-pass=<from the environment, never in this file>
+process-max=2
+log-level-console=info
+log-level-file=off
+start-fast=y
+
+[eia]
+pg1-path=/var/lib/postgresql/data
+```
+
+`repo1-cipher-type` matters: R2 holds the archive, so the repository is encrypted with a key of
+ours before it leaves the host. Losing that passphrase loses the archive, so it is backed up
+beside the CA key and never beside the data.
+
+**PostgreSQL**, as extra flags on the resource:
+
+```
+archive_mode = on
+archive_command = 'pgbackrest --stanza=eia archive-push %p'
+archive_timeout = 60          # bounds the RPO when the database is idle
+max_wal_size = 2GB
+wal_level = replica
+```
+
+`archive_timeout = 60` is what actually delivers the five-minute RPO: without it an idle database
+can sit on a partly-filled WAL segment indefinitely, and the archive would be as stale as the
+last write burst rather than as stale as the last minute.
+
+**Secrets**, as environment variables on the database resource, never in the config file:
+`PGBACKREST_REPO1_S3_KEY`, `PGBACKREST_REPO1_S3_KEY_SECRET`, `PGBACKREST_REPO1_CIPHER_PASS`.
+
+**Persistent paths**: `/var/lib/pgbackrest` (the stanza's local state and spool) must be a volume.
+Without it, a container restart loses the spool and the next `archive-push` re-reads from the
+beginning.
+
+**Bring-up order**, which is not optional: create the stanza (`pgbackrest --stanza=eia
+stanza-create`), take the first full backup, and only then set `archive_command`. Turning on
+archiving before a stanza exists makes every `archive-push` fail, and PostgreSQL retries a failing
+`archive_command` forever while WAL accumulates until the disk fills.
+
+**Monitoring**: `pgbackrest --stanza=eia check` on a schedule. An archive that silently stopped is
+the failure mode that matters, because it is invisible until the restore.
+
 **Daily — Coolify `pg_dump` → R2.** Already configured for staging; retention 7 in S3, 0 local. It
 stays. A logical dump survives a corrupted WAL archive, and a WAL archive survives a dump that
 silently truncated.
@@ -189,6 +288,69 @@ to get wrong, are in §5 of `PRODUCTION_RECOVERY.md`; both were found by doing i
 2. **Wait for initialisation, not for `pg_isready`.** The entrypoint starts a temporary server,
    which answers `pg_isready`, and then stops and restarts it. A restore begun in that window is
    cut off mid-stream. Wait for `PostgreSQL init process complete` in the log.
+
+## 5a. Migrating an environment to this platform
+
+Written before doing it, from what the restore rehearsal already taught. The shape is **parallel,
+never in place**: the current database stays untouched and serving until everything about its
+replacement has been checked.
+
+```
+current database  ──┐
+                    │ verified fresh backup
+                    ▼
+        new resource, same host, published digest
+                    │ roles first, then restore
+                    ▼
+              verification (nine checks)
+                    │
+                    ▼
+        application switches DATABASE_URL  ──►  smoke
+                    │
+        old database still running, untouched
+```
+
+1. **Backup, and verify the execution** — not the configuration. A `success` row with a byte
+   count, not an `enabled: true`.
+2. **Create the new PostgreSQL resource** with the published digest, its own volume, its own
+   credentials, `is_public: false`. Do **not** set `EIA_SSL_REQUIRE_PROVIDED` yet: there is no
+   certificate, and the point of this step is to obtain the resource's UUID.
+3. **Read the new UUID.** That is the certificate's SAN and it cannot be known earlier (§2).
+4. **Issue the server certificate** for that UUID, off-host, from the CA.
+5. **Mount** the pair on the database, set `EIA_SSL_REQUIRE_PROVIDED=true`, restart, and confirm
+   `ssl = on` *and* that the log says it used the provided certificate rather than generating one.
+6. **Create the three roles** — `eia_app`, `eia_policy` (`BYPASSRLS`), and the runtime login role
+   — **before** restoring. A `pg_dump` of one database carries none of them, and without them the
+   142 policies fail to apply.
+7. **Restore.** Wait for `PostgreSQL init process complete`, not for `pg_isready`. Expect about
+   twenty `already exists` errors from PostGIS objects the image pre-creates, and check that they
+   are *only* that.
+8. **Verify, nine things**: 52 migrations · 71 tables · 71 FORCE RLS · 142 policies ·
+   `security_invoker = true` on `app.effective_survey_instance` · PostGIS, pgvector, pg_trgm ·
+   runtime role `rolbypassrls = false` · the synthetic tenant and user present · and a client
+   connecting with `sslmode=verify-full` reporting `pg_stat_ssl.ssl = true`, with a wrong-CA
+   negative control.
+9. **Mount the CA** on `web` and `worker`, and confirm the file is readable *in both containers*.
+10. **Switch** `DATABASE_URL` and `DATABASE_MIGRATOR_URL` to the new host with
+    `?sslmode=verify-full&sslrootcert=/run/eia-ca/cinta-vera-root-ca.crt`, and restart **only the
+    application**.
+11. **Smoke**: `/health` returns the expected `gitSha`; the worker logs `readiness check passed`;
+    the connected role, captured live from `pg_stat_activity`, is the runtime role with
+    `rolbypassrls = false`; and the data is there.
+12. **Only then** configure pgBackRest (§5), and only after that consider the old resource.
+
+### Rollback
+
+Available at every step until 12, and it is two variables:
+
+1. Set `DATABASE_URL` and `DATABASE_MIGRATOR_URL` back to the old host — without `sslmode`,
+   because the old database serves no TLS.
+2. Restart the application.
+3. The old database is still running, still holds its data, and was never written to during the
+   migration.
+
+**The old resource is not deleted in the same wave as the switch.** A migration that destroys its
+own rollback the moment it appears to work is not a migration, it is a leap.
 
 ## 6. The capacity gate before production
 
