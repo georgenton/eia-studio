@@ -138,12 +138,18 @@ switch for a per-connection fact: it would make every outbound TLS connection fr
 trust our CA, including those to Cloudflare R2 and to a model provider. `sslrootcert` scopes the
 trust to the connection that needs it.
 
-Both mechanisms need the CA file inside the application container. The compose declares no
-mounts, but it does not have to: **Coolify delivers a file mount through its own API**
-(`POST /services/{uuid}/storages` with `type: "file"` and a `mount_path`), so the CA arrives with
-**no repository change at all**. The trade-off is that the path then lives in Coolify's database
-rather than in git, which is how environments drift — so `docs/DATABASE_PLATFORM.md` §2 fixes one
-path for all three and the migration checks it rather than trusting it.
+Both mechanisms need the CA file inside the application container, and **the compose has to
+declare the mount**. An intermediate revision of this ADR claimed otherwise, on the strength of
+Coolify's storage API accepting the record; that was wrong, and the way it was wrong is worth
+keeping. Coolify *generates* the compose for a **database** resource and injects its file
+storages as bind mounts — which is how the server certificate reaches PostgreSQL. For a
+compose-based **service** it renders the file in this repository, so a storage record writes the
+file to the host and mounts nothing: the API returns 200, the file exists on disk, and the
+container has zero mounts.
+
+So `deploy/coolify/compose.yml` mounts `./run/eia-ca` — a **directory**, not a file, because
+Coolify's storage writes into that path beside the compose and an environment with no CA then
+gets an empty directory rather than a bind source that does not exist.
 
 ### 5. Point-in-time recovery with pgBackRest
 

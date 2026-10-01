@@ -136,11 +136,24 @@ would then unlock production.
 The entrypoint stages the pair into `EIA_SSL_DIR`, fixes ownership and mode, and checks that the
 certificate and the key belong together before PostgreSQL sees them.
 
-**The compose declares no mounts, and does not need to.** Coolify mounts a file through its own
-API — `POST /services/{uuid}/storages` with `type: "file"` and a `mount_path` — so the CA arrives
-with no repository change. Established by probing the API's validation; the exact `resource_uuid`
-(the service *application*, `web` and `worker`, rather than the service) and the content field are
-confirmed by the first call in the migration wave.
+**Two mechanisms, and they behave differently — this cost a migration window to learn.**
+
+| Resource kind | Who writes the compose | A file storage becomes a mount? |
+|---|---|---|
+| Database (`/databases/{uuid}/storages`) | Coolify generates it | **yes**, injected automatically |
+| Service (`/services/{uuid}/storages`) | Coolify renders *our* compose | **no** — the file lands on the host and nothing references it |
+
+For the application the compose therefore declares the mount itself:
+
+```yaml
+volumes:
+  - ./run/eia-ca:/run/eia-ca:ro
+```
+
+A **directory**, because Coolify's file storage writes into exactly that path beside the compose,
+and an environment with no CA then gets an empty directory rather than a bind source that does
+not exist. The storage record still supplies the content; the compose supplies the mount. Both
+are needed.
 
 **One path for all three environments**, because a path that lives in Coolify rather than in git
 is how environments drift:
