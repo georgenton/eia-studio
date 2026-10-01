@@ -55,6 +55,19 @@ services:
       ASSISTANT_GENERATOR: ${ASSISTANT_GENERATOR:-}
       ASSISTANT_GENERATOR_MODEL: ${ASSISTANT_GENERATOR_MODEL:-}
       AI_GATEWAY_API_KEY: ${AI_GATEWAY_API_KEY:-}
+    volumes:
+      # The internal CA the database's certificate chains to (ADR-040 §3). A **directory**, not a
+      # file, and deliberately: Coolify's file storage writes into `./run/eia-ca/` beside this
+      # compose, and an environment that has no CA yet gets an empty directory rather than a
+      # bind-mounted path that does not exist. `DATABASE_URL` names the file through
+      # `sslrootcert`, so an environment without TLS simply never looks.
+      #
+      # It has to be here. Coolify generates the compose for a *database* resource and injects
+      # its file storages as mounts; for a compose-based *service* it renders this file, so a
+      # storage record alone writes the file to the host and mounts nothing. Verified by finding
+      # the file present on the host, the storage recorded in the API, and the container holding
+      # zero mounts.
+      - ./run/eia-ca:/run/eia-ca:ro
     healthcheck:
       # Liveness only, matching what /health actually asserts: the process answers. It reads no
       # database and no configuration, so it must not be read as readiness.
@@ -101,6 +114,9 @@ services:
       DOCUMENT_REVIEWER: ${DOCUMENT_REVIEWER:-}
       DOCUMENT_REVIEWER_MODEL: ${DOCUMENT_REVIEWER_MODEL:-}
       AI_GATEWAY_API_KEY: ${AI_GATEWAY_API_KEY:-}
+    volumes:
+      # Same CA, same reason: the worker opens its own pool and verifies the same server.
+      - ./run/eia-ca:/run/eia-ca:ro
     healthcheck:
       test:
         [
