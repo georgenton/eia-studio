@@ -311,8 +311,39 @@ stanza-create`), take the first full backup, and only then set `archive_command`
 archiving before a stanza exists makes every `archive-push` fail, and PostgreSQL retries a failing
 `archive_command` forever while WAL accumulates until the disk fills.
 
-**Monitoring**: `pgbackrest --stanza=eia check` on a schedule. An archive that silently stopped is
-the failure mode that matters, because it is invisible until the restore.
+### The schedule, and why it is systemd
+
+Two systemd timers on the host, installed by the operator (not in this repository — they name a
+specific container):
+
+| Unit | When | Does |
+|---|---|---|
+| `eia-staging-pgbackrest-backup.timer` | `02:00 America/Guayaquil`, `Persistent=true` | one full backup |
+| `eia-staging-pgbackrest-check.timer` | every 15 minutes | `pgbackrest check` plus the three things it does not look at |
+
+**02:00** leaves an hour before Coolify's `pg_dump` at 03:00, so a failure in one is not mistaken
+for a failure in the other. `Persistent=true` takes the backup at boot if the host was down.
+
+**Coolify's own scheduler cannot do this**, tested rather than assumed: it has no scheduled tasks
+for database resources (404), and a task on a *service* accepts a container name at creation and
+refuses it at execution — `No valid container was found` — because it only looks among that
+service's own containers. A task hung off the application service would also vanish if that
+service were recreated, which is the failure nobody notices until the restore.
+
+**Fifteen minutes** for the check, chosen against the RPO rather than by habit: `archive_timeout`
+and PostgreSQL deliver the five-minute RPO continuously, and the check does not produce it — it
+only detects that it stopped. Fifteen minutes bounds how long a breach goes unnoticed at a cost of
+a few seconds per pass. Hourly would leave up to an hour of broken RPO unseen.
+
+**The check looks at four things**, because `pgbackrest check` alone would miss three of them:
+`pg_stat_archiver.failed_count`, the age of the last archived WAL (900 s threshold), `.ready`
+segments piling up in `pg_wal/archive_status` (32), and root disk usage (85 %). It exits non-zero,
+so the unit lands in `systemctl --failed`.
+
+**Where a failure is visible**: `systemctl --failed`, `systemctl list-timers 'eia-staging-*'` and
+`journalctl -u eia-staging-pgbackrest-*`. **There is no notification channel** — Coolify has none
+configured — so a failure today is visible to somebody who looks, and silent to somebody who does
+not. That gap is open.
 
 **Daily — Coolify `pg_dump` → R2.** Already configured for staging; retention 7 in S3, 0 local. It
 stays. A logical dump survives a corrupted WAL archive, and a WAL archive survives a dump that
