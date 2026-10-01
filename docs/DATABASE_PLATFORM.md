@@ -49,20 +49,50 @@ PostgreSQL ssl = on
 EIA clients                   sslmode=verify-full&sslrootcert=/etc/ssl/eia/ca.crt
 ```
 
-### Creating the CA — once, off the VPS
+### The CA — created 1 October 2026
 
-On a machine the owner controls, with the key never leaving it:
+It exists. On the owner's workstation, not on the VPS, in
+`~/.config/syntavera/secrets/pki/` (directory `700`, key `600`):
+
+```
+subject      CN=Cinta Vera Labs Internal Root CA
+issuer       (self-signed)
+serial       60CCA75F00727DBBE42651A0485C747E4FC40774
+validity     2026-10-01 → 2036-09-30
+key          RSA 4096, sha256WithRSAEncryption
+constraints  CA:TRUE, pathlen:1 (critical) · keyCertSign, cRLSign (critical)
+SHA-256      2D:A1:E8:8C:E8:75:9E:93:68:50:C6:0A:76:DD:5E:F1:
+             D1:D7:06:EE:B6:A4:AB:DA:F6:26:79:87:B7:F7:D9:3E
+```
+
+The fingerprint is recorded here so a certificate can be checked against *this* CA rather than
+against whichever one a machine happens to hold.
+
+It was created with:
 
 ```bash
 umask 077
-openssl req -x509 -newkey rsa:4096 -nodes -days 3650 \
-  -keyout cinta-vera-ca.key -out cinta-vera-ca.crt \
-  -subj "/CN=Cinta Vera Labs internal CA"
+openssl req -x509 -newkey rsa:4096 -sha256 -nodes -days 3652 \
+  -keyout cinta-vera-root-ca.key -out cinta-vera-root-ca.crt \
+  -subj "/CN=Cinta Vera Labs Internal Root CA" \
+  -addext "basicConstraints=critical,CA:TRUE,pathlen:1" \
+  -addext "keyUsage=critical,keyCertSign,cRLSign"
 ```
 
-`cinta-vera-ca.key` is the most sensitive file in this platform: whoever holds it can impersonate
-any database. Keep it offline, back it up separately from everything else, and never copy it to
-the VPS. `cinta-vera-ca.crt` is public and is the file the applications trust.
+`cinta-vera-root-ca.key` is the most sensitive file in this platform: whoever holds it can
+impersonate any database. It is offline, it has never been copied to the VPS, and it must be
+backed up separately from everything else — losing it means reissuing every server certificate;
+leaking it means every database can be impersonated. `cinta-vera-root-ca.crt` is public and is
+the file the applications trust.
+
+> **`.gitignore` does not protect against an accidental copy.** There is no pattern for `*.key`,
+> so a stray `cp` into the working tree would be stageable. Worth one line the next time this
+> repository is touched:
+> ```
+> # never, under any circumstances
+> *.key
+> *-ca.key
+> ```
 
 ### Issuing a server certificate
 
@@ -89,7 +119,7 @@ HOST=<resource-uuid>            # e.g. the staging database's Coolify UUID
 umask 077
 openssl req -newkey rsa:2048 -nodes -keyout server.key -out server.csr -subj "/CN=${HOST}"
 printf 'subjectAltName=DNS:%s\nbasicConstraints=CA:FALSE\nkeyUsage=digitalSignature,keyEncipherment\nextendedKeyUsage=serverAuth\n' "$HOST" > ext.cnf
-openssl x509 -req -in server.csr -CA cinta-vera-ca.crt -CAkey cinta-vera-ca.key \
+openssl x509 -req -in server.csr -CA cinta-vera-root-ca.crt -CAkey cinta-vera-root-ca.key \
   -CAcreateserial -days 825 -out server.crt -extfile ext.cnf
 ```
 
