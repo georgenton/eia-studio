@@ -1,8 +1,9 @@
 name: Build and smoke the EIA Studio image
 description: >
-  Builds the application image from the repository Dockerfile and proves the web process starts
-  and reports the commit it was built from. One definition, used by the pull-request gate and by
-  the publish job, so the two cannot drift.
+  Builds the application image from the repository Dockerfile and proves, against that image,
+  that the web process starts and reports the commit it was built from and that the worker can
+  read a PDF. One definition, used by the pull-request gate and by the publish job, so the two
+  cannot drift.
 
 inputs:
   git-sha:
@@ -89,3 +90,38 @@ runs:
 
         docker rm -f eia-smoke >/dev/null
         echo "web starts, /health reports $EXPECTED_SHA, runs as node, carries no .env"
+
+    # The web process starting proves nothing about the worker, and the worker is where documents
+    # are read. Staging demonstrated the gap: a valid PDF produced `the file could not be read`
+    # from a published image, while every test in this repository passed — because all of them
+    # resolve pdf.js from the *workspace*, and the question that matters is what the *artefact*
+    # can do. So the artefact is asked, before its digest is published.
+    #
+    # The entry point ships in the image (apps/worker/src/pdf-smoke.ts): it builds its own
+    # one-page fixture and calls the same `extractPdf` the extraction consumer calls. Nothing is
+    # mounted in, because a script mounted at test time would prove that some Node process can
+    # read a PDF rather than that this image can.
+    #
+    # It fails on either half of the defect it exists for: a missing `@napi-rs/canvas` throws
+    # `ReferenceError: DOMMatrix is not defined` at import, and a missing `pdf.worker.mjs` fails
+    # `getDocument` with "Setting up fake worker failed". Both were reproduced against the
+    # published image before this step was written.
+    - name: Prove the image can extract a PDF
+      shell: bash
+      env:
+        REF: ${{ inputs.push == 'true' && format('{0}@{1}', inputs.image-name, steps.build.outputs.digest) || 'eia-studio:ci' }}
+      run: |
+        set -euo pipefail
+        echo "extracting from $REF"
+        # No network, no environment: extraction of a fixture needs neither, and a run that
+        # could reach one would be a weaker claim about the image.
+        docker run --rm --network none --entrypoint node "$REF" \
+          apps/worker/dist/pdf-smoke.js | tee /tmp/pdf-smoke.json
+        grep -q '"ok":true' /tmp/pdf-smoke.json \
+          || { echo "::error::the image cannot extract text from a PDF"; exit 1; }
+        echo "pdf.js loads inside the image and getTextContent returns native text"
+        # Informational, and recorded here because pdf.js and its native canvas package are
+        # roughly 70 MB of this number (TD-123). A build that doubled it should be visible in
+        # the log of the run that did it, not discovered later.
+        docker image inspect "$REF" --format '{{.Size}}' \
+          | awk '{ printf "image size: %d bytes (%.1f MiB)\n", $1, $1/1048576 }'
