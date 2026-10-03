@@ -271,6 +271,12 @@ importers:
       '@eia/domain':
         specifier: workspace:*
         version: link:../../packages/domain
+      '@napi-rs/canvas':
+        specifier: 0.1.100
+        version: 0.1.100
+      pdfjs-dist:
+        specifier: 5.4.149
+        version: 5.4.149
       pg:
         specifier: 8.23.0
         version: 8.23.0
@@ -298,7 +304,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: 4.1.11
-        version: 4.1.11(@types/node@24.13.3)(vite@8.2.2(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.6.1)(terser@5.51.2)(tsx@4.23.13)(yaml@2.9.0))
+        version: 4.1.11(@types/node@24.13.3)(vite@8.2.2(@types/node@24.13.3)(esbuild@0.27.7)(jiti@2.6.1)(terser@5.51.2)(tsx@4.23.13)(yaml@2.9.0))
 
   packages/application:
     dependencies:
@@ -320,6 +326,9 @@ importers:
       '@eia/field-sync-contract':
         specifier: workspace:*
         version: link:../field-sync-contract
+      '@napi-rs/canvas':
+        specifier: 0.1.100
+        version: 0.1.100
       ai:
         specifier: ^7.0.91
         version: 7.0.91(zod@4.5.4)
@@ -417,7 +426,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: 4.1.11
-        version: 4.1.11(@types/node@24.13.3)(vite@8.2.2(@types/node@24.13.3)(esbuild@0.27.7)(jiti@2.6.1)(terser@5.51.2)(tsx@4.23.13)(yaml@2.9.0))
+        version: 4.1.11(@types/node@24.13.3)(vite@8.2.2(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.6.1)(terser@5.51.2)(tsx@4.23.13)(yaml@2.9.0))
 
   packages/domain:
     dependencies:
@@ -9131,7 +9140,6 @@ snapshots:
       '@napi-rs/canvas-linux-x64-musl': 0.1.100
       '@napi-rs/canvas-win32-arm64-msvc': 0.1.100
       '@napi-rs/canvas-win32-x64-msvc': 0.1.100
-    optional: true
 
   '@napi-rs/lzma-linux-x64-gnu@1.5.1':
     optional: true

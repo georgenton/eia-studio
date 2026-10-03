@@ -65,6 +65,31 @@ RUN pnpm --filter @eia/web build \
  && pnpm --filter @eia/worker build \
  && pnpm --filter @eia/db build
 
+# pdf.js, its worker module and its native canvas dependency: the three things PDF extraction
+# needs at runtime and that nothing was carrying into the image.
+#
+# The Next standalone trace never saw them, because the *web* application does not extract PDFs,
+# and the worker bundle no longer inlines pdf.js (apps/worker/tsup.config.ts explains why). They
+# are staged here as **real directories**, because pnpm's `node_modules` entries are symlinks
+# into `.pnpm` and `COPY --from` does not follow a symlink out of the tree it is copying.
+#
+# Whole packages, not the handful of files we believe pdf.js opens: deciding which internals a
+# dependency loads at runtime is precisely the assumption that produced this defect. pnpm's
+# nested copy of the canvas package *is* dropped, because pdf.js finds it by walking up to
+# /app/node_modules and a second copy is 33 MB of the same native binary.
+#
+# The three `test` lines name the two absences that were the defect rather than hoping for them.
+RUN set -eux; \
+    mkdir -p /pdf-runtime; \
+    pdfjs="$(ls -d /src/node_modules/.pnpm/pdfjs-dist@*/node_modules/pdfjs-dist | head -1)"; \
+    canvas="$(ls -d /src/node_modules/.pnpm/@napi-rs+canvas@*/node_modules/@napi-rs | head -1)"; \
+    cp -RL "$pdfjs" /pdf-runtime/pdfjs-dist; \
+    rm -rf /pdf-runtime/pdfjs-dist/node_modules; \
+    cp -RL "$canvas" /pdf-runtime/@napi-rs; \
+    test -f /pdf-runtime/pdfjs-dist/legacy/build/pdf.mjs; \
+    test -f /pdf-runtime/pdfjs-dist/legacy/build/pdf.worker.mjs; \
+    test -n "$(find /pdf-runtime/@napi-rs -name '*.node' -print -quit)"
+
 # ---------------------------------------------------------------------------- runtime
 FROM ${NODE_IMAGE} AS runtime
 # Re-declared: ARGs do not cross stages. The runtime needs them because `apps/web/lib/version.ts`
@@ -92,23 +117,32 @@ COPY --from=build --chown=node:node /src/apps/web/.next/static        ./apps/web
 COPY --from=build --chown=node:node /src/apps/web/public              ./apps/web/public
 
 # Worker and migrator bundles. Whole directories, not single files: bundling @eia/application
-# brings the AWS SDK and pdf.js, whose dynamic imports make esbuild split the output into chunks.
-# Their only runtime externals are pg and pino.
+# brings the AWS SDK, whose dynamic imports make esbuild split the output into chunks.
 COPY --from=build --chown=node:node /src/apps/worker/dist     ./apps/worker/dist
 COPY --from=build --chown=node:node /src/packages/db/dist     ./packages/db/dist
 # Drizzle reads these at runtime; `MIGRATIONS_FOLDER` is `../migrations` from the bundle, so the
 # folder must sit beside dist/ exactly as it does in the repository.
 COPY --from=build --chown=node:node /src/packages/db/migrations       ./packages/db/migrations
 
+# pdf.js's own runtime layout, preserved: `pdf.mjs` and `pdf.worker.mjs` stay siblings, which is
+# where pdf.js looks for the second one, and `@napi-rs/canvas` sits where the walk up from them
+# finds it. This must follow the standalone copy above, which is what creates ./node_modules.
+COPY --from=build --chown=node:node /pdf-runtime/ ./node_modules/
+
 # Node resolves upwards from the bundle's directory. pnpm's store has no top-level entries, so
 # the two externals get an explicit link each — pointing into the same traced copies above.
+#
+# The import check is a build-time assertion rather than decoration. `pdfjs-dist/legacy/build/
+# pdf.mjs` evaluates `new DOMMatrix()` at module scope, so it resolves only if the native canvas
+# package above actually loaded on this platform: a build carrying the wrong architecture's
+# binary fails here, not in a worker three environments later.
 RUN set -eux; \
     mkdir -p node_modules; \
     for m in pg pino; do \
       d="$(cd node_modules/.pnpm && ls -d "$m"@*/node_modules/"$m" | head -1)"; \
       ln -sfn "./.pnpm/$d" "node_modules/$m"; \
     done; \
-    node -e "Promise.all([import('pg'),import('pino')]).then(()=>console.log('runtime deps resolve'))"
+    node -e "Promise.all([import('pg'),import('pino'),import('pdfjs-dist/legacy/build/pdf.mjs')]).then(()=>console.log('runtime deps resolve'))"
 
 USER node
 EXPOSE 3000

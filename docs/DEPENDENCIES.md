@@ -19,10 +19,30 @@ Dependabot/Renovate PRs (CI.md Stage E) and Changesets when release-visible.
 | pino | 10.3.1 | web, worker | structured logs with redaction |
 | dotenv | 17.4.2 | db (scripts), web (next.config) | load the repository-root `.env` in local development only |
 | @aws-sdk/client-s3 · @aws-sdk/s3-request-presigner | (see manifest) | application | the S3 **protocol**, not a provider: MinIO, R2 and AWS all speak it, and this is the only place that knows the SDK exists (ADR-031) |
-| pdfjs-dist | 5.4.149 | application | reads a PDF's own text **per page**, so a citation names the page a reader turns to rather than a chunk index. Mozilla's, the one Firefox uses; the `legacy` build runs on Node with no DOM. Run with `isEvalSupported: false`, no worker and no network fonts — a delivered PDF is untrusted input (ADR-033) |
+| pdfjs-dist | 5.4.149 | application, **worker** | reads a PDF's own text **per page**, so a citation names the page a reader turns to rather than a chunk index. Mozilla's, the one Firefox uses; the `legacy` build runs on Node with no DOM. Run with `isEvalSupported: false` and no network fonts — a delivered PDF is untrusted input (ADR-033). Declared by the worker as well because its bundle externalizes it, the same reason `pg` and `pino` are there |
+| @napi-rs/canvas | 0.1.100 | application, worker | **a runtime dependency of text extraction, not of rendering.** `pdfjs-dist@5.4.149` evaluates `new DOMMatrix()` at module scope; Node has no `DOMMatrix` and pdf.js takes it from here. Without it the import throws `ReferenceError: DOMMatrix is not defined` before a byte is parsed. Declared explicitly rather than inherited as pdfjs-dist's `optionalDependencies` entry — inherited, it was present in the workspace and absent from the published image, which is §First native runtime dependency below |
 | fflate | 0.8.3 | application, testing | opens a DOCX's archive entry by entry, so `ARCHIVE_LIMITS` is checked against every entry's declared size *before* anything is expanded. A converter would decide for itself what to decompress, and would throw away the heading trail — the only checkable locator a DOCX has |
 | easy-template-x | 7.2.8 | application | fills a consultancy's own `.docx` (ADR-036). Word splits a run whenever anything about the text changes, so `{{project.name}}` normally lives in several `<w:r>` elements and a regex cannot see it — walking the run tree is a parser. MIT, no `eval`/`new Function`/`vm`/`child_process`, and configured so it can only substitute: plugins replaced with text and repetition, delimiters fixed here, and the data resolver **replaced** so a tag is a closed-registry key or nothing. `docx-templates` was rejected because it evaluates JavaScript from the template |
 | expo-image-picker · expo-file-system | 57.0.18 · 57.0.7 | field | the camera (never the photo library) and the application's own documents directory, where a photograph waits for signal (ADR-032) |
+
+### First native runtime dependency
+
+`@napi-rs/canvas` is the first package this product ships whose contents include a compiled
+binary (`skia.linux-x64-gnu.node`). Three consequences, stated because none of them applies to
+any other row above:
+
+- **The image is architecture-specific where it was not.** The build is `linux/amd64` only
+  (`.github/actions/build-eia-image/action.yml`), and the Dockerfile asserts a `.node` file is
+  present before the image is assembled and imports `pdf.mjs` as the last build step, which
+  fails loudly if the wrong architecture's binary was staged.
+- **It cannot be bundled.** esbuild inlines JavaScript; a native addon is loaded by `require` at
+  runtime. That is why `pdfjs-dist` is an *external* of the worker bundle and the real package
+  ships in `node_modules` — see `apps/worker/tsup.config.ts`.
+- **Size.** pdf.js and the canvas package add roughly 69 MB uncompressed to the runtime image.
+  Recorded as TD-123 with the two narrower options and why both were rejected.
+
+The version is pinned exactly, like everything else here. `pdfjs-dist` declares `^0.1.77`; a
+caret on a package containing a compiled binary would let a build pick up a different one.
 
 ### One pinned override
 

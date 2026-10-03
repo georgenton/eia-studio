@@ -11,14 +11,39 @@ import { assessNativeText, type ExtractionResult, type NativeTextAssessment } fr
  * property that matters here — reports text **per page**, so a citation names the page the reader
  * will turn to rather than a chunk index somebody called a page.
  *
- * The `legacy` build is the one that runs on Node without a DOM. Rendering is never asked for, so
- * no canvas and no native dependency: `getTextContent()` alone.
+ * The `legacy` build is the one that runs on Node without a DOM.
+ *
+ * ## Why a canvas package is a dependency of text extraction
+ *
+ * It should not be, and for a while this comment claimed it was not: rendering is never asked
+ * for, only `getTextContent()`. That turned out to be false for pdfjs-dist 5.4.149, and the way
+ * it is false is worth keeping. Evaluating `pdfjs-dist/legacy/build/pdf.mjs` runs its canvas
+ * module's top-level initializers, one of which is `new DOMMatrix()`. Node provides no
+ * `DOMMatrix`; pdf.js obtains it from `@napi-rs/canvas`, its own `optionalDependencies` entry,
+ * and when that package is missing it prints three "cannot polyfill" warnings and then throws
+ * `ReferenceError: DOMMatrix is not defined` — at **import**, before any file is read.
+ *
+ * So `@napi-rs/canvas` is declared in this package's dependencies, exactly, rather than inherited
+ * as somebody else's optional one. It was inherited for a long time, which is why it was present
+ * in the workspace, present in CI, and absent from the published image — where extraction failed
+ * on every PDF while every test passed. `apps/worker/tsup.config.ts` and the Dockerfile carry the
+ * packaging half of that story; `apps/worker/src/pdf-smoke.ts` is what now asks the image itself.
+ *
+ * Nothing is rendered either way. The dependency buys one global, and the alternative — defining
+ * `DOMMatrix` ourselves so the library believes a DOM exists — was rejected: a stand-in that
+ * satisfies an import is indistinguishable from the real thing until a code path does arithmetic
+ * with it, and then the failure is wrong text rather than an error.
  *
  * ## What is deliberately switched off
  *
- * `isEvalSupported: false` and no worker: a delivered PDF is a file somebody sent us, and a PDF is
- * a format with a scripting layer. Nothing in it is executed, no font is fetched from a network,
- * and no external resource is resolved.
+ * `isEvalSupported: false`: a delivered PDF is a file somebody sent us, and a PDF is a format
+ * with a scripting layer. Nothing in it is executed, no font is fetched from a network, and no
+ * external resource is resolved.
+ *
+ * Not switched off, contrary to an earlier reading of this file: pdf.js still sets up a **worker**
+ * — a "fake" one, on this thread, which it creates by importing `pdf.worker.mjs` from beside
+ * `pdf.mjs`. There is no supported way to run without it, so the packaging has to keep those two
+ * files as siblings; bundling pdf.js moved one of them and not the other.
  */
 export interface PdfExtraction extends ExtractionResult {
   readonly assessment: NativeTextAssessment;
