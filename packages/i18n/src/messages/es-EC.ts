@@ -986,6 +986,7 @@ export const messages = {
       "Este PDF no trae texto: son imágenes de páginas. El producto no inventa lo que dicen. El archivo queda disponible para descargar y consultar a mano.",
     processingFailedNote: "El procesamiento no pudo completarse. El archivo cargado sigue intacto.",
     requeue: "Procesar de nuevo",
+    requeueing: "Encolando…",
     requeued: "En cola para procesar. El trabajador lo tomará en cuanto pueda.",
     alreadyQueued: "Ya estaba en cola.",
     queuedNote: "En cola para procesar; todavía no tiene pasajes que citar.",

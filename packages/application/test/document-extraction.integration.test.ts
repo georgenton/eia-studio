@@ -392,6 +392,55 @@ describe("the queue itself", () => {
     expect(await runWorkerOnce()).toBeNull();
   });
 
+  it("a version that could not be read can be asked again, and the worker takes it", async () => {
+    /*
+     * The retry the document page offers (`apps/web/lib/document-retry.ts`), end to end and
+     * through the use-case rather than through SQL — which is the point: between the extraction
+     * fix of 3 Oct 2026 and this wave, a `FAILED` version could not be asked again from anywhere
+     * in the product, so the fix was deployed and could not be exercised.
+     */
+    const notReallyAPdf = new Uint8Array([
+      0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x34, 0x0a, 0x7f, 0x7f, 0x7f,
+    ]);
+    const { versionId } = await deliver("DOC-RETRY1", notReallyAPdf, "pdf");
+    expect((await runWorkerOnce())?.state).toBe("FAILED");
+
+    const failed = await versionRow(versionId);
+    expect(failed?.processingState).toBe("FAILED");
+    expect(failed?.processingNote).not.toBeNull();
+    const attemptsAfterFirst = failed!.extractionAttempts;
+
+    const ctx = await contextFor(coordinator);
+    const requeued = await queueDocumentExtraction(db.runtime, ctx, versionId);
+    expect(requeued).toEqual({ queued: true, state: "QUEUED" });
+
+    const queued = await versionRow(versionId);
+    expect(queued?.processingState).toBe("QUEUED");
+    // The note from the failed attempt is cleared: it described a reading nobody is claiming any
+    // more, and leaving it beside `QUEUED` would say two things at once.
+    expect(queued?.processingNote).toBeNull();
+    // Asking again is not a free retry: the attempt ceiling is what stops a broken file being
+    // read for ever, and the count carries over.
+    expect(queued?.extractionAttempts).toBe(attemptsAfterFirst);
+
+    // And it is claimable: a requeue that produced a row no worker would take would be a button
+    // that reports success and changes nothing.
+    const claim = await claimNextExtraction(db.runtime);
+    expect(claim?.versionId).toBe(versionId);
+    expect((await versionRow(versionId))?.extractionAttempts).toBe(attemptsAfterFirst + 1);
+  });
+
+  it("asking twice is answered rather than queued twice", async () => {
+    const { versionId } = await deliver("DOC-RETRY2", buildPdf([prose(5)]), "pdf");
+    const ctx = await contextFor(coordinator);
+    // `deliver` already queued it. The second ask is honest about having done nothing, which is
+    // why the page offers no control in `QUEUED` (apps/web/lib/document-retry.ts).
+    expect(await queueDocumentExtraction(db.runtime, ctx, versionId)).toEqual({
+      queued: false,
+      state: "QUEUED",
+    });
+  });
+
   it("a version already read cannot be read again, because its chunks are immutable", async () => {
     const ctx = await contextFor(coordinator);
     const [ready] = await db.migrator

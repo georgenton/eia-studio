@@ -979,6 +979,7 @@ export const messages: Messages = {
       "This PDF carries no text: its pages are images. The product does not invent what they say. The file stays available to download and read by hand.",
     processingFailedNote: "Processing could not complete. The uploaded file is untouched.",
     requeue: "Process again",
+    requeueing: "Queuing…",
     requeued: "Queued for processing. The worker will pick it up when it can.",
     alreadyQueued: "It was already queued.",
     queuedNote: "Queued for processing; it has no passages to cite yet.",

@@ -47,6 +47,20 @@ const DOCUMENTS = `/t/${TENANT}/p/${PROJECT}/documents`;
 const NEEDLE = "termoelectricidad geotermica del canton";
 const CODE = `DOC-8${String(Math.floor(Math.random() * 900) + 100)}`;
 const TITLE = "Estudio con extraccion real";
+const BAD_CODE = `DOC-9${String(Math.floor(Math.random() * 900) + 100)}`;
+
+/**
+ * Bytes that begin `%PDF-` and are not a PDF.
+ *
+ * The upload gate checks the declared type against the file's signature (ADR-031), so these get
+ * stored; pdf.js then cannot read them and the version settles `FAILED`. That is the only state
+ * from which the retry control is worth testing, and the honest way to reach it is to deliver a
+ * file the product genuinely cannot read.
+ */
+const UNREADABLE_PDF = new Uint8Array([
+  ...Buffer.from("%PDF-1.4\n", "latin1"),
+  ...Array.from({ length: 64 }, (_, index) => (index * 7 + 3) % 256),
+]);
 
 const PDF = buildPdf([
   "El presente anexo describe la afectacion predial a lo largo del corredor vial. ".repeat(6),
@@ -147,6 +161,62 @@ test.describe("Documents · upload, worker, citation", () => {
     await expect(answer).toContainText(CODE);
     // The needle is on the second page of the file, and the citation says so.
     await expect(answer.getByText(new RegExp(`${CODE} v1 · p\\. 2`))).toBeVisible();
+  });
+
+  /**
+   * The retry, clicked.
+   *
+   * Between the extraction fix of 3 Oct 2026 and this wave, `requeueExtractionAction` and both
+   * languages' copy for it existed and **no screen called either**, so a version that could not be
+   * read was a dead end: the fix reached staging and could not be exercised on a real document.
+   * This is the test that would have failed.
+   *
+   * It asserts the transition rather than the call. A spy saying the action ran would pass against
+   * a button wired to nothing visible; what matters is that the page afterwards reports the state
+   * the database holds — and that the control is **gone**, because `QUEUED` is not a state this
+   * product offers a retry from.
+   */
+  test("a version that could not be read can be asked again from its page", async ({ page }) => {
+    await page.goto(DOCUMENTS);
+    await page.getByRole("radio", { name: "Es un documento nuevo" }).check();
+    await page.getByLabel("Código").fill(BAD_CODE);
+    await page.getByLabel("Título").fill("Archivo ilegible");
+    await page.getByLabel("Archivo").setInputFiles({
+      name: "ilegible.pdf",
+      mimeType: "application/pdf",
+      buffer: Buffer.from(UNREADABLE_PDF),
+    });
+    await page.getByLabel("Procedencia").fill("Entregado por la consultora");
+    await page.getByRole("button", { name: "Cargar", exact: true }).click();
+    await expect(page.locator('[data-upload-outcome="ok"]')).toContainText("v1", {
+      timeout: 30_000,
+    });
+
+    // The worker reads it and cannot: `FAILED`, with a bounded note and the file intact.
+    expect(await drainWorker()).toContain("FAILED");
+
+    await page.goto(`${DOCUMENTS}/${BAD_CODE}`);
+    const main = page.getByRole("main");
+    await expect(main).toContainText("El procesamiento no pudo completarse");
+
+    await expect(page.getByTestId("extraction-retry-button")).toBeVisible();
+    await page.getByTestId("extraction-retry-button").click();
+
+    // The catalogue's own message, which has to **survive** the refresh the click triggers: the
+    // state it produces is one that offers no retry, and an outcome that disappeared with its
+    // own button would leave the person with no sign that anything happened.
+    await expect(page.getByTestId("extraction-retry-ok")).toContainText("En cola para procesar", {
+      timeout: 20_000,
+    });
+    // And the page itself now reads the database rather than the state it was rendered with.
+    await expect(main).toContainText("En cola para procesar; todavía no tiene pasajes", {
+      timeout: 20_000,
+    });
+    // The button is gone, because `QUEUED` offers no retry: the honest answer there is to wait.
+    await expect(page.getByTestId("extraction-retry-button")).toHaveCount(0);
+
+    // And the requeued version is claimable, which is what makes the button more than a message.
+    expect(await drainWorker()).toContain("FAILED");
   });
 
   test("and the original comes back down, through a link the server minted", async ({ page }) => {
