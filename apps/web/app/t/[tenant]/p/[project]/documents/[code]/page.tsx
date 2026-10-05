@@ -3,8 +3,10 @@ import { can } from "@eia/domain";
 import { Panel, PanelBody, PanelHeader } from "@eia/ui";
 import { notFound, redirect } from "next/navigation";
 
+import { ExtractionRetry } from "@/components/documents/extraction-retry";
 import { projectBreadcrumb, projectLabel, WorkspaceShell } from "@/components/workspace-shell";
 import { getSessionUser } from "@/lib/context";
+import { showsExtractionRetry } from "@/lib/document-retry";
 import { getDb } from "@/lib/db";
 import {
   documentKindLabel,
@@ -138,6 +140,22 @@ export default async function DocumentPage({
                 )}
               </p>
             )}
+            {/* The one control this page was missing. A version that could not be read, or one
+                that is a scan, is a dead end until somebody can ask for it again — and asking is
+                the same server action, the same use-case and the same permission as everything
+                else here. Which states offer it, and why not the other three, is in
+                `lib/document-retry.ts`.
+
+                Rendered for every non-READY state and told whether to offer the button, rather
+                than rendered only when it offers one: a successful retry moves the version to a
+                state that offers nothing, and a component mounted on that condition would take
+                its own confirmation off the screen. */}
+            <ExtractionRetry
+              offered={showsExtractionRetry(document.processingState, can(ctx, "documents.write"))}
+              project={project}
+              tenant={ctx.tenantSlug}
+              versionId={document.versionId}
+            />
             <p className={styles.note}>
               <strong>{textSourceLabel(t, document.textSource)}.</strong> {document.sourceNote}
             </p>
