@@ -1,4 +1,11 @@
-import { expect, PROJECT, TENANT, test } from "./fixtures";
+import {
+  expect,
+  PROJECT,
+  SEEDED_OPEN_TEXTS,
+  TECHNICIAN_CONCERN_TEXT,
+  TENANT,
+  test,
+} from "./fixtures";
 import { drainClassificationQueue } from "./social-worker";
 
 /**
@@ -58,7 +65,52 @@ test.describe("Social Intelligence · the specialist's journey", () => {
     const main = page.getByRole("main");
 
     await expect(main).toContainText("Respuestas abiertas");
-    await expect(main).toContainText("Preocupa el polvo");
+
+    /*
+     * Every row carries the words somebody wrote, verbatim.
+     *
+     * Asserted against the set of texts this project has submitted rather than against one of
+     * them, because *which* of them is on screen depends on which **generation** of a response the
+     * analysis currently means. A correction never edits a submitted response: it is a new
+     * capture, and Social — correctly — reads `app.effective_survey_instance` (ADR-038). This spec
+     * used to name one seeded phrase, which made it pass only against a database no correction had
+     * ever touched, and fail on the second run of the suite for a reason that is about the suite's
+     * history rather than about the product.
+     *
+     * Set membership keeps the claim exact: a truncation, a pseudonym, an identifier, an empty row
+     * or one response's text rendered in another's place is still a failure.
+     */
+    const known: ReadonlyArray<string> = [...SEEDED_OPEN_TEXTS, TECHNICIAN_CONCERN_TEXT];
+    // One <article> per open response, and the only one anywhere in the product.
+    const rows = main.getByRole("article");
+    const rowCount = await rows.count();
+    expect(rowCount).toBeGreaterThan(0);
+
+    for (let index = 0; index < rowCount; index += 1) {
+      const text = (await rows.nth(index).locator(":scope > p").first().innerText()).trim();
+      expect(
+        known,
+        `the queue shows open text this suite does not know: ${JSON.stringify(text)}. ` +
+          "If a spec now submits it, add it to e2e/fixtures.ts.",
+      ).toContain(text);
+    }
+
+    /*
+     * And what it lists is the effective responses, not every generation ever captured. The figure
+     * above the list is counted by one query and the list is built by another, both over
+     * `app.effective_survey_instance`; a disagreement between them is what a superseded capture
+     * leaking back into the analysis would look like.
+     */
+    // `textContent`, not `innerText`: the labels are uppercased by CSS, and Chromium's `innerText`
+    // returns the text as rendered — so a case-sensitive match against the product's own wording
+    // finds nothing there.
+    const shown = ((await main.textContent()) ?? "").replace(/\u00a0/g, " ");
+    const counts = [...shown.matchAll(/Respuestas abiertas\s*(\d+)/g)].map((match) =>
+      Number(match[1]),
+    );
+    expect(counts.length).toBeGreaterThan(0);
+    for (const value of counts) expect(value).toBe(rowCount);
+
     // No respondent, no technician, no parcel code, no coordinate on this screen.
     await expect(main).not.toContainText("Técnico de campo");
     // No parcel code in the coding queue: a coding is about what someone said, not about where
