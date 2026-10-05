@@ -10,6 +10,11 @@
   --eia-ok: #2c6046;
   --eia-ok-bg: #eaf3ee;
   --eia-ok-border: #cbe2d6;
+  /* Fills, strokes and severity dots only. The bundle gives amber as "`#B08519` · texto
+     `#8A6512`" (README §Paleta), and the fill is 3,38:1 on white: it must never carry text a
+     reader has to read — use --eia-warn-text (5,32:1) for that, as --eia-crit/--eia-crit-text
+     pair. Two components had taken the fill as a text colour behind a passing hardcoded
+     fallback that a defined token meant never applied (IG1-005's rule, one token across). */
   --eia-warn: #b08519;
   --eia-warn-text: #8a6512;
   --eia-warn-bg: #fbf3e2;
