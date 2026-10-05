@@ -121,5 +121,5 @@
   margin: 0 0 4px;
   font-size: 12px;
   line-height: 1.45;
-  color: var(--eia-warn, #9a6b1f);
+  color: var(--eia-warn-text);
 }

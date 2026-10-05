@@ -160,7 +160,7 @@
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.04em;
-  color: var(--eia-warn, #b25e09);
+  color: var(--eia-warn-text);
   border-left: 2px solid var(--eia-warn, #b25e09);
   padding-left: 10px;
 }
