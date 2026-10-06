@@ -58,6 +58,20 @@ export {
   updateProjectIntake,
   updateProjectIntakeInputSchema,
 } from "./projects/intake";
+export {
+  consultancyManifestSchema,
+  consultancyPersonSchema,
+  deliveredLayerSchema,
+  EMPTY_SNAPSHOT,
+  plan as planConsultancyIntake,
+} from "./intake/consultancy-manifest";
+export type {
+  ConsultancyManifest,
+  IntakeOutcome,
+  IntakePlan,
+  IntakeSnapshot,
+  IntakeStep,
+} from "./intake/consultancy-manifest";
 export type {
   IntakeDocument,
   IntakeSurvey,
