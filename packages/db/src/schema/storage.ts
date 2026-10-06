@@ -17,6 +17,8 @@ export const storageNamespace = app.enum("storage_namespace", [
   // retention questions — and a generated draft must not be reachable by a corpus query.
   "templates",
   "generated",
+  // Media a firm chose to publish (migration 0052). Never the corpus, never field media.
+  "portal-editorial",
 ]);
 
 export const uploadIntentState = app.enum("upload_intent_state", [

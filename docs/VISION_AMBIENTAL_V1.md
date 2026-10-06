@@ -71,8 +71,16 @@ instalé.
 
 ## 3. Datos personales
 
-La entrega **no contiene datos personales**: son láminas temáticas y dos hojas con topónimos. Los
-nombres del equipo llegaron por conversación, no en el archivo, y viven sólo en el manifiesto
+**Corregido el 6 oct 2026.** La redacción anterior declaraba toda la entrega libre de datos
+personales, y eso excedía lo comprobado.
+
+Lo verificado: los **dos XLSX**, que se leyeron enteros y contienen un nombre de ruta, una
+distancia y topónimos — ningún dato personal. Lo **no verificado**: las **155 láminas** (77 JPG,
+78 PDF), que no se abrieron. Son mapas temáticos y es poco probable que lleven datos personales,
+pero nadie ha mirado, y un corpus en el valor por defecto es un corpus que nadie ha revisado. Antes
+de publicar o indexar cualquiera de ellas hay que clasificarlas.
+
+Los nombres del equipo llegaron por conversación, no en el archivo, y viven sólo en el manifiesto
 privado. Ningún nombre, fotografía ni documento de persona se publica aquí.
 
 ## 4. Módulos existentes que se reutilizan
@@ -128,6 +136,10 @@ comprobó contra ninguna base de datos*.
 Resultado del ensayo sobre la entrega real: **se crearía 2 · ya existe 0 · requiere revisión 11 ·
 no compatible 157**.
 
+**Qué es y qué no es ese resultado.** Es un plan contra la **instantánea vacía**: `--apply` no
+existe, no se contrastó con ninguna base de datos, y «ya existe 0» significa *no se comprobó*, no
+*no hay nada*. El bloque 1 dejó inventario y planificador; no dejó una carga.
+
 ## 6. Decisiones pendientes
 
 Ninguna se resuelve aquí.
@@ -139,12 +151,27 @@ Ninguna se resuelve aquí.
 4. Nadie está designado OWNER ni ADMIN del nuevo espacio.
 5. Membresía por proyecto: **vacía a propósito**. Los tres encuestadores no se asignan a las cuatro
    vías automáticamente.
-6. **La facultad de Manuel.** Decidir qué técnico atiende cada predio es `field.assignments.manage`,
-   que hoy sólo tiene `COORDINATOR`. `SOCIAL_SPECIALIST` no la tiene. Tres caminos, y la elección es
-   del propietario: darle `COORDINATOR` en estas vías (le da bastante más, incluida
-   `deliverables.approve`), añadir `field.assignments.manage` a `SOCIAL_SPECIALIST` (cambia el rol
-   para todo proyecto de todo cliente), o un rol nuevo. **No se tocó nada.** La misma facultad
-   **no está confirmada** para Alexys/Alexis García, cuyo alcance sigue siendo cartográfico.
+6. ~~**La facultad de Manuel.**~~ **Corregido el 6 oct 2026: esto era un error mío.**
+   `SOCIAL_SPECIALIST` **sí** tiene `field.assignments.manage` — está en
+   `packages/domain/src/core/roles.ts`, en el conjunto del rol, y lo leí mal. Manuel, como
+   especialista social, ya puede decidir qué técnico atiende cada predio. **No hace falta crear un
+   rol, ni elevarlo a `COORDINATOR`, ni ampliar ningún permiso**, y el propietario no tiene ninguna
+   decisión que tomar aquí. Pedí una elección entre tres malas opciones que no existía.
+
+   Dos cosas más, comprobadas al corregirlo. La política RLS de `app.field_assignment` exige
+   *(la fila es mía) OR `app.can_read_field_responses()`*, y un `SOCIAL_SPECIALIST` tiene
+   `field.responses.read`, así que tampoco hay restricción en la base. Y `field.assignments.manage`
+   **no se comprueba hoy en ningún caso de uso ni en ninguna ruta** — `grep` sobre
+   `packages/application/src` y `apps/web` no encuentra una sola llamada: las asignaciones las crea
+   el sembrador de demostración, no una superficie del producto. Así que el estado real no es «le
+   falta el permiso» sino «lo tiene, y todavía no hay pantalla que lo use». El flujo se valida en
+   el bloque 3.
+
+   `docs/TENANCY.md` §3.1 también lo dice mal — su tabla atribuye `field.assignments.manage` sólo a
+   `COORDINATOR` — y es la fuente que leí. Corregida en el mismo commit.
+
+   La facultad **no está confirmada** para Alexys/Alexis García, cuyo alcance sigue siendo
+   cartográfico; eso no cambia.
 7. Carlos Velasco: propuesto `VIEWER`. Ser director no es por sí mismo razón para
    `deliverables.approve` ni `pii.read`.
 8. Las tres vías adicionales (5, 6, 8) y la ausencia de la 7.
@@ -171,4 +198,192 @@ desechable.
 - **Preparado para importar**: el espacio, las cuatro vías y la correspondencia de archivos.
 - **No importado**: nada existe en ningún entorno.
 - **No implementado, y no se declara implementado**: el CMS y las socializaciones.
-- Bloquea el avance: los correos confirmados (3), el dueño del espacio (4) y la facultad de Manuel (6).
+- **Qué bloquean los pendientes, exactamente.** Los correos confirmados (3) y el dueño del espacio
+  (4) bloquean el **alta real** de Visión Ambiental: sin ellos no hay identidad ni membresía que
+  crear. No bloquean el desarrollo del producto, que se hace con tenant e identidades sintéticos
+  en pruebas aisladas — y así se hizo el bloque 2.
+
+---
+
+# Bloque 2 — el mini CMS
+
+> Estado: **implementado y probado en local**, sin desplegar y sin fusionar. Misma rama.
+> No validado en STAGING y no público en ninguna parte.
+
+## 9. Qué se construyó
+
+Una **extensión editorial del portal**, no un CMS aparte. Reutiliza la autenticación, la RLS, el
+almacenamiento, los permisos y el catálogo de mensajes que ya existían; no añade login, ni
+microservicio, ni constructor visual, ni dependencia nueva.
+
+La decisión de fondo: **no se extendió `client_publication`**. Esa tabla es una *proyección* en la
+que cada cifra se calculó y lleva un `provenance_id` (ADR-027). Esto es lo contrario — prosa que
+escriben y revisan personas, sin una sola cifra derivada. Compartir tabla habría significado un
+esquema que admite las dos cosas, y la primera cifra tecleada a mano guardada en una proyección es
+el momento en que «toda cifra lleva procedencia» deja de ser verdad.
+
+Por eso el payload editorial **no tiene** campo de métrica, porcentaje ni avance, y tampoco lleva
+facetas de procedencia: reclamar procedencia para un párrafo que alguien escribió sería justo la
+mentira que el modelo de procedencia existe para impedir. Una consultora que quiera dar una cifra
+la escribe en una frase y la firma.
+
+### Rutas
+
+| ruta | quién |
+|---|---|
+| `/t/:tenant/p/:project/portal/editorial` | interno · *Presentación pública* |
+| `/p/:tenant/:project` | **público, sin sesión** |
+| `/p/:tenant/:project/media/:objectId` | público · 303 a una URL firmada de 5 minutos |
+
+`/portal/:tenant/:project` —la vista del cliente de ADR-027— **no se tocó** y sigue exigiendo
+sesión interna. Son dos cosas distintas y por eso son dos rutas: una presentación pública y una
+publicación para un cliente concreto.
+
+### Permisos
+
+Tres actos, tres permisos, y uno solo es nuevo:
+
+| acto | permiso | quién lo tiene |
+|---|---|---|
+| escribir el borrador | **`portal.editorial.write`** (nuevo) | COORDINATOR, SOCIAL_SPECIALIST, ENVIRONMENTAL_SPECIALIST |
+| previsualizar | `portal.preview` (existente) | COORDINATOR, REVIEWER |
+| publicar y retirar | `portal.publish` (existente) | COORDINATOR |
+
+Es el mismo corte que el Control de consistencia hace entre ejecutar y resolver. Un especialista
+escribe la página entera y no cambia nada de lo que ve un visitante; un revisor la lee antes que
+nadie y no la envía. **No se dio `portal.publish` a ningún especialista**, y nadie se autorizó por
+nombre: quién publicará por Visión Ambiental sigue pendiente y se probó con los roles sintéticos.
+
+Abrir el borrador acepta **cualquiera de los dos** permisos de lectura o escritura: releer lo que
+acabas de escribir es parte de escribirlo, y exigir sólo `portal.preview` dejaba al autor con una
+página que podía guardar y no volver a abrir. (Salió en las pruebas.)
+
+### Migración 0052
+
+Aditiva. Cuatro tablas en el esquema `portal`, un valor nuevo en `app.storage_namespace`, una
+función y las políticas.
+
+| tabla | |
+|---|---|
+| `portal.editorial_draft` | una por proyecto, mutable, con `revision` para concurrencia optimista |
+| `portal.editorial_publication` | **inmutable**, versionada, con los slugs encima |
+| `portal.editorial_publication_asset` | **inmutable** — *es* la autorización de cada adjunto |
+| `portal.editorial_visibility_event` | **sólo-inserción**: publicada, retirada, publicada otra vez |
+
+Inmutabilidad por `REVOKE UPDATE, DELETE` **y** por trigger, como el resto del producto. `portal`
+no tiene `ALTER DEFAULT PRIVILEGES`, así que cada tabla recibe exactamente los verbos que necesita
+y las tres de sólo-escritura no reciben UPDATE ni DELETE que revocar.
+
+### La frontera pública
+
+Esto es lo único realmente nuevo en el modelo de seguridad, y conviene leerlo con cuidado.
+
+`loadPublicEditorialPage` abre su transacción con `surface: "public"` y **sin tenant, sin proyecto
+y sin usuario**. Dos políticas admiten eso — SELECT sobre la publicación editorial y sobre sus
+adjuntos, y sólo mientras son visibles. Todas las demás tablas de todos los esquemas siguen
+negando una transacción sin tenant, así que desde ahí no se alcanza un borrador, otro tenant, una
+respuesta de encuesta ni un predio **aunque la consulta se escribiera para intentarlo**.
+
+- No hay `COORDINATOR` ficticio y no hay `BYPASSRLS`.
+- Los **slugs van desnormalizados** en la publicación: un visitante no tiene sesión, así que la
+  lectura pública no puede unir contra `app.project` para convertir una URL en un id — y darle a
+  la rama pública un camino hacia las tablas operativas para resolver un slug es exactamente el
+  agujero que esta superficie no debe tener.
+- Los adjuntos llevan `object_key`, `original_filename` y `mime_type` **copiados al publicar**, de
+  modo que la lectura pública no toca `app.stored_object` ni para tres columnas.
+- `eia_portal` **sigue sin recibir nada**. Es el rol previsto para un cliente externo autenticado
+  (ADR-009, TD-005), que es otra superficie: ésta no tiene a quién autenticar.
+
+Un slug cruzado, una página retirada y un proyecto inexistente dan la **misma** respuesta.
+
+### Visibilidad, y un error que encontraron las pruebas
+
+La primera versión preguntaba «¿se ha retirado esta versión?». Con eso, retirar la v2 volvía a
+servir la v1 —publicada meses antes y nunca retirada— como página viva. Una consultora que baja su
+página no quiere decir «muestra la anterior». La visibilidad es ahora **por proyecto**: un flujo de
+eventos, el último decide, y `WITHDRAWN` significa que no hay nada público.
+
+### Archivos
+
+Namespace propio, `portal-editorial`, separado de `documents` y de `field-media`. Reutiliza
+intent → PUT → finalize → hash. Formatos: JPEG, PNG, PDF y **PPTX como descarga**. Nada abre el
+PPTX: el extractor despacha por tipo declarado y una presentación no coincide con ninguno, así que
+no produce pasajes y no puede citarse. `.pptm` se rechaza por tipo y mirando dentro del ZIP
+(`ppt/vbaProject.bin`), igual que `.docm`. **No se subió ningún límite global**: el PDF de 29 MiB
+del inventario cabe en el límite de 120 MB que ya existía, y no se tocó nada por él.
+
+Una fotografía publicada **exige texto alternativo**, por esquema y por `CHECK` en la base.
+
+### Texto
+
+Se guarda y se renderiza como **texto plano**. No hay HTML que sanear: el payload no admite
+marcado, la página pública es un componente de servidor sin JavaScript de cliente, y cada cadena
+llega como nodo de texto. `sanitiseEditorialText` quita lo que sobrevive a un viaje de ida y vuelta
+— caracteres de control, U+2028/U+2029 y el BOM. Un `<script>` pegado se ve como once caracteres.
+
+Hay además una lista de patrones prohibidos, **más estrecha** que la de la proyección del cliente:
+correo, cédula/RUC contiguos, códigos de predio y de hallazgo, y los nombres de registros internos.
+No prohíbe «propietario» ni «técnico», que son castellano corriente en un estudio ambiental; una
+comprobación que rechaza contenido legítimo es una comprobación que la gente aprende a esquivar.
+
+> Un defecto propio: el primer patrón de cédula admitía separadores y **capturaba `2026-10-06`**,
+> así que una página no podía llevar una fecha. Corregido a dígitos contiguos.
+
+## 10. Pruebas ejecutadas
+
+Todas con datos sintéticos, en base aislada (Testcontainers). **No se reseteó la base local del
+propietario** y no se tocó DEMO, STAGING ni producción.
+
+| escenario del encargo | |
+|---|---|
+| 1 · guardar y reabrir borrador | ✓ y se comprueba que guardar **no** publica |
+| 2 · visitante sin sesión no ve borrador ni adjuntos | ✓ |
+| 3 · autor sin permiso no publica | ✓ (+ un técnico no puede ni guardar) |
+| 4 · publicador legítimo crea versión visible | ✓ |
+| 5 · edición posterior no altera lo publicado | ✓ |
+| 6 · retirada bloquea página y adjuntos | ✓ |
+| 7 · IDs cruzados rechazados, sin fuga de payload | ✓ (dos cruces de slug + ausencia de ids internos) |
+| 8 · texto malicioso no ejecuta | ✓ |
+| 9 · portal interno anterior sigue funcionando | ✓ `portal.integration.test.ts` sin cambios |
+| 10 · contenido legítimo no exige inventar métricas | ✓ el payload no tiene dónde ponerlas |
+
+Extra, por lo que salió al escribirlas: dos editores no se pisan en silencio; una versión publicada
+es inmutable por grant y por trigger; un revisor mira y no publica; las versiones siguen ahí tras
+una retirada.
+
+```
+pnpm format:check                       pass
+eslint apps packages tooling e2e        pass · forbidden-strings 652 ficheros
+pnpm typecheck                          11/11
+pnpm test:unit                          706 pasan, 1 todo (51 ficheros)
+pnpm test:integration                   677 pasan (50 ficheros) — eran 664
+pnpm --filter @eia/web build            compila; las tres rutas nuevas aparecen en el manifiesto
+```
+
+**Lo que no se ejecutó, y por qué.** La suite e2e de Playwright: habría que levantar la aplicación
+contra una base sembrada, y el encargo pide no repetir suites completas sobre una base local
+alterada. **No hay capturas**: producirlas pide servidor levantado y datos sembrados, y preferí
+gastar el tiempo en que los diez escenarios fueran pruebas de verdad. Las tres superficies
+compilan y están en el manifiesto de rutas; que *rendericen bien* no está demostrado, y lo digo en
+vez de insinuar lo contrario. Responsive, teclado y contraste están **escritos** (una columna,
+`focus-visible` en cada control, sólo tokens del sistema, `prefers-color-scheme` heredado) y **no
+verificados** con herramientas.
+
+## 11. Pendientes del bloque 2
+
+1. **Capturas y verificación visual** de editor, página pública y retirada.
+2. **Subida de archivos desde el editor**: el modelo, el namespace, los formatos y la autorización
+   por publicación están; el formulario de carga en el editor **no**. Hoy un adjunto se referencia
+   por `storedObjectId` y las pruebas los crean directamente.
+3. **Fotos públicas sin metadatos privados**: ADR-031 §7 ya dice que un fichero se reexporta sin
+   EXIF antes de salir; para medios editoriales **no está implementado**, y una foto publicada sale
+   hoy con los metadatos que traía. Es lo más cercano a un riesgo real de esta oleada.
+4. **Portada de la consultora** (lista de vías publicadas): no construida; existe la ficha por vía.
+5. **Caché y retirada**: la página pública es `force-dynamic` y la ruta de medios responde
+   `no-store`; no hay CDN delante. Si se pone una, hay que decidir la expiración.
+6. Ficha de equipo: modelada y editable por payload; el editor sólo expone secciones y resumen.
+
+## 12. Lo que sigue sin estar implementado
+
+El **CMS está implementado**; las **socializaciones no**, y no se declaran. Nada de esto está
+validado en STAGING ni publicado en ninguna parte.

@@ -112,6 +112,12 @@ export const AUDIT_ACTIONS = [
   // and becomes what a customer is told, so it is audited; opening the preview is ordinary
   // reading and is not. The row carries the version and the figure count, never the payload.
   "portal.publication.published",
+  /**
+   * The editorial page going out, and coming back. Counts and a sequence — never the page's text,
+   * which is read by more people in an audit export than on the site itself.
+   */
+  "portal.editorial.published",
+  "portal.editorial.withdrawn",
 ] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];

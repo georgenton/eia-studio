@@ -28,7 +28,18 @@ import { InvalidInput } from "../core/errors";
  * three have different formats, different retention questions and different readers, and because a
  * generated draft must never be reachable by a query written for the corpus.
  */
-export const STORAGE_NAMESPACES = ["documents", "field-media", "templates", "generated"] as const;
+/**
+ * `portal-editorial` is media a firm chose to publish. It is its own namespace rather than a
+ * flag on `documents` so that "could this file ever be served to a visitor?" is answerable from
+ * the key, and so that a query written for the corpus can never reach it — or the reverse.
+ */
+export const STORAGE_NAMESPACES = [
+  "documents",
+  "field-media",
+  "templates",
+  "generated",
+  "portal-editorial",
+] as const;
 export type StorageNamespace = (typeof STORAGE_NAMESPACES)[number];
 
 export interface ObjectKeyParts {

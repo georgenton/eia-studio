@@ -57,6 +57,7 @@ export const PROJECT_ROLE_PERMISSIONS: Readonly<
   Record<ProjectRole, ReadonlySet<ProjectPermission>>
 > = {
   COORDINATOR: new Set<ProjectPermission>([
+    "portal.editorial.write",
     "project.configure",
     "project.members.manage",
     "project.intake.read",
@@ -118,6 +119,7 @@ export const PROJECT_ROLE_PERMISSIONS: Readonly<
     "provenance.read",
   ]),
   SOCIAL_SPECIALIST: new Set<ProjectPermission>([
+    "portal.editorial.write",
     "parcels.read",
     "field.read",
     "field.assignments.manage",
@@ -139,6 +141,7 @@ export const PROJECT_ROLE_PERMISSIONS: Readonly<
     "provenance.read",
   ]),
   ENVIRONMENTAL_SPECIALIST: new Set<ProjectPermission>([
+    "portal.editorial.write",
     "parcels.read",
     "field.read",
     "documents.read",

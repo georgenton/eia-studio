@@ -1,0 +1,157 @@
+/* A consultancy's public page: one column, readable at a phone width, legible in both themes.
+   Tokens only — no hex value is written here (DESIGN_SYSTEM.md). */
+.page {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 48px 20px 96px;
+  color: var(--eia-ink);
+  background: var(--eia-surface);
+}
+.masthead {
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--eia-border);
+  margin-bottom: 28px;
+}
+.headline {
+  margin: 0;
+  font-size: 30px;
+  line-height: 1.2;
+  font-weight: 650;
+}
+.subheadline {
+  margin: 8px 0 0;
+  font-size: 17px;
+  color: var(--eia-text-secondary);
+}
+.published {
+  margin: 14px 0 0;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--eia-text-secondary);
+}
+.section,
+.summary {
+  margin: 0 0 34px;
+}
+.summary {
+  padding: 18px 20px;
+  border: 1px solid var(--eia-border);
+  border-radius: 10px;
+  background: var(--eia-surface-subtle);
+}
+.sectionTitle {
+  margin: 0 0 10px;
+  font-size: 18px;
+  font-weight: 620;
+}
+.body {
+  margin: 0 0 12px;
+  font-size: 15px;
+  line-height: 1.6;
+  /* The author's paragraphs, without admitting any markup to make them. */
+  white-space: pre-wrap;
+}
+.summaryList {
+  margin: 0;
+}
+.summaryItem {
+  margin: 0 0 12px;
+}
+.summaryItem dt {
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--eia-text-secondary);
+}
+.summaryItem dd {
+  margin: 4px 0 0;
+  font-size: 15px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+.attribution {
+  margin: 10px 0 0;
+  font-size: 13px;
+  color: var(--eia-text-secondary);
+}
+.assets,
+.team,
+.memberProjects {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.assets {
+  display: grid;
+  gap: 16px;
+}
+.figure {
+  margin: 0;
+}
+.photo {
+  width: 100%;
+  height: auto;
+  border-radius: 8px;
+  border: 1px solid var(--eia-border);
+}
+.caption {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: var(--eia-text-secondary);
+}
+.download {
+  display: inline-block;
+  padding: 10px 14px;
+  border: 1px solid var(--eia-border);
+  border-radius: 8px;
+  font-size: 14px;
+  color: var(--eia-ink);
+  text-decoration: none;
+}
+.download:hover,
+.download:focus-visible {
+  border-color: var(--eia-accent);
+}
+.member {
+  display: grid;
+  grid-template-columns: 96px 1fr;
+  gap: 16px;
+  padding: 16px 0;
+  border-top: 1px solid var(--eia-border);
+}
+.portrait {
+  width: 96px;
+  height: 96px;
+  object-fit: cover;
+  border-radius: 8px;
+}
+.memberName {
+  margin: 0;
+  font-weight: 620;
+}
+.memberRole {
+  margin: 2px 0 8px;
+  font-size: 13px;
+  color: var(--eia-text-secondary);
+}
+.memberProjects {
+  font-size: 13px;
+  color: var(--eia-text-secondary);
+}
+
+@media (max-width: 520px) {
+  .page {
+    padding: 28px 16px 72px;
+  }
+  .headline {
+    font-size: 24px;
+  }
+  .member {
+    grid-template-columns: 1fr;
+  }
+  .portrait {
+    width: 100%;
+    height: 200px;
+  }
+}

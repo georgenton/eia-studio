@@ -35,6 +35,22 @@ export {
 export { loadCommandCenter } from "./projects/command-center";
 export type { CommandCenterView, ProjectHeader } from "./projects/command-center";
 export { loadWorkspaceHeader, loadPortfolio } from "./projects/portfolio";
+export {
+  EDITORIAL_NAMESPACE,
+  EditorialRevisionConflict,
+  loadEditorialDraft,
+  loadPublicEditorialPage,
+  publishEditorial,
+  resolvePublicEditorialAsset,
+  saveEditorialDraft,
+  withdrawEditorial,
+} from "./portal/editorial";
+export type {
+  EditorialDraftView,
+  PublicEditorialAsset,
+  PublicEditorialPage,
+  PublishedEditorial,
+} from "./portal/editorial";
 export { uploadDocumentVersion, uploadDocumentVersionInputSchema } from "./documents/upload";
 export type { UploadedDocumentVersion } from "./documents/upload";
 export { createMemoryStorage } from "./storage/memory-adapter";

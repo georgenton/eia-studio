@@ -100,6 +100,16 @@ export const PROJECT_PERMISSIONS = [
   // decides. A reviewer checks what would go out without being able to send it.
   "portal.preview",
   "portal.publish",
+  /**
+   * Write the public editorial page's draft (Visión Ambiental, block 2).
+   *
+   * Its own key rather than a reuse of `portal.preview`, because the three acts are different and
+   * the product already says so elsewhere: a specialist writes what the firm would say, a reviewer
+   * reads it before anyone else can, and a coordinator decides it goes out. Folding writing into
+   * preview would have given every reviewer an editor, and folding it into publish would have made
+   * writing a paragraph a publishing decision.
+   */
+  "portal.editorial.write",
   "pii.read",
   "pii.export",
   "provenance.read",

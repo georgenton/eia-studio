@@ -8,6 +8,7 @@ import {
   buildObjectKey,
   DOCUMENT_FORMATS,
   GENERATED_FORMATS,
+  EDITORIAL_FORMATS,
   TEMPLATE_FORMATS,
   FIELD_MEDIA_FORMATS,
   formatForMimeType,
@@ -65,6 +66,13 @@ const NAMESPACE_RULES: Readonly<
    * presents the same ZIP signature.
    */
   templates: { formats: TEMPLATE_FORMATS, permission: "reports.write" },
+  /*
+   * Media a firm chose to publish on its own page. `portal.editorial.write`, not
+   * `documents.write`: writing the public page and loading the study's corpus are different acts
+   * by different people, and the namespace is what keeps a published photograph out of every
+   * query written for the corpus — and a technician's field photograph out of the public page.
+   */
+  "portal-editorial": { formats: EDITORIAL_FORMATS, permission: "portal.editorial.write" },
   /*
    * What this product generated. No client ever uploads into it: the namespace exists so a
    * rendered draft is addressable and is never reachable by a query written for the corpus. The
