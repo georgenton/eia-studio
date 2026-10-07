@@ -83,6 +83,21 @@ export const PROJECT_PERMISSIONS = [
    * made is part of making it.
    */
   "field.corrections.request",
+  /*
+   * Convening the people a road runs past, and keeping track of who has been told.
+   *
+   * One key for the whole socialization surface — creating an event, generating invitations,
+   * cancelling, and reading the attempts and their evidence — because they are one job done by
+   * one person. It is held by the coordinator and the **social specialist**: consultation is what
+   * a social specialist does, and needing a coordinator to press every button would make the
+   * coordinator a bottleneck in somebody else's work.
+   *
+   * It does **not** carry the right to decide who goes. Choosing a technician for an invitation
+   * is `field.assignments.manage`, the same key that decides who surveys a parcel, because it is
+   * the same decision about the same people's days — and a specialist who holds both does so
+   * because the role holds both, not because this key implied it.
+   */
+  "field.socializations.manage",
   "media.upload",
   "documents.read",
   "documents.write",

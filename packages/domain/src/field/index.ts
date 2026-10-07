@@ -7,3 +7,4 @@ export * from "./workflow";
 export * from "./media";
 export * from "./authoring";
 export * from "./corrections";
+export * from "./socializations";

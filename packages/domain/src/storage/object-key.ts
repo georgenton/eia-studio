@@ -33,12 +33,20 @@ import { InvalidInput } from "../core/errors";
  * flag on `documents` so that "could this file ever be served to a visitor?" is answerable from
  * the key, and so that a query written for the corpus can never reach it — or the reverse.
  */
+/**
+ * `socialization-evidence` is the photograph a technician takes when they hand over an
+ * invitation. It is its own namespace, and the two it is not are the point: not `field-media`,
+ * because that is evidence of a **visit** and is read by the surfaces that read a visit; and
+ * emphatically not `portal-editorial`, which is the one namespace whose objects a visitor can be
+ * served. A delivery photograph is private evidence, and no public route resolves this prefix.
+ */
 export const STORAGE_NAMESPACES = [
   "documents",
   "field-media",
   "templates",
   "generated",
   "portal-editorial",
+  "socialization-evidence",
 ] as const;
 export type StorageNamespace = (typeof STORAGE_NAMESPACES)[number];
 

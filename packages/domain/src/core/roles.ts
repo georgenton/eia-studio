@@ -77,6 +77,7 @@ export const PROJECT_ROLE_PERMISSIONS: Readonly<
     "field.instruments.author",
     "field.instruments.publish",
     "field.corrections.request",
+    "field.socializations.manage",
     "documents.read",
     "documents.write",
     "social.read",
@@ -129,6 +130,8 @@ export const PROJECT_ROLE_PERMISSIONS: Readonly<
     "field.validate",
     // Reads the individual response, so is the person who notices it is wrong (ADR-038).
     "field.corrections.request",
+    // Consultation is this role's work: the events, the invitations and who delivers each one.
+    "field.socializations.manage",
     "documents.read",
     "social.read",
     "social.write",

@@ -48,7 +48,8 @@ const createdAt = () =>
  * A visit's captured point. Canonical `EPSG:4326`, like every other geometry (ADR-017); a visit
  * point needs no analysis CRS, because nothing measures a distance from it.
  */
-const pointColumn = customType<{ data: string; driverData: string }>({
+/** Exported so socializations uses the same column type rather than declaring a second one. */
+export const pointColumn = customType<{ data: string; driverData: string }>({
   dataType: () => "geometry(Point,4326)",
 });
 

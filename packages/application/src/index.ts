@@ -187,6 +187,48 @@ export type {
   RequestedCorrection,
 } from "./field/corrections";
 export { readsAllFieldResponses, withFieldContext } from "./field/context";
+export {
+  assignParcel,
+  assignParcelInputSchema,
+  listEligibleTechnicians,
+  loadAssignmentBoard,
+  reassignAssignment,
+  reassignAssignmentInputSchema,
+} from "./field/assignments";
+export {
+  createSocializationEvent,
+  createEventInputSchema,
+  generateInvitations,
+  generateInvitationsInputSchema,
+  listInvitationCandidates,
+  reassignInvitation,
+  reassignInvitationInputSchema,
+  recordDeliveryAttempt,
+  recordDeliveryInputSchema,
+  transitionSocializationEvent,
+  eventTransitionInputSchema,
+  updateSocializationEvent,
+  updateEventInputSchema,
+  DELIVERY_CONFLICT_REASONS,
+} from "./field/socializations";
+export type {
+  CreateEventInput,
+  DeliveryConflictReason,
+  EventTransitionInput,
+  GenerateInvitationsInput,
+  InvitationCandidate,
+  ReassignInvitationInput,
+  RecordDeliveryInput,
+  RecordDeliveryResult,
+  UpdateEventInput,
+} from "./field/socializations";
+export type {
+  AssignmentBoard,
+  AssignmentBoardRow,
+  AssignParcelInput,
+  EligibleTechnician,
+  ReassignAssignmentInput,
+} from "./field/assignments";
 // EIA Field (Production V1, Wave 1): the scoped download a technician works from offline.
 export { buildFieldPack, decodeCursor, encodeCursor } from "./field/field-pack";
 export { resolveFieldScope } from "./field/scope";

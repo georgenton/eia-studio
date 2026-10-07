@@ -76,6 +76,16 @@ const NAMESPACE_RULES: Readonly<
    */
   "portal-editorial": { formats: EDITORIAL_FORMATS, permission: "portal.editorial.write" },
   /*
+   * Evidence that an invitation was handed over. `media.upload`, the same key a field
+   * photograph needs, because it is the same act by the same person — and the namespace is what
+   * keeps the two apart afterwards: a query for a visit's photographs cannot reach a delivery's,
+   * and no public route resolves this prefix at all (ADR-041).
+   *
+   * Nothing re-encodes it and nothing strips its EXIF. This is evidence, and the rule for
+   * evidence is ADR-032's: the file is what the camera wrote.
+   */
+  "socialization-evidence": { formats: FIELD_MEDIA_FORMATS, permission: "media.upload" },
+  /*
    * What this product generated. No client ever uploads into it: the namespace exists so a
    * rendered draft is addressable and is never reachable by a query written for the corpus. The
    * permission is the one that produced it.

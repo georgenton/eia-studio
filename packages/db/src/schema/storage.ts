@@ -19,6 +19,10 @@ export const storageNamespace = app.enum("storage_namespace", [
   "generated",
   // Media a firm chose to publish (migration 0052). Never the corpus, never field media.
   "portal-editorial",
+  // A photograph proving an invitation was handed over (ADR-041). Private: no public route
+  // resolves this prefix, and nothing re-encodes it — it is evidence, so it is what the camera
+  // wrote.
+  "socialization-evidence",
 ]);
 
 export const uploadIntentState = app.enum("upload_intent_state", [
