@@ -62,7 +62,14 @@ export interface EligibleTechnician {
 export async function listEligibleTechnicians(
   db: Database,
   ctx: RequestContext,
-  campaignId: string,
+  /**
+   * The campaign whose load to show beside each name, or `null` when there is none.
+   *
+   * Nullable because socializations are real work in a project whose survey campaign is closed
+   * or was never opened — that case is the whole point of this block — and a chooser must still
+   * be able to name the people who will deliver the invitations.
+   */
+  campaignId: string | null,
 ): Promise<ReadonlyArray<EligibleTechnician>> {
   requireCapability(ctx, "field.surveys");
   requirePermission(ctx, "field.assignments.manage");
@@ -81,7 +88,8 @@ export async function listEligibleTechnicians(
              u.name                                  as name,
              u.email                                 as email,
              count(fa.id) filter (
-               where fa.campaign_id = ${campaignId}
+               where ${campaignId}::uuid is not null
+                 and fa.campaign_id = ${campaignId}::uuid
                  and fa.corrects_assignment_id is null
                  and fa.status in ('PENDING', 'IN_PROGRESS')
              )::int                                  as open_assignments
@@ -490,4 +498,32 @@ async function readTechnician(
   const row = rows.rows[0];
   if (!row) throw new NotFound("field technician membership");
   return { membershipId: row.id, userId: row.user_id };
+}
+
+/**
+ * The board for the campaign a coordinator is actually working on.
+ *
+ * Resolved the same way every other field surface resolves it — the active campaign, else the
+ * most recently activated — rather than asking the page to carry an id it has no way to pick.
+ * `null` when the project has no campaign at all, which is a legible state and not an error.
+ */
+export async function loadCurrentAssignmentBoard(
+  db: Database,
+  ctx: RequestContext,
+): Promise<AssignmentBoard | null> {
+  requireCapability(ctx, "field.surveys");
+  requirePermission(ctx, "field.assignments.manage");
+  const projectId = requireProject(ctx);
+
+  const campaignId = await withFieldContext(db, ctx, async (tx) => {
+    const rows = await tx.execute<{ id: string }>(sql`
+      select id from app.survey_campaign
+       where tenant_id = ${ctx.tenantId} and project_id = ${projectId}
+       order by (status = 'ACTIVE') desc, activated_at desc nulls last, created_at desc
+       limit 1
+    `);
+    return rows.rows[0]?.id ?? null;
+  });
+  if (campaignId === null) return null;
+  return loadAssignmentBoard(db, ctx, campaignId);
 }

@@ -212,15 +212,30 @@ FOR EACH ROW EXECUTE FUNCTION app.socialization_event_logistics_frozen();
 GRANT SELECT ON app.socialization_invitation, app.socialization_event TO eia_policy;
 --> statement-breakpoint
 
+-- The answer is an **enum**, not text, and that is the contract rather than a style choice.
+-- `packages/testing/test/rls/security-definer.integration.test.ts` asserts that every privileged
+-- helper returns a boolean, a uuid, a count — or a closed vocabulary like this one. A `text`
+-- return would be a place where a row's own words could one day be put; a type with six labels
+-- is a place where they cannot.
+CREATE TYPE app.socialization_delivery_block AS ENUM (
+  'none',
+  'not_found',
+  'invitation_reassigned',
+  'invitation_cancelled',
+  'event_cancelled',
+  'already_settled'
+);
+--> statement-breakpoint
+
 CREATE FUNCTION app.socialization_delivery_conflict(
   p_tenant uuid, p_project uuid, p_invitation uuid
-) RETURNS text
+) RETURNS app.socialization_delivery_block
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
 SET search_path = pg_catalog, app, pg_temp
 AS $$
-  SELECT CASE
+  SELECT (CASE
            WHEN NOT app.has_project_access(p_tenant, p_project) THEN 'not_found'
            WHEN i.id IS NULL                                    THEN 'not_found'
            WHEN e.status = 'CANCELLED'                          THEN 'event_cancelled'
@@ -228,7 +243,7 @@ AS $$
            WHEN i.assignee_user_id <> app.current_user_id()     THEN 'invitation_reassigned'
            WHEN i.status IN ('DELIVERED', 'REFUSED')            THEN 'already_settled'
            ELSE 'none'
-         END
+         END)::app.socialization_delivery_block
     FROM (SELECT 1 AS one) probe
     LEFT JOIN app.socialization_invitation i
       ON i.tenant_id = p_tenant AND i.project_id = p_project AND i.id = p_invitation

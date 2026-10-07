@@ -341,6 +341,22 @@ export default defineConfig({
       },
     },
     {
+      /*
+       * Socializations (ADR-041), driven by the **social specialist** — the role the block is
+       * about, never a person. Serial, because the tests are stages of one convocation, and on
+       * its own project after the coordinator's so the campaign and its parcels exist.
+       */
+      name: "socializations",
+      testMatch: /(^|\/)socializations\.spec\.ts$/,
+      fullyParallel: false,
+      dependencies: ["setup", "coordinator"],
+      use: {
+        ...devices["Desktop Chrome"],
+        viewport: { width: 1440, height: 940 },
+        storageState: "e2e/.auth/specialist.json",
+      },
+    },
+    {
       name: "anonymous",
       // No stored session: these specs sign in for themselves, or test being signed out.
       testMatch: /(^|\/)(anonymous|session)\.spec\.ts$/,

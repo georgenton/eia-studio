@@ -192,6 +192,7 @@ export {
   assignParcelInputSchema,
   listEligibleTechnicians,
   loadAssignmentBoard,
+  loadCurrentAssignmentBoard,
   reassignAssignment,
   reassignAssignmentInputSchema,
 } from "./field/assignments";
@@ -205,6 +206,9 @@ export {
   reassignInvitationInputSchema,
   recordDeliveryAttempt,
   recordDeliveryInputSchema,
+  listSocializationEvents,
+  loadPrintableInvitation,
+  loadSocializationEvent,
   transitionSocializationEvent,
   eventTransitionInputSchema,
   updateSocializationEvent,
@@ -220,6 +224,10 @@ export type {
   ReassignInvitationInput,
   RecordDeliveryInput,
   RecordDeliveryResult,
+  PrintableInvitation,
+  SocializationEventDetail,
+  SocializationEventSummary,
+  SocializationInvitationRow,
   UpdateEventInput,
 } from "./field/socializations";
 export type {

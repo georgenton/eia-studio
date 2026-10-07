@@ -1,0 +1,132 @@
+/* Assignment and socializations: two desk surfaces under Trabajo de campo. Tokens only. */
+.surface {
+  display: grid;
+  gap: var(--eia-space-5);
+}
+.row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--eia-space-3);
+  align-items: center;
+  padding: var(--eia-space-3) 0;
+  border-top: 1px solid var(--eia-hairline);
+}
+.row:first-of-type {
+  border-top: none;
+}
+.parcel {
+  font-family: var(--eia-font-mono);
+  font-size: var(--eia-size-mono);
+  color: var(--eia-ink);
+}
+.muted {
+  color: var(--eia-text-muted);
+  font-size: var(--eia-size-body);
+}
+.controls {
+  display: flex;
+  gap: var(--eia-space-2);
+  align-items: center;
+  flex-wrap: wrap;
+}
+.select,
+.input,
+.textarea {
+  font: inherit;
+  color: var(--eia-ink);
+  background: var(--eia-surface);
+  border: 1px solid var(--eia-border);
+  border-radius: var(--eia-radius-control);
+  padding: 6px 8px;
+  max-width: 100%;
+}
+.textarea {
+  min-height: 72px;
+  width: 100%;
+}
+.field {
+  display: grid;
+  gap: var(--eia-space-1);
+  font-size: var(--eia-size-body);
+  margin-bottom: var(--eia-space-3);
+}
+.primary,
+.secondary {
+  font: inherit;
+  border-radius: var(--eia-radius-control);
+  padding: 7px 14px;
+  cursor: pointer;
+}
+.primary {
+  background: var(--eia-accent);
+  color: var(--eia-surface);
+  border: 1px solid var(--eia-accent);
+}
+.primary:disabled,
+.secondary:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.secondary {
+  background: var(--eia-surface);
+  color: var(--eia-accent);
+  border: 1px solid var(--eia-border);
+}
+.counters {
+  display: flex;
+  gap: var(--eia-space-5);
+  flex-wrap: wrap;
+  margin-bottom: var(--eia-space-3);
+}
+.counter {
+  display: grid;
+  gap: 2px;
+}
+.counterValue {
+  font-size: var(--eia-size-title-card);
+  color: var(--eia-ink);
+}
+.counterLabel {
+  font-size: var(--eia-size-label);
+  letter-spacing: var(--eia-tracking-label);
+  text-transform: uppercase;
+  color: var(--eia-text-muted);
+}
+.ok {
+  color: var(--eia-ok);
+  font-size: var(--eia-size-body);
+}
+.error {
+  color: var(--eia-crit-text);
+  font-size: var(--eia-size-body);
+}
+.help {
+  color: var(--eia-text-muted);
+  font-size: var(--eia-size-label);
+}
+.attempts {
+  margin: var(--eia-space-2) 0 0;
+  padding: 0 0 0 var(--eia-space-4);
+  list-style: none;
+  border-left: 2px solid var(--eia-hairline);
+  display: grid;
+  gap: var(--eia-space-1);
+}
+.attempt {
+  font-size: var(--eia-size-body);
+  color: var(--eia-text-secondary);
+}
+.link {
+  color: var(--eia-accent);
+}
+
+/* The two desk surfaces offered from the field overview. */
+.subSurfaces {
+  display: flex;
+  gap: var(--eia-space-4);
+  margin-bottom: var(--eia-space-4);
+  font-size: var(--eia-size-body);
+}
+.subSurfaces a {
+  color: var(--eia-accent);
+}

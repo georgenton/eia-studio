@@ -1,0 +1,93 @@
+/* One sheet of paper. Tokens for the screen; print CSS for the thing that matters. */
+.sheet {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 48px 32px;
+  background: var(--eia-surface);
+  color: var(--eia-ink);
+  font-family: var(--eia-font-sans);
+}
+.head {
+  border-bottom: 1px solid var(--eia-border);
+  padding-bottom: var(--eia-space-4);
+  margin-bottom: var(--eia-space-5);
+}
+.firm {
+  margin: 0;
+  font-family: var(--eia-font-serif);
+  font-size: var(--eia-size-title-card);
+}
+.engagement {
+  margin: 2px 0 0;
+  color: var(--eia-text-secondary);
+  font-size: var(--eia-size-body);
+}
+.title {
+  margin: var(--eia-space-4) 0 0;
+  font-size: var(--eia-size-label);
+  letter-spacing: var(--eia-tracking-label);
+  text-transform: uppercase;
+  color: var(--eia-text-muted);
+}
+.greeting {
+  font-size: var(--eia-size-body);
+  margin: 0 0 var(--eia-space-4);
+}
+.event {
+  font-family: var(--eia-font-serif);
+  font-size: var(--eia-size-title-screen);
+  margin: 0 0 var(--eia-space-3);
+}
+.purpose {
+  margin: 0 0 var(--eia-space-5);
+  font-size: var(--eia-size-body);
+  line-height: var(--eia-line-body);
+}
+.facts {
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  gap: var(--eia-space-2) var(--eia-space-4);
+  margin: 0 0 var(--eia-space-6);
+  font-size: var(--eia-size-body);
+}
+.facts dt {
+  color: var(--eia-text-muted);
+  font-size: var(--eia-size-label);
+  letter-spacing: var(--eia-tracking-label);
+  text-transform: uppercase;
+}
+.facts dd {
+  margin: 0;
+}
+.reference {
+  font-family: var(--eia-font-mono);
+  font-size: var(--eia-size-mono);
+  color: var(--eia-text-secondary);
+}
+.note {
+  border-top: 1px solid var(--eia-hairline);
+  padding-top: var(--eia-space-3);
+  color: var(--eia-text-muted);
+  font-size: var(--eia-size-label);
+}
+.noPrint {
+  margin-top: var(--eia-space-5);
+}
+
+@media print {
+  .sheet {
+    padding: 0;
+    max-width: none;
+  }
+  .noPrint {
+    display: none;
+  }
+}
+@media (max-width: 520px) {
+  .facts {
+    grid-template-columns: 1fr;
+  }
+  .sheet {
+    padding: 28px 16px;
+  }
+}

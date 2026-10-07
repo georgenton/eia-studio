@@ -622,7 +622,7 @@ export async function recordDeliveryAttempt(
       const probe = await tx.execute<{ reason: string | null }>(sql`
         select app.socialization_delivery_conflict(
           ${ctx.tenantId}::uuid, ${projectId}::uuid, ${input.invitationId}::uuid
-        ) as reason
+        )::text as reason
       `);
       const reason = probe.rows[0]?.reason ?? "not_found";
       if (reason === "not_found" || reason === "none")
@@ -896,3 +896,292 @@ async function insertProvenance(
 }
 
 export type { DeliveryOutcome };
+
+/* ---------------------------------------------------------------------------------------------
+ * read models
+ * ------------------------------------------------------------------------------------------ */
+
+export interface SocializationEventSummary {
+  readonly eventId: string;
+  readonly title: string;
+  readonly purpose: string | null;
+  readonly startsAt: Date;
+  readonly timezone: string;
+  readonly locationLabel: string;
+  readonly status: SocializationEventStatus;
+  /**
+   * Counts over **invitations**, which is the unit of the convocation. `attempts` is beside them
+   * and is deliberately not one of them: three visits to one gate are one invitee, and a figure
+   * that mixed the two would answer neither question.
+   */
+  readonly invitations: number;
+  readonly delivered: number;
+  readonly pending: number;
+  readonly refused: number;
+  readonly cancelled: number;
+  readonly attempts: number;
+}
+
+export async function listSocializationEvents(
+  db: Database,
+  ctx: RequestContext,
+): Promise<ReadonlyArray<SocializationEventSummary>> {
+  requireCapability(ctx, "field.surveys");
+  requirePermission(ctx, "field.socializations.manage");
+  const projectId = requireProject(ctx);
+
+  return withFieldContext(db, ctx, async (tx) => {
+    const rows = await tx.execute<{
+      id: string;
+      title: string;
+      purpose: string | null;
+      starts_at: string;
+      timezone: string;
+      location_label: string;
+      status: SocializationEventStatus;
+      invitations: number;
+      delivered: number;
+      pending: number;
+      refused: number;
+      cancelled: number;
+      attempts: number;
+    }>(sql`
+      select e.id, e.title, e.purpose, e.starts_at, e.timezone, e.location_label,
+             e.status::text                                               as status,
+             count(i.id)::int                                             as invitations,
+             count(i.id) filter (where i.status = 'DELIVERED')::int        as delivered,
+             count(i.id) filter (where i.status = 'PENDING')::int          as pending,
+             count(i.id) filter (where i.status = 'REFUSED')::int          as refused,
+             count(i.id) filter (where i.status = 'CANCELLED')::int        as cancelled,
+             coalesce((select count(*) from app.socialization_delivery_attempt a
+                        join app.socialization_invitation ai
+                          on ai.tenant_id = a.tenant_id and ai.id = a.invitation_id
+                       where ai.tenant_id = e.tenant_id and ai.event_id = e.id), 0)::int as attempts
+        from app.socialization_event e
+        left join app.socialization_invitation i
+          on i.tenant_id = e.tenant_id and i.event_id = e.id
+       where e.tenant_id = ${ctx.tenantId} and e.project_id = ${projectId}
+       group by e.id
+       order by e.starts_at desc
+    `);
+    return rows.rows.map((row) => ({
+      eventId: row.id,
+      title: row.title,
+      purpose: row.purpose,
+      // `tx.execute` hands back what the driver gives; the repository's convention is to make a
+      // Date here rather than let one reach a formatter as a string.
+      startsAt: new Date(row.starts_at),
+      timezone: row.timezone,
+      locationLabel: row.location_label,
+      status: row.status,
+      invitations: Number(row.invitations),
+      delivered: Number(row.delivered),
+      pending: Number(row.pending),
+      refused: Number(row.refused),
+      cancelled: Number(row.cancelled),
+      attempts: Number(row.attempts),
+    }));
+  });
+}
+
+export interface SocializationInvitationRow {
+  readonly invitationId: string;
+  readonly parcelId: string;
+  readonly parcelCode: string;
+  readonly recipientLabel: string | null;
+  readonly status: SocializationInvitationStatus;
+  readonly revision: number;
+  readonly assigneeMembershipId: string;
+  readonly assigneeName: string | null;
+  readonly attempts: ReadonlyArray<{
+    readonly attemptId: string;
+    readonly outcome: DeliveryOutcome;
+    readonly occurredAt: Date;
+    readonly technicianName: string | null;
+    readonly note: string | null;
+    readonly hasEvidence: boolean;
+    readonly evidenceStoredObjectId: string | null;
+  }>;
+}
+
+export interface SocializationEventDetail extends SocializationEventSummary {
+  readonly invitationRows: ReadonlyArray<SocializationInvitationRow>;
+}
+
+/**
+ * One event with every invitation and the attempts under each.
+ *
+ * The attempts are nested rather than listed beside the invitations, because that is the
+ * relationship: an attempt is only meaningful as *an attempt at this invitation*, and a flat list
+ * is the shape that invites somebody to count them as invitees.
+ */
+export async function loadSocializationEvent(
+  db: Database,
+  ctx: RequestContext,
+  eventId: string,
+): Promise<SocializationEventDetail> {
+  requireCapability(ctx, "field.surveys");
+  requirePermission(ctx, "field.socializations.manage");
+  const projectId = requireProject(ctx);
+
+  const summaries = await listSocializationEvents(db, ctx);
+  const summary = summaries.find((e) => e.eventId === eventId);
+  if (!summary) throw new NotFound("socialization event");
+
+  const invitationRows = await withFieldContext(db, ctx, async (tx) => {
+    const rows = await tx.execute<{
+      id: string;
+      parcel_id: string;
+      parcel_code: string;
+      recipient_label: string | null;
+      status: SocializationInvitationStatus;
+      revision: number;
+      assignee_membership_id: string;
+      assignee_name: string | null;
+      attempt_id: string | null;
+      outcome: DeliveryOutcome | null;
+      occurred_at: string | null;
+      technician_name: string | null;
+      note: string | null;
+      evidence: string | null;
+    }>(sql`
+      select i.id, i.parcel_id, p.parcel_code, i.recipient_label,
+             i.status::text            as status,
+             i.revision                as revision,
+             i.assignee_membership_id  as assignee_membership_id,
+             coalesce(au.name, au.email) as assignee_name,
+             a.id                      as attempt_id,
+             a.outcome::text           as outcome,
+             a.occurred_at_device      as occurred_at,
+             coalesce(tu.name, tu.email) as technician_name,
+             a.note                    as note,
+             a.evidence_stored_object_id as evidence
+        from app.socialization_invitation i
+        join app.parcel p on p.tenant_id = i.tenant_id and p.id = i.parcel_id
+        left join app.project_membership pm
+          on pm.tenant_id = i.tenant_id and pm.id = i.assignee_membership_id
+        left join app.tenant_membership tm
+          on tm.tenant_id = pm.tenant_id and tm.id = pm.tenant_membership_id
+        left join app."user" au on au.id = tm.user_id
+        left join app.socialization_delivery_attempt a
+          on a.tenant_id = i.tenant_id and a.invitation_id = i.id
+        left join app."user" tu on tu.id = a.technician_user_id
+       where i.tenant_id = ${ctx.tenantId} and i.project_id = ${projectId}
+         and i.event_id = ${eventId}
+       order by p.parcel_code, a.occurred_at_device
+    `);
+
+    const byInvitation = new Map<string, SocializationInvitationRow>();
+    for (const row of rows.rows) {
+      let entry = byInvitation.get(row.id);
+      if (!entry) {
+        entry = {
+          invitationId: row.id,
+          parcelId: row.parcel_id,
+          parcelCode: row.parcel_code,
+          recipientLabel: row.recipient_label,
+          status: row.status,
+          revision: Number(row.revision),
+          assigneeMembershipId: row.assignee_membership_id,
+          assigneeName: row.assignee_name,
+          attempts: [],
+        };
+        byInvitation.set(row.id, entry);
+      }
+      if (row.attempt_id !== null) {
+        (entry.attempts as Array<SocializationInvitationRow["attempts"][number]>).push({
+          attemptId: row.attempt_id,
+          outcome: row.outcome!,
+          occurredAt: new Date(row.occurred_at!),
+          technicianName: row.technician_name,
+          note: row.note,
+          hasEvidence: row.evidence !== null,
+          evidenceStoredObjectId: row.evidence,
+        });
+      }
+    }
+    return [...byInvitation.values()];
+  });
+
+  return { ...summary, invitationRows };
+}
+
+export interface PrintableInvitation {
+  readonly invitationId: string;
+  readonly firmName: string | null;
+  readonly engagementLabel: string | null;
+  readonly projectName: string;
+  readonly parcelCode: string;
+  readonly recipientLabel: string | null;
+  readonly eventTitle: string;
+  readonly purpose: string | null;
+  readonly startsAt: Date;
+  readonly timezone: string;
+  readonly locationLabel: string;
+  readonly status: SocializationInvitationStatus;
+}
+
+/**
+ * Everything the printed sheet says, and nothing else.
+ *
+ * No technician, no attempt, no evidence, no coordinate: the piece of paper is read by whoever
+ * receives it, and what this product knows about its own operation is not theirs to hold. The
+ * firm's name comes from the editorial profile when the firm set one, because that is the name
+ * it has already chosen to be known by publicly.
+ */
+export async function loadPrintableInvitation(
+  db: Database,
+  ctx: RequestContext,
+  invitationId: string,
+): Promise<PrintableInvitation> {
+  requireCapability(ctx, "field.surveys");
+  requirePermission(ctx, "field.socializations.manage");
+  const projectId = requireProject(ctx);
+
+  return withFieldContext(db, ctx, async (tx) => {
+    const rows = await tx.execute<{
+      id: string;
+      parcel_code: string;
+      recipient_label: string | null;
+      status: SocializationInvitationStatus;
+      title: string;
+      purpose: string | null;
+      starts_at: string;
+      timezone: string;
+      location_label: string;
+      project_name: string;
+      firm_name: string | null;
+      engagement_label: string | null;
+    }>(sql`
+      select i.id, p.parcel_code, i.recipient_label,
+             i.status::text as status,
+             e.title, e.purpose, e.starts_at, e.timezone, e.location_label,
+             pr.name        as project_name,
+             tp.name        as firm_name,
+             tp.engagement_label as engagement_label
+        from app.socialization_invitation i
+        join app.socialization_event e on e.tenant_id = i.tenant_id and e.id = i.event_id
+        join app.parcel p on p.tenant_id = i.tenant_id and p.id = i.parcel_id
+        join app.project pr on pr.tenant_id = i.tenant_id and pr.id = i.project_id
+        left join portal.editorial_tenant_profile tp on tp.tenant_id = i.tenant_id
+       where i.tenant_id = ${ctx.tenantId} and i.project_id = ${projectId} and i.id = ${invitationId}
+       limit 1
+    `);
+    const row = rows.rows[0];
+    if (!row) throw new NotFound("socialization invitation");
+    return {
+      invitationId: row.id,
+      firmName: row.firm_name,
+      engagementLabel: row.engagement_label,
+      projectName: row.project_name,
+      parcelCode: row.parcel_code,
+      recipientLabel: row.recipient_label,
+      eventTitle: row.title,
+      purpose: row.purpose,
+      startsAt: new Date(row.starts_at),
+      timezone: row.timezone,
+      locationLabel: row.location_label,
+      status: row.status,
+    };
+  });
+}

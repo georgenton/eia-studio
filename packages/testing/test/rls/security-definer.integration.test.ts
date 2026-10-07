@@ -64,7 +64,28 @@ const PRIVILEGED_JOB_HELPERS = [
   "release_stale_document_reviews",
 ] as const;
 
-const PRIVILEGED = [...PRIVILEGED_PREDICATES, ...PRIVILEGED_JOB_HELPERS] as const;
+/**
+ * **Class 3 — a bounded question with more than two answers (ADR-041).**
+ *
+ * `socialization_delivery_conflict` exists because a row-level policy doing its job produced the
+ * wrong *answer*: an invitation reassigned while a phone was offline is correctly hidden from the
+ * technician who captured a delivery against it, and "not found" is indistinguishable from a
+ * malformed command — so the device would discard a photograph of a real delivery. The protocol
+ * needs *conflict*, and that is a question only something outside RLS can answer.
+ *
+ * It cannot be a boolean, because *why* is the answer. So the rule for this class is the same one
+ * the job helpers follow, one step along: the return type must be a **closed vocabulary**. An
+ * enum with six labels is a place where a row's own words cannot be put; `text` would not be.
+ */
+const PRIVILEGED_BOUNDED_ANSWERS = [
+  { name: "socialization_delivery_conflict", type: "app.socialization_delivery_block" },
+] as const;
+
+const PRIVILEGED = [
+  ...PRIVILEGED_PREDICATES,
+  ...PRIVILEGED_JOB_HELPERS,
+  ...PRIVILEGED_BOUNDED_ANSWERS.map((f) => f.name),
+] as const;
 
 /** A login role with no grants at all: stands in for "any role that only has PUBLIC". */
 const PROBE_ROLE = "eia_probe_public";
@@ -189,13 +210,32 @@ describe("hardening contract of the privileged helpers", () => {
       from pg_proc p join pg_namespace n on n.oid = p.pronamespace
       where n.nspname = 'app' and p.prosecdef
         and p.proname not in (${sql.join(
-          PRIVILEGED_JOB_HELPERS.map((name) => sql`${name}`),
+          [...PRIVILEGED_JOB_HELPERS, ...PRIVILEGED_BOUNDED_ANSWERS.map((f) => f.name)].map(
+            (name) => sql`${name}`,
+          ),
           sql`, `,
         )})
     `);
     expect(result.rows.length).toBe(PRIVILEGED_PREDICATES.length);
     for (const row of result.rows as Array<{ name: string; rettype: string }>) {
       expect(row.rettype, row.name).toBe("boolean");
+    }
+  });
+
+  it("the bounded-answer helpers return a closed vocabulary, never text", async () => {
+    for (const fn of PRIVILEGED_BOUNDED_ANSWERS) {
+      const rows = await db.migrator.execute<{ rettype: string; kind: string }>(sql`
+        select pg_catalog.format_type(p.prorettype, null) as rettype,
+               t.typtype                                  as kind
+          from pg_proc p
+          join pg_namespace n on n.oid = p.pronamespace
+          join pg_type t on t.oid = p.prorettype
+         where n.nspname = 'app' and p.proname = ${fn.name}
+      `);
+      expect(rows.rows[0]?.rettype, fn.name).toBe(fn.type);
+      // 'e' is an enum: the set of things this function can say is fixed by the type system,
+      // so a future edit cannot quietly start returning a row's own words.
+      expect(rows.rows[0]?.kind, fn.name).toBe("e");
     }
   });
 
