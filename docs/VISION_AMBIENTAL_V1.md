@@ -1185,3 +1185,75 @@ bundle android 2,9 MB · ios 2,9 MB
 ```
 
 Sin Docker, sin JDK, sin emulador: **EMULATOR_UAT_PENDING** sigue en pie sin cambios (TD-129).
+
+---
+
+# Bloque 3.3 — el refresh reconcilia, y la ventana offline gobierna las invitaciones
+
+> Dos defectos de la auditoría final de B3.2. Ninguno añade funcionalidad: uno es un conjunto que
+> no se reconciliaba, el otro una regla que gobernaba la mitad del trabajo.
+
+## 49. Un refresh completo es el conjunto actual
+
+**El defecto.** *Actualizar trabajo* llama a `downloadWorkPack` y `saveWorkPack`, y el escritor
+hacía `applyInvitations(entrantes, [])` y un insert plano de las asignaciones. Ninguno marcaba
+como revocado lo que el pack ya no mencionaba. Un pull sí reconciliaba los removidos; un refresh
+no. Una tarea reasignada o cancelada seguía visible y capturable hasta que ocurriera algún sync
+posterior.
+
+**La corrección.** Un pack descargado **es** el conjunto actual del proyecto activo, y el refresh
+dice ahora lo mismo que el pull: `absent = local − entrante`, calculado dentro de la misma
+transacción y entregado a la mitad de revocación que `applyInvitations` y `applyAssignments` ya
+tenían. No hay un tercer algoritmo de reconciliación — `absentLiveIds` sólo calcula la
+diferencia, sobre filas vivas, porque una ya revocada no necesita un segundo anuncio.
+
+**Revocado, nunca borrado.** Debajo de esa fila puede haber un borrador, una fotografía o una
+entrega sin enviar, y eso es lo único que esta aplicación no tira.
+
+De paso, un defecto que la prueba G destapó: las asignaciones se insertaban en plano, así que **un
+segundo refresh del mismo proyecto fallaba por clave primaria**. Ahora pasan por
+`applyAssignments`, que hace upsert — que además es su trabajo. `writeSurveyDefinition` se quedó
+sólo con la campaña, las preguntas y las opciones.
+
+`surveyWork === null` deja `field_pack` en nulo y revoca las asignaciones anteriores;
+`invitations === []` revoca las invitaciones anteriores. En ambos casos la captura local queda.
+
+## 50. La ventana offline también gobierna las invitaciones
+
+**El defecto.** `WorkPack.validity` es la ventana que estampa el servidor —
+`min(expiración de sesión, ahora + 7 días)`, nunca extendida por el dispositivo (ADR-028). Las
+encuestas bloquean la captura cuando vence desde la Wave 1; las invitaciones no lo preguntaban. Un
+teléfono podía registrar una entrega **nueva** días después de que el servidor dejara de respaldar
+su acceso.
+
+**La corrección.** `capturable = mayRecordDelivery(invitation) && offlineState !== "expired"`. Con
+la ventana vencida la pantalla muestra el aviso y retira los resultados, la cámara y Guardar;
+Volver sigue ahí.
+
+Y **debajo de la interfaz**: `saveDelivery` relee `work_pack.validity.expiresAt` justo antes de
+crear la fila y usa la misma política, `offlineAccessState` de `@eia/domain/mobile`. Sin pack, o
+vencido, rechaza con `OfflineWorkExpired`. El `now` se inyecta para poder probarlo. El dispositivo
+no renueva ni extiende nada.
+
+**Lo que no bloquea.** Una entrega capturada **antes** del vencimiento conserva su fila y su
+fotografía, sigue siendo elegible para subir evidencia, y se sincroniza cuando vuelva la señal. El
+vencimiento decide qué puede seguir *registrando* un dispositivo desconectado, no es una razón
+para abandonar trabajo que hizo legítimamente.
+
+## 51. Regresión de este bloque
+
+```
+format · lint 0 en ficheros del repo · typecheck 11/11
+test:unit  780 pasan, 1 todo   ← 768   (apps/field: 38 contra SQLite real)
+bundle android 2,9 MB · ios 2,9 MB
+```
+
+Doce aserciones nuevas: siete de reconciliación (invitación ausente, asignación ausente, trabajo
+capturado intacto en ambos casos, `surveyWork` nulo, invitaciones vacías, e idempotencia de dos
+refrescos idénticos) y cinco de la ventana (dentro, fuera, sin pack, lo capturado antes sigue
+subiendo, y `REQUIRES_REVIEW` sigue visible). Los tests de atomicidad y rollback de B3.2 siguen
+verdes, con la salvedad de que su fallo forzado cambió de clave primaria duplicada a una opción
+sin etiqueta, porque el upsert absorbe la primera.
+
+Sin cambios en el contrato compartido, en web ni en `@eia/domain`; sin Docker, sin JDK, sin
+emulador. **EMULATOR_UAT_PENDING** sigue igual.

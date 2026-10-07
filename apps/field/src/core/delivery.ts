@@ -55,6 +55,26 @@ export class InvitationNoLongerCapturable extends Error {
   }
 }
 
+/**
+ * The downloaded work has lapsed, so nothing **new** may be captured against it.
+ *
+ * `WorkPack.validity` is the window the server stamped — `min(session expiry, now + 7 days)`,
+ * never extended by the device (ADR-028). Surveys have refused capture past it since Wave 1;
+ * invitations were not asking, which meant a delivery could be recorded days after the server
+ * had stopped standing behind this device's access.
+ *
+ * It blocks **new** capture only. An attempt made while the window was open keeps its row and
+ * its photograph, uploads its evidence and syncs when the signal returns — the expiry is about
+ * what a disconnected device may still be trusted to record, not a reason to discard work it
+ * legitimately did.
+ */
+export class OfflineWorkExpired extends Error {
+  constructor() {
+    super("the downloaded work has expired; reconnect to carry on capturing");
+    this.name = "OfflineWorkExpired";
+  }
+}
+
 /** A delivered invitation needs a photograph. Everything else records that nothing was delivered. */
 export function requiresEvidence(outcome: SocializationDeliveryPayload["outcome"]): boolean {
   return outcome === "DELIVERED";

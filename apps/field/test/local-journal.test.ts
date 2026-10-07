@@ -1,8 +1,10 @@
 import type { WorkPack } from "@eia/field-sync-contract";
+import { offlineAccessState } from "@eia/domain/mobile";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
   applyInvitations,
+  attachEvidenceObject,
   deliveriesAwaitingEvidence,
   deliveriesReadyToQueue,
   ensureWorkPack,
@@ -211,13 +213,33 @@ describe("a socialization-only pack", () => {
  * ========================================================================================== */
 
 describe("saving a work pack", () => {
-  /** A pack whose survey snapshot will fail: two assignments sharing a primary key. */
+  /**
+   * A pack whose survey half will fail to write: an option with no label, which
+   * `local_option.label text not null` refuses.
+   *
+   * The particular failure is arbitrary and deliberately *late* in the write — after the pack
+   * row, after the invitations, after the assignments. What matters is that any failure leaves
+   * the previous project whole, which two transactions could not promise.
+   */
   function withBrokenSurvey(over: Partial<WorkPack> = {}): WorkPack {
-    const duplicated = surveyWork();
+    const base = surveyWork();
+    const [first, second] = base.campaign.surveyVersion.questions;
     return pack({
       surveyWork: {
-        campaign: duplicated.campaign,
-        assignments: [duplicated.assignments[0]!, duplicated.assignments[0]!],
+        campaign: {
+          ...base.campaign,
+          surveyVersion: {
+            ...base.campaign.surveyVersion,
+            questions: [
+              first!,
+              {
+                ...second!,
+                options: [{ code: "owner", label: null as unknown as string, ordinal: 0 }],
+              },
+            ],
+          },
+        },
+        assignments: base.assignments,
       },
       ...over,
     });
@@ -309,6 +331,142 @@ describe("saving a work pack", () => {
     expect(assignments[0]?.parcelCode).toBe("001");
     const options = await db.getAllAsync<{ code: string }>("select code from local_option");
     expect(options.map((o) => o.code)).toEqual(["owner"]);
+  });
+});
+
+/* =============================================================================================
+ * A full refresh is a full current set
+ * ========================================================================================== */
+
+describe("downloading the project again", () => {
+  const second = () =>
+    invitation({ invitationId: "0199f3a2-7c41-7abc-8d0f-00000000b009", parcelCode: "002" });
+
+  function twoAssignments() {
+    const base = surveyWork();
+    return {
+      campaign: base.campaign,
+      assignments: [
+        base.assignments[0]!,
+        {
+          ...base.assignments[0]!,
+          id: "0199f3a2-7c41-7abc-8d0f-00000000d009",
+          parcel: { ...base.assignments[0]!.parcel, parcelCode: "002" },
+        },
+      ],
+    };
+  }
+
+  it("A · an invitation the pack no longer mentions is revoked, and the rest stays current", async () => {
+    const { db } = database;
+    await saveWorkPack(db, pack({ socializationWork: { invitations: [invitation(), second()] } }));
+    expect((await listInvitations(db)).filter((row) => row.revoked)).toEqual([]);
+
+    // The second download omits the first invitation: reassigned, or cancelled.
+    await saveWorkPack(db, pack({ socializationWork: { invitations: [second()] } }));
+
+    const rows = await listInvitations(db);
+    expect(rows.find((row) => row.id === invitation().invitationId)?.revoked).toBe(true);
+    expect(rows.find((row) => row.id === second().invitationId)?.revoked).toBe(false);
+  });
+
+  it("B · and the attempt and photograph under it survive the revocation", async () => {
+    const { db } = database;
+    await saveWorkPack(db, pack({ socializationWork: { invitations: [invitation(), second()] } }));
+    await saveDeliveryAttempt(db, {
+      localId: "attempt-refresh",
+      invitationId: invitation().invitationId,
+      invitationRevision: 1,
+      outcome: "DELIVERED",
+      occurredAt: "2026-11-12T19:30:00.000Z",
+      note: null,
+      location: null,
+      evidence: { fileUri: "file:///refresh.jpg", mimeType: "image/jpeg", sizeBytes: 10 },
+      state: "READY_TO_SYNC",
+    });
+
+    await saveWorkPack(db, pack({ socializationWork: { invitations: [second()] } }));
+
+    const attempts = await listDeliveryAttempts(db);
+    expect(attempts).toHaveLength(1);
+    expect(attempts[0]?.evidenceFileUri).toBe("file:///refresh.jpg");
+    // Still the server's decision to make: it goes up and comes back as a conflict.
+    expect((await deliveriesReadyToQueue(db)).map((a) => a.localId)).toContain("attempt-refresh");
+  });
+
+  it("C · an assignment the pack no longer mentions is revoked, and the rest stays current", async () => {
+    const { db } = database;
+    await saveWorkPack(db, pack({ surveyWork: twoAssignments() }));
+    expect(await listAssignments(db)).toHaveLength(2);
+
+    await saveWorkPack(db, pack({ surveyWork: surveyWork() }));
+    const rows = await listAssignments(db);
+    expect(
+      rows.find((row) => row.id === "0199f3a2-7c41-7abc-8d0f-00000000d009")?.revokedAt,
+    ).not.toBeNull();
+    expect(rows.find((row) => row.id === surveyWork().assignments[0]!.id)?.revokedAt).toBeNull();
+  });
+
+  it("D · with the draft and the photograph under it untouched", async () => {
+    const { db, raw } = database;
+    await saveWorkPack(db, pack({ surveyWork: twoAssignments() }));
+    const dropped = "0199f3a2-7c41-7abc-8d0f-00000000d009";
+    raw.exec(`insert into local_survey (id, assignment_id, survey_version_id, state,
+              device_revision, updated_at)
+              values ('s-refresh', '${dropped}', 'v1', 'DRAFT', 1, '2026-11-12T00:00:00.000Z')`);
+    raw.exec(`insert into local_media (local_id, assignment_local_id, file_uri, mime_type,
+              size_bytes, kind, captured_at)
+              values ('m-refresh', '${dropped}', 'file:///m.jpg', 'image/jpeg', 10, 'parcel',
+                      '2026-11-12T00:00:00.000Z')`);
+
+    await saveWorkPack(db, pack({ surveyWork: surveyWork() }));
+
+    expect(
+      await db.getFirstAsync("select id from local_survey where id = 's-refresh'"),
+    ).not.toBeNull();
+    expect(
+      await db.getFirstAsync("select local_id from local_media where local_id = 'm-refresh'"),
+    ).not.toBeNull();
+  });
+
+  it("E · a pack with no survey work revokes the assignments and leaves no campaign", async () => {
+    const { db } = database;
+    await saveWorkPack(db, pack({ surveyWork: surveyWork() }));
+    await saveWorkPack(db, pack({ surveyWork: null }));
+
+    expect(await readPack(db)).toBeNull();
+    const rows = await listAssignments(db);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.revokedAt).not.toBeNull();
+  });
+
+  it("F · a pack with no invitations revokes the ones that were there", async () => {
+    const { db } = database;
+    await saveWorkPack(db, pack({ socializationWork: { invitations: [invitation()] } }));
+    await saveWorkPack(db, pack({ socializationWork: { invitations: [] } }));
+
+    const rows = await listInvitations(db);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.revoked).toBe(true);
+  });
+
+  it("G · and two identical refreshes change nothing the second time", async () => {
+    const { db } = database;
+    const snapshot = pack({
+      surveyWork: surveyWork(),
+      socializationWork: { invitations: [invitation()] },
+    });
+    await saveWorkPack(db, snapshot);
+    // A plain insert of the assignments used to make this throw on the primary key; it upserts
+    // now, which is what makes a refresh something a technician can press twice.
+    await saveWorkPack(db, snapshot);
+
+    expect(await listAssignments(db)).toHaveLength(1);
+    expect(await listInvitations(db)).toHaveLength(1);
+    expect((await listInvitations(db))[0]?.revoked).toBe(false);
+    expect((await listAssignments(db))[0]?.revokedAt).toBeNull();
+    const options = await db.getAllAsync<{ code: string }>("select code from local_option");
+    expect(options).toHaveLength(1);
   });
 });
 
@@ -632,18 +790,30 @@ describe("changing road", () => {
     );
 
     /*
-     * A pack B the write will choke on: two assignments sharing an id, which the survey
-     * snapshot inserts plainly and the primary key refuses. The particular failure is
-     * arbitrary — what matters is that *any* failure inside the transaction leaves road A
-     * whole, which the previous implementation could not do because it committed the deletion
-     * before writing anything.
+     * A pack B the write will choke on, for the reason given beside `withBrokenSurvey`: an
+     * option with no label. The particular failure is arbitrary — what matters is that *any*
+     * failure inside the transaction leaves road A whole, which the previous implementation
+     * could not do because it committed the deletion before writing anything.
      */
-    const duplicated = surveyWork();
+    const base = surveyWork();
     const broken = pack({
       project: { ...PROJECT, projectSlug: "via-b", projectName: "Vía B" },
       surveyWork: {
-        campaign: duplicated.campaign,
-        assignments: [duplicated.assignments[0]!, duplicated.assignments[0]!],
+        campaign: {
+          ...base.campaign,
+          surveyVersion: {
+            ...base.campaign.surveyVersion,
+            questions: base.campaign.surveyVersion.questions.map((question, index) =>
+              index === 1
+                ? {
+                    ...question,
+                    options: [{ code: "owner", label: null as unknown as string, ordinal: 0 }],
+                  }
+                : question,
+            ),
+          },
+        },
+        assignments: base.assignments,
       },
       socializationWork: { invitations: [invitation()] },
     });
@@ -804,6 +974,114 @@ describe("a revoked invitation", () => {
     expect((await deliveriesReadyToQueue(db)).map((a) => a.localId)).not.toContain(
       "attempt-review",
     );
+  });
+});
+
+/* =============================================================================================
+ * The offline window governs invitations too
+ * ========================================================================================== */
+
+describe("the window the server stamped", () => {
+  const BEFORE = new Date("2026-11-05T00:00:00.000Z");
+  const AFTER = new Date("2026-11-09T00:00:00.000Z");
+
+  async function withPendingInvitation() {
+    // `VALIDITY.expiresAt` is 2026-11-08, so BEFORE is inside the window and AFTER is past it.
+    await saveWorkPack(database.db, pack({ socializationWork: { invitations: [invitation()] } }));
+  }
+
+  const delivery = (now: Date) => ({
+    newId: () => `attempt-${now.toISOString()}`,
+    invitationId: invitation().invitationId,
+    invitationRevision: 1,
+    outcome: "ABSENT" as const,
+    note: null,
+    location: null,
+    photo: null,
+    now,
+  });
+
+  it("A · lets a capture through while the downloaded work is still valid", async () => {
+    const { db } = database;
+    await withPendingInvitation();
+    expect(offlineAccessState({ now: BEFORE, expiresAt: new Date(VALIDITY.expiresAt) })).not.toBe(
+      "expired",
+    );
+
+    await saveDelivery(db, delivery(BEFORE));
+    expect(await listDeliveryAttempts(db)).toHaveLength(1);
+  });
+
+  it("B · and refuses a new one once it has lapsed, writing no row", async () => {
+    const { db } = database;
+    await withPendingInvitation();
+
+    await expect(saveDelivery(db, delivery(AFTER))).rejects.toMatchObject({
+      name: "OfflineWorkExpired",
+    });
+    expect(await listDeliveryAttempts(db)).toEqual([]);
+  });
+
+  it("· and refuses when there is no pack behind the capture at all", async () => {
+    const { db } = database;
+    await withPendingInvitation();
+    await db.runAsync("delete from work_pack");
+    await expect(saveDelivery(db, delivery(BEFORE))).rejects.toMatchObject({
+      name: "OfflineWorkExpired",
+    });
+  });
+
+  it("D · while work captured before the lapse still uploads and still syncs", async () => {
+    const { db } = database;
+    await withPendingInvitation();
+    await saveDeliveryAttempt(db, {
+      localId: "attempt-in-window",
+      invitationId: invitation().invitationId,
+      invitationRevision: 1,
+      outcome: "DELIVERED",
+      occurredAt: BEFORE.toISOString(),
+      note: null,
+      location: null,
+      evidence: { fileUri: "file:///window.jpg", mimeType: "image/jpeg", sizeBytes: 10 },
+      state: "EVIDENCE_PENDING",
+    });
+
+    /*
+     * The expiry is about what a disconnected device may still be trusted to *record*. It is
+     * not a reason to strand work it legitimately did, so the uploader and the queue must
+     * still take this row.
+     */
+    expect((await deliveriesAwaitingEvidence(db)).map((a) => a.localId)).toContain(
+      "attempt-in-window",
+    );
+    await attachEvidenceObject(db, "attempt-in-window", "0199f3a2-7c41-7abc-8d0f-00000000f001");
+    expect((await deliveriesReadyToQueue(db)).map((a) => a.localId)).toContain("attempt-in-window");
+  });
+
+  it("E · and an attempt already marked for review stays visible after the lapse", async () => {
+    const { db } = database;
+    await withPendingInvitation();
+    await saveDeliveryAttempt(db, {
+      localId: "attempt-review-window",
+      invitationId: invitation().invitationId,
+      invitationRevision: 1,
+      outcome: "DELIVERED",
+      occurredAt: BEFORE.toISOString(),
+      note: null,
+      location: null,
+      evidence: { fileUri: "file:///review-window.jpg", mimeType: "image/jpeg", sizeBytes: 10 },
+      state: "READY_TO_SYNC",
+    });
+    await settleDelivery(db, "attempt-review-window", {
+      outcome: "conflict",
+      attemptId: null,
+      conflictReason: "invitation_reassigned",
+      message: "ya no está a tu nombre",
+    });
+
+    const [row] = await listInvitations(db);
+    expect(row?.attemptState).toBe("REQUIRES_REVIEW");
+    expect((await listDeliveryAttempts(db))[0]?.evidenceFileUri).toBe("file:///review-window.jpg");
   });
 });
 

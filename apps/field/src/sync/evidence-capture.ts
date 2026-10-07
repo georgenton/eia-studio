@@ -1,12 +1,15 @@
 import type * as SQLite from "expo-sqlite";
 
+import { offlineAccessState } from "@eia/domain/mobile";
+
 import {
   canSaveDelivery,
   initialDeliveryState,
   InvitationNoLongerCapturable,
   mayRecordDelivery,
+  OfflineWorkExpired,
 } from "../core/delivery";
-import { readInvitation, saveDeliveryAttempt } from "../db/repo-v4";
+import { readInvitation, readWorkPack, saveDeliveryAttempt } from "../db/repo-v4";
 
 /**
  * Saving what happened at a gate, with its photograph, before any network is involved.
@@ -45,6 +48,8 @@ export interface SaveDeliveryAttemptInput {
   readonly location: { latitude: number; longitude: number; accuracyM: number | null } | null;
   /** Where the camera put it. Copied out before the row exists. */
   readonly photo: { sourceUri: string; mimeType: string; sizeBytes: number } | null;
+  /** Injected so the expiry guard below is testable at a chosen instant. */
+  readonly now?: Date;
 }
 
 export class DeliveryNeedsPhotograph extends Error {
@@ -72,6 +77,22 @@ export async function saveDelivery(
    * It blocks only a **new** capture. An attempt made before the revocation arrived keeps its
    * row and its photograph and goes to the server, which answers conflict.
    */
+  /*
+   * The window the server stamped governs **all** of this pack's offline work, invitations
+   * included. Read here rather than taken from the caller: a screen's idea of the expiry is a
+   * value rendered minutes ago, and this is the last moment before a row exists.
+   *
+   * No pack at all is the same answer — there is nothing standing behind a capture.
+   */
+  const workPack = await readWorkPack(db);
+  const now = input.now ?? new Date();
+  if (
+    workPack === null ||
+    offlineAccessState({ now, expiresAt: new Date(workPack.validity.expiresAt) }) === "expired"
+  ) {
+    throw new OfflineWorkExpired();
+  }
+
   const invitation = await readInvitation(db, input.invitationId);
   if (invitation === null || !mayRecordDelivery(invitation)) {
     throw new InvitationNoLongerCapturable();

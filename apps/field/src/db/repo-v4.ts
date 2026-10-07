@@ -14,7 +14,7 @@ import {
   type WorkPackOrigin,
 } from "../core/pack-upgrade";
 import type { PendingWorkSummary } from "../core/project-switch";
-import { readPack } from "./repo";
+import { applyAssignments, readPack } from "./repo";
 
 /**
  * The v4 half of the capture journal: the active project, its invitations, and what a technician
@@ -83,21 +83,75 @@ async function writeWorkPackSnapshot(
   origin: WorkPackOrigin,
 ): Promise<void> {
   await insertWorkPackRow(db, pack, origin);
-  await applyInvitations(db, pack.socializationWork.invitations, []);
+
+  /*
+   * A downloaded pack is the **full current set** of this project's work, so a full refresh has
+   * to say the same thing a pull says: here is everything that is still yours, and by omission,
+   * here is what is not.
+   *
+   * It did not. `applyInvitations(incoming, [])` and a plain insert of the assignments meant a
+   * task reassigned or cancelled between two downloads stayed on screen and stayed capturable
+   * until some later sync happened to pull it away. The fix is not a third reconciliation
+   * algorithm: it is computing *absent = local − incoming* and handing it to the revocation half
+   * the two existing appliers already have.
+   *
+   * Revoked, never deleted — a technician may be holding a draft, a photograph or an unsent
+   * delivery against the row, and those are the one thing this application does not throw away.
+   */
+  const invitations = pack.socializationWork.invitations;
+  await applyInvitations(
+    db,
+    invitations,
+    await absentLiveIds(
+      db,
+      "local_invitation",
+      invitations.map((invitation) => invitation.invitationId),
+    ),
+  );
 
   const projected = fieldPackFromWorkPack(pack);
-  if (projected !== null) {
-    // Replace rather than merge: the pack is a snapshot, and a campaign that is no longer this
-    // project's must not survive as rows nobody reconciles.
-    await db.runAsync("delete from field_pack");
-    await writeSurveySnapshot(db, projected);
-    return;
-  }
-  await db.runAsync(
-    "update local_assignment set revoked_at = ? where revoked_at is null",
-    nowIso(),
+  const assignments = projected?.assignments ?? [];
+  await applyAssignments(
+    db,
+    assignments,
+    await absentLiveIds(
+      db,
+      "local_assignment",
+      assignments.map((assignment) => assignment.id),
+    ),
   );
+
+  /*
+   * The campaign and its questionnaire are replaced wholesale rather than reconciled: there is
+   * one of each, and a definition that is no longer this project's must not survive as rows
+   * nobody reads. With no survey work there is no `field_pack` at all, which is how a closed
+   * campaign stops looking like today's.
+   */
   await db.runAsync("delete from field_pack");
+  if (projected !== null) await writeSurveyDefinition(db, projected);
+}
+
+/**
+ * The live local rows a pack no longer mentions.
+ *
+ * "Live" because an already-revoked row stays revoked and needs no second announcement; and the
+ * table name is a literal from this file rather than anything a caller composed, because it is
+ * interpolated into the statement.
+ */
+async function absentLiveIds(
+  db: SQLite.SQLiteDatabase,
+  table: "local_invitation" | "local_assignment",
+  incoming: ReadonlyArray<string>,
+): Promise<ReadonlyArray<string>> {
+  const rows =
+    incoming.length === 0
+      ? await db.getAllAsync<{ id: string }>(`select id from ${table} where revoked_at is null`)
+      : await db.getAllAsync<{ id: string }>(
+          `select id from ${table}
+            where revoked_at is null and id not in (${incoming.map(() => "?").join(", ")})`,
+          ...incoming,
+        );
+  return rows.map((row) => row.id);
 }
 
 /** The `work_pack` upsert, on its own, so a caller inside a transaction can use it too. */
@@ -140,14 +194,17 @@ async function insertWorkPackRow(
 }
 
 /**
- * The questionnaire, its options and the assignments, written row by row **inside the caller's
- * transaction**.
+ * The campaign and its questionnaire, written row by row **inside the caller's transaction**.
  *
  * `saveFieldPack` does the same thing and opens its own transaction, which is right everywhere
- * except here: the atomic switch must not commit halfway. The statements are the same ones; a
- * test asserts the two agree by driving a switch and then reading what the survey screens read.
+ * except here: the atomic writers must not commit halfway. The statements are the same ones; a
+ * test asserts the two agree by reading back through the v3 repository the survey screens use.
+ *
+ * Assignments are **not** written here. They go through `applyAssignments`, which upserts — a
+ * plain insert made a second full refresh of the same project fail on the primary key, and
+ * reconciling them is its job anyway.
  */
-async function writeSurveySnapshot(
+async function writeSurveyDefinition(
   db: SQLite.SQLiteDatabase,
   pack: NonNullable<ReturnType<typeof fieldPackFromWorkPack>>,
 ): Promise<void> {
@@ -199,28 +256,6 @@ async function writeSurveySnapshot(
         option.ordinal,
       );
     }
-  }
-  for (const assignment of pack.assignments) {
-    await db.runAsync(
-      `insert into local_assignment (id, parcel_code, sector_label, chainage_label, side,
-         server_status, open_visit_id, instance_id, instance_status, revision, updated_at,
-         corrects_assignment_id, correction_reason, correction_requested_at)
-       values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      assignment.id,
-      assignment.parcel.parcelCode,
-      assignment.parcel.sectorLabel,
-      assignment.parcel.chainageLabel,
-      assignment.parcel.side,
-      assignment.status,
-      assignment.openVisitId,
-      assignment.instanceId,
-      assignment.instanceStatus,
-      assignment.revision,
-      nowIso(),
-      assignment.correction?.correctsAssignmentId ?? null,
-      assignment.correction?.reason ?? null,
-      assignment.correction?.requestedAt ?? null,
-    );
   }
 }
 

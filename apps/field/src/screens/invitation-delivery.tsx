@@ -44,7 +44,7 @@ export function InvitationDeliveryScreen({
   onBack: () => void;
 }) {
   const t = useT();
-  const { db, refresh } = useField();
+  const { db, refresh, offlineState } = useField();
   const [invitation, setInvitation] = useState<LocalInvitationRow | null>(null);
   const [outcome, setOutcome] = useState<Outcome>("DELIVERED");
   const [note, setNote] = useState("");
@@ -134,11 +134,13 @@ export function InvitationDeliveryScreen({
       setError(
         cause instanceof DeliveryNeedsPhotograph
           ? t("mobile.photoRequired")
-          : cause instanceof Error && cause.name === "InvitationNoLongerCapturable"
-            ? t("mobile.invitationRevokedBody")
-            : cause instanceof Error
-              ? cause.message
-              : t("mobile.photoRequired"),
+          : cause instanceof Error && cause.name === "OfflineWorkExpired"
+            ? t("mobile.offlineExpired")
+            : cause instanceof Error && cause.name === "InvitationNoLongerCapturable"
+              ? t("mobile.invitationRevokedBody")
+              : cause instanceof Error
+                ? cause.message
+                : t("mobile.photoRequired"),
       );
     } finally {
       setBusy(false);
@@ -153,7 +155,14 @@ export function InvitationDeliveryScreen({
    * it. An attempt made *before* the news arrived is untouched: it keeps its row, its
    * photograph and its place in the queue.
    */
-  const capturable = mayRecordDelivery(invitation);
+  const expired = offlineState === "expired";
+  /*
+   * Two reasons a gate is not worth walking to. The invitation is no longer this technician's,
+   * or the downloaded work has lapsed and the server is no longer standing behind this
+   * device's access (ADR-028). Either way the form is not offered, and either way everything
+   * already captured stays and still syncs.
+   */
+  const capturable = mayRecordDelivery(invitation) && !expired;
 
   return (
     <Screen>
@@ -183,11 +192,13 @@ export function InvitationDeliveryScreen({
         {capturable ? null : (
           <Notice
             text={
-              invitation.revoked
-                ? t("mobile.invitationRevokedBody")
-                : t("mobile.invitationSettledBody")
+              expired
+                ? t("mobile.offlineExpired")
+                : invitation.revoked
+                  ? t("mobile.invitationRevokedBody")
+                  : t("mobile.invitationSettledBody")
             }
-            tone="warn"
+            tone={expired ? "crit" : "warn"}
           />
         )}
 
