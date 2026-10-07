@@ -822,3 +822,139 @@ ajeno a estos dos defectos:
   de los mensajes de dominio de este producto; traducirlos es un trabajo de catálogo propio, no
   medio hecho desde aquí;
 - `pnpm lint` falla localmente dentro de `.claude/worktrees/`, que ESLint recorre y Git excluye.
+
+---
+
+# Bloque 3 — socializaciones, asignación de campo e invitaciones
+
+> Este bloque construyó un dominio nuevo, dos superficies de escritorio, una versión nueva del
+> protocolo móvil, y **se detuvo antes de terminar la aplicación móvil**. Lo último está dicho
+> aquí y en TD-126, no implícito en un fichero ausente.
+
+## 29. El modelo: una invitación es la unidad
+
+Tres tablas bajo FieldFlow — `socialization_event` → `socialization_invitation` →
+`socialization_delivery_attempt` — y la regla que las ordena: **tres visitas a un predio son un
+invitado, no tres**. Todas las cifras de una convocatoria son sobre invitaciones; los intentos van
+al lado, rotulados, con la frase escrita en la pantalla.
+
+De ahí se sigue que `ABSENT` y `OTHER` dejan la invitación
+`PENDING`: nadie fue informado, y cerrarla porque una visita no encontró a nadie registraría una
+convocatoria que no ocurrió. `DELIVERED` y `REFUSED` la cierran.
+
+**Una invitación nombra un predio, nunca a una persona.** `recipient_label` es una cadena opcional
+de una lista que alguien llevaba: nunca derivada de una respuesta, nunca obligatoria, nunca en una
+línea de auditoría.
+
+**La logística se congela** en cuanto existe la primera invitación — en el dominio y otra vez en un
+trigger — porque alguien ya fue informado de una fecha y no hay forma de des-informarle. Otra
+convocatoria es otro evento.
+
+## 30. Permisos
+
+`field.socializations.manage` (COORDINATOR, SOCIAL_SPECIALIST) cubre la convocatoria entera.
+Decidir **quién entrega** sigue siendo `field.assignments.manage`, la misma llave que decide quién
+levanta un predio, porque es la misma decisión sobre los días de las mismas personas.
+
+No se elevó ningún rol y no se creó ninguno con nombre de persona. El especialista social ya tenía
+`field.assignments.manage`; lo que faltaba era una superficie que lo usara.
+
+## 31. Asignación de levantamientos
+
+`field.assignments.manage` existía desde el Slice 3 y no otorgaba nada: las asignaciones venían de
+un seeder. Ahora hay un tablero de predios con su técnico, un selector y dos verbos — asignar y
+cambiar. Sin reparto automático, sin round-robin, sin IA.
+
+`assertAssignmentReassignable` es lo que impide que esto sea una forma de reescribir ayer: una
+visita, una respuesta o una fotografía y la respuesta es no, con la puerta que sí existe nombrada
+en el mensaje — una revisita (ADR-038).
+
+## 32. El conflicto es el diseño
+
+Una entrega capturada en una quebrada y sincronizada tres horas después, contra una invitación que
+entretanto cambió de manos, vuelve como **conflicto**: el intento y la fotografía se conservan y
+se marcan *requiere revisión*. Nunca como una reatribución silenciosa del trabajo de una persona a
+otra, y nunca como «no encontrado» — que un dispositivo no distingue de un comando mal formado, y
+al que respondería descartando la foto de una entrega real.
+
+La política de fila oculta correctamente la invitación reasignada, así que
+`app.socialization_delivery_conflict` responde esa única pregunta desde fuera de RLS y devuelve un
+**enum de seis etiquetas** y nada más. Es una tercera clase de helper privilegiado, con su propia
+regla en la prueba de contrato: vocabulario cerrado, porque `text` sería un lugar donde algún día
+podrían ponerse las palabras de una fila.
+
+## 33. Protocolo v4, al lado de v3
+
+v3 queda intacto, byte por byte, en `/api/field/*`. v4 vive en `/api/field/v4/*`. Sin negociación
+y sin un cuerpo que signifique dos cosas: un segmento de URL es el marcador de versión más claro
+que hay.
+
+Tres cambios, cada uno de los cuales necesitaba la versión:
+
+| | v3 | v4 |
+|---|---|---|
+| trabajo | una campaña, obligatoria | `surveyWork` **anulable** + `socializationWork` |
+| descubrimiento | tres salidas, una terminal (`multiple_field_projects`) | una lista; elige la persona |
+| comandos | cinco | seis (`socialization.delivery.record`) |
+| pack schema | 1 | 2 |
+
+Los otros cinco comandos significan exactamente lo mismo, así que la ruta v4 reescribe su sobre y
+los pasa por el **motor de v3**. Un segundo motor de sincronización es lo que este bloque tenía
+prohibido construir: dos motores acabarían discrepando sobre qué significa un reintento.
+
+## 34. Evidencia privada
+
+Namespace propio: `socialization-evidence`. No `field-media`, que es evidencia de una *visita*; y
+desde luego no `portal-editorial`, que es el único namespace cuyos objetos ve un visitante. Nada
+la re-codifica y nada le quita el EXIF — es evidencia, y la regla para la evidencia es la de
+ADR-032. Ninguna ruta pública resuelve ese prefijo.
+
+El orden de liberación del fichero local es el de ADR-032 y se verifica con una prueba:
+intent → PUT → finalize → guardar el id → encolar el comando → push → **ACK** → borrar la foto.
+`mayDeleteEvidenceFile` sólo nombra `SYNCED` con id de servidor. Un conflicto nunca la libera.
+
+## 35. Lo que la aplicación móvil tiene, y lo que no
+
+**Hecho y probado:** migración local 4 (tres tablas, sin borrar nada de lo que un handset lleva en
+el campo), la conversión de un pack v3 a uno v4, las reglas del dispositivo sobre una entrega y su
+fotografía, el guardia de cambio de proyecto, el repositorio v4, el cliente de API v4 y el módulo
+de sincronización de entregas y evidencia. 16 pruebas unitarias sobre funciones puras.
+
+**No hecho:** el motor de sincronización no está recableado a v4, y las tres pantallas — selector
+de proyecto, lista de invitaciones, captura de entrega — no están escritas. **Un dispositivo
+todavía no puede entregar una invitación.**
+
+Detenerse fue la decisión, no el resultado. El motor de sincronización es el único componente cuyo
+fallo le cuesta a una técnica el trabajo que capturó, y recablearlo sin un emulador en el bucle
+para ejecutar el resultado es exactamente el intercambio que ADR-028 §10e existe para evitar. Un
+motor a medio cablear es peor que uno sin cablear: parece terminado. TD-126 lleva el orden exacto
+de lo que falta.
+
+## 36. Pruebas y comprobaciones
+
+```
+pnpm format:check · forbidden-strings · typecheck 11/11 · db:check (sin deriva)
+pnpm test:unit            735 pasan, 1 todo        ← 719
+pnpm test:integration     740 pasan                ← 693
+  · socializations.integration.test.ts        24  (dominio, idempotencia, conflictos, límites)
+  · field-work-v4.integration.test.ts         12  (descubrimiento, pack, pull, comando)
+  · rls/socializations.integration.test.ts    10  (filas, grants, superficie pública)
+  · apps/field/test/delivery.test.ts          16  (reglas del dispositivo)
+Playwright  socializations 7 · portal-editorial 18 · coordinator+document-pipeline 163
+pnpm --filter @eia/web build · worker build
+```
+
+Sin emulador: **EMULATOR_UAT_PENDING**. Las reglas móviles están verificadas por pruebas unitarias
+sobre funciones puras; el recorrido en handset sigue siendo la compuerta que era.
+
+## 37. Límites, para el registro
+
+| | |
+|---|---|
+| unidad de cuenta | la **invitación**; los intentos se muestran aparte y rotulados |
+| una invitación | un predio + un evento, en esta versión |
+| asistencia | **no se modela**; quién asistió es otro hecho, recogido por otro acto |
+| personas | ninguna entidad; `recipient_label` es una etiqueta opcional de una lista |
+| capacidades | catálogo intacto en 14 claves; las socializaciones viven bajo `field.surveys` |
+| v3 | intacto; un APK anterior sigue hablando `/api/field/*` sin cambios |
+| offline | un proyecto activo por vez; el cambio es en línea y se bloquea con trabajo pendiente |
