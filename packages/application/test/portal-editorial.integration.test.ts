@@ -593,3 +593,223 @@ describe("the public profile of the consultancy", () => {
     expect(await loadPublicEditorialIndex(db.runtime, { tenantSlug: w.tenantB.slug })).toBeNull();
   });
 });
+
+/**
+ * The revision is a counter, and it has to be one.
+ *
+ * It used to be derived from existence — `0` absent, `1` present — so once the row existed every
+ * administrator read `1`, every save matched, and the second one silently overwrote the first.
+ * That is the failure optimistic concurrency exists to prevent, and the tests below are written
+ * against the number rather than against the symptom (migration 0054).
+ *
+ * Tenant B, because tenant A's profile already exists by this point in the file and a counter is
+ * only interesting from its first write onwards.
+ */
+describe("the profile's revision", () => {
+  const scopeB = () => ({ tenantSlug: w.tenantB.slug, projectSlug: w.projectZ.slug });
+  const ownerB = () => contextFor({ id: w.ownerB.id, email: w.ownerB.email }, scopeB());
+
+  it("counts 0 → 1 → 2 → 3, and refuses a save made from a number that has moved", async () => {
+    const ctx = await ownerB();
+    expect((await loadEditorialTenantProfile(db.runtime, ctx)).revision).toBe(0);
+
+    const save = (name: string, expectedRevision: number) =>
+      updateEditorialTenantProfile(db.runtime, ctx, {
+        name,
+        engagementLabel: null,
+        expectedRevision,
+      });
+
+    expect((await save("Consultora B", 0)).revision).toBe(1);
+    expect((await loadEditorialTenantProfile(db.runtime, ctx)).revision).toBe(1);
+    expect((await save("Consultora B, segunda", 1)).revision).toBe(2);
+    expect((await save("Consultora B, tercera", 2)).revision).toBe(3);
+
+    // The administrator who read `1` and went to lunch. Their save is refused rather than
+    // applied, and the refusal names the number that is actually there.
+    const stale = await refusal(() => save("Desde una pestaña de hace una hora", 1));
+    expect(stale).toBeInstanceOf(EditorialRevisionConflict);
+    expect((await loadEditorialTenantProfile(db.runtime, ctx)).name).toBe("Consultora B, tercera");
+
+    // And a creation attempt against a profile that now exists is the same answer, not a raw
+    // unique violation: `ON CONFLICT DO NOTHING` turns the race into something a person reads.
+    expect(await refusal(() => save("Creo que no hay perfil", 0))).toBeInstanceOf(
+      EditorialRevisionConflict,
+    );
+  });
+
+  it("lets exactly one of two concurrent saves from the same revision win", async () => {
+    const ctx = await ownerB();
+    const before = (await loadEditorialTenantProfile(db.runtime, ctx)).revision;
+
+    /*
+     * Two transactions, started together, both believing they hold `before`. This is the case a
+     * SELECT-then-UPDATE cannot survive: both would pass the read. Here the second blocks on the
+     * row, re-evaluates `revision = before` against the committed row, matches nothing, and is
+     * told it conflicted.
+     */
+    const results = await Promise.allSettled([
+      updateEditorialTenantProfile(db.runtime, ctx, {
+        name: "Primera en llegar",
+        engagementLabel: null,
+        expectedRevision: before,
+      }),
+      updateEditorialTenantProfile(db.runtime, ctx, {
+        name: "Segunda en llegar",
+        engagementLabel: null,
+        expectedRevision: before,
+      }),
+    ]);
+
+    const won = results.filter((r) => r.status === "fulfilled");
+    const lost = results.filter((r) => r.status === "rejected");
+    expect(won).toHaveLength(1);
+    expect(lost).toHaveLength(1);
+    expect((lost[0] as PromiseRejectedResult).reason).toBeInstanceOf(EditorialRevisionConflict);
+
+    // One write happened, not two: the counter moved by exactly one, and the stored name is the
+    // winner's. Which of the two won is a race and is not asserted; that only one did, is.
+    expect((won[0] as PromiseFulfilledResult<{ revision: number }>).value.revision).toBe(
+      before + 1,
+    );
+    const after = await loadEditorialTenantProfile(db.runtime, ctx);
+    expect(after.revision).toBe(before + 1);
+    expect(["Primera en llegar", "Segunda en llegar"]).toContain(after.name);
+  });
+
+  it("is a counter per tenant: another firm's edits do not move it", async () => {
+    const a = await contextFor({ id: w.ownerA.id, email: w.ownerA.email });
+    // Tenant A was written once, far above, and tenant B has been written four times since.
+    expect((await loadEditorialTenantProfile(db.runtime, a)).revision).toBe(1);
+    expect((await loadEditorialTenantProfile(db.runtime, await ownerB())).revision).toBeGreaterThan(
+      1,
+    );
+
+    // And A can still save against the number A actually holds.
+    expect(
+      (
+        await updateEditorialTenantProfile(db.runtime, a, {
+          name: "Consultora Sintética",
+          engagementLabel: "Programa Ambiental Sintético",
+          expectedRevision: 1,
+        })
+      ).revision,
+    ).toBe(2);
+  });
+});
+
+/**
+ * A tenant administrator holds `portal.profile.manage` and no project permissions at all, which
+ * is the shape of the second defect this block closes: the key was real and the door it opened
+ * was behind a door it could not open. What follows asserts both halves — that they can name the
+ * firm, and that naming the firm buys them nothing else on the project.
+ */
+describe("a tenant administrator with no project membership", () => {
+  const adminCtx = () => contextFor({ id: w.adminA.id, email: w.adminA.email });
+
+  it("can read and set the firm's public profile", async () => {
+    const ctx = await adminCtx();
+    expect(ctx.projectRole).toBeNull();
+    expect(ctx.implicitOwnerProjectAccess).toBe(false);
+
+    const before = await loadEditorialTenantProfile(db.runtime, ctx);
+    const result = await updateEditorialTenantProfile(db.runtime, ctx, {
+      name: "Consultora Sintética",
+      engagementLabel: "Programa Ambiental Sintético, renombrado por administración",
+      expectedRevision: before.revision,
+    });
+    expect(result.revision).toBe(before.revision + 1);
+  });
+
+  it("holds no editorial permission, and cannot read the draft", async () => {
+    const ctx = await adminCtx();
+    for (const key of [
+      "portal.editorial.write",
+      "portal.preview",
+      "portal.publish",
+      "field.responses.read",
+    ] as const) {
+      expect(ctx.permissions.has(key)).toBe(false);
+    }
+    expect(await refusal(() => loadEditorialDraft(db.runtime, ctx, "Proyecto X"))).toBeInstanceOf(
+      PermissionDenied,
+    );
+  });
+
+  it("cannot write the draft, publish it, withdraw it, or upload a file to it", async () => {
+    const ctx = await adminCtx();
+
+    expect(
+      await refusal(() =>
+        saveEditorialDraft(db.runtime, ctx, {
+          expectedRevision: 1,
+          payload: page("Un titular que un administrador no escribe"),
+        }),
+      ),
+    ).toBeInstanceOf(PermissionDenied);
+
+    expect(
+      await refusal(() => publishEditorial(db.runtime, ctx, { expectedRevision: 1 })),
+    ).toBeInstanceOf(PermissionDenied);
+
+    expect(
+      await refusal(() =>
+        withdrawEditorial(db.runtime, ctx, { reason: "no debería poder hacerlo" }),
+      ),
+    ).toBeInstanceOf(PermissionDenied);
+
+    // `portal.profile.manage` is not an upload permission, and the namespace's rule says so.
+    expect(
+      await refusal(() =>
+        createUploadIntent(db.runtime, ctx, storage, {
+          namespace: EDITORIAL_NAMESPACE,
+          filename: "no-procede.jpg",
+          mimeType: "image/jpeg",
+          sizeBytes: 1024,
+        }),
+      ),
+    ).toBeInstanceOf(PermissionDenied);
+  });
+});
+
+/**
+ * The draft's counter had the same hole as the profile's, one function above: the check was a
+ * `SELECT` and the write an unconditional `UPDATE`, so two transactions could both pass the read.
+ * Sequential saves were caught — this counter did move — and simultaneous ones were not.
+ *
+ * Last in the file on purpose: it leaves the draft one revision further on, and the tests above
+ * are written against a known sequence.
+ */
+describe("the draft's revision, under contention", () => {
+  it("lets exactly one of two simultaneous saves win", async () => {
+    /*
+     * The draft's counter did move, so two saves one after another were already caught. Two at
+     * the same instant were not: the check was a `SELECT` and the write an unconditional
+     * `UPDATE`, and both transactions passed the read. Same shape as the tenant profile's defect
+     * (migration 0054), one function above, and the same fix — the comparison lives in the
+     * `WHERE` of the statement that writes.
+     */
+    const ctx = await contextFor(coordinator);
+    const before = (await loadEditorialDraft(db.runtime, ctx, "fallback")).revision;
+
+    const results = await Promise.allSettled([
+      saveEditorialDraft(db.runtime, ctx, {
+        expectedRevision: before,
+        payload: page("A la vez, la primera"),
+      }),
+      saveEditorialDraft(db.runtime, ctx, {
+        expectedRevision: before,
+        payload: page("A la vez, la segunda"),
+      }),
+    ]);
+
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    const lost = results.filter((r) => r.status === "rejected");
+    expect(lost).toHaveLength(1);
+    expect((lost[0] as PromiseRejectedResult).reason).toBeInstanceOf(EditorialRevisionConflict);
+
+    const after = await loadEditorialDraft(db.runtime, ctx, "fallback");
+    expect(after.revision).toBe(before + 1);
+    expect(["A la vez, la primera", "A la vez, la segunda"]).toContain(after.payload.headline);
+  });
+});

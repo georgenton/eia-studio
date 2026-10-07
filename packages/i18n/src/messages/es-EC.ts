@@ -1365,6 +1365,9 @@ export const messages = {
       profileEngagement: "Título del encargo",
       profileReadOnly:
         "Sólo lectura: configurarlo es una facultad de la administración de la organización.",
+      profileOnly:
+        "Administras la organización, no esta vía. El borrador, los archivos y la publicación son de quien trabaja el proyecto.",
+      profileSave: "Guardar perfil",
       addFile: "Añadir archivo",
       addFileOfKind: "Añadir {kind}",
       chooseFileOfKind: "Elegir archivo · {kind}",

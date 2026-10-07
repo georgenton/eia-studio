@@ -379,6 +379,13 @@
       "when": 1789746986712,
       "tag": "0053_portal_editorial_image",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1789746987712,
+      "tag": "0054_editorial_profile_revision",
+      "breakpoints": true
     }
   ]
 }

@@ -674,3 +674,151 @@ incluye **project**» — una clave cruda en inglés en una frase en español. N
 Todo lo del §12 y del §14 sigue en pie. Este bloque no añadió ninguna capacidad nueva al catálogo,
 no tocó `field-media`, no subió ningún límite global, no envió nada a ningún modelo, y no
 desplegó nada.
+
+---
+
+# Bloque 2.3 — dos defectos del perfil público, cerrados
+
+> Este bloque no amplió el CMS. Cerró dos defectos concretos del **perfil del tenant** — el nombre
+> de la consultora y el título del encargo — y encontró un tercero por el camino. Ninguno era
+> visible desde la interfaz: el primero necesita dos personas guardando a la vez, el segundo
+> necesita una identidad que el recorrido no usaba, y el tercero aparece al azar.
+
+## 24. La revisión del perfil no era una revisión
+
+**Lo que había.** `loadEditorialTenantProfile` devolvía `revision = 0` si no existía la fila y
+`1` si existía, y `updateEditorialTenantProfile` comparaba contra eso. En cuanto la fila existía
+el número no volvía a moverse: **toda** administradora leía `1`, **todo** guardado coincidía, y el
+segundo pisaba al primero sin decir nada. El comentario del código decía que eso era *optimistic
+concurrency*; no lo era.
+
+Peor: la comprobación era un `SELECT` y después un `UPDATE` incondicional. Aunque el número
+hubiese crecido, dos transacciones concurrentes pasan las dos el `SELECT`.
+
+**Migración 0054** (aditiva, sin backfill, sin cambio de política ni de grant):
+
+```sql
+ALTER TABLE portal.editorial_tenant_profile
+  ADD COLUMN revision integer NOT NULL DEFAULT 1;
+ALTER TABLE portal.editorial_tenant_profile
+  ADD CONSTRAINT editorial_tenant_profile_revision_positive CHECK (revision >= 1);
+```
+
+`DEFAULT 1` y no `0` porque `0` es la palabra de este modelo para *no hay perfil*, y un `0`
+almacenado haría indistinguible una fila existente de una ausente.
+
+**La atomicidad no la da la columna.** La da que comparar y escribir sean **una sola sentencia**:
+
+| Caso | Sentencia | Perdedor |
+|---|---|---|
+| crear (`expectedRevision = 0`) | `INSERT … ON CONFLICT (tenant_id) DO NOTHING RETURNING revision` | no recibe fila → conflicto, no una violación de UNIQUE cruda |
+| actualizar (`N`) | `UPDATE … SET revision = revision + 1 WHERE tenant_id = ? AND revision = N RETURNING revision` | actualiza cero filas → conflicto |
+
+Sólo después de no recibir fila se lee la revisión actual, y sólo para poder decir cuál es.
+
+**Dos cosas más que estaban mal por lo mismo.** El esquema de la server action tenía
+`expectedRevision: z.number().int().min(0).max(1)` — habría rechazado el tercer guardado. Y el
+componente hacía `setProfileRevision(1)` tras cada éxito, un número inventado; ahora usa el que
+devolvió el servidor, en un campo propio (`profileRevision`) para que un guardado de perfil no
+pueda reiniciar el contador del borrador.
+
+### 24.1 Y el mismo patrón, una función más arriba
+
+`saveEditorialDraft` tenía la misma forma: `SELECT revision` → comparar → `UPDATE` **sin
+condición**. El contador del borrador sí crecía, así que dos guardados uno tras otro ya se
+detectaban; dos al mismo instante no, porque ambas transacciones pasaban el `SELECT` y la segunda
+sobrescribía a la primera.
+
+No estaba en el encargo de este bloque, pero es el mismo defecto que el §24 nombra, en el fichero
+que el §24 corrige, y dejarlo mientras se escribía una migración y una nota diciendo cómo debe
+hacerse habría sido incoherente. Tres líneas: la comparación pasa al `WHERE` del `UPDATE`, y la
+creación a `ON CONFLICT (tenant_id, project_id) DO NOTHING RETURNING`. Sin migración: el índice
+único que lo sostiene ya existía desde 0052.
+
+## 25. ADMIN tenía el permiso y no podía usarlo
+
+`portal.profile.manage` es permiso de **tenant** (OWNER, ADMIN). Un ADMIN sin membresía de
+proyecto resuelve el proyecto *para administración*: permisos de tenant, ningún permiso de
+proyecto (TENANCY.md §2.1). Pero la ruta exigía `portal.editorial.write` **o** `portal.preview`
+antes de renderizar nada, así que devolvía *permission denied*. **Tenía la llave de una puerta
+que estaba detrás de otra puerta que no podía abrir**, y la única persona que podía nombrar la
+consultora era el OWNER, por su acceso implícito.
+
+**Lo que NO se hizo:** conceder `portal.preview`, conceder `portal.editorial.write`, dar
+COORDINATOR, ni crear membresía automática. Cualquiera de esas habría ampliado el acceso al
+borrador para arreglar un panel de dos campos.
+
+**Lo que se hizo:** `EditorialTenantProfileEditor`, un componente propio, y un modo *sólo perfil*
+en la misma ruta. La diferencia que importa está en una línea de la página:
+`loadEditorialDraft` **no se llama**. El borrador no se trae y se oculta — no se trae.
+
+| | ADMIN sin membresía | editor / revisor / publicador |
+|---|---|---|
+| panel de perfil | sí | sí (sólo lectura si no tiene el permiso) |
+| borrador, secciones, equipo | **no se cargan** | igual que antes |
+| subir, publicar, retirar | ausentes | igual que antes |
+| `portal.preview` | **no** | igual que antes |
+
+El use-case sigue siendo la autoridad: la superficie decide qué dibujar, no qué se permite.
+
+## 26. Y un tercero, que encontró la corrida de integración
+
+`findEditorialViolations` escaneaba `JSON.stringify(payload)` — **todo**, incluidos los
+identificadores que genera este producto. Un `storedObjectId` es un UUID, así que una página de
+cada pocos cientos llevaba dentro una tirada de exactamente diez dígitos y era rechazada como
+`identity_number`: una negativa que nombra algo que nadie escribió y que no se puede quitar de la
+pantalla. Habría aparecido al azar en producción.
+
+Ahora se recorren las cadenas **legibles** y se excluyen por nombre los campos que son
+identificadores (`schemaVersion`, `locale`, `key`, `kind`, `role`, `storedObjectId`). Exclusiones
+con nombre y no una lista blanca de campos de prosa, para conservar la propiedad que hacía útil el
+barrido: un campo de texto nuevo queda cubierto el día que se añade. Se unen con `\n`, para que
+dos campos inocentes no formen una coincidencia en la costura.
+
+`packages/domain/test/portal-editorial.test.ts` es nuevo: no había ninguna prueba unitaria de las
+reglas de contenido editorial.
+
+## 27. Pruebas
+
+```
+packages/domain/test/portal-editorial.test.ts            6 unitarias (nuevo fichero)
+packages/application/test/portal-editorial.integration.test.ts   29 (eran 22)
+  · la revisión cuenta 0 → 1 → 2 → 3
+  · un guardado desde un número que ya se movió es rechazado
+  · crear contra un perfil que ya existe es conflicto, no error SQL
+  · dos guardados concurrentes desde la misma revisión: gana exactamente uno
+  · el contador es por tenant
+  · ADMIN sin membresía lee y escribe el perfil
+  · ADMIN no tiene write/preview/publish, y no puede leer el borrador
+  · ADMIN no puede guardar, publicar, retirar ni subir un archivo
+  · dos guardados simultáneos del borrador: gana exactamente uno (§24.1)
+
+pnpm test:unit          719 pasan, 1 todo (53 ficheros)   ← 713 / 52
+pnpm test:integration   693 pasan (50 ficheros)           ← 686
+  incluye el registro de migraciones y la cosecha RLS, con 0054 aplicada desde cero
+pnpm format:check · forbidden-strings (661) · typecheck 11/11
+eslint sobre los ficheros del repositorio: 0 problemas
+pnpm --filter @eia/web build
+
+Playwright:
+  portal-editorial  18 pasan   ← eran 16
+    J · dos administradoras con la misma revisión: la segunda no pisa a la primera,
+        recarga y lee lo que escribió la primera
+    K · una administradora sin membresía nombra la firma, y el borrador no está
+        en la página — ni sus controles, ni su texto en el HTML
+  portal + vocabulary + authorization  55 pasan
+```
+
+No se reconstruyó la imagen Docker: nada de este bloque toca el empaquetado, `sharp`, el
+`Dockerfile` ni las dependencias.
+
+## 28. Estado final del CMS
+
+Cerrado para el siguiente bloque. Lo que queda escrito y **no** arreglado aquí, por ser anterior y
+ajeno a estos dos defectos:
+
+- el estado *permission denied* dice «Tu rol OWNER no incluye **project**» (§22);
+- los errores de dominio del editorial —incluido el de conflicto— están en inglés, como el resto
+  de los mensajes de dominio de este producto; traducirlos es un trabajo de catálogo propio, no
+  medio hecho desde aquí;
+- `pnpm lint` falla localmente dentro de `.claude/worktrees/`, que ESLint recorre y Git excluye.

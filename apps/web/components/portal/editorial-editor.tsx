@@ -8,10 +8,10 @@ import { useI18n } from "@/components/i18n/locale-provider";
 import {
   publishEditorialAction,
   saveEditorialDraftAction,
-  updateEditorialProfileAction,
   withdrawEditorialAction,
 } from "@/lib/portal-editorial-actions";
 import { EditorialFileField } from "./editorial-file-field";
+import { EditorialTenantProfileEditor } from "./editorial-tenant-profile";
 
 import styles from "./editorial-editor.module.css";
 
@@ -79,9 +79,6 @@ export function EditorialEditor({
   const [payload, setPayload] = useState<EditorialPayload>(draft.payload);
   const [revision, setRevision] = useState(draft.revision);
   const [reason, setReason] = useState("");
-  const [profileName, setProfileName] = useState(profile.name);
-  const [profileLabel, setProfileLabel] = useState(profile.engagementLabel ?? "");
-  const [profileRevision, setProfileRevision] = useState(profile.revision);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -190,64 +187,12 @@ export function EditorialEditor({
         </PanelBody>
       </Panel>
 
-      <Panel>
-        <PanelHeader
-          label={t("portal.editorial.profile")}
-          note={t("portal.editorial.profileLead")}
-        />
-        <PanelBody>
-          {mayManageProfile ? null : (
-            <p className={styles.help}>{t("portal.editorial.profileReadOnly")}</p>
-          )}
-          <label className={styles.field} htmlFor={`${formId}-profile-name`}>
-            {t("portal.editorial.profileName")}
-            <input
-              className={styles.input}
-              data-testid="editorial-profile-name"
-              disabled={!mayManageProfile || pending}
-              id={`${formId}-profile-name`}
-              maxLength={160}
-              onChange={(e) => setProfileName(e.target.value)}
-              value={profileName}
-            />
-          </label>
-          <label className={styles.field} htmlFor={`${formId}-profile-engagement`}>
-            {t("portal.editorial.profileEngagement")}
-            <input
-              className={styles.input}
-              data-testid="editorial-profile-engagement"
-              disabled={!mayManageProfile || pending}
-              id={`${formId}-profile-engagement`}
-              maxLength={200}
-              onChange={(e) => setProfileLabel(e.target.value)}
-              value={profileLabel}
-            />
-          </label>
-          {mayManageProfile ? (
-            <button
-              className={styles.primary}
-              data-testid="editorial-profile-save"
-              disabled={pending || profileName.trim() === ""}
-              onClick={() =>
-                run(async () => {
-                  const result = await updateEditorialProfileAction({
-                    tenant,
-                    project,
-                    name: profileName.trim(),
-                    engagementLabel: profileLabel.trim() === "" ? null : profileLabel.trim(),
-                    expectedRevision: profileRevision,
-                  });
-                  if (result.ok) setProfileRevision(1);
-                  return result;
-                })
-              }
-              type="button"
-            >
-              {pending ? t("portal.editorial.saving") : t("portal.editorial.save")}
-            </button>
-          ) : null}
-        </PanelBody>
-      </Panel>
+      <EditorialTenantProfileEditor
+        mayManage={mayManageProfile}
+        profile={profile}
+        project={project}
+        tenant={tenant}
+      />
 
       <Panel>
         <PanelHeader label={t("portal.editorial.draft")} />

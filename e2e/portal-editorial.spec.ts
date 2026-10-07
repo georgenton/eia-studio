@@ -3,7 +3,7 @@ import { buildJpegWithGps, buildPdf, buildPptx } from "@eia/testing/documents";
 
 import type { Browser, Page } from "@playwright/test";
 
-import { expect, PROJECT, TENANT, test } from "./fixtures";
+import { expect, PROJECT, TENANT, test, USERS } from "./fixtures";
 
 /**
  * The public presentation, driven the way a person drives it.
@@ -101,7 +101,7 @@ test.describe("Presentación pública · el recorrido completo", () => {
     await page.getByTestId("editorial-profile-name").fill(FIRM);
     await page.getByTestId("editorial-profile-engagement").fill(ENGAGEMENT);
     await page.getByTestId("editorial-profile-save").click();
-    await expect(page.getByTestId("editorial-ok")).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId("editorial-profile-ok")).toBeVisible({ timeout: 20_000 });
 
     await page.reload();
     await expect(page.getByTestId("editorial-profile-name")).toHaveValue(FIRM);
@@ -338,6 +338,92 @@ test.describe("Presentación pública · el recorrido completo", () => {
     await expect(page.getByRole("main")).toContainText("No tienes acceso");
     await expect(page.getByTestId("editorial-publish")).toHaveCount(0);
     await expect(page.getByRole("main")).not.toContainText(HEADLINE);
+  });
+
+  test("J · dos administradoras con la misma revisión: la segunda no pisa a la primera", async ({
+    browser,
+  }) => {
+    /*
+     * Two sessions of the same administrator, which is the realistic case: one laptop, one phone,
+     * or simply two tabs. Both read the same revision, and the point is that the second save is
+     * **refused** rather than applied — until this block the revision was 0 or 1 and never moved,
+     * so every save after the first one matched and the loser's words vanished without a word.
+     */
+    const a = await browser.newContext({ storageState: USERS.owner.state });
+    const b = await browser.newContext({ storageState: USERS.owner.state });
+    const pageA = await a.newPage();
+    const pageB = await b.newPage();
+    await pageA.goto(EDITOR);
+    await pageB.goto(EDITOR);
+
+    const FIRST = `${FIRM} · primera`;
+    await pageA.getByTestId("editorial-profile-name").fill(FIRST);
+    await pageA.getByTestId("editorial-profile-save").click();
+    await expect(pageA.getByTestId("editorial-profile-ok")).toBeVisible({ timeout: 20_000 });
+
+    await pageB.getByTestId("editorial-profile-name").fill(`${FIRM} · segunda`);
+    await pageB.getByTestId("editorial-profile-save").click();
+    await expect(pageB.getByTestId("editorial-profile-error")).toBeVisible({ timeout: 20_000 });
+    await expect(pageB.getByTestId("editorial-profile-ok")).toHaveCount(0);
+
+    // What is stored is the first one's. B reloads and reads it, which is the whole point of
+    // being told instead of being overwritten.
+    await pageB.reload();
+    await expect(pageB.getByTestId("editorial-profile-name")).toHaveValue(FIRST);
+
+    // And from the revision it now holds, B can save.
+    await pageB.getByTestId("editorial-profile-name").fill(FIRM);
+    await pageB.getByTestId("editorial-profile-save").click();
+    await expect(pageB.getByTestId("editorial-profile-ok")).toBeVisible({ timeout: 20_000 });
+
+    await a.close();
+    await b.close();
+  });
+
+  test("K · una administradora sin membresía nombra la firma y no ve el borrador", async ({
+    browser,
+  }) => {
+    // ADMIN of the tenant, with no project membership: tenant permissions, no project ones.
+    const context = await browser.newContext({ storageState: USERS.admin.state });
+    const admin = await context.newPage();
+    const response = await admin.goto(EDITOR);
+    expect(response?.status()).toBe(200);
+
+    // The one thing they are entitled to do, which until this block was behind a door their
+    // permission did not open.
+    await expect(admin.getByTestId("editorial-profile-name")).toHaveValue(FIRM);
+    await expect(admin.getByTestId("editorial-profile-only")).toBeVisible();
+    await admin.getByTestId("editorial-profile-engagement").fill(`${ENGAGEMENT} (administración)`);
+    await admin.getByTestId("editorial-profile-save").click();
+    await expect(admin.getByTestId("editorial-profile-ok")).toBeVisible({ timeout: 20_000 });
+    await admin.screenshot({ path: shot("04-perfil-administracion"), fullPage: true });
+
+    // And nothing else. Not disabled — absent, because the draft was never loaded.
+    for (const testId of [
+      "editorial-save",
+      "editorial-publish",
+      "editorial-withdraw",
+      "editorial-add-member",
+      "editorial-upload-photo",
+      "editorial-section",
+    ]) {
+      await expect(admin.getByTestId(testId)).toHaveCount(0);
+    }
+    const body = (await admin.content()).toLowerCase();
+    expect(body).not.toContain(HEADLINE.toLowerCase());
+    expect(body).not.toContain(SECTION_TEXT.slice(0, 40).toLowerCase());
+    expect(body).not.toContain(MEMBER.toLowerCase());
+
+    await context.close();
+
+    // Put the engagement label back, so G and any later reader see what A and B wrote.
+    const owner = await browser.newContext({ storageState: USERS.owner.state });
+    const page = await owner.newPage();
+    await page.goto(EDITOR);
+    await page.getByTestId("editorial-profile-engagement").fill(ENGAGEMENT);
+    await page.getByTestId("editorial-profile-save").click();
+    await expect(page.getByTestId("editorial-profile-ok")).toBeVisible({ timeout: 20_000 });
+    await owner.close();
   });
 
   test("G · retirar la quita de la ficha, de la portada y de sus archivos", async ({

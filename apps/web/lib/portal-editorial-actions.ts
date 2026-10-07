@@ -30,8 +30,14 @@ import { resolveSurfaceAccess } from "@/lib/surface-access";
  */
 const scope = z.object({ tenant: z.string().min(1), project: z.string().min(1) });
 
+/**
+ * `revision` is the **draft's**; `profileRevision` is the tenant profile's. Two counters on two
+ * rows, named apart on purpose: one field would have let a profile save quietly reset the number
+ * the draft's next save is checked against.
+ */
 export type EditorialActionResult =
-  { ok: true; message: string; revision?: number } | { ok: false; error: string };
+  | { ok: true; message: string; revision?: number; profileRevision?: number }
+  | { ok: false; error: string };
 
 /** The refusals a person should read, as opposed to the ones that are this product's own fault. */
 function toResult(error: unknown): EditorialActionResult | null {
@@ -247,7 +253,9 @@ export async function updateEditorialProfileAction(raw: unknown): Promise<Editor
     .extend({
       name: z.string().min(1).max(160),
       engagementLabel: z.string().max(200).nullable(),
-      expectedRevision: z.number().int().min(0).max(1),
+      // No upper bound: a revision counts upwards for as long as the firm keeps editing. The
+      // `max(1)` that used to be here would have refused the third save (migration 0054).
+      expectedRevision: z.number().int().min(0),
     })
     .strict()
     .parse(raw);
@@ -255,13 +263,13 @@ export async function updateEditorialProfileAction(raw: unknown): Promise<Editor
   const access = await resolveSurfaceAccess(input.tenant, input.project, "portal");
   if (access.kind !== "ok") return { ok: false, error: t("actions.noSurfaceAccess") };
   try {
-    await updateEditorialTenantProfile(getDb(), access.ctx, {
+    const { revision } = await updateEditorialTenantProfile(getDb(), access.ctx, {
       name: input.name,
       engagementLabel: input.engagementLabel,
       expectedRevision: input.expectedRevision,
     });
     revalidateBoth(input.tenant, input.project);
-    return { ok: true, message: t("portal.editorial.profileSaved") };
+    return { ok: true, message: t("portal.editorial.profileSaved"), profileRevision: revision };
   } catch (error) {
     const result = toResult(error);
     if (result) return result;

@@ -1356,6 +1356,9 @@ export const messages: Messages = {
       profileName: "Public name",
       profileEngagement: "Engagement title",
       profileReadOnly: "Read-only: setting this belongs to the organisation's administration.",
+      profileOnly:
+        "You administer the organisation, not this road. The draft, its files and publishing belong to whoever works the project.",
+      profileSave: "Save profile",
       addFile: "Add a file",
       addFileOfKind: "Add {kind}",
       chooseFileOfKind: "Choose a file · {kind}",

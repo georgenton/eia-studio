@@ -250,9 +250,45 @@ export const EDITORIAL_FORBIDDEN_PATTERNS: ReadonlyArray<{ key: string; pattern:
   { key: "finding_code", pattern: /\b(QG|IA)-\d{2,}\b/u },
 ];
 
+/**
+ * Fields that are identifiers this product generated, not words anybody wrote.
+ *
+ * The scan used to run over `JSON.stringify(payload)`, which swept these in with the prose — and
+ * a stored object id is a UUID, so roughly one page in a few hundred carried a run of exactly ten
+ * digits inside one and was refused as an `identity_number`. The author had typed nothing of the
+ * kind and there was nothing on screen for them to remove: a refusal they could not act on, and
+ * one that would have arrived at random after this shipped. (An integration run caught it, which
+ * is the only reason it is not still latent.)
+ *
+ * Named exclusions rather than an allowlist of prose fields, so the sweep keeps the property that
+ * made it worth writing: a new text field is covered the day it is added, with nobody remembering
+ * to add it here.
+ */
+const MACHINE_FIELDS: ReadonlySet<string> = new Set([
+  "schemaVersion",
+  "locale",
+  "key",
+  "kind",
+  "role",
+  "storedObjectId",
+]);
+
+/** Every string a reader could see, and none this product generated. */
+function readableStrings(value: unknown, key: string | null = null): ReadonlyArray<string> {
+  if (key !== null && MACHINE_FIELDS.has(key)) return [];
+  if (typeof value === "string") return [value];
+  if (Array.isArray(value)) return value.flatMap((entry) => readableStrings(entry));
+  if (value !== null && typeof value === "object") {
+    return Object.entries(value).flatMap(([k, v]) => readableStrings(v, k));
+  }
+  return [];
+}
+
 /** Every match, so an author is told all of it at once rather than one refusal at a time. */
 export function findEditorialViolations(payload: EditorialPayload): ReadonlyArray<string> {
-  const text = JSON.stringify(payload);
+  // Joined on a newline rather than concatenated: two innocent fields must not form a match
+  // across the seam between them.
+  const text = readableStrings(payload).join("\n");
   return EDITORIAL_FORBIDDEN_PATTERNS.filter(({ pattern }) => pattern.test(text)).map((p) => p.key);
 }
 

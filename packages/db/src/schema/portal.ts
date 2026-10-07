@@ -285,6 +285,16 @@ export const editorialTenantProfile = portal.table(
     tenantSlug: text("tenant_slug").notNull().unique(),
     name: text("name").notNull(),
     engagementLabel: text("engagement_label"),
+    /**
+     * Optimistic concurrency, and a real one (migration 0054).
+     *
+     * It counts from 1 and rises with every write, so two administrators who read the same
+     * landing cannot both save it: the conditional `UPDATE … WHERE revision = ?` that carries
+     * the comparison matches no row for the second, and the use-case says so instead of letting
+     * one overwrite the other in silence. `0` is a read-model value meaning *no profile yet* and
+     * is never stored — a CHECK refuses it.
+     */
+    revision: integer("revision").notNull().default(1),
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
     updatedBy: uuid("updated_by").notNull(),
   },

@@ -25,7 +25,7 @@ import {
   type RequestContext,
   type StoragePort,
 } from "@eia/domain";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 
 import { recordAudit } from "../audit/record";
 import { buildPublishableImage } from "./editorial-image";
@@ -133,6 +133,11 @@ export class EditorialRevisionConflict extends Error {
  * `expectedRevision` is how two editors stop overwriting one another. The second save is refused
  * with both numbers rather than merged: a silent merge of two people's prose produces a paragraph
  * neither of them wrote.
+ *
+ * The comparison is **inside** the write, for the reason `updateEditorialTenantProfile` gives at
+ * length: a `SELECT` that matches, followed by an unconditional `UPDATE`, is passed by both of
+ * two concurrent transactions and the second still overwrites the first. This one's counter did
+ * at least move, so two saves one after another were caught; two at the same moment were not.
  */
 export async function saveEditorialDraft(
   db: Database,
@@ -148,35 +153,57 @@ export async function saveEditorialDraft(
   return withDbContext(db, ctx, async (tx) => {
     await assertAssetsBelongHere(tx, projectId, collectAssets(payload));
 
-    const [existing] = await tx
-      .select({ revision: portalSchema.editorialDraft.revision })
-      .from(portalSchema.editorialDraft)
-      .where(eq(portalSchema.editorialDraft.projectId, projectId));
+    /** What the row says now, so a conflict can name the number the editor should have had. */
+    const currentRevision = async (): Promise<number> => {
+      const [row] = await tx
+        .select({ revision: portalSchema.editorialDraft.revision })
+        .from(portalSchema.editorialDraft)
+        .where(eq(portalSchema.editorialDraft.projectId, projectId));
+      return row?.revision ?? 0;
+    };
 
-    if (existing === undefined) {
-      if (input.expectedRevision !== 0)
-        throw new EditorialRevisionConflict(input.expectedRevision, 0);
-      await tx.insert(portalSchema.editorialDraft).values({
-        id: randomUUID(),
-        tenantId: ctx.tenantId,
-        projectId,
-        revision: 1,
-        schemaVersion: EDITORIAL_SCHEMA_VERSION,
-        payload,
-        updatedBy: ctx.userId,
-      });
-      return { revision: 1 };
+    if (input.expectedRevision === 0) {
+      const created = await tx
+        .insert(portalSchema.editorialDraft)
+        .values({
+          id: randomUUID(),
+          tenantId: ctx.tenantId,
+          projectId,
+          revision: 1,
+          schemaVersion: EDITORIAL_SCHEMA_VERSION,
+          payload,
+          updatedBy: ctx.userId,
+        })
+        // One draft per project, by unique index; two first saves cannot both succeed.
+        .onConflictDoNothing({
+          target: [portalSchema.editorialDraft.tenantId, portalSchema.editorialDraft.projectId],
+        })
+        .returning({ revision: portalSchema.editorialDraft.revision });
+      if (created[0] === undefined) {
+        throw new EditorialRevisionConflict(input.expectedRevision, await currentRevision());
+      }
+      return { revision: created[0].revision };
     }
 
-    if (existing.revision !== input.expectedRevision) {
-      throw new EditorialRevisionConflict(input.expectedRevision, existing.revision);
-    }
-    const next = existing.revision + 1;
-    await tx
+    const updated = await tx
       .update(portalSchema.editorialDraft)
-      .set({ revision: next, payload, updatedAt: new Date(), updatedBy: ctx.userId })
-      .where(eq(portalSchema.editorialDraft.projectId, projectId));
-    return { revision: next };
+      .set({
+        revision: sql`${portalSchema.editorialDraft.revision} + 1`,
+        payload,
+        updatedAt: new Date(),
+        updatedBy: ctx.userId,
+      })
+      .where(
+        and(
+          eq(portalSchema.editorialDraft.projectId, projectId),
+          eq(portalSchema.editorialDraft.revision, input.expectedRevision),
+        ),
+      )
+      .returning({ revision: portalSchema.editorialDraft.revision });
+    if (updated[0] === undefined) {
+      throw new EditorialRevisionConflict(input.expectedRevision, await currentRevision());
+    }
+    return { revision: updated[0].revision };
   });
 }
 
@@ -846,7 +873,8 @@ export async function loadEditorialTenantProfile(
       name: row?.name ?? "",
       engagementLabel: row?.engagementLabel ?? null,
       updatedAt: row?.updatedAt ?? null,
-      revision: row === undefined ? 0 : 1,
+      // `0` is this model's word for *there is no profile*; a stored revision counts from 1.
+      revision: row?.revision ?? 0,
     };
   });
 }
@@ -858,9 +886,21 @@ export async function loadEditorialTenantProfile(
  * would let whoever edits one road rename the whole consultancy. `portal.profile.manage` is a
  * tenant key held by OWNER and ADMIN, and the check is this line rather than a hidden button.
  *
- * The write is an upsert on the tenant, and `expectedRevision` makes a second administrator's
- * save visible instead of silent: 0 means "I believe there is no profile yet", 1 means "I am
- * editing the one I read".
+ * ## How a second administrator is noticed
+ *
+ * `expectedRevision` is `0` for "I believe there is no profile yet" and otherwise the revision
+ * the caller read. The check and the write are **one statement** in both branches, because a
+ * `SELECT` followed by an unconditional `UPDATE` is not optimistic concurrency at all: two
+ * transactions can both pass the read and the second still overwrites the first. That is exactly
+ * what this function used to do, with a revision that was `0` or `1` and never moved — so every
+ * save after the first one matched, and a lost update was silent (migration 0054).
+ *
+ * Creating is `INSERT … ON CONFLICT (tenant_id) DO NOTHING RETURNING`, so of two first saves one
+ * writes and the other gets no row back and is told it conflicted — rather than a raw unique
+ * violation, which is a database error and not an answer a person can act on.
+ *
+ * Updating is `UPDATE … WHERE tenant_id = ? AND revision = ? RETURNING`, so the loser of a race
+ * updates nothing. Only then is the current revision read, and only to say what it is.
  */
 export async function updateEditorialTenantProfile(
   db: Database,
@@ -896,28 +936,56 @@ export async function updateEditorialTenantProfile(
       .where(eq(appSchema.tenant.id, ctx.tenantId));
     if (slug === undefined) throw new NotFound("tenant");
 
-    const [existing] = await tx
-      .select({ id: portalSchema.editorialTenantProfile.id })
-      .from(portalSchema.editorialTenantProfile)
-      .where(eq(portalSchema.editorialTenantProfile.tenantId, ctx.tenantId));
-    const actual = existing === undefined ? 0 : 1;
-    if (actual !== input.expectedRevision)
-      throw new EditorialRevisionConflict(input.expectedRevision, actual);
-
-    if (existing === undefined) {
-      await tx.insert(portalSchema.editorialTenantProfile).values({
-        id: randomUUID(),
-        tenantId: ctx.tenantId,
-        tenantSlug: slug.slug,
-        name,
-        engagementLabel: label,
-        updatedBy: ctx.userId,
-      });
-    } else {
-      await tx
-        .update(portalSchema.editorialTenantProfile)
-        .set({ name, engagementLabel: label, updatedAt: new Date(), updatedBy: ctx.userId })
+    /** What the row says now, for a conflict that names the number the caller should have had. */
+    const currentRevision = async (): Promise<number> => {
+      const [row] = await tx
+        .select({ revision: portalSchema.editorialTenantProfile.revision })
+        .from(portalSchema.editorialTenantProfile)
         .where(eq(portalSchema.editorialTenantProfile.tenantId, ctx.tenantId));
+      return row?.revision ?? 0;
+    };
+
+    let revision: number;
+    if (input.expectedRevision === 0) {
+      const created = await tx
+        .insert(portalSchema.editorialTenantProfile)
+        .values({
+          id: randomUUID(),
+          tenantId: ctx.tenantId,
+          tenantSlug: slug.slug,
+          name,
+          engagementLabel: label,
+          updatedBy: ctx.userId,
+        })
+        // The UNIQUE on `tenant_id` is what makes this a conflict rather than a second row.
+        .onConflictDoNothing({ target: portalSchema.editorialTenantProfile.tenantId })
+        .returning({ revision: portalSchema.editorialTenantProfile.revision });
+      if (created[0] === undefined) {
+        throw new EditorialRevisionConflict(input.expectedRevision, await currentRevision());
+      }
+      revision = created[0].revision;
+    } else {
+      const updated = await tx
+        .update(portalSchema.editorialTenantProfile)
+        .set({
+          name,
+          engagementLabel: label,
+          updatedAt: new Date(),
+          updatedBy: ctx.userId,
+          // Incremented in the statement that checks it: there is no window between the two.
+          revision: sql`${portalSchema.editorialTenantProfile.revision} + 1`,
+        })
+        .where(
+          and(
+            eq(portalSchema.editorialTenantProfile.tenantId, ctx.tenantId),
+            eq(portalSchema.editorialTenantProfile.revision, input.expectedRevision),
+          ),
+        )
+        .returning({ revision: portalSchema.editorialTenantProfile.revision });
+      if (updated[0] === undefined) {
+        throw new EditorialRevisionConflict(input.expectedRevision, await currentRevision());
+      }
+      revision = updated[0].revision;
     }
 
     await recordAudit(
@@ -929,9 +997,9 @@ export async function updateEditorialTenantProfile(
         objectKind: "editorial_tenant_profile",
         objectId: ctx.tenantId,
         // Lengths, not the words. An audit line is read by more people than the landing.
-        details: { nameLength: name.length, hasEngagementLabel: label !== null },
+        details: { nameLength: name.length, hasEngagementLabel: label !== null, revision },
       },
     );
-    return { revision: 1 };
+    return { revision };
   });
 }
