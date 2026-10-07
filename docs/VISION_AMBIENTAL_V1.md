@@ -387,3 +387,118 @@ verificados** con herramientas.
 
 El **CMS está implementado**; las **socializaciones no**, y no se declaran. Nada de esto está
 validado en STAGING ni publicado en ninguna parte.
+
+---
+
+# Bloque 2.1 — cierre funcional (parcial)
+
+> Estado: **el dominio y la frontera pública están cerrados y probados; la interfaz no.**
+> No se alcanzó `CMS_VALIDATED_LOCALLY`. Misma rama, sin PR, sin desplegar.
+
+## 13. Lo cerrado
+
+### La puerta de subida estaba cerrada
+
+`uploadIntentInputSchema` enumeraba tres namespaces como literales y omitía `portal-editorial`.
+El namespace tenía permiso, lista de formatos y constructor de claves, y **no se podía pedir un
+intent para él**. El esquema se deriva ahora del catálogo (`UPLOADABLE_NAMESPACES`), porque la
+segunda lista mantenida a mano es justo lo que se desincronizó. `generated` queda fuera: nada sube
+ahí. Probado de punta a punta — intent → PUT → finalize — con el namespace editorial.
+
+Sigue sin poder: un `FIELD_TECHNICIAN` con `media.upload` no alcanza `portal-editorial` (el
+namespace exige `portal.editorial.write`), y `documents.write` tampoco sirve de sustituto.
+
+### Una fotografía publicada es un derivado
+
+| | |
+|---|---|
+| original | privado, con su EXIF, **nunca referenciado por una publicación** |
+| derivado | decodificado, orientado, acotado a 2400 px, re-codificado · SHA-256 propio |
+| vínculo | `portal.editorial_image_derivative`, sólo-escritura, sin rama pública |
+| garantía | publicar rechaza un `role: "photo"` que no sea el lado derivado de un par |
+
+El metadato no está porque **nunca se escribió**, no porque algo lo borrara: `sharp` no copia
+metadatos salvo que se le pida, y aquí no se le pide. `rotate()` aplica la orientación a los
+píxeles y la descarta, así que un retrato sigue derecho en un visor que no lee EXIF.
+
+**`field-media` no se tocó**, y no debe tocarse: la foto de un técnico es evidencia y conserva lo
+que escribió la cámara (ADR-032). Son ficheros distintos con finalidades distintas.
+
+`sharp@0.35.4` se eligió porque **ya estaba**: en el workspace vía Next y dentro de la imagen
+publicada con su binario `linux-x64`. Declararlo a la versión ya resuelta no añade cadena de
+suministro ni tamaño; sólo deja de ser una dependencia fantasma.
+
+> **Y reprodujo inmediatamente el defecto de pdf.js.** Un import estático metió un módulo nativo
+> en el bundle del worker —que empaqueta `@eia/application` entero— y el worker construido dejó de
+> arrancar por una librería que nunca llama. Lo detectó `pnpm --filter @eia/worker build`, no un
+> despliegue. Ahora se carga dinámicamente y es `external` de ese bundle.
+
+### Portada pública del tenant
+
+`/p/:tenant`. **No lista proyectos y filtra**: consulta las filas publicadas y nada más, bajo la
+misma política pública que una página suelta. Un proyecto sin publicación, uno retirado, uno
+archivado y uno privado están **ausentes**, no filtrados — no hay lista que filtrar ni condición
+que olvidar. Una vía retirada desaparece de la portada por el mismo mecanismo que baja su página.
+
+El nombre de la consultora sale de `portal.editorial_tenant_profile` (dos columnas: nombre y
+título del encargo), con el slug como respaldo. **«Visión Ambiental» no está escrito en ningún
+sitio del código.** Un tenant sin nada visible responde 404 igual que uno inexistente: que una
+consultora use este producto no es un hecho que una URL deba poder establecer.
+
+### Rutas públicas finales
+
+```
+/p/:tenant                              portada de la consultora
+/p/:tenant/:project                     ficha de la vía
+/p/:tenant/:project/media/:objectId     303 a URL firmada de 5 min, Cache-Control: no-store
+```
+
+Una URL firmada emitida antes de una retirada vive como mucho su TTL de cinco minutos. Es
+aceptable y se dice así: **no se promete revocar una copia ya descargada**, y no hay purga de CDN.
+
+## 14. Lo que NO se cerró
+
+Honestamente, y es la mitad del encargo:
+
+1. **Formulario de archivos en el editor** (§2). El camino completo existe y está probado por
+   integración; **no hay UI** que lo recorra. Una persona todavía no puede subir una foto desde la
+   pantalla.
+2. **Ficha de equipo en el editor** (§4). El modelo soporta `team`; el editor sólo expone
+   secciones y resumen.
+3. **Smoke de seguridad en el borde web** (§7). Las propiedades están probadas en el dominio
+   (18 pruebas de integración); no hay cobertura a nivel de ruta HTTP.
+4. **Smoke de UX real con navegador** (§8). No se levantó la aplicación, no se sembró una base
+   sintética, no se corrió Playwright ni axe, y **no hay capturas**.
+
+Sin 1, 2 y 4, una persona **no puede** probar el CMS de punta a punta en local. Por eso esta
+oleada no devuelve `CMS_VALIDATED_LOCALLY`.
+
+## 15. Pruebas de este bloque
+
+```
+packages/application/test/editorial-image.test.ts        7 unitarias
+packages/application/test/portal-editorial.integration.test.ts   18 (eran 13)
+pnpm test:unit            713 pasan, 1 todo (52 ficheros)
+pnpm test:integration     682 pasan (50 ficheros)
+pnpm typecheck            11/11 · format · lint · forbidden-strings (656 ficheros)
+pnpm --filter @eia/web build      las cuatro rutas públicas/editoriales en el manifiesto
+pnpm --filter @eia/worker build   construye, y el binario arranca (`pdf-smoke.js` ok)
+```
+
+El fixture de imagen es un JPEG sintético **con un segmento EXIF APP1 real que contiene etiquetas
+GPS**, construido por el propio suite. Partir de una imagen que demostrablemente *tiene* GPS es el
+punto: una prueba que dice «no encontré GPS» sobre un fichero que nunca lo tuvo no prueba nada. La
+salida se comprueba con dos lectores independientes — el de sharp y un barrido del marcador
+`Exif\0\0` sobre los bytes crudos.
+
+No se ejecutó la suite e2e de Playwright ni el gate de imagen Docker.
+
+## 16. Límites y política, para el registro
+
+| | |
+|---|---|
+| namespace editorial | `portal-editorial` · JPEG, PNG, PDF, PPTX |
+| derivado de imagen | lado mayor ≤ 2400 px · entrada ≤ 60 Mpx · JPEG q82 · PNG sigue PNG |
+| PPTX | descarga; nada lo abre, no produce pasajes, no se puede citar; `.pptm` rechazado por tipo y por `ppt/vbaProject.bin` |
+| límites globales | **sin tocar** — el PDF de 29 MiB del inventario cabe en los 120 MB que ya existían |
+| permisos | `portal.editorial.write` · `portal.preview` · `portal.publish` |
