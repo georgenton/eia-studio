@@ -24,6 +24,7 @@
     "@eia/config": "workspace:*",
     "@types/node": "24.13.3",
     "@types/pg": "8.23.1",
+    "sharp": "0.35.4",
     "tsup": "8.5.1",
     "tsx": "4.23.13",
     "typescript": "5.9.3",

@@ -331,3 +331,25 @@ function insertExifApp1(jpeg: Buffer, exif: Buffer): Buffer {
   marker.writeUInt16BE(exif.length + 2, 2);
   return Buffer.concat([jpeg.subarray(0, 2), marker, exif, jpeg.subarray(2)]);
 }
+
+/**
+ * A minimal, macro-free PPTX: a ZIP carrying the two parts that make it a presentation.
+ *
+ * Enough for the upload path, which checks the extension, the declared type and the `PK\x03\x04`
+ * signature — and deliberately not a real deck, because nothing in this product opens one. No
+ * `ppt/vbaProject.bin`, so it is also the negative control for the macro refusal.
+ */
+export function buildPptx(): Uint8Array {
+  return zipSync({
+    "[Content_Types].xml": strToU8(
+      '<?xml version="1.0" encoding="UTF-8"?>' +
+        '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
+        '<Default Extension="xml" ContentType="application/xml"/>' +
+        '<Override PartName="/ppt/presentation.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml"/>' +
+        "</Types>",
+    ),
+    "ppt/presentation.xml": strToU8(
+      '<?xml version="1.0" encoding="UTF-8"?><p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"/>',
+    ),
+  });
+}

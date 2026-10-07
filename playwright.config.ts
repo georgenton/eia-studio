@@ -324,6 +324,23 @@ export default defineConfig({
       },
     },
     {
+      /*
+       * The public presentation. One journey, serial, driven as a coordinator — the demo role
+       * that holds `portal.editorial.write`, `portal.publish` and, as tenant OWNER's project
+       * coordinator, enough to exercise the editor. The anonymous half lives in its own spec,
+       * because a visitor is defined by having no storage state at all.
+       */
+      name: "portal-editorial",
+      testMatch: /(^|\/)portal-editorial\.spec\.ts$/,
+      dependencies: ["setup"],
+      fullyParallel: false,
+      use: {
+        ...devices["Desktop Chrome"],
+        viewport: { width: 1440, height: 940 },
+        storageState: "e2e/.auth/owner.json",
+      },
+    },
+    {
       name: "anonymous",
       // No stored session: these specs sign in for themselves, or test being signed out.
       testMatch: /(^|\/)(anonymous|session)\.spec\.ts$/,

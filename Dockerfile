@@ -130,19 +130,28 @@ COPY --from=build --chown=node:node /src/packages/db/migrations       ./packages
 COPY --from=build --chown=node:node /pdf-runtime/ ./node_modules/
 
 # Node resolves upwards from the bundle's directory. pnpm's store has no top-level entries, so
-# the two externals get an explicit link each — pointing into the same traced copies above.
+# the externals get an explicit link each — pointing into the same traced copies above.
+#
+# `sharp` is here for a defect this gate found rather than for symmetry. The Next standalone
+# trace *did* carry it into `.pnpm`, with the right platform binary beside it, and nothing linked
+# it anywhere a process resolves from: `import('sharp')` failed from `/app`, from `/app/apps/web`
+# and from the worker bundle alike. The web process is the one that builds a published
+# photograph's derivative, so in the image that path could not run — and the tempting repair for
+# a derivative that cannot be made is to serve the original, which is the uploaded file with its
+# GPS still in it (ADR-032 keeps field evidence intact; a published photograph is the opposite
+# rule). One symlink, and the assertion below so it cannot quietly go missing again.
 #
 # The import check is a build-time assertion rather than decoration. `pdfjs-dist/legacy/build/
-# pdf.mjs` evaluates `new DOMMatrix()` at module scope, so it resolves only if the native canvas
-# package above actually loaded on this platform: a build carrying the wrong architecture's
-# binary fails here, not in a worker three environments later.
+# pdf.mjs` evaluates `new DOMMatrix()` at module scope, and `sharp` loads its native `.node` on
+# import, so both resolve only if the right architecture's binary is actually present: a build
+# carrying the wrong one fails here, not in a worker three environments later.
 RUN set -eux; \
     mkdir -p node_modules; \
-    for m in pg pino; do \
+    for m in pg pino sharp; do \
       d="$(cd node_modules/.pnpm && ls -d "$m"@*/node_modules/"$m" | head -1)"; \
       ln -sfn "./.pnpm/$d" "node_modules/$m"; \
     done; \
-    node -e "Promise.all([import('pg'),import('pino'),import('pdfjs-dist/legacy/build/pdf.mjs')]).then(()=>console.log('runtime deps resolve'))"
+    node -e "Promise.all([import('pg'),import('pino'),import('sharp'),import('pdfjs-dist/legacy/build/pdf.mjs')]).then(()=>console.log('runtime deps resolve'))"
 
 USER node
 EXPOSE 3000

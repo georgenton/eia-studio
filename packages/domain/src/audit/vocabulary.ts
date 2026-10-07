@@ -118,6 +118,8 @@ export const AUDIT_ACTIONS = [
    */
   "portal.editorial.published",
   "portal.editorial.withdrawn",
+  /** Lengths and a flag, never the words a firm chose for itself. */
+  "portal.editorial.profile_set",
 ] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];

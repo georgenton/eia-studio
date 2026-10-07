@@ -134,3 +134,33 @@
     align-items: stretch;
   }
 }
+.uploader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+  margin: 10px 0;
+}
+.uploader .field {
+  flex: 1 1 220px;
+  margin: 0;
+}
+.assetList {
+  display: grid;
+  gap: 10px;
+  margin: 10px 0;
+}
+.assetRow {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--eia-hairline);
+  border-radius: 6px;
+  background: var(--eia-surface-subtle);
+}
+.assetKind {
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--eia-text-secondary);
+}

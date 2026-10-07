@@ -22,6 +22,7 @@ import {
   describeImageMetadata,
   EDITORIAL_NAMESPACE,
   finalizeUpload,
+  loadEditorialTenantProfile,
   loadPublicEditorialIndex,
   EditorialRevisionConflict,
   loadEditorialDraft,
@@ -29,6 +30,7 @@ import {
   publishEditorial,
   resolvePublicEditorialAsset,
   saveEditorialDraft,
+  updateEditorialTenantProfile,
   withdrawEditorial,
 } from "../src/index";
 
@@ -523,5 +525,71 @@ describe("the public landing", () => {
   it("tells a visitor nothing about a tenant with nothing published", async () => {
     expect(await loadPublicEditorialIndex(db.runtime, { tenantSlug: w.tenantB.slug })).toBeNull();
     expect(await loadPublicEditorialIndex(db.runtime, { tenantSlug: "no-existe" })).toBeNull();
+  });
+});
+
+/* ---------------------------------------------------------------------------------------------
+ * How a firm names itself
+ * ------------------------------------------------------------------------------------------ */
+
+describe("the public profile of the consultancy", () => {
+  it("cannot be set by somebody who merely edits one road", async () => {
+    // The whole reason this is a tenant permission. A project editor renaming the firm would be
+    // one road's author speaking for every other.
+    const error = await refusal(async () =>
+      updateEditorialTenantProfile(db.runtime, await contextFor(specialist), {
+        name: "Consultora Renombrada Sin Permiso",
+        engagementLabel: null,
+        expectedRevision: 0,
+      }),
+    );
+    expect(error).toBeInstanceOf(PermissionDenied);
+
+    // And a coordinator, who may publish, still may not: publishing a page and naming the firm
+    // are different acts.
+    expect(
+      await refusal(async () =>
+        updateEditorialTenantProfile(db.runtime, await contextFor(coordinator), {
+          name: "Tampoco por aquí",
+          engagementLabel: null,
+          expectedRevision: 0,
+        }),
+      ),
+    ).toBeInstanceOf(PermissionDenied);
+  });
+
+  it("is set by a tenant administrator, and reaches the public landing", async () => {
+    const admin = await contextFor({ id: w.ownerA.id, email: w.ownerA.email });
+    await updateEditorialTenantProfile(db.runtime, admin, {
+      name: "Consultora Sintética",
+      engagementLabel: "Programa Ambiental Sintético",
+      expectedRevision: 0,
+    });
+
+    const read = await loadEditorialTenantProfile(db.runtime, admin);
+    expect(read.name).toBe("Consultora Sintética");
+    expect(read.engagementLabel).toBe("Programa Ambiental Sintético");
+
+    const index = await loadPublicEditorialIndex(db.runtime, { tenantSlug: w.tenantA.slug });
+    expect(index?.tenantName).toBe("Consultora Sintética");
+    expect(index?.engagementLabel).toBe("Programa Ambiental Sintético");
+  });
+
+  it("makes a second administrator's save visible rather than silent", async () => {
+    const admin = await contextFor({ id: w.ownerA.id, email: w.ownerA.email });
+    const error = await refusal(() =>
+      updateEditorialTenantProfile(db.runtime, admin, {
+        name: "Desde una pestaña vieja",
+        engagementLabel: null,
+        expectedRevision: 0,
+      }),
+    );
+    expect(error).toBeInstanceOf(EditorialRevisionConflict);
+  });
+
+  it("tells a visitor nothing about a firm with nothing published", async () => {
+    // Tenant B has a profile's worth of nothing: no publication, so no landing, whatever its
+    // name would have been. A tenant slug is not an oracle for which consultancies exist.
+    expect(await loadPublicEditorialIndex(db.runtime, { tenantSlug: w.tenantB.slug })).toBeNull();
   });
 });

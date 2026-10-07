@@ -3,6 +3,15 @@
  * Server code references these constants, never ad-hoc strings.
  */
 export const TENANT_PERMISSIONS = [
+  /**
+   * Configure what a consultancy calls itself on its own public landing (`/p/:tenant`).
+   *
+   * **Tenant-scoped, and that is the point.** `portal.editorial.write` is a *project* permission:
+   * whoever edits one road's page would otherwise be able to rename the whole firm, because the
+   * landing's name is one row shared by every project. Reusing it would have been a smaller diff
+   * and the wrong boundary.
+   */
+  "portal.profile.manage",
   "tenant.transfer",
   "tenant.delete",
   "billing.manage",

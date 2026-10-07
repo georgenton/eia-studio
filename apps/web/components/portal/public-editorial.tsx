@@ -117,7 +117,10 @@ export function PublicEditorialView({
           </h2>
           <ul className={styles.team}>
             {payload.team.map((member) => (
-              <li className={styles.member} key={member.key}>
+              <li
+                className={member.photo === null ? styles.memberPlain : styles.member}
+                key={member.key}
+              >
                 {member.photo === null ? null : (
                   // eslint-disable-next-line @next/next/no-img-element -- see above
                   <img

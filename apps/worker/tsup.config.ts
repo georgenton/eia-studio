@@ -4,8 +4,10 @@ import { defineConfig } from "tsup";
 export default defineConfig({
   // `pdf-smoke.ts` is a second entry on purpose: it is the one way to ask a *built image* whether
   // it can read a PDF, which is the question CI now has to answer before publishing a digest.
-  // A few kilobytes beside `main.js`, reachable only by running it.
-  entry: ["src/main.ts", "src/pdf-smoke.ts"],
+  // A few kilobytes beside `main.js`, reachable only by running it. `image-smoke.ts` is the same
+  // question about sharp, whose native binary the published photograph path depends on and which
+  // no test in this workspace resolves the way the artefact does.
+  entry: ["src/main.ts", "src/pdf-smoke.ts", "src/image-smoke.ts"],
   format: ["esm"],
   target: "node24",
   platform: "node",

@@ -113,12 +113,18 @@
 .download:focus-visible {
   border-color: var(--eia-accent);
 }
-.member {
+.member,
+.memberPlain {
   display: grid;
   grid-template-columns: 96px 1fr;
   gap: 16px;
   padding: 16px 0;
   border-top: 1px solid var(--eia-border);
+}
+/* Most of the team have no portrait. Leaving the 96px column in place squeezed their name,
+   their role and their biography into it one word per line, with the rest of the row empty. */
+.memberPlain {
+  grid-template-columns: 1fr;
 }
 .portrait {
   width: 96px;

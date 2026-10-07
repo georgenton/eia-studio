@@ -125,3 +125,26 @@ runs:
         # the log of the run that did it, not discovered later.
         docker image inspect "$REF" --format '{{.Size}}' \
           | awk '{ printf "image size: %d bytes (%.1f MiB)\n", $1, $1/1048576 }'
+
+    # The second native module, and the same question. A published photograph is a **derivative**:
+    # the upload is decoded and encoded again so no EXIF — no GPS, no camera, no timestamp — is
+    # written at all. That re-encode is sharp, and the first run of this step against the image
+    # found that nothing in it could load sharp: the standalone trace carried the package into
+    # `.pnpm` with the right platform binary, and no process resolved it, from `/app`, from
+    # `/app/apps/web`, or from the worker bundle. Publishing a photograph would have failed in
+    # the artefact while passing every test in the workspace — the pdf.js defect again, caught
+    # this time before a digest existed. The Dockerfile links it; this keeps it linked.
+    - name: Prove the image can publish a photograph without its metadata
+      shell: bash
+      env:
+        REF: ${{ inputs.push == 'true' && format('{0}@{1}', inputs.image-name, steps.build.outputs.digest) || 'eia-studio:ci' }}
+      run: |
+        set -euo pipefail
+        echo "building a derivative inside $REF"
+        docker run --rm --network none --entrypoint node "$REF" \
+          apps/worker/dist/image-smoke.js | tee /tmp/image-smoke.json
+        grep -q '"ok":true' /tmp/image-smoke.json \
+          || { echo "::error::the image cannot produce a publishable photograph"; exit 1; }
+        grep -q '"exifAfter":false' /tmp/image-smoke.json \
+          || { echo "::error::the derivative produced inside the image still carries EXIF"; exit 1; }
+        echo "sharp loads inside the image and the derivative carries no EXIF"

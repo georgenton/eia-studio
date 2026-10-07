@@ -502,3 +502,175 @@ No se ejecutó la suite e2e de Playwright ni el gate de imagen Docker.
 | PPTX | descarga; nada lo abre, no produce pasajes, no se puede citar; `.pptm` rechazado por tipo y por `ppt/vbaProject.bin` |
 | límites globales | **sin tocar** — el PDF de 29 MiB del inventario cabe en los 120 MB que ya existían |
 | permisos | `portal.editorial.write` · `portal.preview` · `portal.publish` |
+
+---
+
+# Bloque 2.2 — la experiencia usable, validada en navegador
+
+> Este bloque no amplió el modelo. Lo que hizo fue **conducir el CMS como lo conduce una persona**,
+> en un navegador real, y arreglar lo que esa conducción encontró. Tres de los cuatro defectos que
+> se corrigen aquí no eran visibles desde una prueba de integración, y el cuarto no era visible
+> desde ninguna prueba de este repositorio.
+
+## 17. Lo que ahora se puede hacer de extremo a extremo
+
+Una persona con los permisos adecuados puede, **desde la interfaz**, sin consola y sin SQL:
+
+| Acto | Quién | Dónde |
+|---|---|---|
+| nombrar la consultora y el título del encargo | `portal.profile.manage` (OWNER, ADMIN) | panel *Perfil público de la consultora* |
+| escribir titular, bajada y resumen gerencial | `portal.editorial.write` | *Borrador* |
+| añadir, reordenar y quitar secciones | `portal.editorial.write` | *Secciones* |
+| subir una fotografía, un PDF y una presentación por sección | `portal.editorial.write` | tres campos, **rotulados por tipo** |
+| añadir, editar, reordenar y quitar integrantes del equipo | `portal.editorial.write` | *Equipo técnico* |
+| publicar | `portal.publish` | *Publicar* |
+| retirar, con motivo | `portal.publish` | *Retirar del público* |
+
+Y una visitante **sin sesión** ve la portada del tenant, la ficha del proyecto publicado y sus
+archivos — y nada más.
+
+## 18. Los cuatro defectos que encontró conducirlo
+
+**El nombre de fichero fantasma.** Tras una subida con éxito el `<input type="file">` seguía
+mostrando el nombre del fichero anterior, bajo un formulario que ya no lo tenía. Un elemento de
+entrada de ficheros guarda su propio valor: limpiar el estado de React no lo limpia. Se limpia
+ahora de las dos maneras, y la prueba afirma `toHaveValue("")` después de cada subida.
+
+**Tres subidores idénticos.** Fotografía, PDF y presentación se ofrecían como tres filas que decían
+«Elegir archivo» y «Añadir archivo», distinguibles sólo por su orden en la pantalla. Ahora cada una
+dice de qué tipo es, en ambos idiomas (`chooseFileOfKind`, `addFileOfKind`).
+
+**El equipo sin retrato, en una columna de 96 px.** `.member` reservaba una columna fija para el
+retrato; un integrante sin fotografía — que es la mayoría — metía su nombre, su cargo y su reseña
+en esos 96 píxeles, una palabra por línea, con el resto de la fila vacía. La captura
+`03-ficha-publica.png` del primer intento lo muestra. `.memberPlain` ocupa la fila entera.
+
+**Y el que ninguna prueba de este repositorio podía ver: la imagen publicada no podía publicar una
+imagen.** Véase §20.
+
+## 19. El recorrido, y por qué es serial
+
+`e2e/portal-editorial.spec.ts`, proyecto Playwright propio, nueve actos en orden:
+
+```
+A  una administradora nombra la consultora, y persiste tras recargar
+B  una editora escribe, sube JPEG + PDF + PPTX, añade una integrante
+C  sin sesión, antes de publicar: la ficha responde 404 y el editor manda a /sign-in
+D  la publicadora publica
+F  editar el borrador después de publicar no cambia lo publicado
+E  sin sesión, después de publicar: portada, ficha, foto y descargas — y no el borrador de F
+H  axe sobre editor, portada y ficha · capturas · sin desbordamiento horizontal en 1440 y en 390
+I  la ruta pública de archivos no es un directorio del bucket
+G  retirar lo quita de la ficha, de la portada y de sus archivos
+```
+
+Tres decisiones que vale la pena dejar escritas:
+
+- **La visitante se construye, no se asume.** `browser.newContext({ storageState: { cookies: [],
+  origins: [] } })`. Reutilizar el contexto autenticado con una bandera de «desconectada» sería
+  probar la bandera.
+- **A empieza retirando lo que hubiera publicado.** Una publicación es duradera a propósito, así
+  que una ejecución interrumpida entre D y G dejaría a la siguiente afirmando «todavía no hay nada
+  público» contra la página de la anterior. Se comprobó ejecutando el recorrido dos veces seguidas.
+- **I no afirma 404 para un proyecto ajeno.** El producto responde el estado *permission denied*
+  con 200, que es su respuesta documentada de no-enumeración (SECURITY.md §3): la misma para un
+  proyecto que no existe y para uno que no puedes ver. El 404 de ADR-016 es la respuesta a una
+  **capacidad desactivada**, que es otra pregunta. La prueba afirma lo que el producto garantiza —
+  ningún contenido editorial — en vez de una regla que no tiene.
+
+## 20. El gate de imagen, y lo que encontró
+
+El artefacto se construyó como lo construye CI (`docker build` desde el `Dockerfile` del
+repositorio, con `GIT_SHA`) y se le hizo la pregunta que ninguna prueba del espacio de trabajo
+hace: **¿puede *esta imagen* producir una fotografía publicable?**
+
+No podía. El rastreo *standalone* de Next sí se había llevado `sharp` a `/app/node_modules/.pnpm`,
+con el binario de la plataforma correcta al lado — y **nada lo enlazaba donde un proceso resuelve**:
+`import("sharp")` fallaba desde `/app`, desde `/app/apps/web` y desde el bundle del worker por
+igual. En la imagen publicada, publicar una fotografía habría fallado, mientras todas las pruebas
+de este repositorio pasaban, porque todas resuelven `sharp` desde el `node_modules` del espacio de
+trabajo.
+
+Es exactamente la forma del defecto de pdf.js que encontró *staging*, y lo que lo hace peor que una
+función caída es la reparación que invita: un derivado que no se puede construir tienta a servir el
+original, que es el fichero subido **con su GPS dentro**.
+
+La corrección es un enlace simbólico en el `Dockerfile`, junto a los de `pg` y `pino`, y la
+afirmación de importación en tiempo de construcción para que no vuelva a desaparecer en silencio.
+El gate es ahora un paso de CI y una entrada que viaja dentro de la imagen:
+
+```
+docker run --rm --network none --entrypoint node <imagen> apps/worker/dist/image-smoke.js
+{"ok":true,"format":"jpeg","width":64,"height":48,"originalBytes":567,
+ "derivativeBytes":287,"exifBefore":true,"exifAfter":false,"vips":"8.18.6","node":"v24.21.0"}
+```
+
+`image-smoke.ts` construye su propio JPEG **con EXIF**, comprueba que lo tiene antes de empezar —
+una prueba cuya entrada deja de llevar EXIF pasaría para siempre sin probar nada — llama a
+`buildPublishableImage` y `describeImageMetadata`, que son las funciones del producto, y verifica
+la salida con dos lectores independientes: sharp, y un barrido del marcador `Exif\0\0` sobre los
+bytes crudos. No toca red, ni base de datos, ni almacén de objetos, ni documento de nadie.
+
+`sharp` pasa a ser **devDependency** de `@eia/worker`: esa entrada la necesita para compilar y para
+ejecutarse, y el worker mismo nunca la llama (sigue siendo `external` en su bundle, por la razón
+que explica `apps/worker/tsup.config.ts`).
+
+## 21. Pruebas ejecutadas en este bloque
+
+```
+pnpm format:check                      todo el repositorio
+node tooling/scripts/check-forbidden-strings.mjs   ok (658 ficheros)
+pnpm typecheck                         11/11
+pnpm test:unit                         713 pasan, 1 todo (52 ficheros)
+pnpm test:integration                  686 pasan (50 ficheros)   ← 682 antes de este bloque
+pnpm --filter @eia/web build           ok
+pnpm --filter @eia/worker build        ok · pdf-smoke.js ok · image-smoke.js ok
+
+Playwright (Node 24, MinIO real):
+  portal-editorial     16 pasan   ← el recorrido nuevo, ejecutado dos veces seguidas
+  coordinator + document-pipeline  163 pasan   (portal ADR-027, autorización, vocabulario,
+                                                documentos, GIS, informes, intake, PGAS,
+                                                accesibilidad, capturas, y la tubería
+                                                subida → almacén → worker → cita)
+  technician           23 pasan   (captura de campo)
+
+Gate de imagen (local, linux/arm64):
+  docker build                       ok · "runtime deps resolve"
+  image-smoke.js                     ok · exifAfter:false
+  pdf-smoke.js                       ok · 1 página, 319 caracteres
+  /health                            gitSha == HEAD
+  usuario                            node (no root)
+  ficheros .env dentro de la imagen  ninguno
+```
+
+**Lo que no se ejecutó, y por qué.** `pnpm lint` falla **localmente** con 5 985 errores, todos
+dentro de `.claude/worktrees/…`, un árbol de trabajo que crea la aplicación de escritorio: está
+excluido de Git (`.git/info/exclude`) pero no de ESLint, así que ESLint lo recorre. Sobre los
+ficheros del repositorio: **cero problemas**, comprobado con `eslint . --format json` y filtrando
+esa ruta. Es deuda de herramienta local, ajena a este bloque, y se reporta en vez de arreglarse.
+
+El gate de imagen se construyó para `linux/arm64` (la máquina local); CI construye `linux/amd64`.
+El mecanismo que se corrige — el enlace y la afirmación de importación — es el mismo, y el binario
+de `sharp` que cada arquitectura instala es el suyo, así que la respuesta de CI es la que vale para
+el despliegue.
+
+## 22. Accesibilidad y presentación
+
+axe (`wcag2a`, `wcag2aa`, `wcag21a`, `wcag21aa`) sobre el editor, la portada y la ficha pública:
+**ninguna violación *serious* ni *critical***. El control de publicar se alcanza por teclado. Sin
+desbordamiento horizontal ni a 1440 px ni a 390 px, que es el fallo responsivo que deja contenido
+fuera del alcance de quien lo lee y que una captura esconde, porque la captura es tan ancha como el
+contenido.
+
+Las capturas — `docs/screenshots/vision-ambiental/{01-editor,02-portada,03-ficha-publica}.png` — se
+regeneran con el recorrido, siguiendo el patrón de `docs/screenshots/slice-*`.
+
+Un apunte que **no** se arregló aquí: el estado *permission denied* muestra «Tu rol OWNER no
+incluye **project**» — una clave cruda en inglés en una frase en español. No es editorial: viene de
+`request-context.ts`, afecta a todas las rutas del espacio de trabajo y es anterior a este bloque.
+
+## 23. Lo que sigue sin estar implementado
+
+Todo lo del §12 y del §14 sigue en pie. Este bloque no añadió ninguna capacidad nueva al catálogo,
+no tocó `field-media`, no subió ningún límite global, no envió nada a ningún modelo, y no
+desplegó nada.

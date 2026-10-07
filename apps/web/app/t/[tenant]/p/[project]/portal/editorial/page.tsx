@@ -1,4 +1,8 @@
-import { loadEditorialDraft, loadWorkspaceHeader } from "@eia/application";
+import {
+  loadEditorialDraft,
+  loadEditorialTenantProfile,
+  loadWorkspaceHeader,
+} from "@eia/application";
 import { can } from "@eia/domain";
 import { notFound, redirect } from "next/navigation";
 
@@ -85,6 +89,7 @@ export default async function EditorialPage({
   }
 
   const draft = await loadEditorialDraft(getDb(), ctx, projectName);
+  const profile = await loadEditorialTenantProfile(getDb(), ctx);
   const publicUrl = `${getEnv().app.PUBLIC_APP_URL.replace(/\/$/, "")}/p/${tenant}/${project}`;
 
   return (
@@ -96,8 +101,14 @@ export default async function EditorialPage({
           publishedSequence: draft.publishedSequence,
           publishedAt: draft.publishedAt === null ? null : i18n.fmt.dateTime(draft.publishedAt),
         }}
+        mayManageProfile={can(ctx, "portal.profile.manage")}
         mayPublish={mayPublish}
         mayWrite={mayWrite}
+        profile={{
+          name: profile.name,
+          engagementLabel: profile.engagementLabel,
+          revision: profile.revision,
+        }}
         project={project}
         publicUrl={publicUrl}
         tenant={tenant}

@@ -18,6 +18,8 @@ export type ProjectRole = (typeof PROJECT_ROLES)[number];
 
 const ADMIN_TENANT_PERMISSIONS: readonly TenantPermission[] = [
   "members.manage",
+  // Naming the firm on its public landing is administration, not project work.
+  "portal.profile.manage",
   "roles.assign",
   "modules.manage",
   "templates.manage",

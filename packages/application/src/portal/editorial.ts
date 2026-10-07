@@ -12,6 +12,9 @@ import {
   assertPublishableEditorial,
   can,
   EDITORIAL_SCHEMA_VERSION,
+  EditorialContentRefused,
+  findEditorialViolations,
+  sanitiseEditorialText,
   buildObjectKey,
   InvalidInput,
   NotFound,
@@ -808,4 +811,127 @@ export async function loadPublicEditorialIndex(
       };
     },
   );
+}
+
+/* ---------------------------------------------------------------------------------------------
+ * How a firm names itself
+ * ------------------------------------------------------------------------------------------ */
+
+export interface EditorialTenantProfileView {
+  readonly name: string;
+  readonly engagementLabel: string | null;
+  readonly updatedAt: Date | null;
+  /** `0` when no profile has been set; the landing then falls back to the slug. */
+  readonly revision: number;
+}
+
+/**
+ * Read the public profile. `portal.preview` is enough: it is what the landing already shows to
+ * anyone with the link, so an internal reader seeing it reveals nothing.
+ */
+export async function loadEditorialTenantProfile(
+  db: Database,
+  ctx: RequestContext,
+): Promise<EditorialTenantProfileView> {
+  requireCapability(ctx, "client.portal");
+  if (!can(ctx, "portal.preview") && !can(ctx, "portal.profile.manage")) {
+    requirePermission(ctx, "portal.preview");
+  }
+  return withDbContext(db, { ...ctx, projectId: null }, async (tx) => {
+    const [row] = await tx
+      .select()
+      .from(portalSchema.editorialTenantProfile)
+      .where(eq(portalSchema.editorialTenantProfile.tenantId, ctx.tenantId));
+    return {
+      name: row?.name ?? "",
+      engagementLabel: row?.engagementLabel ?? null,
+      updatedAt: row?.updatedAt ?? null,
+      revision: row === undefined ? 0 : 1,
+    };
+  });
+}
+
+/**
+ * Set it. **Tenant-scoped authorization**, deliberately.
+ *
+ * The landing's name is one row shared by every project, so a project-scoped permission here
+ * would let whoever edits one road rename the whole consultancy. `portal.profile.manage` is a
+ * tenant key held by OWNER and ADMIN, and the check is this line rather than a hidden button.
+ *
+ * The write is an upsert on the tenant, and `expectedRevision` makes a second administrator's
+ * save visible instead of silent: 0 means "I believe there is no profile yet", 1 means "I am
+ * editing the one I read".
+ */
+export async function updateEditorialTenantProfile(
+  db: Database,
+  ctx: RequestContext,
+  input: { name: string; engagementLabel: string | null; expectedRevision: number },
+): Promise<{ revision: number }> {
+  requireCapability(ctx, "client.portal");
+  requirePermission(ctx, "portal.profile.manage");
+
+  const name = sanitiseEditorialText(input.name).trim();
+  const label =
+    input.engagementLabel === null ? null : sanitiseEditorialText(input.engagementLabel).trim();
+  if (name.length === 0) throw new InvalidInput("the consultancy needs a public name");
+  if (name.length > 160) throw new InvalidInput("the public name is too long");
+  if (label !== null && label.length > 200)
+    throw new InvalidInput("the engagement title is too long");
+  // The same content rule the pages follow: a landing is as public as a page.
+  const violations = findEditorialViolations({
+    schemaVersion: EDITORIAL_SCHEMA_VERSION,
+    locale: "es-EC",
+    headline: name,
+    subheadline: label,
+    executiveSummary: null,
+    sections: [],
+    team: [],
+  });
+  if (violations.length > 0) throw new EditorialContentRefused(violations);
+
+  return withDbContext(db, { ...ctx, projectId: null }, async (tx) => {
+    const [slug] = await tx
+      .select({ slug: appSchema.tenant.slug })
+      .from(appSchema.tenant)
+      .where(eq(appSchema.tenant.id, ctx.tenantId));
+    if (slug === undefined) throw new NotFound("tenant");
+
+    const [existing] = await tx
+      .select({ id: portalSchema.editorialTenantProfile.id })
+      .from(portalSchema.editorialTenantProfile)
+      .where(eq(portalSchema.editorialTenantProfile.tenantId, ctx.tenantId));
+    const actual = existing === undefined ? 0 : 1;
+    if (actual !== input.expectedRevision)
+      throw new EditorialRevisionConflict(input.expectedRevision, actual);
+
+    if (existing === undefined) {
+      await tx.insert(portalSchema.editorialTenantProfile).values({
+        id: randomUUID(),
+        tenantId: ctx.tenantId,
+        tenantSlug: slug.slug,
+        name,
+        engagementLabel: label,
+        updatedBy: ctx.userId,
+      });
+    } else {
+      await tx
+        .update(portalSchema.editorialTenantProfile)
+        .set({ name, engagementLabel: label, updatedAt: new Date(), updatedBy: ctx.userId })
+        .where(eq(portalSchema.editorialTenantProfile.tenantId, ctx.tenantId));
+    }
+
+    await recordAudit(
+      tx,
+      { tenantId: ctx.tenantId, projectId: null },
+      { userId: ctx.userId, kind: "user", requestId: ctx.requestId },
+      {
+        action: "portal.editorial.profile_set",
+        objectKind: "editorial_tenant_profile",
+        objectId: ctx.tenantId,
+        // Lengths, not the words. An audit line is read by more people than the landing.
+        details: { nameLength: name.length, hasEngagementLabel: label !== null },
+      },
+    );
+    return { revision: 1 };
+  });
 }
