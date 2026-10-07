@@ -241,7 +241,14 @@ export type {
 export { buildFieldPack, decodeCursor, encodeCursor } from "./field/field-pack";
 export { resolveFieldScope } from "./field/scope";
 export type { FieldPackOptions } from "./field/field-pack";
-export { processSyncCommands, pullFieldChanges } from "./field/sync";
+export { processSyncCommands, processWorkSyncCommands, pullFieldChanges } from "./field/sync";
+export {
+  buildWorkPack,
+  encodeWorkCursor,
+  pullWorkChanges,
+  resolveFieldWorkScope,
+} from "./field/work-v4";
+export type { WorkPackOptions } from "./field/work-v4";
 export type { ProcessSyncOptions } from "./field/sync";
 export { activateDatasetVersion } from "./gis/activate-dataset-version";
 export type { DatasetActivation } from "./gis/activate-dataset-version";

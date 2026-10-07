@@ -791,6 +791,9 @@ export const syncCommandType = app.enum("field_sync_command_type", [
   "survey.submit",
   "visit.finish",
   "media.declare",
+  // Protocol v4 (ADR-041). A new value and no new meaning for an old one: a v3 device never
+  // sends it, and the receipt table is what makes a retry of it one row rather than two.
+  "socialization.delivery.record",
 ]);
 
 export const syncCommandOutcome = app.enum("field_sync_outcome", [
