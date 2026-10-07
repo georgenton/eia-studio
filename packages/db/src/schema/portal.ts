@@ -9,7 +9,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 
-import { project, user } from "./app";
+import { project, tenant, user } from "./app";
 
 /**
  * The client portal's projection schema (ADR-009, ADR-027).
@@ -226,6 +226,77 @@ export const editorialVisibilityEvent = portal.table(
     foreignKey({
       name: "editorial_visibility_event_decided_by_fk",
       columns: [t.decidedBy],
+      foreignColumns: [user.id],
+    }),
+  ],
+);
+
+/**
+ * The link between a photograph somebody uploaded and the one a visitor may see.
+ *
+ * It is what makes "the public page never serves the original" a check rather than a convention:
+ * publishing refuses a `photo` asset whose object is not the derivative side of a pair here.
+ */
+export const editorialImageDerivative = portal.table(
+  "editorial_image_derivative",
+  {
+    id: uuid("id").primaryKey(),
+    tenantId: uuid("tenant_id").notNull(),
+    projectId: uuid("project_id").notNull(),
+    originalObjectId: uuid("original_object_id").notNull(),
+    derivativeObjectId: uuid("derivative_object_id").notNull(),
+    width: integer("width").notNull(),
+    height: integer("height").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    createdBy: uuid("created_by").notNull(),
+  },
+  (t) => [
+    unique("editorial_image_derivative_original_key").on(t.tenantId, t.originalObjectId),
+    unique("editorial_image_derivative_derivative_key").on(t.tenantId, t.derivativeObjectId),
+    foreignKey({
+      name: "editorial_image_derivative_project_fk",
+      columns: [t.tenantId, t.projectId],
+      foreignColumns: [project.tenantId, project.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "editorial_image_derivative_created_by_fk",
+      columns: [t.createdBy],
+      foreignColumns: [user.id],
+    }),
+  ],
+);
+
+/**
+ * How a firm names itself on its own public landing.
+ *
+ * Small on purpose. The engagement — *CONSULTORÍA DE APOYO AMBIENTAL Y SOCIAL* — is a **title**,
+ * and this product has no entity between a tenant and a project; inventing a "programme" to hold
+ * a heading would be a schema change in service of a string. Two columns, set by the firm, read
+ * by the landing page and by nothing else.
+ *
+ * The slug is carried here for the same reason it is carried on a publication: a visitor has no
+ * session, so the public read must not join `app.tenant` to turn a URL into a row.
+ */
+export const editorialTenantProfile = portal.table(
+  "editorial_tenant_profile",
+  {
+    id: uuid("id").primaryKey(),
+    tenantId: uuid("tenant_id").notNull().unique(),
+    tenantSlug: text("tenant_slug").notNull().unique(),
+    name: text("name").notNull(),
+    engagementLabel: text("engagement_label"),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    updatedBy: uuid("updated_by").notNull(),
+  },
+  (t) => [
+    foreignKey({
+      name: "editorial_tenant_profile_tenant_fk",
+      columns: [t.tenantId],
+      foreignColumns: [tenant.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "editorial_tenant_profile_updated_by_fk",
+      columns: [t.updatedBy],
       foreignColumns: [user.id],
     }),
   ],

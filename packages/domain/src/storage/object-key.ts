@@ -42,6 +42,23 @@ export const STORAGE_NAMESPACES = [
 ] as const;
 export type StorageNamespace = (typeof STORAGE_NAMESPACES)[number];
 
+/**
+ * The namespaces a client may ask for an upload intent in.
+ *
+ * Everything except `generated`, which is what this product writes for itself: no caller uploads
+ * into it, and an intent for it would be a way to put a file where a reader expects only output
+ * this product produced.
+ *
+ * Derived from the list above rather than written out again. The second hand-maintained copy is
+ * exactly what went wrong: `portal-editorial` was added to the namespace rules and to the key
+ * builder and **not** to the intent schema, so the permission existed, the formats existed, and
+ * no editorial upload could be requested at all.
+ */
+export const UPLOADABLE_NAMESPACES = STORAGE_NAMESPACES.filter(
+  (namespace) => namespace !== "generated",
+) as ReadonlyArray<Exclude<StorageNamespace, "generated">>;
+export type UploadableNamespace = (typeof UPLOADABLE_NAMESPACES)[number];
+
 export interface ObjectKeyParts {
   readonly tenantId: string;
   readonly projectId: string;

@@ -10,13 +10,19 @@ import {
   setTenantCapability,
   type TwoTenantWorld,
 } from "@eia/testing";
+import { buildJpegWithGps } from "@eia/testing/documents";
 import { eq } from "drizzle-orm";
-import { randomUUID } from "node:crypto";
 import { beforeAll, describe, expect, it } from "vitest";
 
 import {
   buildRequestContext,
+  createEditorialPhoto,
+  createMemoryStorage,
+  createUploadIntent,
+  describeImageMetadata,
   EDITORIAL_NAMESPACE,
+  finalizeUpload,
+  loadPublicEditorialIndex,
   EditorialRevisionConflict,
   loadEditorialDraft,
   loadPublicEditorialPage,
@@ -39,6 +45,7 @@ import {
  * `example.invalid` address. No real consultancy, no real person, no delivered file.
  */
 const db = getTestDatabase();
+const storage = createMemoryStorage();
 let w: TwoTenantWorld;
 
 let coordinator: { id: string; email: string };
@@ -128,20 +135,29 @@ beforeAll(async () => {
   reviewer = await make("editorial-reviewer", "REVIEWER");
   technician = await make("editorial-technician", "FIELD_TECHNICIAN");
 
-  // A synthetic published photograph, and a field photograph that must never reach the page.
-  photoId = randomUUID();
-  await db.migrator.insert(storageSchema.storedObject).values({
-    id: photoId,
-    tenantId: w.tenantA.id,
-    projectId: w.projectX.id,
+  /*
+   * A synthetic photograph, carried through the product's own path: intent, PUT, finalize, then
+   * the derivative. `photoId` is the **derivative**, because that is the only thing a page may
+   * reference — the original keeps its EXIF and stays private.
+   */
+  const ctx = await contextFor(coordinator);
+  const bytes = await buildJpegWithGps({ width: 320, height: 240 });
+  const intent = await createUploadIntent(db.runtime, ctx, storage, {
     namespace: EDITORIAL_NAMESPACE,
-    objectKey: `t/${w.tenantA.id}/p/${w.projectX.id}/${EDITORIAL_NAMESPACE}/${photoId}`,
-    originalFilename: "equipo-sintetico.jpg",
+    filename: "equipo-sintetico.jpg",
     mimeType: "image/jpeg",
-    sizeBytes: 1024,
-    sha256: "a".repeat(64),
-    uploadedByUserId: coordinator.id,
+    sizeBytes: bytes.byteLength,
   });
+  storage.put(intent.key, bytes, "image/jpeg");
+  const stored = await finalizeUpload(db.runtime, ctx, storage, {
+    intentId: intent.intentId,
+    objectKey: intent.key,
+  });
+  photoId = (
+    await createEditorialPhoto(db.runtime, await contextFor(coordinator), storage, {
+      originalStoredObjectId: stored.storedObjectId,
+    })
+  ).storedObjectId;
 }, 300_000);
 
 describe("the draft", () => {
@@ -383,5 +399,129 @@ describe("withdrawal", () => {
       .from(portalSchema.editorialPublication)
       .where(eq(portalSchema.editorialPublication.projectId, w.projectX.id));
     expect(rows.map((r) => r.sequence).sort()).toEqual([1, 2]);
+  });
+});
+
+/* ---------------------------------------------------------------------------------------------
+ * A photograph, from upload to public page
+ * ------------------------------------------------------------------------------------------ */
+
+describe("a published photograph", () => {
+  /** The ordinary path: intent, PUT, finalize. No parallel endpoint and no shortcut. */
+  async function uploadOriginal(user: { id: string; email: string }): Promise<string> {
+    const ctx = await contextFor(user);
+    const bytes = await buildJpegWithGps({ width: 300, height: 200 });
+    const intent = await createUploadIntent(db.runtime, ctx, storage, {
+      namespace: EDITORIAL_NAMESPACE,
+      filename: "equipo.jpg",
+      mimeType: "image/jpeg",
+      sizeBytes: bytes.byteLength,
+    });
+    storage.put(intent.key, bytes, "image/jpeg");
+    const stored = await finalizeUpload(db.runtime, ctx, storage, {
+      intentId: intent.intentId,
+      objectKey: intent.key,
+    });
+    return stored.storedObjectId;
+  }
+
+  it("can be requested at all — the intent accepts the editorial namespace", async () => {
+    const originalId = await uploadOriginal(specialist);
+    expect(originalId).toMatch(/^[0-9a-f-]{36}$/u);
+  });
+
+  it("is published as a derivative with no EXIF, never as the upload", async () => {
+    const originalId = await uploadOriginal(specialist);
+    const original = await storage.get(
+      (
+        await db.migrator
+          .select({ key: storageSchema.storedObject.objectKey })
+          .from(storageSchema.storedObject)
+          .where(eq(storageSchema.storedObject.id, originalId))
+      )[0]!.key,
+    );
+    expect((await describeImageMetadata(original)).hasExif).toBe(true);
+
+    const photo = await createEditorialPhoto(db.runtime, await contextFor(specialist), storage, {
+      originalStoredObjectId: originalId,
+    });
+    expect(photo.storedObjectId).not.toBe(originalId);
+
+    const derivativeKey = (
+      await db.migrator
+        .select({ key: storageSchema.storedObject.objectKey })
+        .from(storageSchema.storedObject)
+        .where(eq(storageSchema.storedObject.id, photo.storedObjectId))
+    )[0]!.key;
+    expect((await describeImageMetadata(await storage.get(derivativeKey))).hasExif).toBe(false);
+
+    // Asking twice is the same answer: a double submit makes one file, not two.
+    const again = await createEditorialPhoto(db.runtime, await contextFor(specialist), storage, {
+      originalStoredObjectId: originalId,
+    });
+    expect(again.storedObjectId).toBe(photo.storedObjectId);
+  });
+
+  it("refuses a page that points a photo at the uploaded original", async () => {
+    const originalId = await uploadOriginal(specialist);
+    const draft = await loadEditorialDraft(db.runtime, await contextFor(specialist), "fallback");
+    const error = await refusal(async () =>
+      saveEditorialDraft(db.runtime, await contextFor(specialist), {
+        expectedRevision: draft.revision,
+        payload: page("Con el original, que no debe pasar", {
+          sections: [
+            {
+              key: "foto",
+              kind: "custom",
+              title: "Fotografía",
+              body: "",
+              assets: [
+                {
+                  storedObjectId: originalId,
+                  role: "photo",
+                  caption: null,
+                  altText: "Una vía de tierra vista desde el margen",
+                },
+              ],
+            },
+          ],
+        }),
+      }),
+    );
+    expect(String(error)).toMatch(/published derivative, not the uploaded original/);
+  });
+});
+
+/* ---------------------------------------------------------------------------------------------
+ * The consultancy's landing
+ * ------------------------------------------------------------------------------------------ */
+
+describe("the public landing", () => {
+  it("lists only what is visible, and nothing else the tenant owns", async () => {
+    // Project X was withdrawn by the test above, so right now the firm has nothing public.
+    expect(await loadPublicEditorialIndex(db.runtime, { tenantSlug: w.tenantA.slug })).toBeNull();
+
+    // Publish X again and it reappears — project Y, which has no publication at all, does not.
+    const ctx = await contextFor(specialist);
+    const draft = await loadEditorialDraft(db.runtime, ctx, "fallback");
+    await saveEditorialDraft(db.runtime, ctx, {
+      expectedRevision: draft.revision,
+      payload: page("Vía sintética, de vuelta"),
+    });
+    const after = await loadEditorialDraft(db.runtime, await contextFor(specialist), "fallback");
+    await publishEditorial(db.runtime, await contextFor(coordinator), {
+      expectedRevision: after.revision,
+    });
+
+    const index = await loadPublicEditorialIndex(db.runtime, { tenantSlug: w.tenantA.slug });
+    expect(index?.projects.map((p) => p.projectSlug)).toEqual([w.projectX.slug]);
+    expect(index?.projects[0]?.headline).toBe("Vía sintética, de vuelta");
+    // With no profile set, the firm is named by its slug rather than by a guess.
+    expect(index?.tenantName).toBe(w.tenantA.slug);
+  });
+
+  it("tells a visitor nothing about a tenant with nothing published", async () => {
+    expect(await loadPublicEditorialIndex(db.runtime, { tenantSlug: w.tenantB.slug })).toBeNull();
+    expect(await loadPublicEditorialIndex(db.runtime, { tenantSlug: "no-existe" })).toBeNull();
   });
 });

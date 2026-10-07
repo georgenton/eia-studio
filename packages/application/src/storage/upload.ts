@@ -11,10 +11,12 @@ import {
   EDITORIAL_FORMATS,
   TEMPLATE_FORMATS,
   FIELD_MEDIA_FORMATS,
+  UPLOADABLE_NAMESPACES,
   formatForMimeType,
   InvalidInput,
   PermissionDenied,
   requirePermission,
+  type UploadableNamespace,
   DOWNLOAD_LINK_TTL_SECONDS,
   UPLOAD_INTENT_TTL_SECONDS,
   type ProjectPermission,
@@ -83,7 +85,15 @@ const NAMESPACE_RULES: Readonly<
 
 export const uploadIntentInputSchema = z
   .object({
-    namespace: z.enum(["documents", "field-media", "templates"]),
+    /*
+     * Derived from the catalogue, never a second list. The literal three that used to be here
+     * silently excluded `portal-editorial` from the one door an upload comes through, so a
+     * namespace with a permission, a format allowlist and a key builder still could not be
+     * uploaded into. `generated` is absent because nothing uploads into it.
+     */
+    namespace: z.enum(
+      UPLOADABLE_NAMESPACES as unknown as readonly [UploadableNamespace, ...UploadableNamespace[]],
+    ),
     filename: z.string().trim().min(1).max(255),
     mimeType: z.string().trim().min(3).max(200),
     sizeBytes: z.number().int().positive(),

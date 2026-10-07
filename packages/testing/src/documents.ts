@@ -250,3 +250,84 @@ export function buildNotAWordPackage(): Uint8Array {
     "data/rows.csv": [strToU8("a,b,c\n1,2,3\n"), { mtime: FIXTURE_MTIME }],
   });
 }
+
+/* ---------------------------------------------------------------------------------------------
+ * A photograph that carries what a photograph carries
+ * ------------------------------------------------------------------------------------------ */
+
+/**
+ * A synthetic JPEG with an EXIF APP1 segment containing GPS coordinates.
+ *
+ * Built by hand rather than committed as a binary, so a reader can see exactly what is in it —
+ * and so the test that says "the derivative has no GPS" is testing against something that
+ * demonstrably had some. The coordinates are a point in the Pacific off Ecuador; no real place
+ * anybody works, and no real photograph.
+ *
+ * The image itself is produced by sharp, because an encoder written here would be the thing
+ * under test rather than a fixture.
+ */
+export async function buildJpegWithGps(options?: {
+  width?: number;
+  height?: number;
+}): Promise<Uint8Array> {
+  const { default: sharp } = await import("sharp");
+  const width = options?.width ?? 240;
+  const height = options?.height ?? 160;
+  const base = await sharp({
+    create: {
+      width,
+      height,
+      channels: 3,
+      background: { r: 32, g: 96, b: 128 },
+    },
+  })
+    .jpeg({ quality: 90 })
+    .toBuffer();
+  return new Uint8Array(insertExifApp1(base, buildGpsExif()));
+}
+
+/** A minimal TIFF-in-EXIF payload: one IFD0 entry pointing at a GPS IFD with three tags. */
+function buildGpsExif(): Buffer {
+  const parts: Buffer[] = [];
+  const header = Buffer.alloc(8);
+  header.write("MM", 0, "ascii"); // big-endian
+  header.writeUInt16BE(42, 2);
+  header.writeUInt32BE(8, 4); // IFD0 at offset 8
+  parts.push(header);
+
+  // IFD0: one entry, GPSInfoIFDPointer (0x8825) -> offset 26
+  const ifd0 = Buffer.alloc(2 + 12 + 4);
+  ifd0.writeUInt16BE(1, 0);
+  ifd0.writeUInt16BE(0x8825, 2);
+  ifd0.writeUInt16BE(4, 4); // LONG
+  ifd0.writeUInt32BE(1, 6);
+  ifd0.writeUInt32BE(26, 10);
+  ifd0.writeUInt32BE(0, 14); // no next IFD
+  parts.push(ifd0);
+
+  // GPS IFD: latitude ref, longitude ref, and an altitude, all inline.
+  const gps = Buffer.alloc(2 + 12 * 2 + 4);
+  gps.writeUInt16BE(2, 0);
+  // GPSLatitudeRef = "S"
+  gps.writeUInt16BE(0x0001, 2);
+  gps.writeUInt16BE(2, 4); // ASCII
+  gps.writeUInt32BE(2, 6);
+  gps.write("S\0", 10, "ascii");
+  // GPSLongitudeRef = "W"
+  gps.writeUInt16BE(0x0003, 14);
+  gps.writeUInt16BE(2, 16);
+  gps.writeUInt32BE(2, 18);
+  gps.write("W\0", 22, "ascii");
+  gps.writeUInt32BE(0, 26);
+  parts.push(gps);
+
+  return Buffer.concat([Buffer.from("Exif\0\0", "ascii"), ...parts]);
+}
+
+/** Splice an APP1 segment in immediately after SOI, which is where a camera writes it. */
+function insertExifApp1(jpeg: Buffer, exif: Buffer): Buffer {
+  const marker = Buffer.alloc(4);
+  marker.writeUInt16BE(0xffe1, 0);
+  marker.writeUInt16BE(exif.length + 2, 2);
+  return Buffer.concat([jpeg.subarray(0, 2), marker, exif, jpeg.subarray(2)]);
+}

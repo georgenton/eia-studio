@@ -36,9 +36,17 @@ export { loadCommandCenter } from "./projects/command-center";
 export type { CommandCenterView, ProjectHeader } from "./projects/command-center";
 export { loadWorkspaceHeader, loadPortfolio } from "./projects/portfolio";
 export {
+  buildPublishableImage,
+  describeImageMetadata,
+  EDITORIAL_IMAGE_LIMITS,
+} from "./portal/editorial-image";
+export type { EditorialImageDerivative } from "./portal/editorial-image";
+export {
+  createEditorialPhoto,
   EDITORIAL_NAMESPACE,
   EditorialRevisionConflict,
   loadEditorialDraft,
+  loadPublicEditorialIndex,
   loadPublicEditorialPage,
   publishEditorial,
   resolvePublicEditorialAsset,
@@ -47,6 +55,9 @@ export {
 } from "./portal/editorial";
 export type {
   EditorialDraftView,
+  EditorialPhoto,
+  PublicEditorialIndex,
+  PublicEditorialIndexEntry,
   PublicEditorialAsset,
   PublicEditorialPage,
   PublishedEditorial,

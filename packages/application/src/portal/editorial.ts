@@ -12,6 +12,7 @@ import {
   assertPublishableEditorial,
   can,
   EDITORIAL_SCHEMA_VERSION,
+  buildObjectKey,
   InvalidInput,
   NotFound,
   requireCapability,
@@ -19,10 +20,12 @@ import {
   type EditorialAsset,
   type EditorialPayload,
   type RequestContext,
+  type StoragePort,
 } from "@eia/domain";
 import { and, desc, eq, inArray } from "drizzle-orm";
 
 import { recordAudit } from "../audit/record";
+import { buildPublishableImage } from "./editorial-image";
 
 /**
  * Writing, previewing, publishing and withdrawing a project's public editorial page.
@@ -221,10 +224,162 @@ async function assertAssetsBelongHere(
       );
     }
   }
+
+  /*
+   * A photograph must be a **derivative**, never the upload.
+   *
+   * This is where "the public page never serves the original" stops being a convention. The
+   * uploaded file keeps whatever EXIF the camera wrote — where, when, with what — and the
+   * derivative has none, because it was encoded from pixels. Checking the role against the
+   * derivative table means a page cannot reference the original even by pasting its id.
+   */
+  const photoIds = [
+    ...new Set(assets.filter((a) => a.role === "photo").map((a) => a.storedObjectId)),
+  ];
+  if (photoIds.length === 0) return;
+  const derivatives = await tx
+    .select({ id: portalSchema.editorialImageDerivative.derivativeObjectId })
+    .from(portalSchema.editorialImageDerivative)
+    .where(inArray(portalSchema.editorialImageDerivative.derivativeObjectId, photoIds));
+  const known = new Set(derivatives.map((d) => d.id));
+  for (const id of photoIds) {
+    if (!known.has(id)) {
+      throw new InvalidInput(
+        "a photograph must be the published derivative, not the uploaded original",
+      );
+    }
+  }
 }
 
 /** Editorial media is its own namespace, apart from `documents` and from `field-media`. */
 export const EDITORIAL_NAMESPACE = "portal-editorial" as const;
+
+/* ---------------------------------------------------------------------------------------------
+ * A photograph the page may carry
+ * ------------------------------------------------------------------------------------------ */
+
+export interface EditorialPhoto {
+  readonly storedObjectId: string;
+  readonly width: number;
+  readonly height: number;
+  readonly mimeType: string;
+}
+
+/**
+ * Turn an uploaded photograph into one that may be published.
+ *
+ * The upload itself goes through the ordinary path — intent, PUT, finalize — so the original is
+ * validated, hashed and stored exactly like every other file. This is the step after: decode,
+ * apply orientation, bound the size, encode again, and store the result as its **own** object
+ * with its own SHA-256. The original stays where it is and is never referenced by a publication.
+ *
+ * Idempotent by original. Asking twice returns the first derivative rather than making a second,
+ * so a double submit costs nothing and the page keeps pointing at one file.
+ */
+export async function createEditorialPhoto(
+  db: Database,
+  ctx: RequestContext,
+  storage: StoragePort,
+  input: { originalStoredObjectId: string },
+): Promise<EditorialPhoto> {
+  requireCapability(ctx, "client.portal");
+  requirePermission(ctx, "portal.editorial.write");
+  const projectId = requireProject(ctx);
+
+  /*
+   * Idempotent by original: asking twice returns the first derivative. A double submit from the
+   * editor therefore costs nothing and the page keeps pointing at one file.
+   */
+  const existing = await withDbContext(db, ctx, (tx) =>
+    tx
+      .select({
+        derivativeObjectId: portalSchema.editorialImageDerivative.derivativeObjectId,
+        width: portalSchema.editorialImageDerivative.width,
+        height: portalSchema.editorialImageDerivative.height,
+        mimeType: storageSchema.storedObject.mimeType,
+      })
+      .from(portalSchema.editorialImageDerivative)
+      .innerJoin(
+        storageSchema.storedObject,
+        eq(storageSchema.storedObject.id, portalSchema.editorialImageDerivative.derivativeObjectId),
+      )
+      .where(
+        eq(portalSchema.editorialImageDerivative.originalObjectId, input.originalStoredObjectId),
+      ),
+  );
+  const already = existing[0];
+  if (already !== undefined) {
+    return {
+      storedObjectId: already.derivativeObjectId,
+      width: already.width,
+      height: already.height,
+      mimeType: already.mimeType ?? "image/jpeg",
+    };
+  }
+
+  const source = await withDbContext(db, ctx, async (tx) => {
+    const [row] = await tx
+      .select({
+        objectKey: storageSchema.storedObject.objectKey,
+        namespace: storageSchema.storedObject.namespace,
+      })
+      .from(storageSchema.storedObject)
+      .where(
+        and(
+          eq(storageSchema.storedObject.id, input.originalStoredObjectId),
+          eq(storageSchema.storedObject.projectId, projectId),
+        ),
+      );
+    // Another project's object was filtered out by RLS, so "missing" is also the answer for it.
+    if (row === undefined) throw new NotFound("the uploaded photograph");
+    if (row.namespace !== (EDITORIAL_NAMESPACE as string)) {
+      throw new InvalidInput("only an editorial upload becomes a published photograph");
+    }
+    return row;
+  });
+
+  const derivative = await buildPublishableImage(await storage.get(source.objectKey));
+  const objectId = randomUUID();
+  const objectKey = buildObjectKey({
+    tenantId: ctx.tenantId,
+    projectId,
+    namespace: EDITORIAL_NAMESPACE,
+    objectId,
+  });
+  await storage.put(objectKey, derivative.bytes, derivative.mimeType);
+
+  return withDbContext(db, ctx, async (tx) => {
+    await tx.insert(storageSchema.storedObject).values({
+      id: objectId,
+      tenantId: ctx.tenantId,
+      projectId,
+      namespace: EDITORIAL_NAMESPACE,
+      objectKey,
+      // A name a visitor may be offered. Never the uploaded filename, which can be a person's.
+      originalFilename: `imagen-${derivative.width}x${derivative.height}.${derivative.format}`,
+      mimeType: derivative.mimeType,
+      sizeBytes: derivative.bytes.byteLength,
+      sha256: derivative.sha256,
+      uploadedByUserId: ctx.userId,
+    });
+    await tx.insert(portalSchema.editorialImageDerivative).values({
+      id: randomUUID(),
+      tenantId: ctx.tenantId,
+      projectId,
+      originalObjectId: input.originalStoredObjectId,
+      derivativeObjectId: objectId,
+      width: derivative.width,
+      height: derivative.height,
+      createdBy: ctx.userId,
+    });
+    return {
+      storedObjectId: objectId,
+      width: derivative.width,
+      height: derivative.height,
+      mimeType: derivative.mimeType,
+    };
+  });
+}
 
 /* ---------------------------------------------------------------------------------------------
  * Publishing and withdrawing
@@ -564,6 +719,93 @@ export async function resolvePublicEditorialAsset(
           ),
         );
       return authorised ?? null;
+    },
+  );
+}
+
+/* ---------------------------------------------------------------------------------------------
+ * The consultancy's public landing
+ * ------------------------------------------------------------------------------------------ */
+
+export interface PublicEditorialIndexEntry {
+  readonly projectSlug: string;
+  readonly headline: string;
+  readonly subheadline: string | null;
+  readonly publishedAt: Date;
+}
+
+export interface PublicEditorialIndex {
+  readonly tenantName: string;
+  readonly engagementLabel: string | null;
+  readonly projects: ReadonlyArray<PublicEditorialIndexEntry>;
+}
+
+/**
+ * What a visitor sees at `/p/:tenant`: the firm, and the roads it has published.
+ *
+ * ## Why this reads no project table
+ *
+ * The obvious implementation lists `app.project` and filters to the published ones. That is the
+ * wrong shape twice over: it needs a public path into the operational tables, and a filter is a
+ * thing that can be forgotten — the day somebody adds a condition in the wrong place, every
+ * private project's slug is on the internet.
+ *
+ * So the query runs over `portal.editorial_publication` alone, under the same public policy as a
+ * single page: a row is here **because it is visible**, and a project with no publication, a
+ * withdrawn one, an archived one and a private one are all simply absent. There is no list to
+ * filter and nothing to forget.
+ *
+ * ## Where the firm's name comes from
+ *
+ * The publication itself. Not a constant, not a build-time setting and not the tenant table:
+ * every published page carries the headline its author wrote and the tenant slug it belongs to,
+ * so "Visión Ambiental" lives in a tenant's own rows rather than anywhere in this codebase. The
+ * engagement title is the editorial profile's, when a firm has set one.
+ */
+export async function loadPublicEditorialIndex(
+  db: Database,
+  input: { tenantSlug: string },
+): Promise<PublicEditorialIndex | null> {
+  return withDbContext(
+    db,
+    { userId: null, tenantId: null, projectId: null, surface: "public" },
+    async (tx) => {
+      const rows = await tx
+        .select({
+          projectSlug: portalSchema.editorialPublication.projectSlug,
+          payload: portalSchema.editorialPublication.payload,
+          publishedAt: portalSchema.editorialPublication.publishedAt,
+        })
+        .from(portalSchema.editorialPublication)
+        .where(eq(portalSchema.editorialPublication.tenantSlug, input.tenantSlug))
+        .orderBy(portalSchema.editorialPublication.projectSlug);
+      // Every row here is already a visible one; the policy saw to that.
+      if (rows.length === 0) return null;
+
+      const projects = rows.map((row) => {
+        const payload = assertPublishableEditorial(row.payload);
+        return {
+          projectSlug: row.projectSlug,
+          headline: payload.headline,
+          subheadline: payload.subheadline,
+          publishedAt: row.publishedAt,
+        };
+      });
+
+      const [profile] = await tx
+        .select({
+          name: portalSchema.editorialTenantProfile.name,
+          engagementLabel: portalSchema.editorialTenantProfile.engagementLabel,
+        })
+        .from(portalSchema.editorialTenantProfile)
+        .where(eq(portalSchema.editorialTenantProfile.tenantSlug, input.tenantSlug));
+
+      return {
+        // With no profile set, the firm is named by its own slug rather than by a guess.
+        tenantName: profile?.name ?? input.tenantSlug,
+        engagementLabel: profile?.engagementLabel ?? null,
+        projects,
+      };
     },
   );
 }
