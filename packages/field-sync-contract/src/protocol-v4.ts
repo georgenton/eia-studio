@@ -171,11 +171,27 @@ export type WorkPackResponse = z.infer<typeof workPackResponseSchema>;
  * Pull
  * ------------------------------------------------------------------------------------------ */
 
+/**
+ * What a device sends to reconcile: **what it currently holds**, by id.
+ *
+ * There is no cursor, and its absence is the design rather than an omission. v3's pull carries
+ * one because its response is shaped like a change feed; v4's is a *current-set reconciliation* —
+ * the server answers with the whole of this technician's work in this project, which is a few
+ * dozen rows, and the device replaces its view with it. A cursor would be a value the server
+ * accepted and never read, which is worse than no cursor: a later reader would believe it meant
+ * something.
+ *
+ * This schema is the one the route parses and the one the client sends. It briefly was not —
+ * the contract declared `cursor` while both ends used the two id arrays — and a wire format that
+ * only one side believes in is the drift this package exists to prevent.
+ */
 export const workPullRequestSchema = z
   .object({
     tenantSlug: z.string().min(1).max(80),
     projectSlug: z.string().min(1).max(80),
-    cursor: z.string().min(1).max(200).nullable(),
+    /** Assignment ids this device holds. The server names the ones that are no longer its own. */
+    knownAssignmentIds: z.array(uuid).max(2000).default([]),
+    knownInvitationIds: z.array(uuid).max(2000).default([]),
   })
   .strict();
 export type WorkPullRequest = z.infer<typeof workPullRequestSchema>;

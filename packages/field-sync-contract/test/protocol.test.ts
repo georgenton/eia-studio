@@ -3,14 +3,19 @@ import { describe, expect, it } from "vitest";
 
 import {
   COMMAND_OUTCOMES,
+  commandResultSchema,
   CONFLICT_REASONS,
   FIELD_PACK_SCHEMA_VERSION,
+  FIELD_PACK_SCHEMA_VERSION_V4,
   FIELD_SYNC_PROTOCOL_VERSION,
+  FIELD_SYNC_PROTOCOL_VERSION_V4,
   LOCAL_SURVEY_STATES,
   syncCommandSchema,
   syncPushRequestSchema,
   SYNC_PUSH_LIMIT,
+  v4CommandResultSchema,
   wireAnswerSchema,
+  workPullRequestSchema,
 } from "../src/index";
 
 const uuid = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
@@ -173,5 +178,98 @@ describe("the vocabularies both sides read", () => {
       "rejected",
       "superseded",
     ]);
+  });
+});
+
+/* ---------------------------------------------------------------------------------------------
+ * Protocol v4 (ADR-041), and the v3 it must not disturb
+ * ------------------------------------------------------------------------------------------ */
+
+describe("the v4 pull request is one shape, shared by both ends", () => {
+  /*
+   * It briefly was not: the contract declared a `cursor` while the route and the client both
+   * sent two arrays of ids. A wire format only one side believes in is exactly what this
+   * package exists to prevent, so the schema now *is* the wire — the route imports it and the
+   * client parses against it on the way out.
+   */
+  const valid = {
+    tenantSlug: "consultora",
+    projectSlug: "via-a",
+    knownAssignmentIds: ["0199f3a2-7c41-7abc-8d0f-000000000001"],
+    knownInvitationIds: [],
+  };
+
+  it("accepts what the device actually sends", () => {
+    expect(workPullRequestSchema.parse(valid)).toEqual(valid);
+  });
+
+  it("defaults the two arrays, so a first pull need not spell them out", () => {
+    const parsed = workPullRequestSchema.parse({ tenantSlug: "c", projectSlug: "v" });
+    expect(parsed.knownAssignmentIds).toEqual([]);
+    expect(parsed.knownInvitationIds).toEqual([]);
+  });
+
+  it("refuses the cursor it used to declare, and anything else unknown", () => {
+    // `.strict()`: a field the server does not read must not be one a client can believe in.
+    expect(workPullRequestSchema.safeParse({ ...valid, cursor: "abc" }).success).toBe(false);
+    expect(workPullRequestSchema.safeParse({ ...valid, extra: 1 }).success).toBe(false);
+  });
+});
+
+describe("v3 is not disturbed by v4", () => {
+  it("keeps its version numbers, so a signed build is not silently re-pointed", () => {
+    expect(FIELD_SYNC_PROTOCOL_VERSION).toBe(3);
+    expect(FIELD_PACK_SCHEMA_VERSION).toBe(1);
+    expect(FIELD_SYNC_PROTOCOL_VERSION_V4).toBe(4);
+    expect(FIELD_PACK_SCHEMA_VERSION_V4).toBe(2);
+  });
+
+  it("and a v3 command still parses exactly as it did", () => {
+    // The case that matters for an update: a command already in the outbox when the application
+    // was replaced. Its `commandId` is untouched, its meaning is untouched, and the v4 route
+    // rewrites only the envelope's version before handing it to v3's own engine.
+    const v3Command = {
+      commandId: "0199f3a2-7c41-7abc-8d0f-000000000001",
+      protocolVersion: FIELD_SYNC_PROTOCOL_VERSION,
+      deviceRevision: 1,
+      occurredAt: "2026-11-12T19:00:00.000Z",
+      appVersion: "0.1.0",
+      packSchemaVersion: FIELD_PACK_SCHEMA_VERSION,
+      type: "visit.finish",
+      payload: {
+        assignmentId: "0199f3a2-7c41-7abc-8d0f-000000000002",
+        visitId: "0199f3a2-7c41-7abc-8d0f-000000000003",
+      },
+    };
+    expect(syncCommandSchema.safeParse(v3Command).success).toBe(true);
+
+    // The same command with a v4 envelope is refused by v3's union — which is what the version
+    // number is for — and accepted once the route rewrites it.
+    const withV4Envelope = { ...v3Command, protocolVersion: FIELD_SYNC_PROTOCOL_VERSION_V4 };
+    expect(syncCommandSchema.safeParse(withV4Envelope).success).toBe(false);
+    expect(
+      syncCommandSchema.safeParse({
+        ...withV4Envelope,
+        protocolVersion: FIELD_SYNC_PROTOCOL_VERSION,
+      }).success,
+    ).toBe(true);
+  });
+
+  it("and v3's result object refuses the two fields a delivery carries", () => {
+    // The reason a v4 receipt is read with v4's schema: `.strict()` doing its job.
+    const v4Shaped = {
+      commandId: "0199f3a2-7c41-7abc-8d0f-000000000001",
+      outcome: "applied",
+      visitId: null,
+      instanceId: null,
+      instanceStatus: null,
+      assignmentStatus: null,
+      conflictReason: null,
+      message: null,
+      attemptId: "0199f3a2-7c41-7abc-8d0f-000000000004",
+      invitationStatus: "DELIVERED",
+    };
+    expect(commandResultSchema.safeParse(v4Shaped).success).toBe(false);
+    expect(v4CommandResultSchema.safeParse(v4Shaped).success).toBe(true);
   });
 });

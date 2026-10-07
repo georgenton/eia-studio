@@ -1,10 +1,20 @@
 import type { LocalDeliveryState, PackInvitation, WorkPack } from "@eia/field-sync-contract";
 import type * as SQLite from "expo-sqlite";
 
-import { deliveryStateAfter, mayDeleteEvidenceFile } from "../core/delivery";
-import { workPackFromFieldPack, type WorkPackOrigin } from "../core/pack-upgrade";
+import {
+  deliveryStateAfter,
+  mayDeleteEvidenceFile,
+  RETRYABLE_EVIDENCE_STATES,
+  stateAfterEvidenceFailure,
+  type EvidenceFailureKind,
+} from "../core/delivery";
+import {
+  fieldPackFromWorkPack,
+  workPackFromFieldPack,
+  type WorkPackOrigin,
+} from "../core/pack-upgrade";
 import type { PendingWorkSummary } from "../core/project-switch";
-import { readPack } from "./repo";
+import { readPack, saveFieldPack } from "./repo";
 
 /**
  * The v4 half of the capture journal: the active project, its invitations, and what a technician
@@ -27,12 +37,46 @@ const nowIso = () => new Date().toISOString();
  * the active project
  * ------------------------------------------------------------------------------------------ */
 
+/**
+ * Store the active project, its invitations **and its surveys**.
+ *
+ * The survey half is projected back into v3's shape and written by `saveFieldPack` — the writer
+ * every existing capture went through — rather than by a second implementation here. Without it
+ * a clean installation held a valid v4 pack and showed no surveys at all, because the
+ * questionnaire screens read `field_pack`, `local_assignment`, `local_question` and
+ * `local_option` and nothing in the v4 path filled them.
+ *
+ * When there is **no** survey work, any previous `field_pack` is cleared. A project whose
+ * campaign closed must not leave another road's campaign standing as the current one.
+ */
 export async function saveWorkPack(
   db: SQLite.SQLiteDatabase,
   pack: WorkPack,
   origin: WorkPackOrigin = "download",
 ): Promise<void> {
+  await writeWorkPackRows(db, pack, origin);
+  await hydrateSurveyWork(db, pack);
+}
+
+/** The v4 rows themselves. Separated so the atomic switch can write both halves in one go. */
+async function writeWorkPackRows(
+  db: SQLite.SQLiteDatabase,
+  pack: WorkPack,
+  origin: WorkPackOrigin,
+): Promise<void> {
   await db.withTransactionAsync(async () => {
+    await insertWorkPackRow(db, pack, origin);
+    await applyInvitations(db, pack.socializationWork.invitations, []);
+  });
+}
+
+/** The `work_pack` upsert, on its own, so a caller inside a transaction can use it too. */
+async function insertWorkPackRow(
+  db: SQLite.SQLiteDatabase,
+  pack: WorkPack,
+  origin: WorkPackOrigin,
+): Promise<void> {
+  {
     await db.runAsync(
       `insert into work_pack (id, tenant_slug, project_slug, project_name, locality,
          technician_user_id, technician_email, campaign_id, survey_version_id,
@@ -62,8 +106,125 @@ export async function saveWorkPack(
       origin,
       JSON.stringify(pack),
     );
-    await applyInvitations(db, pack.socializationWork.invitations, []);
-  });
+  }
+}
+
+/** One invitation, upserted. `applyInvitations` is this in a loop plus the revocation half. */
+async function insertInvitationRow(
+  db: SQLite.SQLiteDatabase,
+  invitation: PackInvitation,
+): Promise<void> {
+  await applyInvitations(db, [invitation], []);
+}
+
+/**
+ * The questionnaire, its options and the assignments, written row by row **inside the caller's
+ * transaction**.
+ *
+ * `saveFieldPack` does the same thing and opens its own transaction, which is right everywhere
+ * except here: the atomic switch must not commit halfway. The statements are the same ones; a
+ * test asserts the two agree by driving a switch and then reading what the survey screens read.
+ */
+async function insertSurveySnapshot(
+  db: SQLite.SQLiteDatabase,
+  pack: NonNullable<ReturnType<typeof fieldPackFromWorkPack>>,
+): Promise<void> {
+  await db.runAsync(
+    `insert into field_pack (id, tenant_slug, project_slug, project_name, locality, campaign_id,
+       campaign_name, survey_version_id, survey_version_label, technician_user_id,
+       technician_email, issued_at, expires_at, validity_basis, cursor, payload)
+     values (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    pack.project.tenantSlug,
+    pack.project.projectSlug,
+    pack.project.projectName,
+    pack.project.locality,
+    pack.campaign.id,
+    pack.campaign.name,
+    pack.campaign.surveyVersion.id,
+    pack.campaign.surveyVersion.versionLabel,
+    pack.technician.userId,
+    pack.technician.email,
+    pack.validity.issuedAt,
+    pack.validity.expiresAt,
+    pack.validity.basis,
+    pack.cursor,
+    JSON.stringify(pack),
+  );
+  const version = pack.campaign.surveyVersion;
+  for (const question of version.questions) {
+    await db.runAsync(
+      `insert or replace into local_question
+         (survey_version_id, code, ordinal, type, prompt, help_text, required, sensitivity)
+       values (?, ?, ?, ?, ?, ?, ?, ?)`,
+      version.id,
+      question.code,
+      question.ordinal,
+      question.type,
+      question.prompt,
+      question.helpText,
+      question.required ? 1 : 0,
+      question.sensitivity,
+    );
+    for (const option of question.options) {
+      await db.runAsync(
+        `insert or replace into local_option
+           (survey_version_id, question_code, code, label, ordinal)
+         values (?, ?, ?, ?, ?)`,
+        version.id,
+        question.code,
+        option.code,
+        option.label,
+        option.ordinal,
+      );
+    }
+  }
+  for (const assignment of pack.assignments) {
+    await db.runAsync(
+      `insert into local_assignment (id, parcel_code, sector_label, chainage_label, side,
+         server_status, open_visit_id, instance_id, instance_status, revision, updated_at,
+         corrects_assignment_id, correction_reason, correction_requested_at)
+       values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      assignment.id,
+      assignment.parcel.parcelCode,
+      assignment.parcel.sectorLabel,
+      assignment.parcel.chainageLabel,
+      assignment.parcel.side,
+      assignment.status,
+      assignment.openVisitId,
+      assignment.instanceId,
+      assignment.instanceStatus,
+      assignment.revision,
+      nowIso(),
+      assignment.correction?.correctsAssignmentId ?? null,
+      assignment.correction?.reason ?? null,
+      assignment.correction?.requestedAt ?? null,
+    );
+  }
+}
+
+/**
+ * Fill the tables the survey screens read, or clear them when there is nothing to fill.
+ *
+ * `saveFieldPack` opens its own transaction, which is why this is a second step rather than a
+ * line inside the one above — and why the atomic switch below calls both explicitly, in order,
+ * rather than relying on one of them to do the other's work.
+ */
+async function hydrateSurveyWork(db: SQLite.SQLiteDatabase, pack: WorkPack): Promise<void> {
+  const projected = fieldPackFromWorkPack(pack);
+  if (projected !== null) {
+    await saveFieldPack(db, projected);
+    return;
+  }
+  /*
+   * No survey work. The assignments are revoked rather than deleted — a technician may hold a
+   * draft against one — and the `field_pack` row goes, so no closed campaign from this or any
+   * earlier project is left looking like today's work.
+   */
+  await db.runAsync(
+    "update local_assignment set revoked_at = ? where revoked_at is null",
+    nowIso(),
+  );
+  await db.runAsync("delete from field_pack");
 }
 
 export async function readWorkPack(db: SQLite.SQLiteDatabase): Promise<WorkPack | null> {
@@ -346,15 +507,25 @@ export async function listDeliveryAttempts(
   return rows.map(toDelivery);
 }
 
-/** Attempts whose photograph has not reached the provider yet. */
+/**
+ * Attempts whose photograph has not reached the provider yet **and which the device may try
+ * again by itself**.
+ *
+ * The state list is `RETRYABLE_EVIDENCE_STATES`, not a literal, so the selector and the failure
+ * handler cannot disagree — which is exactly what went wrong: a transport failure wrote
+ * `SYNC_ERROR` and this query only looked at `EVIDENCE_PENDING`, so one network cut parked a
+ * photograph until somebody noticed.
+ */
 export async function deliveriesAwaitingEvidence(
   db: SQLite.SQLiteDatabase,
 ): Promise<ReadonlyArray<LocalDeliveryRow>> {
+  const placeholders = RETRYABLE_EVIDENCE_STATES.map(() => "?").join(", ");
   const rows = await db.getAllAsync<Record<string, unknown>>(
     `select * from local_delivery_attempt
-      where state = 'EVIDENCE_PENDING' and evidence_file_uri is not null
+      where state in (${placeholders}) and evidence_file_uri is not null
         and evidence_stored_object_id is null
       order by occurred_at`,
+    ...RETRYABLE_EVIDENCE_STATES,
   );
   return rows.map(toDelivery);
 }
@@ -399,16 +570,25 @@ export async function setDeliveryCommandId(
   );
 }
 
-export async function recordDeliveryFailure(
+/**
+ * A failed evidence upload, recorded so the **next sync knows what to do about it**.
+ *
+ * The state comes from `stateAfterEvidenceFailure`, which is where the retryable/permanent rule
+ * lives: a network cut leaves the attempt in `EVIDENCE_PENDING` and the next sync takes it
+ * again; a refusal leaves `SYNC_ERROR` and a person looks. The counter rises either way, and
+ * the file stays either way.
+ */
+export async function recordEvidenceFailure(
   db: SQLite.SQLiteDatabase,
   localId: string,
-  message: string,
+  input: { message: string; kind: EvidenceFailureKind },
 ): Promise<void> {
   await db.runAsync(
     `update local_delivery_attempt
-        set attempts = attempts + 1, last_error = ?, state = 'SYNC_ERROR', updated_at = ?
+        set attempts = attempts + 1, last_error = ?, state = ?, updated_at = ?
       where local_id = ?`,
-    message.slice(0, 300),
+    input.message.slice(0, 300),
+    stateAfterEvidenceFailure(input.kind),
     nowIso(),
     localId,
   );
@@ -509,14 +689,31 @@ export async function replaceActiveProject(
   db: SQLite.SQLiteDatabase,
   pack: WorkPack,
 ): Promise<void> {
+  /*
+   * **One transaction.** The previous version cleared the snapshots, committed, and *then*
+   * wrote the new pack — so a failure in between left a phone with neither project: the old one
+   * deleted and the new one absent. A technician in a valley would have had nothing at all.
+   *
+   * Everything now happens inside `withTransactionAsync`, and the writes are the row-level ones
+   * rather than `saveWorkPack`, which opens its own. A failure anywhere rolls the whole thing
+   * back and the previous project is still there, complete and readable.
+   *
+   * What is **not** deleted: `mobile_meta`, the outbox, captured surveys, media and delivery
+   * attempts. The guard has already proved none of them is pending; deleting them here as well
+   * would mean this function, rather than the guard, deciding that somebody's work was safe.
+   */
+  const projected = fieldPackFromWorkPack(pack);
   await db.withTransactionAsync(async () => {
-    // Snapshots of the server's state. Everything the technician captured has already been
-    // confirmed synced by `decideProjectSwitch`, which refuses otherwise.
     await db.runAsync("delete from local_invitation");
     await db.runAsync("delete from local_delivery_attempt");
     await db.runAsync("delete from local_assignment");
     await db.runAsync("delete from field_pack");
     await db.runAsync("delete from work_pack");
+
+    await insertWorkPackRow(db, pack, "download");
+    for (const invitation of pack.socializationWork.invitations) {
+      await insertInvitationRow(db, invitation);
+    }
+    if (projected !== null) await insertSurveySnapshot(db, projected);
   });
-  await saveWorkPack(db, pack, "download");
 }

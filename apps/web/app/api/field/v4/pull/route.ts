@@ -1,7 +1,7 @@
 import { pullWorkChanges } from "@eia/application";
 import { DomainError, FeatureDisabled, NotFound, PermissionDenied } from "@eia/domain";
+import { workPullRequestSchema } from "@eia/field-sync-contract";
 import { NextResponse } from "next/server";
-import { z } from "zod";
 
 import { getDb } from "@/lib/db";
 import { authorizeMobileRequest, DENIED, UNAUTHENTICATED } from "@/lib/field-api";
@@ -15,16 +15,11 @@ export const dynamic = "force-dynamic";
  * longer its own. A full bounded set rather than a change feed, for the reason v3 gives: this is
  * one person's work in one project, it is small, and reconciling against the truth cannot drift
  * the way replaying a log can.
+ *
+ * The request schema is **the shared one**, imported rather than restated. A route with its own
+ * copy is a wire format two sides can disagree about, which is the whole reason
+ * `@eia/field-sync-contract` exists.
  */
-const requestSchema = z
-  .object({
-    tenantSlug: z.string().min(1).max(80),
-    projectSlug: z.string().min(1).max(80),
-    knownAssignmentIds: z.array(z.uuid()).max(2000).default([]),
-    knownInvitationIds: z.array(z.uuid()).max(2000).default([]),
-  })
-  .strict();
-
 export async function POST(request: Request) {
   let body: unknown;
   try {
@@ -32,7 +27,7 @@ export async function POST(request: Request) {
   } catch {
     return NextResponse.json({ error: "bad_request" }, { status: 400 });
   }
-  const parsed = requestSchema.safeParse(body);
+  const parsed = workPullRequestSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: "bad_request" }, { status: 400 });
 
   const auth = await authorizeMobileRequest(

@@ -1,20 +1,12 @@
-import {
-  FIELD_PACK_SCHEMA_VERSION_V4,
-  FIELD_SYNC_PROTOCOL_VERSION_V4,
-  type SocializationDeliveryCommand,
-} from "@eia/field-sync-contract";
 import type * as SQLite from "expo-sqlite";
 
-import { mayDeleteEvidenceFile } from "../core/delivery";
+import { evidenceFailureKind, mayDeleteEvidenceFile } from "../core/delivery";
 import {
   attachEvidenceObject,
   deliveriesAwaitingEvidence,
-  deliveriesReadyToQueue,
   listDeliveryAttempts,
-  recordDeliveryFailure,
+  recordEvidenceFailure,
   releaseEvidenceFile,
-  setDeliveryCommandId,
-  settleDelivery,
   type LocalDeliveryRow,
 } from "../db/repo-v4";
 import {
@@ -47,15 +39,6 @@ import {
  * A conflict never releases the file either: the attempt stays, marked *requires review*, with
  * the photograph a person will need in order to decide what happened.
  */
-
-const APP_VERSION = "0.2.0";
-
-export interface DeliverySyncOutcome {
-  readonly evidenceUploaded: number;
-  readonly queued: number;
-  readonly released: number;
-  readonly errors: number;
-}
 
 /**
  * Upload the photographs of attempts that are waiting for one.
@@ -98,93 +81,26 @@ export async function uploadPendingEvidence(
       uploaded += 1;
     } catch (error) {
       errors += 1;
-      // The file stays. A transport failure is retried; a refusal needs a person, and either way
-      // the photograph is the thing that cannot be recreated.
-      await recordDeliveryFailure(
-        db,
-        attempt.localId,
-        error instanceof TransportError || error instanceof ServerError
-          ? error.message
-          : "no se pudo subir la evidencia",
-      );
+      /*
+       * The file stays, always. What the failure decides is whether the **next sync** picks this
+       * attempt up by itself: a transport failure or a 5xx does, a refusal does not and a person
+       * looks instead. Retrying a refusal for ever is how a queue becomes permanently stuck on
+       * something that can never succeed.
+       */
+      const kind = evidenceFailureKind({
+        transport: error instanceof TransportError,
+        status: error instanceof ServerError ? error.status : null,
+      });
+      await recordEvidenceFailure(db, attempt.localId, {
+        kind,
+        message:
+          error instanceof TransportError || error instanceof ServerError
+            ? error.message
+            : "no se pudo subir la evidencia",
+      });
     }
   }
   return { uploaded, errors };
-}
-
-/**
- * Form the command for every attempt that has everything it needs.
- *
- * `commandId` is minted here, once, and stored on the row: a retry of the push re-sends the same
- * id, and the server replays its own answer rather than recording a second attempt. The second,
- * independent guarantee is `localAttemptId`, which the server keys on — so even a device that
- * lost its outbox and re-queued cannot produce two rows.
- */
-export async function queueReadyDeliveries(
-  db: SQLite.SQLiteDatabase,
-  enqueueCommand: (command: SocializationDeliveryCommand, localId: string) => Promise<void>,
-): Promise<number> {
-  const ready = await deliveriesReadyToQueue(db);
-  let queued = 0;
-  for (const attempt of ready) {
-    const commandId = globalThis.crypto.randomUUID();
-    const command: SocializationDeliveryCommand = {
-      commandId,
-      protocolVersion: FIELD_SYNC_PROTOCOL_VERSION_V4,
-      deviceRevision: 1,
-      occurredAt: attempt.occurredAt,
-      appVersion: APP_VERSION,
-      packSchemaVersion: FIELD_PACK_SCHEMA_VERSION_V4,
-      type: "socialization.delivery.record",
-      payload: {
-        invitationId: attempt.invitationId,
-        // The revision the device read when the technician saved, not the one it holds now: that
-        // is what makes a reassignment in between a conflict rather than a silent overwrite.
-        invitationRevision: attempt.invitationRevision,
-        localAttemptId: attempt.localId,
-        outcome: attempt.outcome,
-        note: attempt.note,
-        location:
-          attempt.latitude === null || attempt.longitude === null
-            ? null
-            : {
-                latitude: attempt.latitude,
-                longitude: attempt.longitude,
-                accuracyM: attempt.accuracyM,
-                capturedAt: attempt.occurredAt,
-              },
-        storedObjectId: attempt.evidenceStoredObjectId,
-      },
-    };
-    await setDeliveryCommandId(db, attempt.localId, commandId);
-    await enqueueCommand(command, attempt.localId);
-    queued += 1;
-  }
-  return queued;
-}
-
-/**
- * Apply what the server said about one delivery command.
- *
- * Looked up by `command_id` rather than passed in, because the outbox settles commands and does
- * not know what a delivery is. The state transition is `deliveryStateAfter`'s, in one place.
- */
-export async function settleDeliveryForCommand(
-  db: SQLite.SQLiteDatabase,
-  commandId: string,
-  result: {
-    outcome: "applied" | "duplicate" | "superseded" | "conflict" | "rejected";
-    attemptId: string | null;
-    conflictReason: string | null;
-    message: string | null;
-  },
-): Promise<void> {
-  const row = await db.getFirstAsync<{ local_id: string }>(
-    "select local_id from local_delivery_attempt where command_id = ?",
-    commandId,
-  );
-  if (!row) return;
-  await settleDelivery(db, row.local_id, result);
 }
 
 /**
@@ -221,3 +137,5 @@ async function deleteFile(attempt: LocalDeliveryRow): Promise<void> {
     // Nothing to do and nothing to tell the technician: the server has the evidence.
   }
 }
+
+export { queueReadyDeliveries, settleDeliveryForCommand } from "./delivery-queue";

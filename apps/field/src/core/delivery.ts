@@ -89,6 +89,50 @@ export function mayDeleteEvidenceFile(attempt: {
   return attempt.state === "SYNCED" && attempt.serverAttemptId !== null;
 }
 
+/**
+ * Why an evidence upload failed, and therefore whether the next sync picks it up again.
+ *
+ * The distinction is the whole of offline behaviour, and it was missing: a network cut during
+ * the first upload left the attempt in `SYNC_ERROR`, and the selector only looked at
+ * `EVIDENCE_PENDING` — so a photograph taken in a valley would wait for somebody to notice.
+ *
+ * `retryable` means *the server was not there*: no connection, a timeout, a 5xx. The attempt
+ * goes back to `EVIDENCE_PENDING` with its file, its counter raised, and the next sync takes it.
+ * `permanent` means the server answered and refused — the bytes are not what was declared, the
+ * authorisation expired, the format is not accepted. Retrying that forever is how a queue
+ * becomes permanently stuck, so the attempt stops and a person sees it.
+ *
+ * Neither deletes the photograph. Nothing does, until the command is acknowledged.
+ */
+export type EvidenceFailureKind = "retryable" | "permanent";
+
+export function evidenceFailureKind(input: {
+  readonly transport: boolean;
+  readonly status: number | null;
+}): EvidenceFailureKind {
+  // No response at all: DNS, TCP, TLS, timeout, aeroplane mode.
+  if (input.transport) return "retryable";
+  if (input.status === null) return "retryable";
+  // 5xx is the server having a bad day, not a decision about this file. 429 likewise.
+  if (input.status >= 500 || input.status === 408 || input.status === 429) return "retryable";
+  // 503 from our own routes means storage is not configured in this deployment (ADR-031 §5) —
+  // a state, not this technician's problem, and one that a later deployment fixes.
+  return "permanent";
+}
+
+/** Where a failed upload leaves the row, so the next sync knows whether to look at it. */
+export function stateAfterEvidenceFailure(kind: EvidenceFailureKind): LocalDeliveryState {
+  return kind === "retryable" ? "EVIDENCE_PENDING" : "SYNC_ERROR";
+}
+
+/**
+ * An upload the device will try again on its own.
+ *
+ * `SYNC_ERROR` is deliberately absent: it is the state a *permanent* refusal leaves, and a
+ * technician has to look at it. That is what stops the loop.
+ */
+export const RETRYABLE_EVIDENCE_STATES: ReadonlyArray<LocalDeliveryState> = ["EVIDENCE_PENDING"];
+
 /** Work the device is still holding on somebody's behalf, by state. */
 export const UNSETTLED_DELIVERY_STATES: ReadonlyArray<LocalDeliveryState> = [
   "SAVED",

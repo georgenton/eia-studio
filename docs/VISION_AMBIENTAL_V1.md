@@ -958,3 +958,146 @@ sobre funciones puras; el recorrido en handset sigue siendo la compuerta que era
 | capacidades | catálogo intacto en 14 claves; las socializaciones viven bajo `field.surveys` |
 | v3 | intacto; un APK anterior sigue hablando `/api/field/*` sin cambios |
 | offline | un proyecto activo por vez; el cambio es en línea y se bloquea con trabajo pendiente |
+
+---
+
+# Bloque 3.1 — EIA Field v4: sync, selector e invitaciones
+
+> Cierra TD-126. Un técnico puede ahora descubrir sus vías, elegir una, descargarla, entregar
+> una invitación sin señal, y sincronizarla dos veces sin duplicar nada. Lo que **no** se hizo
+> es correr el emulador: hay un AVD en esta máquina y no hay runtime de Java, así que no se puede
+> producir la build de desarrollo que la aplicación exige.
+
+## 38. Cuatro hallazgos corregidos antes de cablear nada
+
+**El contrato de pull mentía.** `workPullRequestSchema` declaraba `cursor` mientras la ruta y el
+cliente enviaban `knownAssignmentIds` y `knownInvitationIds`. Un formato de wire en el que sólo
+cree un lado es precisamente lo que `@eia/field-sync-contract` existe para evitar. Ahora el schema
+**es** el wire: la ruta lo importa, el cliente valida contra él al salir, y `cursor` desapareció
+porque el pull v4 es reconciliación de conjunto actual y no un feed de cambios — un valor que el
+servidor nunca lee es peor que ninguno, porque un lector posterior creería que significa algo.
+
+**Un corte de red aparcaba una fotografía para siempre.** `recordDeliveryFailure` escribía
+`SYNC_ERROR` y `deliveriesAwaitingEvidence` sólo miraba `EVIDENCE_PENDING`. Ahora
+`evidenceFailureKind` distingue *retryable* (sin conexión, timeout, 5xx, 408, 429) de *permanente*
+(el servidor contestó y rechazó), el selector lee `RETRYABLE_EVIDENCE_STATES` en vez de un literal,
+y hay una prueba que hace fallar el sync 1 y comprueba que el sync 2 vuelve a tomar el mismo
+intento **sin editar la base a mano**. En ningún caso se borra la foto.
+
+**`const APP_VERSION = "0.2.0"`** era una build mintiendo sobre sí misma. Ahora el engine pasa
+`appVersion()`, como ya hacía `uploadPendingMedia`.
+
+**`globalThis.crypto.randomUUID()`** no está en todos los runtimes de React Native. El engine pasa
+`Crypto.randomUUID` de `expo-crypto`, que es lo que usa el resto de la aplicación; una prueba pasa
+un contador. El `commandId` se genera una vez, se guarda, y no cambia en los reintentos.
+
+## 39. El pack v4 alimenta las encuestas existentes
+
+Hallazgo real: `saveWorkPack` escribía `work_pack` y `local_invitation` y **no** `field_pack`,
+`local_assignment`, `local_question` ni `local_option` — las cuatro tablas que leen las pantallas
+de encuesta. Una instalación limpia podía tener un pack v4 perfectamente válido con `surveyWork`
+y **cero encuestas visibles**.
+
+La corrección no es un segundo escritor: `fieldPackFromWorkPack` proyecta la mitad de encuestas a
+la forma v3 y la entrega a `saveFieldPack`, que es el código contra el que se capturó cada
+respuesta que este producto tiene. Dos implementaciones de una misma tabla serían dos cosas que
+divergen, y la que divergiera perdería respuestas.
+
+Con `surveyWork === null` se borra `field_pack` y se revocan (no se borran) las asignaciones: una
+campaña cerrada de otra vía no puede quedar pareciendo el trabajo de hoy.
+
+## 40. El cambio de vía es atómico de verdad
+
+Antes: abrir transacción → borrar snapshots → **commit** → escribir el pack nuevo fuera. Un fallo
+en medio dejaba un teléfono sin ninguna de las dos vías.
+
+Ahora todo ocurre dentro de una `withTransactionAsync` — borrado, `work_pack`, invitaciones y
+snapshot de encuestas — con escritores de fila que no abren transacción propia. La prueba fuerza
+un fallo a mitad de la escritura de la vía B y comprueba que la vía A sigue **entera y legible**:
+su pack, su invitación, su campaña y su asignación.
+
+El orden externo es `PROJECT_SWITCH_STEPS`, escrito como valor porque el orden *es* la propiedad
+de seguridad: contar lo pendiente → decidir → descargar → **parsear entero** → una transacción.
+Un fallo en la descarga deja el dispositivo exactamente como estaba.
+
+## 41. Un solo motor de sincronización
+
+No hay `sync-engine-v2`. El motor existente conserva sus invariantes y gana tres pasos:
+
+```
+ensureWorkPack            (convierte un pack v3 si es lo único que hay)
+uploadPendingMedia        (igual que antes; media.declare intacto)
+uploadPendingEvidence     (intent → PUT → finalize → guardar storedObjectId)
+queueReadyDeliveries      (al MISMO sync_outbox, entityKind "delivery")
+pushWorkCommands          (/api/field/v4/sync: los seis comandos)
+  survey/visit/media → applyResult()      delivery → settleDeliveryForCommand()
+pullWork                  (ambos conjuntos + revocados + validity + cursor)
+sweepUploadedMedia + sweepAcknowledgedEvidence
+```
+
+Los cinco comandos heredados **significan lo mismo**: la ruta v4 reescribe el sobre y los pasa por
+el motor de v3. Un resultado v4 se estrecha a la forma v3 para los manejadores que no tienen rama
+para una razón de conflicto nueva; el `outcome`, que es de lo que dependen la disposición y el
+estado local, no cambia.
+
+**Una entrega rechazada deja de reenviarse.** `pendingCommands` seleccionaba `('PENDING','FAILED')`
+y ahora sólo `PENDING` — lo que `outbox-policy.ts` decía en su primer párrafo desde el Slice 3
+mientras el selector lo contradecía. `FAILED` se escribe en un solo sitio: cuando el servidor
+**contestó y rechazó**. Está en TD-128, porque también cambia v3.
+
+## 42. Selector, Mi trabajo, entrega
+
+**Selector de vías**: lista siempre; con una sola vía y ningún proyecto activo la descarga, porque
+no hay elección que hacer; con dos o más **no elige nunca**. Cambiar de vía dice qué falta por tipo
+— cola, encuestas, media, entregas, evidencia — o que hace falta conexión, y son dos frases
+distintas porque mandan a resolver problemas distintos.
+
+**Mi trabajo**: ENCUESTAS e INVITACIONES como dos listas, nunca mezcladas, con contadores propios.
+Con `surveyWork === null` no aparece campaña ninguna. El teléfono funciona con 0 encuestas y 5
+invitaciones.
+
+**Pantalla de entrega**: evento, fecha, lugar, predio, destinatario si existe, propósito. Cuatro
+resultados. `DELIVERED` exige fotografía y el botón no se habilita sin ella — la negativa ocurre
+de pie en el camino y no tres horas después, porque la evidencia es lo que no se puede recrear.
+La cámara, nunca la galería; el fichero se copia al directorio propio **antes** de escribir la
+fila; nada se re-codifica. GPS si lo hay, vacío si no, nunca inventado. Guardar no necesita
+conexión y no inicia ninguna subida.
+
+**Centro de sincronización**: vía activa, comandos pendientes, evidencia pendiente, entregas que
+requieren revisión. Nunca la nota, la etiqueta del destinatario, las coordenadas ni un nombre de
+fichero: esa pantalla se fotografía y se manda a soporte.
+
+## 43. Pruebas
+
+```
+apps/field/test/delivery.test.ts        reglas puras del dispositivo
+apps/field/test/local-journal.test.ts   12 contra SQLite real (node:sqlite)
+  A retry de red          sync 1 falla → sync 2 vuelve a tomarlo, sin tocar la base
+  B rechazo permanente    no vuelve al selector, la foto permanece, visible
+  C commandId             dos pasadas → un comando lógico
+  D ACK / conflicto       SYNCED libera la foto · REQUIRES_REVIEW la conserva
+  E guardar dos veces     una fila
+  F hidratación           pack v4 con encuestas → assignments, questions, options
+  G socialization-only    ninguna campaña vieja aparece
+  H switch atómico        fallo a mitad → la vía A queda entera
+  I switch bloqueado      cada tipo de pendiente lo bloquea y se nombra
+  J actualización desde v3  draft, outbox, media y respuestas intactos; pack convertido
+  + reapertura            nada vive en estado de React
+packages/field-sync-contract  el pull compartido, y v3 sin tocar
+
+format · lint 0 en ficheros del repo · typecheck 11/11 · db:check sin deriva
+test:unit 755 pasan, 1 todo   ← 736
+test:integration 740 pasan
+web build · bundle android 2,9 MB · ios 2,9 MB
+```
+
+## 44. Emulador
+
+Hay SDK de Android y un AVD (`Pixel_8`) en esta máquina. **No hay runtime de Java**, así que
+`expo run:android` no puede producir la build de desarrollo; y la aplicación no corre en Expo Go
+porque sus plugins nativos — SQLCipher, cámara, ubicación — exigen una build propia (ADR-028
+§10e). Instalar un JDK quedaba fuera de lo autorizado.
+
+**EMULATOR_UAT_PENDING.** No se afirma `HANDSET_VALIDATED` ni nada parecido. Lo verificado son
+las reglas y el journal contra SQLite real; el recorrido en dispositivo sigue siendo la compuerta
+que era (TD-121, TD-129).

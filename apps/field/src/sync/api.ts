@@ -20,9 +20,11 @@ import {
   type FieldWorkScopeResponse,
   type V4SyncPushResponse,
   type WorkPackResponse,
+  type WorkPullRequest,
   type WorkPullResponse,
   v4SyncPushResponseSchema,
   workPackResponseSchema,
+  workPullRequestSchema,
   workPullResponseSchema,
 } from "@eia/field-sync-contract";
 
@@ -195,18 +197,11 @@ export async function downloadWorkPack(input: {
   return workPackResponseSchema.parse(await post("/api/field/v4/pack", input));
 }
 
-export async function pullWork(input: {
-  tenantSlug: string;
-  projectSlug: string;
-  knownAssignmentIds: ReadonlyArray<string>;
-  knownInvitationIds: ReadonlyArray<string>;
-}): Promise<WorkPullResponse> {
+export async function pullWork(input: WorkPullRequest): Promise<WorkPullResponse> {
+  // Parsed on the way **out** as well, against the same schema the route parses it with: a
+  // request this client could not have formed is a bug found here rather than as a 400.
   return workPullResponseSchema.parse(
-    await post("/api/field/v4/pull", {
-      ...input,
-      knownAssignmentIds: [...input.knownAssignmentIds],
-      knownInvitationIds: [...input.knownInvitationIds],
-    }),
+    await post("/api/field/v4/pull", workPullRequestSchema.parse(input)),
   );
 }
 
