@@ -1,3 +1,4 @@
+import * as Crypto from "expo-crypto";
 import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
 import { useEffect, useState } from "react";
@@ -6,6 +7,7 @@ import { ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { readInvitation, type LocalInvitationRow } from "../db/repo-v4";
 import { useT } from "../i18n";
 import { useField } from "../store";
+import { mayRecordDelivery } from "../core/delivery";
 import { DeliveryNeedsPhotograph, saveDelivery } from "../sync/evidence-capture";
 import { theme } from "../theme";
 import { Body, Button, Card, Chip, Heading, Label, Notice, Screen, Title } from "../ui";
@@ -116,6 +118,7 @@ export function InvitationDeliveryScreen({
       const where = await readLocation();
       if (where === null) setMessage(t("mobile.locationDenied"));
       await saveDelivery(db, {
+        newId: Crypto.randomUUID,
         invitationId: invitation.id,
         // Read from the pack at this moment. A reassignment afterwards is then a conflict the
         // server names, rather than a silent re-attribution of this walk to somebody else.
@@ -131,9 +134,11 @@ export function InvitationDeliveryScreen({
       setError(
         cause instanceof DeliveryNeedsPhotograph
           ? t("mobile.photoRequired")
-          : cause instanceof Error
-            ? cause.message
-            : t("mobile.photoRequired"),
+          : cause instanceof Error && cause.name === "InvitationNoLongerCapturable"
+            ? t("mobile.invitationRevokedBody")
+            : cause instanceof Error
+              ? cause.message
+              : t("mobile.photoRequired"),
       );
     } finally {
       setBusy(false);
@@ -141,6 +146,14 @@ export function InvitationDeliveryScreen({
   };
 
   const needsPhoto = outcome === "DELIVERED" && photo === null;
+  /*
+   * The device already knows. A revocation or a settled status that arrived in a pull means a
+   * new attempt here would be a walk to a gate and a photograph that comes back as a conflict —
+   * so the screen stops offering the form rather than letting somebody spend their morning on
+   * it. An attempt made *before* the news arrived is untouched: it keeps its row, its
+   * photograph and its place in the queue.
+   */
+  const capturable = mayRecordDelivery(invitation);
 
   return (
     <Screen>
@@ -167,48 +180,63 @@ export function InvitationDeliveryScreen({
           {invitation.revoked ? <Chip text={t("mobile.invitationRevoked")} tone="crit" /> : null}
         </Card>
 
-        <Label>{t("mobile.deliveryResult")}</Label>
-        <View style={styles.outcomes}>
-          {OUTCOMES.map((candidate) => (
-            <Button
-              key={candidate}
-              label={t(`mobile.outcome${candidate}` as "mobile.outcomeDELIVERED")}
-              onPress={() => setOutcome(candidate)}
-              tone={candidate === outcome ? "primary" : "secondary"}
-            />
-          ))}
-        </View>
+        {capturable ? null : (
+          <Notice
+            text={
+              invitation.revoked
+                ? t("mobile.invitationRevokedBody")
+                : t("mobile.invitationSettledBody")
+            }
+            tone="warn"
+          />
+        )}
 
-        {outcome === "DELIVERED" ? (
-          <Card>
-            <Heading>{t("mobile.deliveryPhoto")}</Heading>
-            <Body muted>{t("mobile.photoRequired")}</Body>
-            <Button
-              label={photo === null ? t("mobile.takePhoto") : t("mobile.retakePhoto")}
-              onPress={() => void takePhoto()}
-              tone={photo === null ? "primary" : "secondary"}
+        {capturable ? (
+          <>
+            <Label>{t("mobile.deliveryResult")}</Label>
+            <View style={styles.outcomes}>
+              {OUTCOMES.map((candidate) => (
+                <Button
+                  key={candidate}
+                  label={t(`mobile.outcome${candidate}` as "mobile.outcomeDELIVERED")}
+                  onPress={() => setOutcome(candidate)}
+                  tone={candidate === outcome ? "primary" : "secondary"}
+                />
+              ))}
+            </View>
+
+            {outcome === "DELIVERED" ? (
+              <Card>
+                <Heading>{t("mobile.deliveryPhoto")}</Heading>
+                <Body muted>{t("mobile.photoRequired")}</Body>
+                <Button
+                  label={photo === null ? t("mobile.takePhoto") : t("mobile.retakePhoto")}
+                  onPress={() => void takePhoto()}
+                  tone={photo === null ? "primary" : "secondary"}
+                />
+              </Card>
+            ) : null}
+
+            <Label>{t("mobile.deliveryNote")}</Label>
+            <TextInput
+              accessibilityLabel={t("mobile.deliveryNote")}
+              maxLength={300}
+              multiline
+              onChangeText={setNote}
+              style={styles.note}
+              value={note}
             />
-          </Card>
+
+            {message ? <Notice text={message} tone="ok" /> : null}
+            {error ? <Notice text={error} tone="crit" /> : null}
+
+            <Button
+              disabled={busy || needsPhoto}
+              label={t("mobile.saveDelivery")}
+              onPress={() => void save()}
+            />
+          </>
         ) : null}
-
-        <Label>{t("mobile.deliveryNote")}</Label>
-        <TextInput
-          accessibilityLabel={t("mobile.deliveryNote")}
-          maxLength={300}
-          multiline
-          onChangeText={setNote}
-          style={styles.note}
-          value={note}
-        />
-
-        {message ? <Notice text={message} tone="ok" /> : null}
-        {error ? <Notice text={error} tone="crit" /> : null}
-
-        <Button
-          disabled={busy || needsPhoto}
-          label={t("mobile.saveDelivery")}
-          onPress={() => void save()}
-        />
         <Button label={t("common.back")} onPress={onBack} tone="secondary" />
       </ScrollView>
     </Screen>

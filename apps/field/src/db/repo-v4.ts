@@ -14,7 +14,7 @@ import {
   type WorkPackOrigin,
 } from "../core/pack-upgrade";
 import type { PendingWorkSummary } from "../core/project-switch";
-import { readPack, saveFieldPack } from "./repo";
+import { readPack } from "./repo";
 
 /**
  * The v4 half of the capture journal: the active project, its invitations, and what a technician
@@ -38,36 +38,66 @@ const nowIso = () => new Date().toISOString();
  * ------------------------------------------------------------------------------------------ */
 
 /**
- * Store the active project, its invitations **and its surveys**.
+ * Store the active project, its invitations **and its surveys** — all of it, or none of it.
  *
- * The survey half is projected back into v3's shape and written by `saveFieldPack` — the writer
- * every existing capture went through — rather than by a second implementation here. Without it
- * a clean installation held a valid v4 pack and showed no surveys at all, because the
- * questionnaire screens read `field_pack`, `local_assignment`, `local_question` and
- * `local_option` and nothing in the v4 path filled them.
+ * ## Why one transaction
  *
- * When there is **no** survey work, any previous `field_pack` is cleared. A project whose
- * campaign closed must not leave another road's campaign standing as the current one.
+ * It used to be two: the v4 rows, commit, then the survey snapshot. A crash or an error between
+ * them left a device holding a **new** `work_pack` and new invitations beside an **old**
+ * `field_pack`, assignments and questionnaire — a project describing one road and a campaign
+ * describing another, with nothing on screen saying so. `replaceActiveProject` had already
+ * solved exactly this shape for the project switch; the ordinary writer now carries the same
+ * guarantee, through the same helper rather than a second implementation of it.
+ *
+ * ## What the survey half is written by
+ *
+ * `writeSurveySnapshot`, which is the row-level form of what `saveFieldPack` does, because
+ * `saveFieldPack` opens a transaction of its own and must not be called inside one. The columns
+ * are the same columns; `local-journal.test.ts` reads them back through the v3 repository the
+ * questionnaire screens use, so the two agreeing is asserted rather than assumed.
+ *
+ * With **no** survey work the `field_pack` row goes and the assignments are revoked rather than
+ * deleted — a technician may hold a draft against one — so a campaign that closed cannot be left
+ * standing as the current road's work.
  */
 export async function saveWorkPack(
   db: SQLite.SQLiteDatabase,
   pack: WorkPack,
   origin: WorkPackOrigin = "download",
 ): Promise<void> {
-  await writeWorkPackRows(db, pack, origin);
-  await hydrateSurveyWork(db, pack);
+  await db.withTransactionAsync(async () => {
+    await writeWorkPackSnapshot(db, pack, origin);
+  });
 }
 
-/** The v4 rows themselves. Separated so the atomic switch can write both halves in one go. */
-async function writeWorkPackRows(
+/**
+ * Every row of one pack, written **inside the caller's transaction**.
+ *
+ * It opens none of its own, which is what lets both `saveWorkPack` and `replaceActiveProject`
+ * use it and get all-or-nothing from one place. A second copy of these writes is the thing this
+ * function exists to prevent: the copy that drifted would be the one losing a questionnaire.
+ */
+async function writeWorkPackSnapshot(
   db: SQLite.SQLiteDatabase,
   pack: WorkPack,
   origin: WorkPackOrigin,
 ): Promise<void> {
-  await db.withTransactionAsync(async () => {
-    await insertWorkPackRow(db, pack, origin);
-    await applyInvitations(db, pack.socializationWork.invitations, []);
-  });
+  await insertWorkPackRow(db, pack, origin);
+  await applyInvitations(db, pack.socializationWork.invitations, []);
+
+  const projected = fieldPackFromWorkPack(pack);
+  if (projected !== null) {
+    // Replace rather than merge: the pack is a snapshot, and a campaign that is no longer this
+    // project's must not survive as rows nobody reconciles.
+    await db.runAsync("delete from field_pack");
+    await writeSurveySnapshot(db, projected);
+    return;
+  }
+  await db.runAsync(
+    "update local_assignment set revoked_at = ? where revoked_at is null",
+    nowIso(),
+  );
+  await db.runAsync("delete from field_pack");
 }
 
 /** The `work_pack` upsert, on its own, so a caller inside a transaction can use it too. */
@@ -109,14 +139,6 @@ async function insertWorkPackRow(
   }
 }
 
-/** One invitation, upserted. `applyInvitations` is this in a loop plus the revocation half. */
-async function insertInvitationRow(
-  db: SQLite.SQLiteDatabase,
-  invitation: PackInvitation,
-): Promise<void> {
-  await applyInvitations(db, [invitation], []);
-}
-
 /**
  * The questionnaire, its options and the assignments, written row by row **inside the caller's
  * transaction**.
@@ -125,7 +147,7 @@ async function insertInvitationRow(
  * except here: the atomic switch must not commit halfway. The statements are the same ones; a
  * test asserts the two agree by driving a switch and then reading what the survey screens read.
  */
-async function insertSurveySnapshot(
+async function writeSurveySnapshot(
   db: SQLite.SQLiteDatabase,
   pack: NonNullable<ReturnType<typeof fieldPackFromWorkPack>>,
 ): Promise<void> {
@@ -200,31 +222,6 @@ async function insertSurveySnapshot(
       assignment.correction?.requestedAt ?? null,
     );
   }
-}
-
-/**
- * Fill the tables the survey screens read, or clear them when there is nothing to fill.
- *
- * `saveFieldPack` opens its own transaction, which is why this is a second step rather than a
- * line inside the one above — and why the atomic switch below calls both explicitly, in order,
- * rather than relying on one of them to do the other's work.
- */
-async function hydrateSurveyWork(db: SQLite.SQLiteDatabase, pack: WorkPack): Promise<void> {
-  const projected = fieldPackFromWorkPack(pack);
-  if (projected !== null) {
-    await saveFieldPack(db, projected);
-    return;
-  }
-  /*
-   * No survey work. The assignments are revoked rather than deleted — a technician may hold a
-   * draft against one — and the `field_pack` row goes, so no closed campaign from this or any
-   * earlier project is left looking like today's work.
-   */
-  await db.runAsync(
-    "update local_assignment set revoked_at = ? where revoked_at is null",
-    nowIso(),
-  );
-  await db.runAsync("delete from field_pack");
 }
 
 export async function readWorkPack(db: SQLite.SQLiteDatabase): Promise<WorkPack | null> {
@@ -531,14 +528,123 @@ export async function deliveriesAwaitingEvidence(
 }
 
 /** Attempts that have everything they need and have not been queued yet. */
+/**
+ * Attempts that have everything they need and are **not yet on the queue**.
+ *
+ * "Not yet on the queue" is asked of `sync_outbox`, not of `command_id`. The two can disagree:
+ * an application killed between writing the id and inserting the row left an attempt whose
+ * `command_id` was set and whose command did not exist — and a selector that asked only
+ * `command_id is null` skipped it for ever, so the technician's delivery was stuck with no way
+ * out through the product. A row in that state is returned here and **repaired** with its own
+ * id (`queueDeliveryCommand`), never with a new one.
+ */
 export async function deliveriesReadyToQueue(
   db: SQLite.SQLiteDatabase,
 ): Promise<ReadonlyArray<LocalDeliveryRow>> {
   const rows = await db.getAllAsync<Record<string, unknown>>(
-    `select * from local_delivery_attempt
-      where state = 'READY_TO_SYNC' and command_id is null order by occurred_at`,
+    `select a.* from local_delivery_attempt a
+      where a.state = 'READY_TO_SYNC'
+        and (a.command_id is null
+             or not exists (select 1 from sync_outbox o where o.command_id = a.command_id))
+      order by a.occurred_at`,
   );
   return rows.map(toDelivery);
+}
+
+export type QueueDeliveryOutcome = "queued" | "repaired" | "already_queued" | "not_ready";
+
+/**
+ * Put one delivery on the outbox — the id and the command **in one transaction**.
+ *
+ * ## Why this is a repository operation rather than two calls
+ *
+ * It used to be `setDeliveryCommandId(...)` then `enqueue(...)`, with a window between them. An
+ * application killed in that window — which is an ordinary thing for a phone in a truck — left
+ * `command_id` set and no command, and `deliveriesReadyToQueue` would not look at it again. The
+ * delivery and its photograph were stuck, with nothing in the product to unstick them.
+ *
+ * Both writes now happen inside one `withTransactionAsync`, so there is no window at all; and
+ * because a database may already be in the broken state from an earlier run, the function
+ * **repairs** it rather than only preventing it. The repair reuses the stored `commandId`,
+ * because regenerating one would be a second command for one intent — exactly what the
+ * zero-duplicate invariant forbids.
+ *
+ * `sync_outbox.command_id` is UNIQUE and stays the last barrier: even if two callers raced here,
+ * the second insert fails and its transaction rolls back.
+ *
+ * The command is built by the caller **from the id this function decides**, so a repair carries
+ * the original id into the payload rather than a fresh one.
+ */
+export async function queueDeliveryCommand(
+  db: SQLite.SQLiteDatabase,
+  input: {
+    readonly localId: string;
+    readonly newId: () => string;
+    readonly buildCommand: (commandId: string) => { commandId: string; type: string };
+  },
+): Promise<QueueDeliveryOutcome> {
+  let outcome: QueueDeliveryOutcome = "not_ready";
+  await db.withTransactionAsync(async () => {
+    // Re-read inside the transaction: what the caller listed a moment ago may have settled.
+    const attempt = await db.getFirstAsync<{ state: string; command_id: string | null }>(
+      "select state, command_id from local_delivery_attempt where local_id = ?",
+      input.localId,
+    );
+    if (!attempt || attempt.state !== "READY_TO_SYNC") {
+      outcome = "not_ready";
+      return;
+    }
+
+    if (attempt.command_id !== null) {
+      const queued = await db.getFirstAsync<{ command_id: string }>(
+        "select command_id from sync_outbox where command_id = ?",
+        attempt.command_id,
+      );
+      if (queued) {
+        // Both halves already exist. Idempotent: a second pass writes nothing.
+        outcome = "already_queued";
+        return;
+      }
+      // The broken state. Repaired with **the same id**, never a new one.
+      await insertOutboxRow(db, input.buildCommand(attempt.command_id), input.localId);
+      outcome = "repaired";
+      return;
+    }
+
+    const commandId = input.newId();
+    await db.runAsync(
+      "update local_delivery_attempt set command_id = ?, updated_at = ? where local_id = ?",
+      commandId,
+      nowIso(),
+      input.localId,
+    );
+    await insertOutboxRow(db, input.buildCommand(commandId), input.localId);
+    outcome = "queued";
+  });
+  return outcome;
+}
+
+/**
+ * The outbox insert, written here rather than through `enqueue`, because `enqueue` is called
+ * outside transactions everywhere else and this one must be inside the caller's.
+ *
+ * The columns and their meaning are `repo.ts`'s; a delivery is an ordinary member of the queue.
+ */
+async function insertOutboxRow(
+  db: SQLite.SQLiteDatabase,
+  command: { commandId: string; type: string },
+  localId: string,
+): Promise<void> {
+  await db.runAsync(
+    `insert into sync_outbox
+       (command_id, command_type, entity_kind, entity_local_id, command_json, created_at)
+     values (?, ?, 'delivery', ?, ?, ?)`,
+    command.commandId,
+    command.type,
+    localId,
+    JSON.stringify(command),
+    nowIso(),
+  );
 }
 
 export async function attachEvidenceObject(
@@ -557,27 +663,6 @@ export async function attachEvidenceObject(
   );
 }
 
-export async function setDeliveryCommandId(
-  db: SQLite.SQLiteDatabase,
-  localId: string,
-  commandId: string,
-): Promise<void> {
-  await db.runAsync(
-    "update local_delivery_attempt set command_id = ?, updated_at = ? where local_id = ?",
-    commandId,
-    nowIso(),
-    localId,
-  );
-}
-
-/**
- * A failed evidence upload, recorded so the **next sync knows what to do about it**.
- *
- * The state comes from `stateAfterEvidenceFailure`, which is where the retryable/permanent rule
- * lives: a network cut leaves the attempt in `EVIDENCE_PENDING` and the next sync takes it
- * again; a refusal leaves `SYNC_ERROR` and a person looks. The counter rises either way, and
- * the file stays either way.
- */
 export async function recordEvidenceFailure(
   db: SQLite.SQLiteDatabase,
   localId: string,
@@ -702,18 +787,14 @@ export async function replaceActiveProject(
    * attempts. The guard has already proved none of them is pending; deleting them here as well
    * would mean this function, rather than the guard, deciding that somebody's work was safe.
    */
-  const projected = fieldPackFromWorkPack(pack);
   await db.withTransactionAsync(async () => {
     await db.runAsync("delete from local_invitation");
     await db.runAsync("delete from local_delivery_attempt");
     await db.runAsync("delete from local_assignment");
     await db.runAsync("delete from field_pack");
     await db.runAsync("delete from work_pack");
-
-    await insertWorkPackRow(db, pack, "download");
-    for (const invitation of pack.socializationWork.invitations) {
-      await insertInvitationRow(db, invitation);
-    }
-    if (projected !== null) await insertSurveySnapshot(db, projected);
+    // The same writer the ordinary save uses, inside this transaction: one implementation of
+    // "what a pack's rows are", so the switch and the save cannot disagree about it.
+    await writeWorkPackSnapshot(db, pack, "download");
   });
 }

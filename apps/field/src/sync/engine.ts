@@ -21,7 +21,6 @@ import {
   applyResult,
   countPending,
   countPendingMedia,
-  enqueue,
   pendingCommands,
   recordAttempt,
   recordSyncError,
@@ -146,14 +145,16 @@ export async function synchronise(db: SQLite.SQLiteDatabase): Promise<SyncOutcom
   if (evidence.errors > 0) {
     await recordSyncError(db, "evidence", `${evidence.errors} evidencia(s) sin subir`);
   }
-  const deliveriesQueued = await queueReadyDeliveries(
-    db,
-    async (command, localId) => {
-      await enqueue(db, { command, entityKind: "delivery", entityLocalId: localId });
-    },
-    Crypto.randomUUID,
-    appVersion(),
-  );
+  /*
+   * The id and the outbox row are written together, inside the repository, in one transaction.
+   * They used to be two calls with a window between them, and an application killed in that
+   * window left a delivery with an id and no command — stuck, with no way out through the
+   * product. `repaired` counts rows found in that state and put right with their own id.
+   */
+  const deliveries = await queueReadyDeliveries(db, Crypto.randomUUID, appVersion());
+  if (deliveries.repaired > 0) {
+    await recordSyncError(db, "evidence", `${deliveries.repaired} entrega(s) reencoladas`);
+  }
 
   const queue = await pendingCommands(db, SYNC_PUSH_LIMIT);
   if (queue.length > 0) {
@@ -236,7 +237,7 @@ export async function synchronise(db: SQLite.SQLiteDatabase): Promise<SyncOutcom
         mediaUploaded: media.uploaded,
         mediaPending: media.pendingAfter,
         evidenceUploaded: evidence.uploaded,
-        deliveriesQueued,
+        deliveriesQueued: deliveries.queued,
         evidenceReleased: 0,
       };
     }
@@ -309,7 +310,7 @@ export async function synchronise(db: SQLite.SQLiteDatabase): Promise<SyncOutcom
     mediaUploaded: media.uploaded,
     mediaPending: await countPendingMedia(db),
     evidenceUploaded: evidence.uploaded,
-    deliveriesQueued,
+    deliveriesQueued: deliveries.queued,
     evidenceReleased: swept.released,
   };
 }

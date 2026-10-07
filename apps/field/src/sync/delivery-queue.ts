@@ -5,7 +5,12 @@ import {
 } from "@eia/field-sync-contract";
 import type * as SQLite from "expo-sqlite";
 
-import { deliveriesReadyToQueue, setDeliveryCommandId, settleDelivery } from "../db/repo-v4";
+import {
+  deliveriesReadyToQueue,
+  queueDeliveryCommand,
+  settleDelivery,
+  type LocalDeliveryRow,
+} from "../db/repo-v4";
 
 /**
  * Forming a delivery command, and settling it.
@@ -30,7 +35,6 @@ import { deliveriesReadyToQueue, setDeliveryCommandId, settleDelivery } from "..
  */
 export async function queueReadyDeliveries(
   db: SQLite.SQLiteDatabase,
-  enqueueCommand: (command: SocializationDeliveryCommand, localId: string) => Promise<void>,
   /**
    * Injected rather than imported, for the reason every other id in this application is:
    * `globalThis.crypto.randomUUID` is not available on every React Native runtime this build
@@ -40,44 +44,62 @@ export async function queueReadyDeliveries(
   newId: () => string,
   /** This build's own version, passed in rather than read: see the note above. */
   appVersion: string,
-): Promise<number> {
+): Promise<{ queued: number; repaired: number }> {
   const ready = await deliveriesReadyToQueue(db);
   let queued = 0;
+  let repaired = 0;
   for (const attempt of ready) {
-    const commandId = newId();
-    const command: SocializationDeliveryCommand = {
-      commandId,
-      protocolVersion: FIELD_SYNC_PROTOCOL_VERSION_V4,
-      deviceRevision: 1,
-      occurredAt: attempt.occurredAt,
-      appVersion,
-      packSchemaVersion: FIELD_PACK_SCHEMA_VERSION_V4,
-      type: "socialization.delivery.record",
-      payload: {
-        invitationId: attempt.invitationId,
-        // The revision the device read when the technician saved, not the one it holds now: that
-        // is what makes a reassignment in between a conflict rather than a silent overwrite.
-        invitationRevision: attempt.invitationRevision,
-        localAttemptId: attempt.localId,
-        outcome: attempt.outcome,
-        note: attempt.note,
-        location:
-          attempt.latitude === null || attempt.longitude === null
-            ? null
-            : {
-                latitude: attempt.latitude,
-                longitude: attempt.longitude,
-                accuracyM: attempt.accuracyM,
-                capturedAt: attempt.occurredAt,
-              },
-        storedObjectId: attempt.evidenceStoredObjectId,
-      },
-    };
-    await setDeliveryCommandId(db, attempt.localId, commandId);
-    await enqueueCommand(command, attempt.localId);
-    queued += 1;
+    /*
+     * The command is built **from whichever id the repository decides** — a new one for a
+     * fresh attempt, the stored one when it is repairing a row whose outbox entry went
+     * missing. Building it here with an id of our own would put a second id into the payload
+     * of a command that already has one.
+     */
+    const outcome = await queueDeliveryCommand(db, {
+      localId: attempt.localId,
+      newId,
+      buildCommand: (commandId) => commandFor(attempt, commandId, appVersion),
+    });
+    if (outcome === "queued") queued += 1;
+    if (outcome === "repaired") repaired += 1;
   }
-  return queued;
+  return { queued, repaired };
+}
+
+/** One delivery, as the wire carries it. The id is the caller's, for the reason above. */
+function commandFor(
+  attempt: LocalDeliveryRow,
+  commandId: string,
+  appVersion: string,
+): SocializationDeliveryCommand {
+  return {
+    commandId,
+    protocolVersion: FIELD_SYNC_PROTOCOL_VERSION_V4,
+    deviceRevision: 1,
+    occurredAt: attempt.occurredAt,
+    appVersion,
+    packSchemaVersion: FIELD_PACK_SCHEMA_VERSION_V4,
+    type: "socialization.delivery.record",
+    payload: {
+      invitationId: attempt.invitationId,
+      // The revision the device read when the technician saved, not the one it holds now: that
+      // is what makes a reassignment in between a conflict rather than a silent overwrite.
+      invitationRevision: attempt.invitationRevision,
+      localAttemptId: attempt.localId,
+      outcome: attempt.outcome,
+      note: attempt.note,
+      location:
+        attempt.latitude === null || attempt.longitude === null
+          ? null
+          : {
+              latitude: attempt.latitude,
+              longitude: attempt.longitude,
+              accuracyM: attempt.accuracyM,
+              capturedAt: attempt.occurredAt,
+            },
+      storedObjectId: attempt.evidenceStoredObjectId,
+    },
+  };
 }
 
 /**

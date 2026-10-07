@@ -1,8 +1,12 @@
-import { randomUUID } from "expo-crypto";
 import type * as SQLite from "expo-sqlite";
 
-import { canSaveDelivery, initialDeliveryState } from "../core/delivery";
-import { saveDeliveryAttempt } from "../db/repo-v4";
+import {
+  canSaveDelivery,
+  initialDeliveryState,
+  InvitationNoLongerCapturable,
+  mayRecordDelivery,
+} from "../core/delivery";
+import { readInvitation, saveDeliveryAttempt } from "../db/repo-v4";
 
 /**
  * Saving what happened at a gate, with its photograph, before any network is involved.
@@ -26,6 +30,13 @@ import { saveDeliveryAttempt } from "../db/repo-v4";
 const EVIDENCE_DIRECTORY_NAME = "socialization-evidence";
 
 export interface SaveDeliveryAttemptInput {
+  /**
+   * Injected, like every other id in this application: `expo-crypto` is a native module, and a
+   * module that imports it at the top level cannot be loaded by anything but a device — which
+   * would put the guard below out of reach of the test suite. The screen passes
+   * `Crypto.randomUUID`.
+   */
+  readonly newId: () => string;
   readonly invitationId: string;
   /** Read from the pack at the moment of saving; a later reassignment is then a conflict. */
   readonly invitationRevision: number;
@@ -53,6 +64,19 @@ export async function saveDelivery(
   db: SQLite.SQLiteDatabase,
   input: SaveDeliveryAttemptInput,
 ): Promise<string> {
+  /*
+   * Under the UI, not only in it. The screen hides the controls for an invitation this device
+   * knows is revoked; this is the check that holds when the screen is wrong — a stale props
+   * read, a race with a pull that finished mid-form, a future caller.
+   *
+   * It blocks only a **new** capture. An attempt made before the revocation arrived keeps its
+   * row and its photograph and goes to the server, which answers conflict.
+   */
+  const invitation = await readInvitation(db, input.invitationId);
+  if (invitation === null || !mayRecordDelivery(invitation)) {
+    throw new InvitationNoLongerCapturable();
+  }
+
   const facts = {
     outcome: input.outcome,
     evidenceFileUri: input.photo === null ? null : input.photo.sourceUri,
@@ -62,7 +86,7 @@ export async function saveDelivery(
   // valley will not end for hours.
   if (!canSaveDelivery(facts)) throw new DeliveryNeedsPhotograph();
 
-  const localId = randomUUID();
+  const localId = input.newId();
   const evidence =
     input.photo === null
       ? null

@@ -1874,6 +1874,10 @@ export const messages = {
     deliveryStateSYNC_ERROR: "Error al subir; revísala",
     deliveryStateREQUIRES_REVIEW: "Requiere revisión",
     invitationRevoked: "Ya no está a tu nombre",
+    invitationRevokedBody:
+      "Esta invitación ya no está a tu nombre. Lo que hayas registrado antes se conserva y se envía igual.",
+    invitationSettledBody:
+      "Esta invitación ya tiene un resultado registrado. No se puede añadir otro intento.",
     /* ---- Selector de vías ---- */
     chooseProject: "Elegir vía",
     chooseProjectLead: "Estas son las vías donde tienes trabajo.",

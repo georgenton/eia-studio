@@ -1101,3 +1101,87 @@ porque sus plugins nativos — SQLCipher, cámara, ubicación — exigen una bui
 **EMULATOR_UAT_PENDING.** No se afirma `HANDSET_VALIDATED` ni nada parecido. Lo verificado son
 las reglas y el journal contra SQLite real; el recorrido en dispositivo sigue siendo la compuerta
 que era (TD-121, TD-129).
+
+---
+
+# Bloque 3.2 — atomicidad de entrega y de snapshot, y la invitación ya revocada
+
+> Tres defectos que encontró la auditoría remota de B3.1. Ninguno añade producto; los tres son
+> ventanas entre escrituras o una comprobación que faltaba debajo de la interfaz.
+
+## 45. El `command_id` y la cola, en una sola transacción
+
+**El defecto.** `queueReadyDeliveries` hacía `setDeliveryCommandId()` y después `enqueue()`. Si la
+aplicación moría entre las dos — cosa ordinaria en un teléfono dentro de una camioneta — quedaba
+un intento con `command_id` y **sin** fila en `sync_outbox`; y como `deliveriesReadyToQueue`
+exigía `command_id is null`, esa entrega no se volvía a mirar nunca. La entrega y su fotografía
+quedaban atascadas sin salida por el producto. La prueba anterior de «segunda pasada no duplica»
+no lo demostraba, porque el callback no escribía de verdad en `sync_outbox`.
+
+**La corrección.** `queueDeliveryCommand` es una operación del repositorio dentro de **una**
+`withTransactionAsync`: relee el intento, comprueba el estado, comprueba el `command_id`,
+comprueba la fila de outbox, y escribe las dos mitades o ninguna. No queda ventana.
+
+**Y repara.** Una base que ya hubiera quedado inconsistente se arregla con **el mismo**
+`command_id` — nunca uno nuevo, porque un id nuevo sería un segundo comando para una sola
+intención. El selector pregunta ahora a `sync_outbox` (`not exists`) en vez de a `command_id`,
+que es lo que hacía invisible la fila rota. El comando lo construye quien llama **a partir del id
+que decide el repositorio**, para que una reparación lleve el id original también en el payload.
+`sync_outbox.command_id` sigue siendo UNIQUE y la última barrera.
+
+Cinco pruebas contra SQLite real: encolado normal, segunda pasada sin fila ni id nuevos,
+`cmd-X` sin outbox reparado con `cmd-X` y no `cmd-Y`, fallo dentro de la transacción que deja el
+`command_id` en null y la entrega otra vez encolable, y consistencia tras reabrir el adaptador.
+
+## 46. `saveWorkPack` es un snapshot atómico
+
+**El defecto.** Dos transacciones: las filas v4, commit, y después el snapshot de encuestas. Un
+fallo en medio dejaba un `work_pack` nuevo e invitaciones nuevas junto a un `field_pack`,
+asignaciones y cuestionario **viejos** — un proyecto describiendo una vía y una campaña
+describiendo otra, sin nada en pantalla que lo dijera.
+
+**La corrección.** Una sola `withTransactionAsync` alrededor de `writeWorkPackSnapshot`, que no
+abre ninguna propia y escribe todo: `work_pack`, invitaciones, y — si hay `surveyWork` —
+`field_pack`, preguntas, opciones y asignaciones; si no lo hay, borra `field_pack` y revoca (no
+borra) las asignaciones. `replaceActiveProject` usa **el mismo helper** después de retirar el
+snapshot anterior, dentro de su propia transacción: una sola implementación de «qué filas son un
+pack», para que el guardado y el cambio de vía no puedan discrepar.
+
+Nada de lo capturado se toca: outbox, encuestas sin sincronizar, media pendiente e intentos de
+entrega siguen donde estaban.
+
+Seis pruebas: fallo escribiendo la mitad de encuestas → el pack anterior entero; ningún fragmento
+del pack nuevo visible; las tres tablas describiendo el mismo proyecto; socialization-only sin
+`field_pack`; las pantallas v3 leyendo el survey del WorkPack actual; y el rollback de
+`replaceActiveProject` sigue verde.
+
+## 47. Una invitación ya revocada no admite nueva captura
+
+**Lo que no cambia.** Capturar sin señal y que la invitación se reasigne después sigue siendo un
+**conflicto**: el intento y la fotografía se conservan y se marcan `REQUIRES_REVIEW`. El
+dispositivo no podía saberlo.
+
+**Lo que se bloquea.** Cuando el teléfono **ya hizo pull** y sabe que la invitación no es suya —
+o que ya tiene resultado — dejar que alguien camine a una puerta, tome una fotografía y guarde un
+intento garantizado a volver como conflicto no es resiliencia: es gastarle la mañana.
+
+`mayRecordDelivery` es la regla. La pantalla pasa a modo informativo: mensaje claro, sin selector
+de resultados, sin cámara, sin Guardar, sólo Volver. Y **debajo de la interfaz**, `saveDelivery`
+relee la invitación y rechaza con `InvitationNoLongerCapturable` — porque esconder botones no es
+una comprobación, y una lectura obsoleta de props o una carrera con un pull que terminó a mitad
+del formulario son cosas que pasan.
+
+Cuatro pruebas: revocada conocida no captura y el guard rechaza; una `PENDING` normal funciona
+igual; un intento creado antes de la revocación conserva fila y foto y sigue encolable; y uno ya
+en `REQUIRES_REVIEW` sigue marcado y visible, y no vuelve a la cola.
+
+## 48. Regresión de este bloque
+
+```
+format · lint 0 en ficheros del repo · typecheck 11/11
+test:unit         768 pasan, 1 todo   ← 755   (apps/field: 26 contra SQLite real)
+test:integration  740 pasan           (sin cambios en contrato compartido ni web; corrido igual)
+bundle android 2,9 MB · ios 2,9 MB
+```
+
+Sin Docker, sin JDK, sin emulador: **EMULATOR_UAT_PENDING** sigue en pie sin cambios (TD-129).

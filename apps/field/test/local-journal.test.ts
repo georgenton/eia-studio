@@ -8,6 +8,7 @@ import {
   ensureWorkPack,
   listDeliveryAttempts,
   listInvitations,
+  readInvitation,
   readWorkPack,
   readWorkPackOrigin,
   recordEvidenceFailure,
@@ -19,7 +20,9 @@ import {
   summarisePendingWork,
 } from "../src/db/repo-v4";
 import { listAssignments, readPack } from "../src/db/repo";
+import { mayRecordDelivery } from "../src/core/delivery";
 import { queueReadyDeliveries } from "../src/sync/delivery-queue";
+import { saveDelivery } from "../src/sync/evidence-capture";
 import {
   asFreshHandle,
   openTestDatabase,
@@ -204,6 +207,112 @@ describe("a socialization-only pack", () => {
 });
 
 /* =============================================================================================
+ * The pack is a snapshot: all of it, or none of it
+ * ========================================================================================== */
+
+describe("saving a work pack", () => {
+  /** A pack whose survey snapshot will fail: two assignments sharing a primary key. */
+  function withBrokenSurvey(over: Partial<WorkPack> = {}): WorkPack {
+    const duplicated = surveyWork();
+    return pack({
+      surveyWork: {
+        campaign: duplicated.campaign,
+        assignments: [duplicated.assignments[0]!, duplicated.assignments[0]!],
+      },
+      ...over,
+    });
+  }
+
+  it("A · a failure writing the survey half leaves the previous pack entirely intact", async () => {
+    const { db } = database;
+    await saveWorkPack(
+      db,
+      pack({ surveyWork: surveyWork(), socializationWork: { invitations: [invitation()] } }),
+    );
+    const before = await readWorkPack(db);
+
+    /*
+     * The shape that used to be possible: the v4 rows committed, then the survey snapshot
+     * failed — leaving a device holding a new project beside another road's campaign, with
+     * nothing on screen saying so.
+     */
+    await expect(
+      saveWorkPack(
+        db,
+        withBrokenSurvey({
+          project: { ...PROJECT, projectSlug: "via-b", projectName: "Vía B" },
+          socializationWork: { invitations: [invitation({ parcelCode: "999" })] },
+        }),
+      ),
+    ).rejects.toBeTruthy();
+
+    expect((await readWorkPack(db))?.project.projectSlug).toBe(before?.project.projectSlug);
+    const invitations = await listInvitations(db);
+    expect(invitations).toHaveLength(1);
+    expect(invitations[0]?.parcelCode).toBe("001");
+    expect(await readPack(db)).not.toBeNull();
+    expect(await listAssignments(db)).toHaveLength(1);
+  });
+
+  it("B · and no fragment of the new pack is visible after it", async () => {
+    const { db } = database;
+    await saveWorkPack(db, pack({ surveyWork: surveyWork() }));
+
+    await expect(
+      saveWorkPack(
+        db,
+        withBrokenSurvey({
+          project: { ...PROJECT, projectSlug: "via-b", projectName: "Vía B" },
+          socializationWork: { invitations: [invitation({ parcelCode: "999" })] },
+        }),
+      ),
+    ).rejects.toBeTruthy();
+
+    // Not one invitation of road B, not road B's name on the pack.
+    expect(await listInvitations(db)).toEqual([]);
+    expect((await readWorkPack(db))?.project.projectName).toBe("Vía A");
+  });
+
+  it("C · a successful save leaves all three describing the same project", async () => {
+    const { db } = database;
+    await saveWorkPack(
+      db,
+      pack({ surveyWork: surveyWork(), socializationWork: { invitations: [invitation()] } }),
+    );
+
+    const stored = await readWorkPack(db);
+    const v3 = await readPack(db);
+    expect(stored?.project.projectSlug).toBe("via-a");
+    expect(v3?.project.projectSlug).toBe("via-a");
+    expect(v3?.campaign.id).toBe(surveyWork().campaign.id);
+    expect(await listInvitations(db)).toHaveLength(1);
+  });
+
+  it("D · a socialization-only pack leaves no survey snapshot at all", async () => {
+    const { db } = database;
+    await saveWorkPack(db, pack({ surveyWork: surveyWork() }));
+    await saveWorkPack(
+      db,
+      pack({ surveyWork: null, socializationWork: { invitations: [invitation()] } }),
+    );
+    expect(await readPack(db)).toBeNull();
+    expect((await readWorkPack(db))?.surveyWork).toBeNull();
+  });
+
+  it("E · and a survey pack is readable by the screens through the v3 repository", async () => {
+    const { db } = database;
+    await saveWorkPack(db, pack({ surveyWork: surveyWork() }));
+    // The same reads `AssignmentScreen` and `SurveyScreen` make. The two writers agreeing is
+    // asserted here rather than assumed from their looking alike.
+    const assignments = await listAssignments(db);
+    expect(assignments).toHaveLength(1);
+    expect(assignments[0]?.parcelCode).toBe("001");
+    const options = await db.getAllAsync<{ code: string }>("select code from local_option");
+    expect(options.map((o) => o.code)).toEqual(["owner"]);
+  });
+});
+
+/* =============================================================================================
  * J — a handset that was in the field when the application was updated
  * ========================================================================================== */
 
@@ -343,32 +452,97 @@ describe("queueing and settling a delivery", () => {
     });
   });
 
-  it("C · an attempt is queued once; a second pass finds nothing to queue", async () => {
+  /** The attempt's row and its command, as two separate facts the device must keep in step. */
+  async function queueState(localId: string) {
     const { db } = database;
-    let minted = 0;
-    const ids: string[] = [];
-    const newId = () => `cmd-${(minted += 1)}`;
-    const first = await queueReadyDeliveries(
-      db,
-      async (command) => {
-        ids.push(command.commandId);
-      },
-      newId,
-      "0.2.0",
+    const attempt = await db.getFirstAsync<{ command_id: string | null }>(
+      "select command_id from local_delivery_attempt where local_id = ?",
+      localId,
     );
-    expect(first).toBe(1);
+    const outbox = await db.getAllAsync<{ command_id: string; command_json: string }>(
+      "select command_id, command_json from sync_outbox where entity_local_id = ?",
+      localId,
+    );
+    return { commandId: attempt?.command_id ?? null, outbox };
+  }
 
-    const second = await queueReadyDeliveries(
-      db,
-      async (command) => {
-        ids.push(command.commandId);
-      },
-      newId,
-      "0.2.0",
+  it("C1 · queueing writes the id and the command together", async () => {
+    const { db } = database;
+    const queued = await queueReadyDeliveries(db, () => "cmd-1", "0.2.0");
+    expect(queued).toEqual({ queued: 1, repaired: 0 });
+
+    const state = await queueState("attempt-2");
+    expect(state.commandId).toBe("cmd-1");
+    expect(state.outbox).toHaveLength(1);
+    expect(state.outbox[0]?.command_id).toBe("cmd-1");
+    // And the payload carries that same id, not a second one.
+    expect(JSON.parse(state.outbox[0]!.command_json).commandId).toBe("cmd-1");
+  });
+
+  it("C2 · a second pass adds no row and mints no new id", async () => {
+    const { db } = database;
+    await queueReadyDeliveries(db, () => "cmd-1", "0.2.0");
+    let minted = 0;
+    const second = await queueReadyDeliveries(db, () => `cmd-${(minted += 2)}`, "0.2.0");
+    expect(second).toEqual({ queued: 0, repaired: 0 });
+    expect(minted).toBe(0);
+
+    const state = await queueState("attempt-2");
+    expect(state.commandId).toBe("cmd-1");
+    expect(state.outbox).toHaveLength(1);
+  });
+
+  it("C3 · an id with no command is repaired with that same id, never a new one", async () => {
+    const { db, raw } = database;
+    /*
+     * The state an application killed between the two writes used to leave behind: the attempt
+     * knows its command id and the command does not exist. Before this was one transaction the
+     * selector skipped such a row for ever, so the delivery and its photograph were stuck.
+     */
+    raw.exec("update local_delivery_attempt set command_id = 'cmd-X' where local_id = 'attempt-2'");
+    expect((await queueState("attempt-2")).outbox).toHaveLength(0);
+
+    const result = await queueReadyDeliveries(db, () => "cmd-Y", "0.2.0");
+    expect(result).toEqual({ queued: 0, repaired: 1 });
+
+    const state = await queueState("attempt-2");
+    expect(state.commandId).toBe("cmd-X");
+    expect(state.outbox).toHaveLength(1);
+    expect(state.outbox[0]?.command_id).toBe("cmd-X");
+    // The whole point: the repair carries the original id into the payload as well.
+    expect(JSON.parse(state.outbox[0]!.command_json).commandId).toBe("cmd-X");
+  });
+
+  it("C4 · a failure inside the transaction leaves the attempt queueable, with no id", async () => {
+    const { db, raw } = database;
+    // A command id already taken by another row: `sync_outbox.command_id` is UNIQUE, so the
+    // insert inside the transaction fails and the whole thing must roll back.
+    raw.exec(`insert into sync_outbox (command_id, command_type, entity_kind, entity_local_id,
+              command_json, created_at)
+              values ('cmd-taken', 'visit.start', 'visit', 'v1', '{}', '2026-11-12T00:00:00.000Z')`);
+
+    await expect(queueReadyDeliveries(db, () => "cmd-taken", "0.2.0")).rejects.toBeTruthy();
+
+    const state = await queueState("attempt-2");
+    // Rolled back: no id was kept, so the next sync picks the attempt up as it always would.
+    expect(state.commandId).toBeNull();
+    expect(state.outbox).toHaveLength(0);
+    expect((await deliveriesReadyToQueue(db)).map((a) => a.localId)).toContain("attempt-2");
+  });
+
+  it("C5 · and the two stay consistent across a reopen", async () => {
+    const { db, raw } = database;
+    await queueReadyDeliveries(db, () => "cmd-1", "0.2.0");
+
+    const fresh = asFreshHandle(raw);
+    const attempt = await fresh.getFirstAsync<{ command_id: string | null }>(
+      "select command_id from local_delivery_attempt where local_id = 'attempt-2'",
     );
-    // Already carries a `command_id`, so it is not selected again — one logical command.
-    expect(second).toBe(0);
-    expect(ids).toEqual(["cmd-1"]);
+    const outbox = await fresh.getAllAsync<{ command_id: string }>(
+      "select command_id from sync_outbox where entity_local_id = 'attempt-2'",
+    );
+    expect(attempt?.command_id).toBe("cmd-1");
+    expect(outbox.map((row) => row.command_id)).toEqual(["cmd-1"]);
   });
 
   it("D · an acknowledgement settles it and releases the photograph; a conflict does neither", async () => {
@@ -520,6 +694,116 @@ describe("changing road", () => {
     expect(pending.unsettledDeliveries).toBe(1);
     expect(pending.pendingEvidence).toBe(1);
     expect(pending.outboxPending).toBe(0);
+  });
+});
+
+/* =============================================================================================
+ * An invitation this device already knows it has lost
+ * ========================================================================================== */
+
+describe("a revoked invitation", () => {
+  async function withInvitation() {
+    const { db } = database;
+    await saveWorkPack(db, pack({ socializationWork: { invitations: [invitation()] } }));
+  }
+
+  it("A · takes no new capture once the device has pulled the revocation", async () => {
+    const { db } = database;
+    await withInvitation();
+    await applyInvitations(db, [], [invitation().invitationId]);
+
+    const row = await readInvitation(db, invitation().invitationId);
+    expect(row?.revoked).toBe(true);
+    // The rule the screen reads to decide whether to offer the form at all.
+    expect(mayRecordDelivery(row!)).toBe(false);
+
+    // And the guard beneath it, which holds when the screen is wrong.
+    await expect(
+      saveDelivery(db, {
+        newId: () => "attempt-blocked",
+        invitationId: invitation().invitationId,
+        invitationRevision: 1,
+        outcome: "ABSENT",
+        note: null,
+        location: null,
+        photo: null,
+      }),
+    ).rejects.toMatchObject({ name: "InvitationNoLongerCapturable" });
+    expect(await listDeliveryAttempts(db)).toEqual([]);
+  });
+
+  it("B · while an ordinary pending one still works exactly as before", async () => {
+    const { db } = database;
+    await withInvitation();
+    const row = await readInvitation(db, invitation().invitationId);
+    expect(mayRecordDelivery(row!)).toBe(true);
+
+    const localId = await saveDelivery(db, {
+      newId: () => "attempt-ok",
+      invitationId: invitation().invitationId,
+      invitationRevision: 1,
+      outcome: "ABSENT",
+      note: null,
+      location: null,
+      photo: null,
+    });
+    expect((await listDeliveryAttempts(db))[0]?.localId).toBe(localId);
+  });
+
+  it("C · an attempt made before the revocation keeps its row and its photograph", async () => {
+    const { db } = database;
+    await withInvitation();
+    await saveDeliveryAttempt(db, {
+      localId: "attempt-before",
+      invitationId: invitation().invitationId,
+      invitationRevision: 1,
+      outcome: "DELIVERED",
+      occurredAt: "2026-11-12T19:30:00.000Z",
+      note: null,
+      location: null,
+      evidence: { fileUri: "file:///before.jpg", mimeType: "image/jpeg", sizeBytes: 10 },
+      state: "READY_TO_SYNC",
+    });
+
+    // The news arrives afterwards. This is the conflict path, and it is untouched.
+    await applyInvitations(db, [], [invitation().invitationId]);
+
+    const attempts = await listDeliveryAttempts(db);
+    expect(attempts).toHaveLength(1);
+    expect(attempts[0]?.evidenceFileUri).toBe("file:///before.jpg");
+    // Still queueable: the server decides, and it will answer conflict.
+    expect((await deliveriesReadyToQueue(db)).map((a) => a.localId)).toContain("attempt-before");
+  });
+
+  it("D · and one already marked for review stays marked and stays visible", async () => {
+    const { db } = database;
+    await withInvitation();
+    await saveDeliveryAttempt(db, {
+      localId: "attempt-review",
+      invitationId: invitation().invitationId,
+      invitationRevision: 1,
+      outcome: "DELIVERED",
+      occurredAt: "2026-11-12T19:30:00.000Z",
+      note: null,
+      location: null,
+      evidence: { fileUri: "file:///review.jpg", mimeType: "image/jpeg", sizeBytes: 10 },
+      state: "READY_TO_SYNC",
+    });
+    await settleDelivery(db, "attempt-review", {
+      outcome: "conflict",
+      attemptId: null,
+      conflictReason: "invitation_reassigned",
+      message: "ya no está a tu nombre",
+    });
+    await applyInvitations(db, [], [invitation().invitationId]);
+
+    const [row] = await listInvitations(db);
+    // The sync centre reads this: it must survive a revocation and another sync.
+    expect(row?.attemptState).toBe("REQUIRES_REVIEW");
+    expect((await listDeliveryAttempts(db))[0]?.evidenceFileUri).toBe("file:///review.jpg");
+    expect((await deliveriesReadyToQueue(db)).map((a) => a.localId)).not.toContain(
+      "attempt-review",
+    );
   });
 });
 

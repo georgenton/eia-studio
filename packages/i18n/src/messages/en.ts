@@ -1865,6 +1865,10 @@ export const messages: Messages = {
     deliveryStateSYNC_ERROR: "Upload failed; review it",
     deliveryStateREQUIRES_REVIEW: "Requires review",
     invitationRevoked: "No longer in your name",
+    invitationRevokedBody:
+      "This invitation is no longer in your name. Anything you recorded before is kept and still sent.",
+    invitationSettledBody:
+      "This invitation already has a result recorded. No further attempt can be added.",
     /* ---- Road selector ---- */
     chooseProject: "Choose a road",
     chooseProjectLead: "These are the roads where you have work.",

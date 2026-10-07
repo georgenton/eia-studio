@@ -23,6 +23,38 @@ import type {
  * `mayDeleteLocalFile` for field media (ADR-032) and exists for the same reason.
  */
 
+/**
+ * Whether this device may still record an attempt against an invitation.
+ *
+ * ## The distinction this draws, and why it is not the conflict path
+ *
+ * A technician captures offline, the invitation is reassigned while they are in a valley, and
+ * the sync answers **conflict**: the attempt and its photograph are kept and a person looks.
+ * That is correct and nothing here changes it — the device could not have known.
+ *
+ * This is the other case. The device has *already pulled* the revocation: it knows the
+ * invitation is no longer this technician's, or that it is settled, and the screen is showing
+ * that. Letting somebody walk to a gate, take a photograph and save an attempt that is
+ * guaranteed to come back as a conflict is not resilience, it is wasting their morning.
+ *
+ * So a known revocation blocks a **new** capture. It never touches an existing one.
+ */
+export function mayRecordDelivery(invitation: {
+  readonly revoked: boolean;
+  readonly serverStatus: string;
+}): boolean {
+  if (invitation.revoked) return false;
+  // `DELIVERED`, `REFUSED` and `CANCELLED` are settled; only `PENDING` is still work.
+  return invitation.serverStatus === "PENDING";
+}
+
+export class InvitationNoLongerCapturable extends Error {
+  constructor() {
+    super("this invitation is no longer yours to deliver");
+    this.name = "InvitationNoLongerCapturable";
+  }
+}
+
 /** A delivered invitation needs a photograph. Everything else records that nothing was delivered. */
 export function requiresEvidence(outcome: SocializationDeliveryPayload["outcome"]): boolean {
   return outcome === "DELIVERED";
