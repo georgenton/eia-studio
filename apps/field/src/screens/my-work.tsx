@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { RefreshControl, ScrollView, StyleSheet, TextInput, View } from "react-native";
 
-import { acquireFirstFieldPack, refreshFieldPack } from "../sync/engine";
+import { downloadProject } from "../sync/engine";
 import { useT } from "../i18n";
 import { useField } from "../store";
 import { theme } from "../theme";
 import { Body, Button, Card, Chip, Heading, Label, Notice, Screen, Title } from "../ui";
 import type { LocalAssignmentRow } from "../db/repo";
+import type { LocalInvitationRow } from "../db/repo-v4";
 
 /**
  * *Mi trabajo* — the list a technician opens standing beside a road.
@@ -16,48 +17,56 @@ import type { LocalAssignmentRow } from "../db/repo";
  * sincronización* is telling the truth about both, and that sentence is the reason this
  * application exists.
  */
-export function MyWorkScreen({ onOpen }: { onOpen: (assignmentId: string) => void }) {
+export function MyWorkScreen({
+  onOpen,
+  onOpenInvitation,
+  onChooseProject,
+}: {
+  onOpen: (assignmentId: string) => void;
+  onOpenInvitation: (invitationId: string) => void;
+  onChooseProject: () => void;
+}) {
   const t = useT();
-  const { pack, assignments, pending, online, syncing, sync, refresh, db, offlineState } =
-    useField();
+  const {
+    workPack,
+    pack,
+    assignments,
+    invitations,
+    pending,
+    online,
+    syncing,
+    sync,
+    refresh,
+    db,
+    offlineState,
+  } = useField();
   const [query, setQuery] = useState("");
   const [message, setMessage] = useState<string | null>(null);
 
   /*
-   * Two paths, and the first one is the whole point of this button on a fresh installation.
-   *
-   * With no pack there is nothing to derive a tenant and a project from, so the device asks the
-   * server whose work it is here to do and then downloads it. With a pack, the behaviour is
-   * exactly what it always was: refresh the one already held. Nothing about the second path
-   * changed, and the first never runs again once a pack is stored.
+   * Re-download the active road's work. **Choosing** a road is the selector's job, and a device
+   * with none is sent there rather than having one picked for it.
    */
   const download = async () => {
-    if (!db) return;
-
-    if (!pack) {
-      const first = await acquireFirstFieldPack(db);
-      setMessage(
-        first.ok
-          ? t("mobile.workUpdated")
-          : first.reason === "no_field_project"
-            ? t("mobile.noFieldProject")
-            : first.reason === "multiple_field_projects"
-              ? t("mobile.multipleFieldProjects")
-              : first.message,
-      );
-      await refresh();
+    if (!db || !workPack) {
+      onChooseProject();
       return;
     }
-
-    const result = await refreshFieldPack(db, {
-      tenantSlug: pack.project.tenantSlug,
-      projectSlug: pack.project.projectSlug,
+    const result = await downloadProject(db, {
+      tenantSlug: workPack.project.tenantSlug,
+      projectSlug: workPack.project.projectSlug,
     });
     setMessage(result.ok ? t("mobile.workUpdated") : result.message);
     await refresh();
   };
 
   const needle = query.trim().toLowerCase();
+  const visibleInvitations = invitations.filter(
+    (invitation) =>
+      needle === "" ||
+      invitation.parcelCode.toLowerCase().includes(needle) ||
+      invitation.eventTitle.toLowerCase().includes(needle),
+  );
   const visible = assignments.filter(
     (assignment) =>
       needle === "" ||
@@ -73,7 +82,7 @@ export function MyWorkScreen({ onOpen }: { onOpen: (assignmentId: string) => voi
         refreshControl={<RefreshControl onRefresh={() => void sync()} refreshing={syncing} />}
       >
         <View style={styles.header}>
-          <Label>{pack?.project.projectName ?? t("mobile.downloadedWork")}</Label>
+          <Label>{workPack?.project.projectName ?? t("mobile.downloadedWork")}</Label>
           <Title>{t("mobile.myWork")}</Title>
           <View style={styles.chips}>
             <Chip
@@ -105,7 +114,18 @@ export function MyWorkScreen({ onOpen }: { onOpen: (assignmentId: string) => voi
           value={query}
         />
 
-        {visible.length === 0 ? (
+        {/*
+         * Two kinds of work, never merged. A technician's surveys and their invitations are
+         * different jobs with different states, and one list with one counter would answer
+         * neither question. A project with no survey work shows no campaign at all rather
+         * than an empty one — `pack` is null in that case, by design.
+         */}
+        <Label>{t("mobile.surveys")}</Label>
+        {pack === null ? (
+          <Card>
+            <Body muted>{t("mobile.noSurveyWork")}</Body>
+          </Card>
+        ) : visible.length === 0 ? (
           <Card>
             <Heading>{t("mobile.noAssignments")}</Heading>
             <Body muted>{t("mobile.noAssignmentsBody")}</Body>
@@ -113,6 +133,18 @@ export function MyWorkScreen({ onOpen }: { onOpen: (assignmentId: string) => voi
         ) : (
           visible.map((assignment) => (
             <AssignmentRow assignment={assignment} key={assignment.id} onOpen={onOpen} />
+          ))
+        )}
+
+        <Label>{t("mobile.invitations")}</Label>
+        {visibleInvitations.length === 0 ? (
+          <Card>
+            <Heading>{t("mobile.noInvitations")}</Heading>
+            <Body muted>{t("mobile.noInvitationsBody")}</Body>
+          </Card>
+        ) : (
+          visibleInvitations.map((invitation) => (
+            <InvitationRow invitation={invitation} key={invitation.id} onOpen={onOpenInvitation} />
           ))
         )}
 
@@ -129,6 +161,7 @@ export function MyWorkScreen({ onOpen }: { onOpen: (assignmentId: string) => voi
             onPress={() => void download()}
             tone="secondary"
           />
+          <Button label={t("mobile.changeProject")} onPress={onChooseProject} tone="secondary" />
         </View>
       </ScrollView>
     </Screen>
@@ -182,6 +215,58 @@ function AssignmentRow({
           }
         />
         {revoked ? <Chip text={t("mobile.localSurveyState.CONFLICT")} tone="crit" /> : null}
+      </View>
+    </Card>
+  );
+}
+
+/**
+ * One invitation, with the two states that must not be merged: what the **server** last said
+ * about it, and what this **device** holds against it.
+ *
+ * `REQUIRES_REVIEW` stays visible after another sync, because it is not a transport failure
+ * that will clear itself — a person has to look at it.
+ */
+function InvitationRow({
+  invitation,
+  onOpen,
+}: {
+  invitation: LocalInvitationRow;
+  onOpen: (id: string) => void;
+}) {
+  const t = useT();
+  const state = invitation.attemptState;
+  return (
+    <Card onPress={() => onOpen(invitation.id)}>
+      <Heading>
+        {t("mobile.parcel")} {invitation.parcelCode}
+      </Heading>
+      <Body>{invitation.eventTitle}</Body>
+      <Body muted>
+        {[
+          new Date(invitation.startsAt).toLocaleString(),
+          invitation.locationLabel,
+          invitation.recipientLabel,
+        ]
+          .filter(Boolean)
+          .join(" · ")}
+      </Body>
+      <View style={styles.chips}>
+        {state === null ? (
+          <Chip text={t("mobile.recordDelivery")} tone="neutral" />
+        ) : (
+          <Chip
+            text={t(`mobile.deliveryState${state}` as "mobile.deliveryStateSAVED")}
+            tone={
+              state === "SYNCED"
+                ? "ok"
+                : state === "REQUIRES_REVIEW" || state === "SYNC_ERROR"
+                  ? "crit"
+                  : "warn"
+            }
+          />
+        )}
+        {invitation.revoked ? <Chip text={t("mobile.invitationRevoked")} tone="crit" /> : null}
       </View>
     </Card>
   );

@@ -8,12 +8,15 @@ import {
   buildObjectKey,
   DOCUMENT_FORMATS,
   GENERATED_FORMATS,
+  EDITORIAL_FORMATS,
   TEMPLATE_FORMATS,
   FIELD_MEDIA_FORMATS,
+  UPLOADABLE_NAMESPACES,
   formatForMimeType,
   InvalidInput,
   PermissionDenied,
   requirePermission,
+  type UploadableNamespace,
   DOWNLOAD_LINK_TTL_SECONDS,
   UPLOAD_INTENT_TTL_SECONDS,
   type ProjectPermission,
@@ -66,6 +69,23 @@ const NAMESPACE_RULES: Readonly<
    */
   templates: { formats: TEMPLATE_FORMATS, permission: "reports.write" },
   /*
+   * Media a firm chose to publish on its own page. `portal.editorial.write`, not
+   * `documents.write`: writing the public page and loading the study's corpus are different acts
+   * by different people, and the namespace is what keeps a published photograph out of every
+   * query written for the corpus — and a technician's field photograph out of the public page.
+   */
+  "portal-editorial": { formats: EDITORIAL_FORMATS, permission: "portal.editorial.write" },
+  /*
+   * Evidence that an invitation was handed over. `media.upload`, the same key a field
+   * photograph needs, because it is the same act by the same person — and the namespace is what
+   * keeps the two apart afterwards: a query for a visit's photographs cannot reach a delivery's,
+   * and no public route resolves this prefix at all (ADR-041).
+   *
+   * Nothing re-encodes it and nothing strips its EXIF. This is evidence, and the rule for
+   * evidence is ADR-032's: the file is what the camera wrote.
+   */
+  "socialization-evidence": { formats: FIELD_MEDIA_FORMATS, permission: "media.upload" },
+  /*
    * What this product generated. No client ever uploads into it: the namespace exists so a
    * rendered draft is addressable and is never reachable by a query written for the corpus. The
    * permission is the one that produced it.
@@ -75,7 +95,15 @@ const NAMESPACE_RULES: Readonly<
 
 export const uploadIntentInputSchema = z
   .object({
-    namespace: z.enum(["documents", "field-media", "templates"]),
+    /*
+     * Derived from the catalogue, never a second list. The literal three that used to be here
+     * silently excluded `portal-editorial` from the one door an upload comes through, so a
+     * namespace with a permission, a format allowlist and a key builder still could not be
+     * uploaded into. `generated` is absent because nothing uploads into it.
+     */
+    namespace: z.enum(
+      UPLOADABLE_NAMESPACES as unknown as readonly [UploadableNamespace, ...UploadableNamespace[]],
+    ),
     filename: z.string().trim().min(1).max(255),
     mimeType: z.string().trim().min(3).max(200),
     sizeBytes: z.number().int().positive(),

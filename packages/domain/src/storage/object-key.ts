@@ -28,8 +28,44 @@ import { InvalidInput } from "../core/errors";
  * three have different formats, different retention questions and different readers, and because a
  * generated draft must never be reachable by a query written for the corpus.
  */
-export const STORAGE_NAMESPACES = ["documents", "field-media", "templates", "generated"] as const;
+/**
+ * `portal-editorial` is media a firm chose to publish. It is its own namespace rather than a
+ * flag on `documents` so that "could this file ever be served to a visitor?" is answerable from
+ * the key, and so that a query written for the corpus can never reach it — or the reverse.
+ */
+/**
+ * `socialization-evidence` is the photograph a technician takes when they hand over an
+ * invitation. It is its own namespace, and the two it is not are the point: not `field-media`,
+ * because that is evidence of a **visit** and is read by the surfaces that read a visit; and
+ * emphatically not `portal-editorial`, which is the one namespace whose objects a visitor can be
+ * served. A delivery photograph is private evidence, and no public route resolves this prefix.
+ */
+export const STORAGE_NAMESPACES = [
+  "documents",
+  "field-media",
+  "templates",
+  "generated",
+  "portal-editorial",
+  "socialization-evidence",
+] as const;
 export type StorageNamespace = (typeof STORAGE_NAMESPACES)[number];
+
+/**
+ * The namespaces a client may ask for an upload intent in.
+ *
+ * Everything except `generated`, which is what this product writes for itself: no caller uploads
+ * into it, and an intent for it would be a way to put a file where a reader expects only output
+ * this product produced.
+ *
+ * Derived from the list above rather than written out again. The second hand-maintained copy is
+ * exactly what went wrong: `portal-editorial` was added to the namespace rules and to the key
+ * builder and **not** to the intent schema, so the permission existed, the formats existed, and
+ * no editorial upload could be requested at all.
+ */
+export const UPLOADABLE_NAMESPACES = STORAGE_NAMESPACES.filter(
+  (namespace) => namespace !== "generated",
+) as ReadonlyArray<Exclude<StorageNamespace, "generated">>;
+export type UploadableNamespace = (typeof UPLOADABLE_NAMESPACES)[number];
 
 export interface ObjectKeyParts {
   readonly tenantId: string;

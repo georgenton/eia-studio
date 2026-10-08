@@ -9,7 +9,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 
-import { project, user } from "./app";
+import { project, tenant, user } from "./app";
 
 /**
  * The client portal's projection schema (ADR-009, ADR-027).
@@ -71,6 +71,242 @@ export const clientPublication = portal.table(
     foreignKey({
       name: "client_publication_published_by_fk",
       columns: [t.publishedBy],
+      foreignColumns: [user.id],
+    }),
+  ],
+);
+
+/* ---------------------------------------------------------------------------------------------
+ * The editorial presentation (Visión Ambiental, block 2)
+ *
+ * A second publication beside `client_publication`, and deliberately not an extension of it. That
+ * one is a projection of computed figures; this one is prose people wrote. Sharing a table would
+ * have meant one payload schema admitting both, and the first hand-typed number stored in a
+ * projection is the moment "every figure carries a provenance id" stops being true.
+ * ------------------------------------------------------------------------------------------ */
+
+/**
+ * The mutable draft. Exactly one per project, which is why `project_id` is unique here: an
+ * editorial page is the page, not a list of competing attempts.
+ *
+ * `revision` is optimistic concurrency, not an audit trail. Two editors who open the same page and
+ * both save would otherwise silently overwrite one another; the use-case refuses the second save
+ * and says which revision it expected.
+ */
+export const editorialDraft = portal.table(
+  "editorial_draft",
+  {
+    id: uuid("id").primaryKey(),
+    tenantId: uuid("tenant_id").notNull(),
+    projectId: uuid("project_id").notNull(),
+    revision: integer("revision").notNull().default(1),
+    schemaVersion: integer("schema_version").notNull(),
+    payload: jsonb("payload").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    updatedBy: uuid("updated_by").notNull(),
+  },
+  (t) => [
+    unique("editorial_draft_project_key").on(t.tenantId, t.projectId),
+    unique("editorial_draft_tenant_id_id_key").on(t.tenantId, t.id),
+    foreignKey({
+      name: "editorial_draft_project_fk",
+      columns: [t.tenantId, t.projectId],
+      foreignColumns: [project.tenantId, project.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "editorial_draft_updated_by_fk",
+      columns: [t.updatedBy],
+      foreignColumns: [user.id],
+    }),
+  ],
+);
+
+/**
+ * What a visitor is served. Immutable, versioned, and carrying its own slugs.
+ *
+ * The slugs are denormalised on purpose. A visitor has no session, so the public read cannot join
+ * `app.project` to turn a URL into an id — and giving the public branch of a policy a path into
+ * the operational tables to resolve a slug is precisely the hole this surface must not have. With
+ * the pair stored here, the public query touches this table and its assets and nothing else.
+ */
+export const editorialPublication = portal.table(
+  "editorial_publication",
+  {
+    id: uuid("id").primaryKey(),
+    tenantId: uuid("tenant_id").notNull(),
+    projectId: uuid("project_id").notNull(),
+    tenantSlug: text("tenant_slug").notNull(),
+    projectSlug: text("project_slug").notNull(),
+    sequence: integer("sequence").notNull(),
+    publishedAt: timestamp("published_at", { withTimezone: true, mode: "date" }).notNull(),
+    publishedBy: uuid("published_by").notNull(),
+    schemaVersion: integer("schema_version").notNull(),
+    contentHash: text("content_hash").notNull(),
+    payload: jsonb("payload").notNull(),
+  },
+  (t) => [
+    unique("editorial_publication_project_sequence_key").on(t.tenantId, t.projectId, t.sequence),
+    unique("editorial_publication_tenant_id_id_key").on(t.tenantId, t.id),
+    foreignKey({
+      name: "editorial_publication_project_fk",
+      columns: [t.tenantId, t.projectId],
+      foreignColumns: [project.tenantId, project.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "editorial_publication_published_by_fk",
+      columns: [t.publishedBy],
+      foreignColumns: [user.id],
+    }),
+  ],
+);
+
+/**
+ * The attachments one publication authorises, and the only files a visitor may fetch.
+ *
+ * This table **is** the authorisation. A stored object is reachable publicly because a row here
+ * names it for a currently-visible publication — not because it sits in a namespace, and not
+ * because somebody guessed its id. Removing the publication from view removes the row's effect
+ * with it, which is what makes withdrawal mean something for files as well as for text.
+ */
+export const editorialPublicationAsset = portal.table(
+  "editorial_publication_asset",
+  {
+    id: uuid("id").primaryKey(),
+    tenantId: uuid("tenant_id").notNull(),
+    projectId: uuid("project_id").notNull(),
+    publicationId: uuid("publication_id").notNull(),
+    storedObjectId: uuid("stored_object_id").notNull(),
+    role: text("role").notNull(),
+    caption: text("caption"),
+    altText: text("alt_text"),
+    ordinal: integer("ordinal").notNull(),
+    /** Copied at publication, so a visitor's read never reaches `app.stored_object`. */
+    objectKey: text("object_key").notNull(),
+    originalFilename: text("original_filename"),
+    mimeType: text("mime_type"),
+  },
+  (t) => [
+    unique("editorial_publication_asset_unique").on(t.tenantId, t.publicationId, t.storedObjectId),
+    foreignKey({
+      name: "editorial_publication_asset_publication_fk",
+      columns: [t.tenantId, t.publicationId],
+      foreignColumns: [editorialPublication.tenantId, editorialPublication.id],
+    }).onDelete("cascade"),
+  ],
+);
+
+/**
+ * Published, then withdrawn, then published again. Append-only, because "was this visible on the
+ * fourteenth?" is a question a consultancy's client may well ask.
+ *
+ * Withdrawal is an event rather than a column on the publication, so the publication row stays
+ * immutable and a withdrawn version keeps its words — the same reasoning as every other
+ * write-once record in this product.
+ */
+export const editorialVisibilityEvent = portal.table(
+  "editorial_visibility_event",
+  {
+    id: uuid("id").primaryKey(),
+    tenantId: uuid("tenant_id").notNull(),
+    projectId: uuid("project_id").notNull(),
+    publicationId: uuid("publication_id").notNull(),
+    state: text("state").notNull(),
+    occurredAt: timestamp("occurred_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .defaultNow(),
+    decidedBy: uuid("decided_by").notNull(),
+    reason: text("reason"),
+  },
+  (t) => [
+    foreignKey({
+      name: "editorial_visibility_event_publication_fk",
+      columns: [t.tenantId, t.publicationId],
+      foreignColumns: [editorialPublication.tenantId, editorialPublication.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "editorial_visibility_event_decided_by_fk",
+      columns: [t.decidedBy],
+      foreignColumns: [user.id],
+    }),
+  ],
+);
+
+/**
+ * The link between a photograph somebody uploaded and the one a visitor may see.
+ *
+ * It is what makes "the public page never serves the original" a check rather than a convention:
+ * publishing refuses a `photo` asset whose object is not the derivative side of a pair here.
+ */
+export const editorialImageDerivative = portal.table(
+  "editorial_image_derivative",
+  {
+    id: uuid("id").primaryKey(),
+    tenantId: uuid("tenant_id").notNull(),
+    projectId: uuid("project_id").notNull(),
+    originalObjectId: uuid("original_object_id").notNull(),
+    derivativeObjectId: uuid("derivative_object_id").notNull(),
+    width: integer("width").notNull(),
+    height: integer("height").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    createdBy: uuid("created_by").notNull(),
+  },
+  (t) => [
+    unique("editorial_image_derivative_original_key").on(t.tenantId, t.originalObjectId),
+    unique("editorial_image_derivative_derivative_key").on(t.tenantId, t.derivativeObjectId),
+    foreignKey({
+      name: "editorial_image_derivative_project_fk",
+      columns: [t.tenantId, t.projectId],
+      foreignColumns: [project.tenantId, project.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "editorial_image_derivative_created_by_fk",
+      columns: [t.createdBy],
+      foreignColumns: [user.id],
+    }),
+  ],
+);
+
+/**
+ * How a firm names itself on its own public landing.
+ *
+ * Small on purpose. The engagement — *CONSULTORÍA DE APOYO AMBIENTAL Y SOCIAL* — is a **title**,
+ * and this product has no entity between a tenant and a project; inventing a "programme" to hold
+ * a heading would be a schema change in service of a string. Two columns, set by the firm, read
+ * by the landing page and by nothing else.
+ *
+ * The slug is carried here for the same reason it is carried on a publication: a visitor has no
+ * session, so the public read must not join `app.tenant` to turn a URL into a row.
+ */
+export const editorialTenantProfile = portal.table(
+  "editorial_tenant_profile",
+  {
+    id: uuid("id").primaryKey(),
+    tenantId: uuid("tenant_id").notNull().unique(),
+    tenantSlug: text("tenant_slug").notNull().unique(),
+    name: text("name").notNull(),
+    engagementLabel: text("engagement_label"),
+    /**
+     * Optimistic concurrency, and a real one (migration 0054).
+     *
+     * It counts from 1 and rises with every write, so two administrators who read the same
+     * landing cannot both save it: the conditional `UPDATE … WHERE revision = ?` that carries
+     * the comparison matches no row for the second, and the use-case says so instead of letting
+     * one overwrite the other in silence. `0` is a read-model value meaning *no profile yet* and
+     * is never stored — a CHECK refuses it.
+     */
+    revision: integer("revision").notNull().default(1),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    updatedBy: uuid("updated_by").notNull(),
+  },
+  (t) => [
+    foreignKey({
+      name: "editorial_tenant_profile_tenant_fk",
+      columns: [t.tenantId],
+      foreignColumns: [tenant.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "editorial_tenant_profile_updated_by_fk",
+      columns: [t.updatedBy],
       foreignColumns: [user.id],
     }),
   ],

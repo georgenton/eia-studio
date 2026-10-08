@@ -12,6 +12,7 @@ export * as reportsSchema from "./reports";
 export * as pgasSchema from "./pgas";
 export * as portalSchema from "./portal";
 export * as storageSchema from "./storage";
+export * as socializationSchema from "./socializations";
 
 import * as appTables from "./app";
 import * as auditTables from "./audit";
@@ -27,6 +28,7 @@ import * as templateTables from "./templates";
 import * as storageTables from "./storage";
 import * as qualityTables from "./quality";
 import * as socialTables from "./social";
+import * as socializationTables from "./socializations";
 
 /** Flat schema object for the drizzle client (unique keys across schemas). */
 export const schema = {
@@ -70,6 +72,9 @@ export const schema = {
   surveyQuestionTranslation: fieldTables.surveyQuestionTranslation,
   surveyOptionTranslation: fieldTables.surveyOptionTranslation,
   fieldSyncReceipt: fieldTables.fieldSyncReceipt,
+  socializationEvent: socializationTables.socializationEvent,
+  socializationInvitation: socializationTables.socializationInvitation,
+  socializationDeliveryAttempt: socializationTables.socializationDeliveryAttempt,
   taxonomy: socialTables.taxonomy,
   taxonomyVersion: socialTables.taxonomyVersion,
   taxonomyCategory: socialTables.taxonomyCategory,

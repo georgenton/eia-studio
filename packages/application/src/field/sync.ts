@@ -4,6 +4,7 @@ import { fieldSchema, type Database, type DbTx } from "@eia/db";
 import {
   deriveOfflineWindow,
   DomainError,
+  invitationStatusAfter,
   NotFound,
   PermissionDenied,
   requireCapability,
@@ -13,16 +14,24 @@ import {
 import {
   commandResultSchema,
   FIELD_SYNC_PROTOCOL_VERSION,
+  FIELD_SYNC_PROTOCOL_VERSION_V4,
+  socializationDeliveryCommandSchema,
+  syncCommandSchema,
   type CommandResult,
   type ConflictReason,
+  type SocializationDeliveryCommand,
   type SyncCommand,
   type SyncPullResponse,
   type SyncPushResponse,
+  v4CommandResultSchema,
+  type V4CommandResult,
+  type V4SyncPushResponse,
 } from "@eia/field-sync-contract";
 import { and, desc, eq, sql } from "drizzle-orm";
 
 import { withFieldContext } from "./context";
 import { declareFieldMedia } from "./media";
+import { recordDeliveryAttempt } from "./socializations";
 import { encodeCursor, readAssignmentsForPull } from "./field-pack";
 import { completeVisit, saveSurveyDraft, startVisit, submitSurveyInstance } from "./use-cases";
 
@@ -520,5 +529,225 @@ export async function pullFieldChanges(
       })(),
       cursor: encodeCursor(now),
     };
+  });
+}
+
+/* ---------------------------------------------------------------------------------------------
+ * Protocol v4 — the same engine, one more command (ADR-041)
+ * ------------------------------------------------------------------------------------------ */
+
+/**
+ * v4's push, built on v3's rather than beside it.
+ *
+ * The five inherited commands are **the same commands**: a device speaking v4 that starts a
+ * visit means exactly what a v3 device means. So their envelope's `protocolVersion` is rewritten
+ * to 3 and they go through `processOne` — the receipt table, the guards, the idempotent
+ * use-cases, all of it. A second sync engine is the thing this block was told not to build, and
+ * the reason is plain: two engines would eventually disagree about what a retry means.
+ *
+ * `socialization.delivery.record` is new, so it has its own path — and it still writes a receipt
+ * through the same helper, because the zero-duplicate invariant is a property of the channel and
+ * not of one command.
+ */
+export async function processWorkSyncCommands(
+  db: Database,
+  ctx: RequestContext,
+  commands: ReadonlyArray<unknown>,
+  options: ProcessSyncOptions = {},
+): Promise<V4SyncPushResponse> {
+  requireCapability(ctx, "field.surveys");
+  requirePermission(ctx, "field.capture");
+  if (ctx.projectId === null) throw new Error("processWorkSyncCommands requires a project");
+  const now = options.now ?? new Date();
+
+  const results: V4CommandResult[] = [];
+  for (const raw of commands) {
+    results.push(await processOneV4(db, ctx, raw));
+  }
+  return {
+    protocolVersion: FIELD_SYNC_PROTOCOL_VERSION_V4,
+    results,
+    cursor: encodeCursor(now),
+  };
+}
+
+const EMPTY_V4: Omit<V4CommandResult, "commandId" | "outcome"> = {
+  visitId: null,
+  instanceId: null,
+  instanceStatus: null,
+  assignmentStatus: null,
+  attemptId: null,
+  invitationStatus: null,
+  conflictReason: null,
+  message: null,
+};
+
+/** A v3 result is a v4 result with two more nulls. Widened here rather than cast. */
+function widen(result: CommandResult): V4CommandResult {
+  return { ...EMPTY_V4, ...result };
+}
+
+async function processOneV4(
+  db: Database,
+  ctx: RequestContext,
+  raw: unknown,
+): Promise<V4CommandResult> {
+  const delivery = socializationDeliveryCommandSchema.safeParse(raw);
+  if (delivery.success) return processDelivery(db, ctx, delivery.data);
+
+  /*
+   * Anything else must be one of v3's five, sent with a v4 envelope. The version is rewritten —
+   * not ignored — so v3's own `.strict()` union does the validating, and a command that is
+   * neither shape is rejected by it rather than by a hand-written check here.
+   */
+  const asV3 = {
+    ...(raw as Record<string, unknown>),
+    protocolVersion: FIELD_SYNC_PROTOCOL_VERSION,
+  };
+  const parsed = syncCommandSchema.safeParse(asV3);
+  if (!parsed.success) {
+    const commandId =
+      typeof (raw as { commandId?: unknown })?.commandId === "string"
+        ? (raw as { commandId: string }).commandId
+        : randomUUID();
+    return {
+      ...EMPTY_V4,
+      commandId,
+      outcome: "rejected",
+      message: "este comando no tiene una forma que el servidor reconozca",
+    };
+  }
+  return widen(await processOne(db, ctx, parsed.data));
+}
+
+/**
+ * Record a delivery the device captured, possibly hours ago and possibly offline.
+ *
+ * The receipt is checked first, for the reason the whole channel exists: a retry must replay an
+ * answer, not re-decide it. Then `recordDeliveryAttempt` applies the rules — the invitation is
+ * still this caller's, its revision is the one the device read, the event is not cancelled, and
+ * a `DELIVERED` carries a photograph — and answers `conflict` rather than throwing when the
+ * world moved. The device keeps its attempt and its photograph either way.
+ */
+async function processDelivery(
+  db: Database,
+  ctx: RequestContext,
+  command: SocializationDeliveryCommand,
+): Promise<V4CommandResult> {
+  const projectId = ctx.projectId!;
+  const replay = await withFieldContext(db, ctx, (tx) =>
+    findV4Receipt(tx, ctx, projectId, command.commandId),
+  );
+  if (replay) return { ...replay, outcome: "duplicate" as const };
+
+  let decided: V4CommandResult;
+  try {
+    const result = await recordDeliveryAttempt(db, ctx, {
+      invitationId: command.payload.invitationId,
+      invitationRevision: command.payload.invitationRevision,
+      localAttemptId: command.payload.localAttemptId,
+      outcome: command.payload.outcome,
+      occurredAt: new Date(command.occurredAt),
+      note: command.payload.note,
+      location:
+        command.payload.location === null
+          ? null
+          : {
+              latitude: command.payload.location.latitude,
+              longitude: command.payload.location.longitude,
+              accuracyM: command.payload.location.accuracyM,
+            },
+      evidenceStoredObjectId: command.payload.storedObjectId,
+    });
+
+    decided =
+      result.kind === "conflict"
+        ? {
+            ...EMPTY_V4,
+            commandId: command.commandId,
+            outcome: "conflict",
+            conflictReason: result.reason,
+            message: result.message,
+          }
+        : {
+            ...EMPTY_V4,
+            commandId: command.commandId,
+            outcome: result.duplicate ? "duplicate" : "applied",
+            attemptId: result.attemptId,
+            invitationStatus: invitationStatusAfter(command.payload.outcome),
+          };
+  } catch (error) {
+    // A refusal the domain expressed is an answer. The device must stop retrying something that
+    // can never succeed — a `DELIVERED` with no photograph will not acquire one by waiting.
+    if (error instanceof DomainError || error instanceof NotFound) {
+      decided = {
+        ...EMPTY_V4,
+        commandId: command.commandId,
+        outcome: error instanceof PermissionDenied ? "rejected" : "rejected",
+        message: error.message.slice(0, 400),
+      };
+    } else {
+      throw error;
+    }
+  }
+
+  await recordDeliveryReceipt(db, ctx, projectId, command, decided);
+  return decided;
+}
+
+/**
+ * A v4 receipt, read with v4's schema.
+ *
+ * `findReceipt` parses with v3's `commandResultSchema`, which is `.strict()` and therefore
+ * refuses the two fields a delivery result carries. That is the schema doing its job: a v3
+ * device must never be handed a result it cannot parse. The v4 path reads its own.
+ */
+async function findV4Receipt(
+  tx: DbTx,
+  ctx: RequestContext,
+  projectId: string,
+  commandId: string,
+): Promise<V4CommandResult | null> {
+  const rows = await tx
+    .select({ result: fieldSchema.fieldSyncReceipt.result })
+    .from(fieldSchema.fieldSyncReceipt)
+    .where(
+      and(
+        eq(fieldSchema.fieldSyncReceipt.tenantId, ctx.tenantId),
+        eq(fieldSchema.fieldSyncReceipt.projectId, projectId),
+        eq(fieldSchema.fieldSyncReceipt.commandId, commandId),
+      ),
+    )
+    .limit(1);
+  const stored = rows[0]?.result;
+  if (!stored) return null;
+  return v4CommandResultSchema.parse(stored);
+}
+
+/** The same receipt row every other command writes, with the invitation as its entity. */
+async function recordDeliveryReceipt(
+  db: Database,
+  ctx: RequestContext,
+  projectId: string,
+  command: SocializationDeliveryCommand,
+  result: V4CommandResult,
+): Promise<void> {
+  await withFieldContext(db, ctx, async (tx) => {
+    await tx
+      .insert(fieldSchema.fieldSyncReceipt)
+      .values({
+        id: randomUUID(),
+        tenantId: ctx.tenantId,
+        projectId,
+        userId: ctx.userId,
+        commandId: command.commandId,
+        commandType: "socialization.delivery.record",
+        outcome: result.outcome,
+        entityKind: "socialization_invitation",
+        entityId: command.payload.invitationId,
+        deviceRevision: command.deviceRevision,
+        result,
+      })
+      .onConflictDoNothing();
   });
 }

@@ -1,6 +1,9 @@
 import {
+  evidenceFinalizeResponseSchema,
+  evidenceIntentResponseSchema,
   fieldPackResponseSchema,
   fieldScopeResponseSchema,
+  fieldWorkScopeResponseSchema,
   mediaFinalizeResponseSchema,
   mediaIntentResponseSchema,
   syncPullResponseSchema,
@@ -12,6 +15,17 @@ import {
   type SyncCommand,
   type SyncPullResponse,
   type SyncPushResponse,
+  type EvidenceFinalizeResponse,
+  type EvidenceIntentResponse,
+  type FieldWorkScopeResponse,
+  type V4SyncPushResponse,
+  type WorkPackResponse,
+  type WorkPullRequest,
+  type WorkPullResponse,
+  v4SyncPushResponseSchema,
+  workPackResponseSchema,
+  workPullRequestSchema,
+  workPullResponseSchema,
 } from "@eia/field-sync-contract";
 
 import { authHeaders } from "../auth/client";
@@ -158,4 +172,71 @@ export async function putFileToProvider(input: {
     // device's answer is the same either way: keep the file, and ask for a fresh intent later.
     throw new ServerError(result.status, "el proveedor rechazó la carga");
   }
+}
+
+/* ---------------------------------------------------------------------------------------------
+ * Protocol v4 (ADR-041) — the same transport, different paths
+ * ------------------------------------------------------------------------------------------ */
+
+/**
+ * The v4 calls live at `/api/field/v4/*` and the v3 ones above are untouched.
+ *
+ * Both sets exist in this build on purpose: `ensureWorkPack` converts a v3 pack a handset was
+ * holding when the application was updated, and until that device next reaches a signal it is
+ * still running v3's survey work from v3's tables. The v4 calls are what it uses the moment it
+ * does reach one.
+ */
+export async function resolveWorkScope(): Promise<FieldWorkScopeResponse> {
+  return fieldWorkScopeResponseSchema.parse(await post("/api/field/v4/scope", {}));
+}
+
+export async function downloadWorkPack(input: {
+  tenantSlug: string;
+  projectSlug: string;
+}): Promise<WorkPackResponse> {
+  return workPackResponseSchema.parse(await post("/api/field/v4/pack", input));
+}
+
+export async function pullWork(input: WorkPullRequest): Promise<WorkPullResponse> {
+  // Parsed on the way **out** as well, against the same schema the route parses it with: a
+  // request this client could not have formed is a bug found here rather than as a 400.
+  return workPullResponseSchema.parse(
+    await post("/api/field/v4/pull", workPullRequestSchema.parse(input)),
+  );
+}
+
+export async function pushWorkCommands(input: {
+  tenantSlug: string;
+  projectSlug: string;
+  commands: ReadonlyArray<unknown>;
+}): Promise<V4SyncPushResponse> {
+  return v4SyncPushResponseSchema.parse(
+    await post("/api/field/v4/sync", { ...input, commands: [...input.commands] }),
+  );
+}
+
+/**
+ * Evidence of a delivery: its own namespace, and therefore its own two calls.
+ *
+ * Not `/api/field/media/*`, which writes into `field-media`. The namespaces are what keep a
+ * delivery photograph out of every query written for a visit's photographs, and out of every
+ * public route (ADR-041).
+ */
+export async function requestEvidenceIntent(input: {
+  tenantSlug: string;
+  projectSlug: string;
+  filename: string;
+  mimeType: string;
+  sizeBytes: number;
+}): Promise<EvidenceIntentResponse> {
+  return evidenceIntentResponseSchema.parse(await post("/api/field/v4/evidence/intent", input));
+}
+
+export async function finalizeEvidenceUpload(input: {
+  tenantSlug: string;
+  projectSlug: string;
+  intentId: string;
+  objectKey: string;
+}): Promise<EvidenceFinalizeResponse> {
+  return evidenceFinalizeResponseSchema.parse(await post("/api/field/v4/evidence/finalize", input));
 }

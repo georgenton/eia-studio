@@ -402,11 +402,23 @@ export interface OutboxRow {
   readonly lastError: string | null;
 }
 
+/**
+ * One more `entityKind`, and no second queue.
+ *
+ * A delivery command shares the outbox with visits, surveys and photographs because it shares
+ * everything that matters about them: it is minted once, retried by the same rules, settled by
+ * the same answers, and must not overtake anything. A parallel queue would be a second set of
+ * those rules to keep in step.
+ *
+ * `command` is typed loosely here because v4's delivery command is not a member of v3's
+ * `.strict()` union — deliberately, so an older device cannot misparse it. Both are validated
+ * at the wire by their own schema.
+ */
 export async function enqueue(
   db: SQLite.SQLiteDatabase,
   input: {
-    command: SyncCommand;
-    entityKind: "visit" | "survey" | "media";
+    command: SyncCommand | { commandId: string; type: string };
+    entityKind: "visit" | "survey" | "media" | "delivery";
     entityLocalId: string;
   },
 ): Promise<void> {
@@ -423,7 +435,19 @@ export async function enqueue(
   );
 }
 
-/** Pending commands, oldest first. Order is the protocol: a submit must not overtake its visit. */
+/**
+ * Pending commands, oldest first. Order is the protocol: a submit must not overtake its visit.
+ *
+ * **`PENDING` only.** `FAILED` was in this list, which quietly contradicted the policy file's own
+ * first paragraph — *"an outbox that retries everything forever is not resilient, it is stuck"* —
+ * because `FAILED` is set exactly once: when the **server rejected the command**. A rejection
+ * re-sent every sync is a queue that never empties and a count that never reaches zero.
+ *
+ * Nothing legitimate is lost by excluding it. A command that never reached the server goes
+ * through `recordAttempt`, which puts it back to `PENDING`; only a decision the server actually
+ * made lands in `FAILED`, and a decision does not change by being asked again. The row stays, so
+ * the sync centre can show it and a person can look.
+ */
 export async function pendingCommands(
   db: SQLite.SQLiteDatabase,
   limit: number,
@@ -442,7 +466,7 @@ export async function pendingCommands(
     `select seq, command_id, command_type, entity_kind, entity_local_id, command_json, attempts,
             state, last_error
        from sync_outbox
-      where state in ('PENDING', 'FAILED')
+      where state = 'PENDING'
       order by seq
       limit ?`,
     limit,
@@ -462,7 +486,7 @@ export async function pendingCommands(
 
 export async function countPending(db: SQLite.SQLiteDatabase): Promise<number> {
   const row = await db.getFirstAsync<{ n: number }>(
-    "select count(*) as n from sync_outbox where state in ('PENDING', 'FAILED')",
+    "select count(*) as n from sync_outbox where state = 'PENDING'",
   );
   return row?.n ?? 0;
 }

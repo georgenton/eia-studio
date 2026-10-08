@@ -1,4 +1,4 @@
-import type { FieldPack } from "@eia/field-sync-contract";
+import type { FieldPack, FieldProjectWithWork, WorkPack } from "@eia/field-sync-contract";
 import { offlineAccessState, type OfflineAccessState } from "@eia/domain/mobile";
 import * as Network from "expo-network";
 import type * as SQLite from "expo-sqlite";
@@ -20,7 +20,21 @@ import {
   readPack,
   type LocalAssignmentRow,
 } from "./db/repo";
-import { synchronise, type SyncOutcome } from "./sync/engine";
+import {
+  ensureWorkPack,
+  listInvitations,
+  summarisePendingWork,
+  type LocalInvitationRow,
+} from "./db/repo-v4";
+import { EMPTY_PENDING, type PendingWorkSummary } from "./core/project-switch";
+import {
+  discoverProjects,
+  downloadProject,
+  switchProject,
+  synchronise,
+  type SwitchProjectResult,
+  type SyncOutcome,
+} from "./sync/engine";
 
 /**
  * Everything the screens share: the open database, the downloaded pack, the technician's rows and
@@ -32,9 +46,21 @@ import { synchronise, type SyncOutcome } from "./sync/engine";
  */
 export interface FieldState {
   readonly db: SQLite.SQLiteDatabase | null;
+  /** The active project (protocol v4). The one thing every screen reads its scope from. */
+  readonly workPack: WorkPack | null;
+  /**
+   * The survey half in v3's shape, which is what `AssignmentScreen` and `SurveyScreen` read.
+   *
+   * An adapter rather than a rewrite: those two screens are where every answer this product has
+   * ever collected was typed, and changing them to speak v4 would be risk taken for no gain.
+   * `null` when the project has no survey work — and then no campaign appears, which is the
+   * point: a closed campaign must not look like today's.
+   */
   readonly pack: FieldPack | null;
   readonly assignments: ReadonlyArray<LocalAssignmentRow>;
+  readonly invitations: ReadonlyArray<LocalInvitationRow>;
   readonly pending: number;
+  readonly pendingWork: PendingWorkSummary;
   readonly lastSyncAt: string | null;
   readonly online: boolean;
   readonly syncing: boolean;
@@ -43,6 +69,19 @@ export interface FieldState {
   readonly openError: string | null;
   readonly refresh: () => Promise<void>;
   readonly sync: () => Promise<void>;
+  readonly discover: () => Promise<
+    | { readonly ok: true; readonly projects: ReadonlyArray<FieldProjectWithWork> }
+    | { readonly ok: false; readonly message: string }
+  >;
+  /** The first pack on a device that holds none. Changing road is `switchTo`. */
+  readonly adopt: (scope: {
+    tenantSlug: string;
+    projectSlug: string;
+  }) => Promise<{ ok: boolean; message?: string }>;
+  readonly switchTo: (scope: {
+    tenantSlug: string;
+    projectSlug: string;
+  }) => Promise<SwitchProjectResult>;
 }
 
 const FieldContext = createContext<FieldState | null>(null);
@@ -56,21 +95,38 @@ export function useField(): FieldState {
 export function FieldProvider({ children }: { children: ReactNode }) {
   const [db, setDb] = useState<SQLite.SQLiteDatabase | null>(null);
   const [openError, setOpenError] = useState<string | null>(null);
+  const [workPack, setWorkPack] = useState<WorkPack | null>(null);
   const [pack, setPack] = useState<FieldPack | null>(null);
   const [assignments, setAssignments] = useState<ReadonlyArray<LocalAssignmentRow>>([]);
+  const [invitations, setInvitations] = useState<ReadonlyArray<LocalInvitationRow>>([]);
   const [pending, setPending] = useState(0);
+  const [pendingWork, setPendingWork] = useState<PendingWorkSummary>(EMPTY_PENDING);
   const [lastSyncAt, setLastSyncAt] = useState<string | null>(null);
   const [online, setOnline] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [lastOutcome, setLastOutcome] = useState<SyncOutcome | null>(null);
 
+  const readAll = useCallback(async (handle: SQLite.SQLiteDatabase) => {
+    /*
+     * `ensureWorkPack` rather than `readWorkPack`: a handset that was in the field when the
+     * application was updated holds a v3 pack and no v4 one, and converting it here is what
+     * lets the technician keep working instead of being sent to find a signal.
+     */
+    setWorkPack(await ensureWorkPack(handle));
+    // The v3 view the survey screens read. `null` when the project has no survey work, because
+    // `saveWorkPack` clears `field_pack` in that case rather than leaving a closed campaign.
+    setPack(await readPack(handle));
+    setAssignments(await listAssignments(handle));
+    setInvitations(await listInvitations(handle));
+    setPending(await countPending(handle));
+    setPendingWork(await summarisePendingWork(handle));
+    setLastSyncAt((await readCursor(handle))?.lastSyncAt ?? null);
+  }, []);
+
   const refresh = useCallback(async () => {
     if (!db) return;
-    setPack(await readPack(db));
-    setAssignments(await listAssignments(db));
-    setPending(await countPending(db));
-    setLastSyncAt((await readCursor(db))?.lastSyncAt ?? null);
-  }, [db]);
+    await readAll(db);
+  }, [db, readAll]);
 
   /*
    * Open the database and read it once, in one effect.
@@ -87,10 +143,7 @@ export function FieldProvider({ children }: { children: ReactNode }) {
         const opened = await openLocalDatabase();
         if (cancelled) return;
         setDb(opened);
-        setPack(await readPack(opened));
-        setAssignments(await listAssignments(opened));
-        setPending(await countPending(opened));
-        setLastSyncAt((await readCursor(opened))?.lastSyncAt ?? null);
+        await readAll(opened);
       } catch (error: unknown) {
         if (!cancelled) {
           setOpenError(error instanceof Error ? error.message : "no se pudo abrir la base local");
@@ -100,6 +153,9 @@ export function FieldProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
+    // `readAll` is stable (`useCallback` with no dependencies); listing it would not change when
+    // this runs, and the open must happen exactly once.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   /*
@@ -138,20 +194,55 @@ export function FieldProvider({ children }: { children: ReactNode }) {
     }
   }, [db, refresh, syncing]);
 
+  const discover = useCallback(async () => {
+    if (!db) return { ok: false as const, message: "la base local no está abierta" };
+    return discoverProjects(db);
+  }, [db]);
+
+  const adopt = useCallback(
+    async (scope: { tenantSlug: string; projectSlug: string }) => {
+      if (!db) return { ok: false, message: "la base local no está abierta" };
+      const result = await downloadProject(db, scope);
+      await refresh();
+      return result.ok ? { ok: true } : { ok: false, message: result.message };
+    },
+    [db, refresh],
+  );
+
+  const switchTo = useCallback(
+    async (scope: { tenantSlug: string; projectSlug: string }): Promise<SwitchProjectResult> => {
+      if (!db) return { kind: "failed", message: "la base local no está abierta" };
+      const result = await switchProject(db, scope, { online });
+      await refresh();
+      return result;
+    },
+    [db, online, refresh],
+  );
+
+  /**
+   * The offline window comes from the **active project**, never from a pack left behind.
+   *
+   * `workPack.validity` and not `pack.validity`: on a socialization-only project there is no
+   * `field_pack` at all, and reading one would make the application believe its access had
+   * lapsed — or, worse, that an old project's window was still in force.
+   */
   const offlineState = useMemo<OfflineAccessState | null>(
     () =>
-      pack
-        ? offlineAccessState({ now: new Date(), expiresAt: new Date(pack.validity.expiresAt) })
+      workPack
+        ? offlineAccessState({ now: new Date(), expiresAt: new Date(workPack.validity.expiresAt) })
         : null,
-    [pack],
+    [workPack],
   );
 
   const value = useMemo<FieldState>(
     () => ({
       db,
+      workPack,
       pack,
       assignments,
+      invitations,
       pending,
+      pendingWork,
       lastSyncAt,
       online,
       syncing,
@@ -160,12 +251,18 @@ export function FieldProvider({ children }: { children: ReactNode }) {
       openError,
       refresh,
       sync,
+      discover,
+      adopt,
+      switchTo,
     }),
     [
       db,
+      workPack,
       pack,
       assignments,
+      invitations,
       pending,
+      pendingWork,
       lastSyncAt,
       online,
       syncing,
@@ -174,6 +271,9 @@ export function FieldProvider({ children }: { children: ReactNode }) {
       openError,
       refresh,
       sync,
+      discover,
+      adopt,
+      switchTo,
     ],
   );
 

@@ -19,13 +19,35 @@ import { Body, Button, Card, Chip, Heading, Label, Notice, Screen, Title } from 
  */
 export function SyncCenterScreen({ onBack }: { onBack: () => void }) {
   const t = useT();
-  const { db, pending, online, syncing, sync, lastSyncAt, lastOutcome, assignments } = useField();
+  const {
+    db,
+    pending,
+    online,
+    syncing,
+    sync,
+    lastSyncAt,
+    lastOutcome,
+    assignments,
+    workPack,
+    pendingWork,
+    invitations,
+  } = useField();
   const [queue, setQueue] = useState<ReadonlyArray<OutboxRow>>([]);
 
   useEffect(() => {
     if (!db) return;
     void pendingCommands(db, 50).then(setQueue);
   }, [db, pending, syncing]);
+
+  /*
+   * Deliveries a person has to look at. They stay here after another sync, because
+   * `REQUIRES_REVIEW` is not a transport failure that clears itself — the outbox has stopped
+   * retrying them on purpose.
+   */
+  const needsReview = invitations.filter(
+    (invitation) =>
+      invitation.attemptState === "REQUIRES_REVIEW" || invitation.attemptState === "SYNC_ERROR",
+  );
 
   const conflicted = assignments.filter(
     (assignment) => assignment.surveyState === "CONFLICT" || assignment.revokedAt !== null,
@@ -54,6 +76,16 @@ export function SyncCenterScreen({ onBack }: { onBack: () => void }) {
               ? t("mobile.lastSync", { when: new Date(lastSyncAt).toLocaleString(t.locale) })
               : t("mobile.neverSynced")}
           </Body>
+          {workPack === null ? null : (
+            <Body muted>
+              {t("mobile.activeProject")}: {workPack.project.projectName}
+            </Body>
+          )}
+          {pendingWork.pendingEvidence > 0 ? (
+            <Body muted>
+              {pendingWork.pendingEvidence} {t("mobile.pendingPendingEvidence")}
+            </Body>
+          ) : null}
         </View>
 
         {lastOutcome?.error ? <Notice text={lastOutcome.error} tone="warn" /> : null}
@@ -77,6 +109,30 @@ export function SyncCenterScreen({ onBack }: { onBack: () => void }) {
             ))
           )}
         </Card>
+
+        {needsReview.length > 0 ? (
+          <Card>
+            <Heading>{t("mobile.deliveryStateREQUIRES_REVIEW")}</Heading>
+            <Body muted>{t("mobile.needsReviewBody")}</Body>
+            {needsReview.map((invitation) => (
+              <View key={invitation.id} style={styles.row}>
+                {/*
+                 * The parcel and the state, and nothing else. Not the recipient's label, not the
+                 * technician's note, not the coordinates, not a filename: a diagnostics screen is
+                 * photographed and sent to support.
+                 */}
+                <Body>
+                  {t("mobile.parcel")} {invitation.parcelCode}
+                </Body>
+                <Body muted>
+                  {t(
+                    `mobile.deliveryState${invitation.attemptState ?? "SAVED"}` as "mobile.deliveryStateSAVED",
+                  )}
+                </Body>
+              </View>
+            ))}
+          </Card>
+        ) : null}
 
         {conflicted.length > 0 ? (
           <Card>
@@ -124,6 +180,8 @@ function describe(t: Translator, commandType: string): string {
       return t("mobile.commandType.surveySubmit");
     case "visit.finish":
       return t("mobile.commandType.visitFinish");
+    case "socialization.delivery.record":
+      return t("mobile.commandDelivery");
     default:
       return commandType;
   }

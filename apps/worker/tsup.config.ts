@@ -4,8 +4,10 @@ import { defineConfig } from "tsup";
 export default defineConfig({
   // `pdf-smoke.ts` is a second entry on purpose: it is the one way to ask a *built image* whether
   // it can read a PDF, which is the question CI now has to answer before publishing a digest.
-  // A few kilobytes beside `main.js`, reachable only by running it.
-  entry: ["src/main.ts", "src/pdf-smoke.ts"],
+  // A few kilobytes beside `main.js`, reachable only by running it. `image-smoke.ts` is the same
+  // question about sharp, whose native binary the published photograph path depends on and which
+  // no test in this workspace resolves the way the artefact does.
+  entry: ["src/main.ts", "src/pdf-smoke.ts", "src/image-smoke.ts"],
   format: ["esm"],
   target: "node24",
   platform: "node",
@@ -30,7 +32,15 @@ export default defineConfig({
    * `node_modules/pdfjs-dist/legacy/build/`, and the canvas package is its declared dependency.
    * Nothing has to know a generated chunk's name, and the Dockerfile ships one directory.
    */
-  external: ["pg", "pino", "pg-native", "pdfjs-dist", "@napi-rs/canvas"],
+  /*
+   * `sharp` joins them for the same reason, and the worker never calls it: publishing a
+   * photograph happens in the web process. A static import put it in this bundle and the built
+   * worker then refused to start over a native library it has no use for — the pdf.js defect
+   * again, caught this time by `pnpm --filter @eia/worker build` instead of by a deployment.
+   * `packages/application/src/portal/editorial-image.ts` loads it dynamically, so with this entry
+   * the worker's graph never reaches the import.
+   */
+  external: ["pg", "pino", "pg-native", "pdfjs-dist", "@napi-rs/canvas", "sharp"],
   /*
    * An ESM bundle carrying CommonJS dependencies needs a real `require`; esbuild's shim throws
    * `Dynamic require of "..." is not supported`. Same reasoning as packages/db/tsup.config.ts.

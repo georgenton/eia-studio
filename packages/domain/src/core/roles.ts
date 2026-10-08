@@ -18,6 +18,8 @@ export type ProjectRole = (typeof PROJECT_ROLES)[number];
 
 const ADMIN_TENANT_PERMISSIONS: readonly TenantPermission[] = [
   "members.manage",
+  // Naming the firm on its public landing is administration, not project work.
+  "portal.profile.manage",
   "roles.assign",
   "modules.manage",
   "templates.manage",
@@ -57,6 +59,7 @@ export const PROJECT_ROLE_PERMISSIONS: Readonly<
   Record<ProjectRole, ReadonlySet<ProjectPermission>>
 > = {
   COORDINATOR: new Set<ProjectPermission>([
+    "portal.editorial.write",
     "project.configure",
     "project.members.manage",
     "project.intake.read",
@@ -74,6 +77,7 @@ export const PROJECT_ROLE_PERMISSIONS: Readonly<
     "field.instruments.author",
     "field.instruments.publish",
     "field.corrections.request",
+    "field.socializations.manage",
     "documents.read",
     "documents.write",
     "social.read",
@@ -118,6 +122,7 @@ export const PROJECT_ROLE_PERMISSIONS: Readonly<
     "provenance.read",
   ]),
   SOCIAL_SPECIALIST: new Set<ProjectPermission>([
+    "portal.editorial.write",
     "parcels.read",
     "field.read",
     "field.assignments.manage",
@@ -125,6 +130,8 @@ export const PROJECT_ROLE_PERMISSIONS: Readonly<
     "field.validate",
     // Reads the individual response, so is the person who notices it is wrong (ADR-038).
     "field.corrections.request",
+    // Consultation is this role's work: the events, the invitations and who delivers each one.
+    "field.socializations.manage",
     "documents.read",
     "social.read",
     "social.write",
@@ -139,6 +146,7 @@ export const PROJECT_ROLE_PERMISSIONS: Readonly<
     "provenance.read",
   ]),
   ENVIRONMENTAL_SPECIALIST: new Set<ProjectPermission>([
+    "portal.editorial.write",
     "parcels.read",
     "field.read",
     "documents.read",

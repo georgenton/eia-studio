@@ -365,6 +365,55 @@
       "when": 1789746984712,
       "tag": "0051_survey_corrections_rules",
       "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1789746985712,
+      "tag": "0052_portal_editorial",
+      "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1789746986712,
+      "tag": "0053_portal_editorial_image",
+      "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1789746987712,
+      "tag": "0054_editorial_profile_revision",
+      "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1791343941262,
+      "tag": "0055_editorial_snapshot_alignment",
+      "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1791343954371,
+      "tag": "0056_socializations",
+      "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "7",
+      "when": 1791343955371,
+      "tag": "0057_socializations_rls",
+      "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1791347102676,
+      "tag": "0058_socialization_sync_command",
+      "breakpoints": true
     }
   ]
 }

@@ -12,7 +12,14 @@ export interface DbContext {
   readonly userId: string | null;
   readonly tenantId: string | null;
   readonly projectId: string | null;
-  readonly surface?: "internal" | "job";
+  /**
+   * `public` is the one surface with no identity behind it: a visitor reading a published
+   * editorial page (migration 0052). It sets no tenant, no project and no user, and the only
+   * policies that admit it are the two SELECT branches on the editorial publication and its
+   * assets. Every other table still denies a transaction with no tenant, which is why this is a
+   * value here rather than a flag somewhere a caller could reach further with.
+   */
+  readonly surface?: "internal" | "job" | "public";
   /**
    * Whether this unit of work may see field responses that are not the caller's own.
    *

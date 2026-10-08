@@ -5,7 +5,9 @@ import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 
 import { authClient } from "./src/auth/client";
 import { AssignmentScreen } from "./src/screens/assignment";
+import { InvitationDeliveryScreen } from "./src/screens/invitation-delivery";
 import { MyWorkScreen } from "./src/screens/my-work";
+import { ProjectSelectorScreen } from "./src/screens/project-selector";
 import { SettingsScreen } from "./src/screens/settings";
 import { SignInScreen } from "./src/screens/sign-in";
 import { SurveyScreen } from "./src/screens/survey";
@@ -26,6 +28,9 @@ type Route =
   | { readonly name: "my-work" }
   | { readonly name: "assignment"; readonly assignmentId: string }
   | { readonly name: "survey"; readonly assignmentId: string }
+  // Protocol v4 (ADR-041): a road to choose, and an invitation to deliver.
+  | { readonly name: "projects" }
+  | { readonly name: "delivery"; readonly invitationId: string }
   | { readonly name: "sync" }
   | { readonly name: "settings" };
 
@@ -115,7 +120,18 @@ function Routed({ session, sessionPending }: { session: unknown; sessionPending:
     <SafeAreaView style={styles.flex}>
       <StatusBar style="dark" />
       {route.name === "my-work" ? (
-        <MyWorkScreen onOpen={(assignmentId) => setRoute({ name: "assignment", assignmentId })} />
+        <MyWorkScreen
+          onChooseProject={() => setRoute({ name: "projects" })}
+          onOpen={(assignmentId) => setRoute({ name: "assignment", assignmentId })}
+          onOpenInvitation={(invitationId) => setRoute({ name: "delivery", invitationId })}
+        />
+      ) : route.name === "projects" ? (
+        <ProjectSelectorScreen onDone={() => setRoute({ name: "my-work" })} />
+      ) : route.name === "delivery" ? (
+        <InvitationDeliveryScreen
+          invitationId={route.invitationId}
+          onBack={() => setRoute({ name: "my-work" })}
+        />
       ) : route.name === "assignment" ? (
         <AssignmentScreen
           assignmentId={route.assignmentId}

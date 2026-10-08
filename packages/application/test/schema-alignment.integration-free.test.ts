@@ -1,7 +1,16 @@
-import { appSchema, reviewSchema, storageSchema, templatesSchema } from "@eia/db";
+import {
+  appSchema,
+  reviewSchema,
+  socializationSchema,
+  storageSchema,
+  templatesSchema,
+} from "@eia/db";
 import { describe, expect, it } from "vitest";
 
 import {
+  DELIVERY_OUTCOMES,
+  SOCIALIZATION_EVENT_STATUSES,
+  SOCIALIZATION_INVITATION_STATUSES,
   STORAGE_NAMESPACES,
   TEMPLATE_KINDS,
   TEMPLATE_LOCALES,
@@ -99,5 +108,20 @@ describe("db ↔ domain vocabulary alignment", () => {
     expect([...storageSchema.storageNamespace.enumValues]).toEqual([...STORAGE_NAMESPACES]);
     expect(STORAGE_NAMESPACES).toContain("templates");
     expect(STORAGE_NAMESPACES).toContain("generated");
+    // A delivery photograph is private evidence and is never the namespace a visitor is served.
+    expect(STORAGE_NAMESPACES).toContain("socialization-evidence");
+    expect(STORAGE_NAMESPACES).toContain("portal-editorial");
+  });
+
+  it("socialization vocabularies in the database equal the domain's (ADR-041)", () => {
+    expect([...socializationSchema.socializationEventStatus.enumValues]).toEqual([
+      ...SOCIALIZATION_EVENT_STATUSES,
+    ]);
+    expect([...socializationSchema.socializationInvitationStatus.enumValues]).toEqual([
+      ...SOCIALIZATION_INVITATION_STATUSES,
+    ]);
+    expect([...socializationSchema.socializationDeliveryOutcome.enumValues]).toEqual([
+      ...DELIVERY_OUTCOMES,
+    ]);
   });
 });

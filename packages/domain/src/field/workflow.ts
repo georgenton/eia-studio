@@ -153,6 +153,61 @@ export function assertAssignmentTransition(from: AssignmentStatus, to: Assignmen
   if (!canTransitionAssignment(from, to)) throw new InvalidAssignmentTransition(from, to);
 }
 
+export class AssignmentNotReassignable extends InvalidInput {
+  constructor(reason: string) {
+    super(`this assignment cannot be moved to another technician: ${reason}`);
+    this.name = "AssignmentNotReassignable";
+  }
+}
+
+/**
+ * Who is sent to a parcel may change — until somebody has been.
+ *
+ * Reassigning is a **planning** act, and it stops being one the moment work exists: a visit, a
+ * response, or a photograph is a statement one person made about one parcel at one time, and
+ * moving the assignment underneath it would attribute their work to somebody who never went
+ * there. The record would still hold who captured it, but every surface that reads an
+ * assignment's assignee — the field inbox, a technician's own list, the progress counts — would
+ * answer with the wrong person.
+ *
+ * Work already captured has a route, and this is not it: a response that is wrong is corrected
+ * by a **revisit** (ADR-038), which is a new assignment with its own technician and an explicit
+ * relation to what it replaces. So the refusal here is not a dead end; it names the door.
+ *
+ * A correction assignment is refused for a narrower reason: it exists to be captured by whoever
+ * the correction named, and silently handing it to somebody else would make the lineage say
+ * something nobody decided. Cancel it and request another.
+ */
+export function assertAssignmentReassignable(facts: {
+  readonly status: AssignmentStatus;
+  readonly hasVisit: boolean;
+  readonly hasInstance: boolean;
+  readonly hasMedia: boolean;
+  readonly isCorrection: boolean;
+}): void {
+  if (facts.status === "CANCELLED") {
+    throw new AssignmentNotReassignable("it is cancelled; assign the parcel again instead");
+  }
+  if (facts.status === "COMPLETED") {
+    throw new AssignmentNotReassignable(
+      "it is completed; a response that needs changing is corrected by a revisit, which is a " +
+        "new assignment with its own technician",
+    );
+  }
+  if (facts.isCorrection) {
+    throw new AssignmentNotReassignable(
+      "it is a correction revisit, and who performs a correction is part of what was requested; " +
+        "cancel the request and make another",
+    );
+  }
+  if (facts.hasVisit || facts.hasInstance || facts.hasMedia) {
+    throw new AssignmentNotReassignable(
+      "work has already been captured against it, and moving it would attribute that work to " +
+        "somebody who did not do it",
+    );
+  }
+}
+
 /* ---------------------------------------------------------------------------------------------
  * Visit
  * ------------------------------------------------------------------------------------------ */

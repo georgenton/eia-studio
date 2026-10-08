@@ -18,7 +18,8 @@
     "portal:publish": "tsx scripts/publish-portal.ts",
     "ops:doctor": "tsx scripts/ops-doctor.ts",
     "go-live:doctor": "tsx scripts/go-live-doctor.ts",
-    "demo:eight-projects": "tsx scripts/seed-demo-eight-projects.ts"
+    "demo:eight-projects": "tsx scripts/seed-demo-eight-projects.ts",
+    "intake:plan": "tsx scripts/intake-plan.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1134.0",
@@ -34,6 +35,7 @@
     "easy-template-x": "7.2.8",
     "fflate": "0.8.3",
     "pdfjs-dist": "5.4.149",
+    "sharp": "0.35.4",
     "zod": "4.5.4"
   },
   "devDependencies": {

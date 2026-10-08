@@ -207,6 +207,112 @@ export const LOCAL_MIGRATIONS: ReadonlyArray<LocalMigration> = [
       `alter table local_assignment add column correction_requested_at text`,
     ],
   },
+  {
+    /*
+     * Protocol v4: a technician's work is surveys **and** invitations (ADR-041).
+     *
+     * Migration 4, not an edit of 1, and this is the migration where that rule earns its keep: a
+     * handset in the field is holding a v3 `field_pack` row, drafts, an outbox and photographs,
+     * and an application update must not cost any of it. Nothing here drops a table, rewrites a
+     * row or clears the outbox. `field_pack` keeps its contents and keeps working for the survey
+     * half; `work_pack` is the v4 snapshot beside it.
+     *
+     * **The v3 pack is converted, not discarded.** `work_pack` is written from `field_pack` on
+     * first open after the upgrade (see `repo.ts`), so a device that cannot reach a network still
+     * knows which project it is in and can still run its surveys. A pack that cannot be converted
+     * is left alone until the device downloads a v4 one — never deleted for tidiness.
+     */
+    version: 4,
+    name: "socialization_work",
+    statements: [
+      /*
+       * The active project. **One row**, like `field_pack`, because this version holds one
+       * project offline at a time: a second downloaded pack is a second set of answers to "which
+       * study am I in?", and the honest way to change project is online, with nothing pending.
+       */
+      `create table if not exists work_pack (
+         id integer primary key check (id = 1),
+         tenant_slug text not null,
+         project_slug text not null,
+         project_name text not null,
+         locality text,
+         technician_user_id text not null,
+         technician_email text not null,
+         /* Null when the project has no active campaign. That is a shape, not a failure. */
+         campaign_id text,
+         survey_version_id text,
+         issued_at text not null,
+         expires_at text not null,
+         validity_basis text not null,
+         cursor text not null,
+         /* How this row came to exist: a v4 download, or a conversion of a v3 pack. */
+         origin text not null default 'download',
+         payload text not null
+       )`,
+      /*
+       * One invitation. `revision` is what the device read and what it sends back with a
+       * delivery; `revoked_at` is set when the server says it is no longer ours, and — like
+       * `local_assignment` — it never deletes local work.
+       */
+      `create table if not exists local_invitation (
+         id text primary key,
+         revision integer not null,
+         server_status text not null,
+         parcel_id text not null,
+         parcel_code text not null,
+         sector_label text,
+         chainage_label text,
+         recipient_label text,
+         event_id text not null,
+         event_title text not null,
+         starts_at text not null,
+         timezone text not null,
+         location_label text not null,
+         purpose text,
+         revoked_at text,
+         conflict_reason text,
+         updated_at text not null
+       )`,
+      `create index if not exists local_invitation_event_idx
+         on local_invitation (event_id, parcel_code)`,
+      /*
+       * What a technician reported at a gate. `local_id` is minted when they save and never
+       * regenerated, which is what makes a retry one attempt. `invitation_revision` is captured
+       * at the same moment, so a reassignment that happens afterwards is a conflict rather than
+       * a silent re-attribution.
+       *
+       * `state` is the device's own vocabulary (`LOCAL_DELIVERY_STATES`), and `REQUIRES_REVIEW`
+       * is the one that matters: a refused attempt is **kept**, with its photograph.
+       */
+      `create table if not exists local_delivery_attempt (
+         local_id text primary key,
+         invitation_id text not null,
+         invitation_revision integer not null,
+         outcome text not null,
+         occurred_at text not null,
+         note text,
+         latitude real,
+         longitude real,
+         accuracy_m real,
+         /* The photograph, in the app's own documents directory. Released only on ACK. */
+         evidence_file_uri text,
+         evidence_mime_type text,
+         evidence_size_bytes integer,
+         evidence_stored_object_id text,
+         state text not null default 'SAVED',
+         command_id text,
+         server_attempt_id text,
+         conflict_reason text,
+         attempts integer not null default 0,
+         last_error text,
+         updated_at text not null
+       )`,
+      `create index if not exists local_delivery_invitation_idx
+         on local_delivery_attempt (invitation_id, occurred_at)`,
+      `create index if not exists local_delivery_state_idx
+         on local_delivery_attempt (state, occurred_at)`,
+    ],
+  },
 ];
 
 export const LOCAL_SCHEMA_VERSION = LOCAL_MIGRATIONS[LOCAL_MIGRATIONS.length - 1]!.version;

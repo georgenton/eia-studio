@@ -12,6 +12,7 @@ export {
   gisSchema,
   schema,
   socialSchema,
+  socializationSchema,
   qualitySchema,
   documentsSchema,
   reviewSchema,

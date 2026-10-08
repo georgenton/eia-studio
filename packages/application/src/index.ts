@@ -35,6 +35,36 @@ export {
 export { loadCommandCenter } from "./projects/command-center";
 export type { CommandCenterView, ProjectHeader } from "./projects/command-center";
 export { loadWorkspaceHeader, loadPortfolio } from "./projects/portfolio";
+export {
+  buildPublishableImage,
+  describeImageMetadata,
+  EDITORIAL_IMAGE_LIMITS,
+} from "./portal/editorial-image";
+export type { EditorialImageDerivative } from "./portal/editorial-image";
+export {
+  createEditorialPhoto,
+  EDITORIAL_NAMESPACE,
+  EditorialRevisionConflict,
+  loadEditorialDraft,
+  loadEditorialTenantProfile,
+  loadPublicEditorialIndex,
+  loadPublicEditorialPage,
+  publishEditorial,
+  resolvePublicEditorialAsset,
+  saveEditorialDraft,
+  updateEditorialTenantProfile,
+  withdrawEditorial,
+} from "./portal/editorial";
+export type {
+  EditorialDraftView,
+  EditorialPhoto,
+  EditorialTenantProfileView,
+  PublicEditorialIndex,
+  PublicEditorialIndexEntry,
+  PublicEditorialAsset,
+  PublicEditorialPage,
+  PublishedEditorial,
+} from "./portal/editorial";
 export { uploadDocumentVersion, uploadDocumentVersionInputSchema } from "./documents/upload";
 export type { UploadedDocumentVersion } from "./documents/upload";
 export { createMemoryStorage } from "./storage/memory-adapter";
@@ -58,6 +88,20 @@ export {
   updateProjectIntake,
   updateProjectIntakeInputSchema,
 } from "./projects/intake";
+export {
+  consultancyManifestSchema,
+  consultancyPersonSchema,
+  deliveredLayerSchema,
+  EMPTY_SNAPSHOT,
+  plan as planConsultancyIntake,
+} from "./intake/consultancy-manifest";
+export type {
+  ConsultancyManifest,
+  IntakeOutcome,
+  IntakePlan,
+  IntakeSnapshot,
+  IntakeStep,
+} from "./intake/consultancy-manifest";
 export type {
   IntakeDocument,
   IntakeSurvey,
@@ -143,11 +187,68 @@ export type {
   RequestedCorrection,
 } from "./field/corrections";
 export { readsAllFieldResponses, withFieldContext } from "./field/context";
+export {
+  assignParcel,
+  assignParcelInputSchema,
+  listEligibleTechnicians,
+  loadAssignmentBoard,
+  loadCurrentAssignmentBoard,
+  reassignAssignment,
+  reassignAssignmentInputSchema,
+} from "./field/assignments";
+export {
+  createSocializationEvent,
+  createEventInputSchema,
+  generateInvitations,
+  generateInvitationsInputSchema,
+  listInvitationCandidates,
+  reassignInvitation,
+  reassignInvitationInputSchema,
+  recordDeliveryAttempt,
+  recordDeliveryInputSchema,
+  listSocializationEvents,
+  loadPrintableInvitation,
+  loadSocializationEvent,
+  transitionSocializationEvent,
+  eventTransitionInputSchema,
+  updateSocializationEvent,
+  updateEventInputSchema,
+  DELIVERY_CONFLICT_REASONS,
+} from "./field/socializations";
+export type {
+  CreateEventInput,
+  DeliveryConflictReason,
+  EventTransitionInput,
+  GenerateInvitationsInput,
+  InvitationCandidate,
+  ReassignInvitationInput,
+  RecordDeliveryInput,
+  RecordDeliveryResult,
+  PrintableInvitation,
+  SocializationEventDetail,
+  SocializationEventSummary,
+  SocializationInvitationRow,
+  UpdateEventInput,
+} from "./field/socializations";
+export type {
+  AssignmentBoard,
+  AssignmentBoardRow,
+  AssignParcelInput,
+  EligibleTechnician,
+  ReassignAssignmentInput,
+} from "./field/assignments";
 // EIA Field (Production V1, Wave 1): the scoped download a technician works from offline.
 export { buildFieldPack, decodeCursor, encodeCursor } from "./field/field-pack";
 export { resolveFieldScope } from "./field/scope";
 export type { FieldPackOptions } from "./field/field-pack";
-export { processSyncCommands, pullFieldChanges } from "./field/sync";
+export { processSyncCommands, processWorkSyncCommands, pullFieldChanges } from "./field/sync";
+export {
+  buildWorkPack,
+  encodeWorkCursor,
+  pullWorkChanges,
+  resolveFieldWorkScope,
+} from "./field/work-v4";
+export type { WorkPackOptions } from "./field/work-v4";
 export type { ProcessSyncOptions } from "./field/sync";
 export { activateDatasetVersion } from "./gis/activate-dataset-version";
 export type { DatasetActivation } from "./gis/activate-dataset-version";

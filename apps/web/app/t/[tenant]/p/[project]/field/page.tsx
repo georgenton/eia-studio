@@ -1,8 +1,10 @@
 import { loadFieldOverview, loadMyWork, loadWorkspaceHeader } from "@eia/application";
 import { can, readFieldOfflineMode } from "@eia/domain";
+import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
 import { FieldOverviewSurface } from "@/components/field/field-overview";
+import fieldWork from "@/components/field/field-work.module.css";
 import { MyWork } from "@/components/field/my-work";
 import { ProvenancePanel } from "@/components/provenance-panel";
 import { projectBreadcrumb, projectLabel, WorkspaceShell } from "@/components/workspace-shell";
@@ -121,12 +123,27 @@ export default async function FieldPage({
           backHref={`/t/${tenant}`}
         />
       ) : overview ? (
-        <FieldOverviewSurface
-          basePath={basePath}
-          i18n={i18n}
-          offlineMode={offlineMode}
-          overview={overview}
-        />
+        <>
+          {/*
+           * Two desk surfaces that belong to this one, offered by permission rather than by role.
+           * Socializations is listed even when the campaign is closed, because convening the
+           * corridor is work that outlives the survey (ADR-041).
+           */}
+          <nav className={fieldWork.subSurfaces} data-testid="field-sub-surfaces">
+            {can(ctx, "field.assignments.manage") ? (
+              <Link href={`${basePath}/assignments`}>{t("field.assignments.title")}</Link>
+            ) : null}
+            {can(ctx, "field.socializations.manage") ? (
+              <Link href={`${basePath}/socializations`}>{t("field.socializations.title")}</Link>
+            ) : null}
+          </nav>
+          <FieldOverviewSurface
+            basePath={basePath}
+            i18n={i18n}
+            offlineMode={offlineMode}
+            overview={overview}
+          />
+        </>
       ) : (
         <MyWork
           assignments={assignments ?? []}

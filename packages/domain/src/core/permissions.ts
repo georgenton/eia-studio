@@ -3,6 +3,15 @@
  * Server code references these constants, never ad-hoc strings.
  */
 export const TENANT_PERMISSIONS = [
+  /**
+   * Configure what a consultancy calls itself on its own public landing (`/p/:tenant`).
+   *
+   * **Tenant-scoped, and that is the point.** `portal.editorial.write` is a *project* permission:
+   * whoever edits one road's page would otherwise be able to rename the whole firm, because the
+   * landing's name is one row shared by every project. Reusing it would have been a smaller diff
+   * and the wrong boundary.
+   */
+  "portal.profile.manage",
   "tenant.transfer",
   "tenant.delete",
   "billing.manage",
@@ -74,6 +83,21 @@ export const PROJECT_PERMISSIONS = [
    * made is part of making it.
    */
   "field.corrections.request",
+  /*
+   * Convening the people a road runs past, and keeping track of who has been told.
+   *
+   * One key for the whole socialization surface — creating an event, generating invitations,
+   * cancelling, and reading the attempts and their evidence — because they are one job done by
+   * one person. It is held by the coordinator and the **social specialist**: consultation is what
+   * a social specialist does, and needing a coordinator to press every button would make the
+   * coordinator a bottleneck in somebody else's work.
+   *
+   * It does **not** carry the right to decide who goes. Choosing a technician for an invitation
+   * is `field.assignments.manage`, the same key that decides who surveys a parcel, because it is
+   * the same decision about the same people's days — and a specialist who holds both does so
+   * because the role holds both, not because this key implied it.
+   */
+  "field.socializations.manage",
   "media.upload",
   "documents.read",
   "documents.write",
@@ -100,6 +124,16 @@ export const PROJECT_PERMISSIONS = [
   // decides. A reviewer checks what would go out without being able to send it.
   "portal.preview",
   "portal.publish",
+  /**
+   * Write the public editorial page's draft (Visión Ambiental, block 2).
+   *
+   * Its own key rather than a reuse of `portal.preview`, because the three acts are different and
+   * the product already says so elsewhere: a specialist writes what the firm would say, a reviewer
+   * reads it before anyone else can, and a coordinator decides it goes out. Folding writing into
+   * preview would have given every reviewer an editor, and folding it into publish would have made
+   * writing a paragraph a publishing decision.
+   */
+  "portal.editorial.write",
   "pii.read",
   "pii.export",
   "provenance.read",

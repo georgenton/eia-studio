@@ -37,6 +37,12 @@ export const AUDIT_ACTIONS = [
   // mirrors every write is noise nobody reads.
   "field.campaign.activated",
   "field.campaign.closed",
+  /*
+   * Deciding who goes where. `reassigned` has existed since Slice 3; `created` joins it now that
+   * assigning a parcel is a product act rather than a seeder's doing. Both carry identifiers and
+   * nothing a person wrote: an assignment's note is free text about a household.
+   */
+  "field.assignment.created",
   "field.assignment.reassigned",
   /*
    * Writing a questionnaire inside the product (ADR-037). Two lines, for the two moments that
@@ -49,6 +55,21 @@ export const AUDIT_ACTIONS = [
    */
   "field.survey.drafted",
   "field.survey.published",
+  /*
+   * Socializations (ADR-041). Five moments, and what each line does **not** carry is the design:
+   * never a `recipient_label`, never an attempt's note, never a coordinate, never the filename of
+   * a photograph. An invitation names a household's gate and a note is free text somebody typed
+   * at it; an audit line is read by more people than either.
+   *
+   * `invitations_generated` records a count rather than a list, for the same reason: the parcels
+   * a convocation reached is a question for the surface, under RLS, not for a log.
+   */
+  "field.socialization.event_created",
+  "field.socialization.event_scheduled",
+  "field.socialization.event_cancelled",
+  "field.socialization.invitations_generated",
+  "field.socialization.invitation_reassigned",
+  "field.socialization.delivery_recorded",
   /*
    * Correcting a submitted response (ADR-038). Three moments: somebody asked for a response to be
    * captured again, a technician captured it, or the request was withdrawn.
@@ -112,6 +133,14 @@ export const AUDIT_ACTIONS = [
   // and becomes what a customer is told, so it is audited; opening the preview is ordinary
   // reading and is not. The row carries the version and the figure count, never the payload.
   "portal.publication.published",
+  /**
+   * The editorial page going out, and coming back. Counts and a sequence — never the page's text,
+   * which is read by more people in an audit export than on the site itself.
+   */
+  "portal.editorial.published",
+  "portal.editorial.withdrawn",
+  /** Lengths and a flag, never the words a firm chose for itself. */
+  "portal.editorial.profile_set",
 ] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];

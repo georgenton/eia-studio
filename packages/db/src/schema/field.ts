@@ -48,7 +48,8 @@ const createdAt = () =>
  * A visit's captured point. Canonical `EPSG:4326`, like every other geometry (ADR-017); a visit
  * point needs no analysis CRS, because nothing measures a distance from it.
  */
-const pointColumn = customType<{ data: string; driverData: string }>({
+/** Exported so socializations uses the same column type rather than declaring a second one. */
+export const pointColumn = customType<{ data: string; driverData: string }>({
   dataType: () => "geometry(Point,4326)",
 });
 
@@ -790,6 +791,9 @@ export const syncCommandType = app.enum("field_sync_command_type", [
   "survey.submit",
   "visit.finish",
   "media.declare",
+  // Protocol v4 (ADR-041). A new value and no new meaning for an old one: a v3 device never
+  // sends it, and the receipt table is what makes a retry of it one row rather than two.
+  "socialization.delivery.record",
 ]);
 
 export const syncCommandOutcome = app.enum("field_sync_outcome", [

@@ -1,0 +1,22 @@
+-- No schema change. This file exists to carry the drizzle-kit snapshot forward.
+--
+-- ## What went wrong, and what this repairs
+--
+-- Migrations 0052, 0053 and 0054 were **hand-written** — grants, policies and triggers are
+-- reviewed SQL (ADR-013), and the editorial tables arrive with all three. Hand-writing the shape
+-- as well meant drizzle-kit's snapshot was never advanced, so `drizzle-kit generate` still
+-- believed the `portal` editorial tables did not exist and would have produced them all again.
+-- `pnpm db:check` — the CI drift gate — had been failing since 0052, and nothing in those blocks'
+-- regression runs asked it.
+--
+-- Regenerating the objects here would be wrong: 0052 to 0054 already create every one of them,
+-- and a fresh database applies those first. So the generated SQL is replaced by this note while
+-- the **snapshot and the journal entry are kept** — which is the whole point of the file. From
+-- here on drizzle-kit compares against a baseline that matches the schema, and the next real
+-- change generates only itself (0056 does).
+--
+-- The lesson, recorded rather than left implicit: a hand-written migration that adds a **table**
+-- must be followed by a snapshot, or the drift gate goes quiet. One that adds only grants,
+-- policies, triggers or constraints drizzle does not model — 0051, and the RLS half of every
+-- pair — needs nothing, which is why this had not come up before.
+SELECT 1 WHERE false;

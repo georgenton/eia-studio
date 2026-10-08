@@ -133,7 +133,7 @@ place in the product where project access is deliberately not enough.
 |---|---|---|
 | `field.read` | the operational workflow: campaigns, their progress, assignments and per-technician counts | COORDINATOR, SOCIAL_SPECIALIST, ENVIRONMENTAL_SPECIALIST, GIS_SPECIALIST, REVIEWER, VIEWER |
 | `field.campaigns.manage` | create, activate and close campaigns | COORDINATOR |
-| `field.assignments.manage` | assign and reassign work | COORDINATOR |
+| `field.assignments.manage` | assign and reassign work | COORDINATOR, SOCIAL_SPECIALIST |
 | `field.assignments.read_own` | see *my* assignments and nobody else's | FIELD_TECHNICIAN (and implied for anyone with `field.read`) |
 | `field.capture` | start a visit, save a draft, submit a response — on my own assignments | FIELD_TECHNICIAN, COORDINATOR |
 | `field.responses.read` | read an individual response and its answers, whoever captured it | COORDINATOR, SOCIAL_SPECIALIST, REVIEWER |

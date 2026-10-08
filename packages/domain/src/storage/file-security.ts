@@ -21,7 +21,7 @@ import { InvalidInput } from "../core/errors";
  * compression ratio that turns 40 KB into a gigabyte of memory. Nothing here executes any part of
  * it: extraction reads entries, never runs them, and the limits below bound what it may read.
  */
-export const UPLOAD_FORMATS = ["pdf", "docx", "jpeg", "png"] as const;
+export const UPLOAD_FORMATS = ["pdf", "docx", "pptx", "jpeg", "png"] as const;
 export type UploadFormat = (typeof UPLOAD_FORMATS)[number];
 
 export interface FormatDescriptor {
@@ -61,6 +61,22 @@ export const FORMAT_DESCRIPTORS: Readonly<Record<UploadFormat, FormatDescriptor>
     signature: [0xff, 0xd8, 0xff],
     maxBytes: 25 * MB,
   },
+  /*
+   * `PK\x03\x04` — a PPTX is a ZIP too.
+   *
+   * Accepted for one purpose: a consultancy's slide deck, offered as a **download**. Nothing in
+   * this product opens it. It is never handed to the PDF or DOCX extractor — those dispatch on
+   * the declared type and a presentation matches neither — so it produces no chunk and can never
+   * be cited. `.pptm` is refused the way `.docm` is: by declared type, and by looking inside the
+   * archive for the macro project, because a renamed file presents the same signature.
+   */
+  pptx: {
+    format: "pptx",
+    extensions: [".pptx"],
+    mimeTypes: ["application/vnd.openxmlformats-officedocument.presentationml.presentation"],
+    signature: [0x50, 0x4b, 0x03, 0x04],
+    maxBytes: 60 * MB,
+  },
   // `\x89PNG`
   png: {
     format: "png",
@@ -85,6 +101,11 @@ export const FIELD_MEDIA_FORMATS: ReadonlyArray<UploadFormat> = ["jpeg", "png"];
 export const TEMPLATE_FORMATS: ReadonlyArray<UploadFormat> = ["docx"];
 /** What this product generates. One format, so a reader always knows what they are opening. */
 export const GENERATED_FORMATS: ReadonlyArray<UploadFormat> = ["docx"];
+/**
+ * What a consultancy may publish on its own page: photographs, a readable PDF, and a deck to
+ * download. No `.docx`, because a public page is read rather than edited.
+ */
+export const EDITORIAL_FORMATS: ReadonlyArray<UploadFormat> = ["jpeg", "png", "pdf", "pptx"];
 
 /**
  * Parts of an OOXML package that mean the file carries code, or is not a Word document at all.
@@ -97,10 +118,14 @@ export const GENERATED_FORMATS: ReadonlyArray<UploadFormat> = ["docx"];
 export const MACRO_ARCHIVE_ENTRIES: ReadonlyArray<string> = [
   "word/vbaproject.bin",
   "word/vbadata.xml",
+  // A presentation carries its macro project in its own folder; a `.pptm` renamed `.pptx` is the
+  // same trick as a `.docm` renamed `.docx`, and gets the same answer.
+  "ppt/vbaproject.bin",
 ];
 export const MACRO_CONTENT_TYPES: ReadonlyArray<string> = [
   "application/vnd.ms-word.document.macroenabled.main+xml",
   "application/vnd.ms-word.template.macroenabledtemplate.main+xml",
+  "application/vnd.ms-powerpoint.presentation.macroenabled.main+xml",
 ];
 
 /**
