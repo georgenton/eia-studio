@@ -169,10 +169,17 @@ describe("Wave 3 tables exist on staging with their tenancy contract", () => {
   });
 
   /*
-   * The storage namespaces are not mixed. A template, a generated draft and a delivered study are
-   * three different things, and the enum is what makes a query for one unable to reach another.
+   * The storage namespaces are not mixed. A template, a generated draft, a delivered study, a
+   * published editorial image and a photograph of a convocation are different things, and the enum
+   * is what makes a query for one unable to reach another.
+   *
+   * The assertion is the **whole** set, in order, and stays that way. A namespace is a privacy
+   * boundary: `field-media` and `socialization-evidence` hold evidence that must never become
+   * public, and `portal-editorial` holds the one kind of object that is published on purpose.
+   * `toContain` would let a sixth namespace arrive without anybody deciding it should. So adding
+   * one means editing this list, deliberately, in the same change — which is the point.
    */
-  it("the storage namespaces include templates and generated, and nothing else new", async () => {
+  it("the storage namespace catalogue is exactly the reviewed set", async () => {
     const result = await db.migrator.execute(sql`
       select e.enumlabel as label
         from pg_enum e join pg_type t on t.oid = e.enumtypid
@@ -185,6 +192,10 @@ describe("Wave 3 tables exist on staging with their tenancy contract", () => {
       "field-media",
       "templates",
       "generated",
+      // 0052 · the editorial CMS, which publishes a re-encoded derivative and never the original.
+      "portal-editorial",
+      // 0056 · a photograph of an invitation delivery, which is private evidence (ADR-041).
+      "socialization-evidence",
     ]);
   });
 
