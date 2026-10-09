@@ -48,6 +48,7 @@ import {
   formatBytes,
   formatCount,
   formatDateTime,
+  formatDateTimeInZone,
   formatDecimal,
   formatIsoDate,
   formatIsoDateShort,
@@ -387,12 +388,64 @@ describe("formatting", () => {
     expect(formatBytes("es-EC", 1024 * 1024 * 3.5)).toMatch(/3,5 MB/);
   });
 
+  /*
+   * A socialization is an appointment, so its hour is a wall clock in a place. Entered as 10:00 in
+   * Guayaquil, it is stored as 15:00Z — correctly — and used to be rendered as "15:00" beside the
+   * label "America/Guayaquil", which told the reader two different times at once.
+   */
+  it("reads a socialization's hour in the event's own time zone", () => {
+    const instant = new Date("2026-10-09T15:00:00.000Z");
+    const shown = formatDateTimeInZone("es-EC", instant, "America/Guayaquil");
+    expect(shown).toContain("10:00");
+    expect(shown).not.toContain("15:00");
+    expect(formatDateTimeInZone("en", instant, "America/Guayaquil")).toContain("10:00");
+    // The UTC formatter keeps its own meaning: it is what every other timestamp is rendered with.
+    expect(formatDateTime("es-EC", instant)).toContain("15:00");
+  });
+
+  /*
+   * The calendar date is computed in the zone too, not only the clock. Fixing the hour and leaving
+   * the day in UTC would move a late meeting to the following morning on a printed sheet — worse
+   * than the bug it replaced.
+   */
+  it("moves the calendar date as well when the zone requires it", () => {
+    // 20:00 on 9 October in Guayaquil is 01:00 on 10 October in UTC.
+    const instant = new Date("2026-10-10T01:00:00.000Z");
+    const guayaquil = formatDateTimeInZone("es-EC", instant, "America/Guayaquil");
+    expect(guayaquil).toContain("20:00");
+    expect(guayaquil).toMatch(/\b9\b/);
+    expect(guayaquil).not.toMatch(/\b10\b.*oct/);
+    // And the other way: a zone ahead of UTC can land on the next day.
+    const madrid = formatDateTimeInZone("es-EC", instant, "Europe/Madrid");
+    expect(madrid).toMatch(/\b10\b/);
+  });
+
+  it("keeps a 24-hour clock in both languages", () => {
+    const evening = new Date("2026-10-09T23:30:00.000Z");
+    for (const locale of ["es-EC", "en"] as const) {
+      const shown = formatDateTimeInZone(locale, evening, "UTC");
+      expect(shown).toContain("23:30");
+      expect(shown.toLowerCase()).not.toMatch(/[ap]\.?\s?m/);
+    }
+  });
+
+  /* A malformed zone costs the reader the right hour, never the whole page. */
+  it("falls back to the UTC reading when the zone is unusable", () => {
+    const instant = new Date("2026-10-09T15:00:00.000Z");
+    expect(formatDateTimeInZone("es-EC", instant, "Nowhere/Nothing")).toBe(
+      formatDateTime("es-EC", instant),
+    );
+  });
+
   it("binds every formatter to one locale at once", () => {
     const fmt = createFormat("en");
     expect(fmt.locale).toBe("en");
     expect(fmt.decimal(7.4)).toBe("7.4");
     expect(fmt.percent(0.5, 0)).toBe("50%");
     expect(fmt.count(1200)).toBe(formatCount("en", 1200));
+    expect(fmt.dateTimeInZone(new Date("2026-10-09T15:00:00.000Z"), "America/Guayaquil")).toContain(
+      "10:00",
+    );
   });
 });
 

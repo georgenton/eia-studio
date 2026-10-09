@@ -69,7 +69,7 @@ export default async function PrintableInvitationPage({
       <dl className={styles.facts}>
         <dt>{t("field.socializations.printWhen")}</dt>
         <dd>
-          {fmt.dateTime(invitation.startsAt)} · {invitation.timezone}
+          {fmt.dateTimeInZone(invitation.startsAt, invitation.timezone)} · {invitation.timezone}
         </dd>
         <dt>{t("field.socializations.printWhere")}</dt>
         <dd>{invitation.locationLabel}</dd>
