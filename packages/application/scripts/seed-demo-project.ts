@@ -40,6 +40,7 @@ import { config as loadDotenv } from "dotenv";
 import { supersedeOtherCampaigns } from "../src/field/campaign-canonicalization";
 import { assertAnalysisSridUsable } from "../src/gis/analysis-crs";
 import { importPgasChapter } from "../src/pgas/import";
+import { orphanProvenanceSweep } from "../src/projects/provenance-sweep";
 import { ingestDocumentVersionInTx } from "../src/documents/ingest";
 import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
@@ -522,40 +523,16 @@ try {
     await tx
       .delete(appSchema.provenanceInput)
       .where(eq(appSchema.provenanceInput.projectId, projectId));
-    // Records written by an older run with random ids are removed; the deterministic ones are
-    // updated in place below, so nothing that still references them is ever orphaned.
-    await tx.execute(sql`
-      delete from app.provenance_record pr
-       where pr.project_id = ${projectId}
-         and not exists (select 1 from app.survey_campaign c where c.provenance_id = pr.id)
-         and not exists (select 1 from app.survey_version v where v.provenance_id = pr.id)
-         and not exists (select 1 from app.field_assignment a where a.provenance_id = pr.id)
-         and not exists (select 1 from app.field_visit fv where fv.provenance_id = pr.id)
-         and not exists (select 1 from app.survey_instance si where si.provenance_id = pr.id)
-         and not exists (select 1 from app.spatial_dataset_version dv where dv.provenance_id = pr.id)
-         and not exists (select 1 from app.parcel p where p.provenance_id = pr.id)
-         and not exists (select 1 from app.parcel_geometry g where g.provenance_id = pr.id)
-         and not exists (select 1 from app.affectation af where af.provenance_id = pr.id)
-         and not exists (select 1 from app.alignment al where al.provenance_id = pr.id)
-         -- Social (Slice 4). A provenance-bearing table added later and forgotten here is a
-         -- re-seed that fails on a foreign key, which is the loud version of the failure; the
-         -- quiet version would be a dangling reference. Both are avoided by listing every one.
-         and not exists (select 1 from app.taxonomy_version tv where tv.provenance_id = pr.id)
-         and not exists (select 1 from app.classification_run cr where cr.provenance_id = pr.id)
-         and not exists (select 1 from app.ai_classification ac where ac.provenance_id = pr.id)
-         and not exists (select 1 from app.human_review hr where hr.provenance_id = pr.id)
-         -- Quality Gate (Slice 5), same discipline.
-         and not exists (select 1 from app.document_assertion da where da.provenance_id = pr.id)
-         and not exists (select 1 from app.quality_run qr where qr.provenance_id = pr.id)
-         and not exists (select 1 from app.quality_finding qf where qf.provenance_id = pr.id)
-         -- Documents (Slice 6).
-         and not exists (select 1 from app.document_version dv where dv.provenance_id = pr.id)
-         -- Reports (Slice 7): a generated version records how it was produced.
-         and not exists (select 1 from app.report_version rv where rv.provenance_id = pr.id)
-         -- The management plan (ADR-024): a superseded import run keeps its provenance, because
-         -- a figure quoted from last month's plan must still be explainable.
-         and not exists (select 1 from app.pgas_import_run ir where ir.provenance_id = pr.id)
-    `);
+    /*
+     * Records written by an older run with random ids are removed; the deterministic ones are
+     * updated in place below, so nothing that still references them is ever orphaned.
+     *
+     * Which tables may still hold a reference is a **registry**, not a hand-written chain of
+     * subqueries: this one fell eleven tables behind the schema, and a local database that had run
+     * the document-review e2e spec could no longer be re-seeded at all (TD-125). The query is
+     * generated from `SWEEP_PROTECTED_TABLES`, and a test compares that list against the catalogue.
+     */
+    await tx.execute(orphanProvenanceSweep(projectId));
     /*
      * Provenance ids are **derived from the fixture key**, not random.
      *
