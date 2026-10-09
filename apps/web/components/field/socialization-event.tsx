@@ -91,7 +91,8 @@ export function SocializationEventSurface({
         <PanelHeader label={event.title} note={event.purpose ?? undefined} />
         <PanelBody>
           <p className={styles.muted} data-testid="socialization-when">
-            {fmt.dateTime(event.startsAt)} · {event.timezone} · {event.locationLabel}
+            {fmt.dateTimeInZone(event.startsAt, event.timezone)} · {event.timezone} ·{" "}
+            {event.locationLabel}
           </p>
           {frozen ? (
             <p className={styles.help} data-testid="socialization-frozen">

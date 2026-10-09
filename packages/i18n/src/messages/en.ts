@@ -254,7 +254,7 @@ export const messages: Messages = {
       noEvents: "There are no convocations in this project yet.",
       invitations: "Invitations",
       invitationsLead:
-        "One invitation per parcel. However many visits it takes to deliver one, they are attempts and not invitees.",
+        "One invitation per parcel. However many visits it takes to deliver one, they are delivery attempts, not separate invitations.",
       generate: "Generate invitations",
       generated: "{created} new invitations; {skipped} already existed.",
       selectParcels: "Parcels to invite",
@@ -270,7 +270,8 @@ export const messages: Messages = {
       refused: "Refused",
       cancelledCount: "Cancelled",
       attempts: "Attempts",
-      attemptsHelp: "Visits made. Three visits to one parcel are one invitee, not three.",
+      attemptsHelp:
+        "Visits made. One invitation may take several delivery attempts: three visits to the same parcel are still one invitation.",
       attemptOutcome: "Outcome",
       attemptWhen: "When",
       attemptWho: "Who",
