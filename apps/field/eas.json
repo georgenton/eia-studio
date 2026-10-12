@@ -9,7 +9,8 @@
       "distribution": "internal",
       "channel": "development",
       "env": {
-        "EXPO_PUBLIC_API_URL": "http://localhost:3000"
+        "EXPO_PUBLIC_API_URL": "http://localhost:3000",
+        "EXPO_PUBLIC_APP_ENV": "local"
       }
     },
     "staging": {
@@ -18,7 +19,8 @@
       "android": { "buildType": "apk" },
       "ios": { "simulator": false },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://eia-field-uat.vercel.app"
+        "EXPO_PUBLIC_API_URL": "https://vih786wuduzmldekoq3zdies.syntavera.dev",
+        "EXPO_PUBLIC_APP_ENV": "staging"
       }
     },
     "production": {
@@ -27,7 +29,8 @@
       "autoIncrement": true,
       "android": { "buildType": "app-bundle" },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://REPLACE-WITH-PRODUCTION-HOST"
+        "EXPO_PUBLIC_API_URL": "https://REPLACE-WITH-PRODUCTION-HOST",
+        "EXPO_PUBLIC_APP_ENV": "production"
       }
     }
   },
