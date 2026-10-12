@@ -71,15 +71,7 @@ export const STAGING_ORIGIN = "https://vih786wuduzmldekoq3zdies.syntavera.dev";
  * deployed (`docs/PRODUCTION_V1_GO_LIVE.md` §4). A build that shipped with it would resolve
  * nothing and say nothing about why.
  */
-const PRODUCTION_PLACEHOLDER = "REPLACE-WITH-PRODUCTION-HOST";
-
-function isLocalOrigin(apiBaseUrl: string): boolean {
-  return (
-    apiBaseUrl.startsWith("http://localhost") ||
-    apiBaseUrl.startsWith("http://127.0.0.1") ||
-    apiBaseUrl.startsWith("http://[::1]")
-  );
-}
+const PRODUCTION_PLACEHOLDER = "replace-with-production-host";
 
 /**
  * A reference to the target that is safe to put in an error, and then in a build log.
@@ -87,15 +79,84 @@ function isLocalOrigin(apiBaseUrl: string): boolean {
  * The origin itself is public — it is in the bundle either way — but a URL can carry
  * `user:password@` in its authority, and an error message is the one place that would travel
  * somewhere a bundle does not. So a message names the **host** and nothing else, and says so
- * loudly when credentials were embedded rather than quietly printing them.
+ * loudly when credentials were embedded rather than quietly printing them. Nothing here prints a
+ * path, a query or a fragment either: a token smuggled into one of those would travel the same way.
  */
-function safeTarget(apiBaseUrl: string): string {
+function describeTarget(target: URL): string {
+  if (target.username !== "" || target.password !== "") return "<a URL with embedded credentials>";
+  return target.host;
+}
+
+/**
+ * The target, read as a URL rather than as a string.
+ *
+ * Every check below used to be `startsWith`, and a prefix is not an origin: `localhost` is a
+ * prefix of `localhost.evil.invalid`, and a host nobody vetted was therefore classified as the
+ * developer's own machine. The platform already has a parser that knows what an authority is —
+ * the same one `describeTarget` uses — so the comparisons are made on what it returns.
+ */
+function parseTarget(apiBaseUrl: string): URL {
+  let target: URL;
   try {
-    const u = new URL(apiBaseUrl);
-    if (u.username !== "" || u.password !== "") return "<a URL with embedded credentials>";
-    return u.host;
+    target = new URL(apiBaseUrl);
   } catch {
-    return "<an unparseable URL>";
+    throw new MisconfiguredFieldBuild(
+      "EXPO_PUBLIC_API_URL is not a URL this build can parse; it must be an origin such as https://host",
+    );
+  }
+  if (target.protocol !== "http:" && target.protocol !== "https:") {
+    throw new MisconfiguredFieldBuild(
+      `EXPO_PUBLIC_API_URL uses the scheme "${target.protocol.replace(":", "")}"; it must be http or https`,
+    );
+  }
+  return target;
+}
+
+/**
+ * Loopback by parsed hostname, exactly.
+ *
+ * The three names the platform resolves to this machine, plus the rest of `127.0.0.0/8`, which
+ * `URL` canonicalises into a dotted quad before we see it. `localhost.evil.invalid` and
+ * `127.0.0.1.evil.invalid` are ordinary remote hosts and are treated as such, which is the whole
+ * point of parsing: they are somebody else's machines wearing a familiar prefix.
+ */
+function isLoopback(target: URL): boolean {
+  const { hostname } = target;
+  if (hostname === "localhost" || hostname === "[::1]") return true;
+  return /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(hostname);
+}
+
+/**
+ * An API base is an **origin**: a scheme, a host, and at most a non-default port.
+ *
+ * Everything else a URL can carry is refused rather than ignored, because each one is a way for
+ * two targets that differ to compare equal as origins and then behave differently at runtime.
+ * `user:password@` is a credential in a public bundle; `/api` and `?x=1` ride along on every
+ * request the application makes and are exactly where a smuggled token would sit. A single
+ * trailing slash has already been trimmed by the caller, so the only path that survives here is
+ * the root one `URL` supplies.
+ */
+function assertBareOrigin(target: URL): void {
+  if (target.username !== "" || target.password !== "") {
+    throw new MisconfiguredFieldBuild(
+      "EXPO_PUBLIC_API_URL carries embedded credentials; a build may only name an origin, and a bundle is public",
+    );
+  }
+  const host = describeTarget(target);
+  if (target.pathname !== "/" && target.pathname !== "") {
+    throw new MisconfiguredFieldBuild(
+      `EXPO_PUBLIC_API_URL points at a path under ${host}; a build may only name an origin`,
+    );
+  }
+  if (target.search !== "") {
+    throw new MisconfiguredFieldBuild(
+      `EXPO_PUBLIC_API_URL carries a query string for ${host}; a build may only name an origin`,
+    );
+  }
+  if (target.hash !== "") {
+    throw new MisconfiguredFieldBuild(
+      `EXPO_PUBLIC_API_URL carries a fragment for ${host}; a build may only name an origin`,
+    );
   }
 }
 
@@ -108,48 +169,57 @@ function safeTarget(apiBaseUrl: string): string {
  * second shows a client a study that does not exist. Neither is caught by a label, because by
  * then the label is the lie.
  *
- * So the relationship is enumerated, not inferred. Three environments, three rules, deny by
- * default. No hostname heuristics: staging is *one exact origin*, and anything else — however
- * plausible it looks — is a build that nobody decided to make.
+ * The second version enumerated the three environments but compared raw strings, which is a
+ * weaker guard than it reads as: a production build aimed at `STAGING_ORIGIN + "/api"`, or at the
+ * same host with its default `:443` spelled out, is aimed at staging and compared unequal. So the
+ * comparison is now between **canonical origins** — what `URL` returns once it has normalised the
+ * port and lower-cased the host — and anything that is not purely an origin has already been
+ * refused above. Three environments, three rules, deny by default, no hostname heuristics.
  */
 function assertCoherent(environment: AppEnvironment, apiBaseUrl: string): void {
-  const target = safeTarget(apiBaseUrl);
+  const target = parseTarget(apiBaseUrl);
+  assertBareOrigin(target);
+
+  const host = describeTarget(target);
+  const staging = new URL(STAGING_ORIGIN);
 
   if (environment === "local") {
-    if (!isLocalOrigin(apiBaseUrl)) {
-      throw new MisconfiguredFieldBuild(`a local build points at ${target}, which is not local`);
+    if (!isLoopback(target)) {
+      throw new MisconfiguredFieldBuild(
+        `a local build points at ${host}, which is not a loopback host`,
+      );
     }
     return;
   }
 
-  if (isLocalOrigin(apiBaseUrl)) {
+  if (isLoopback(target)) {
     throw new MisconfiguredFieldBuild(
-      `a ${environment} build fell back to a local host; EXPO_PUBLIC_API_URL was not set`,
+      `a ${environment} build points at the loopback host ${host}; EXPO_PUBLIC_API_URL was not set to a real backend`,
     );
   }
 
   if (environment === "staging") {
-    // Exact, after the trailing slash has already been trimmed. The retired Vercel UAT host, a
-    // production host and a typo all land here together, which is the point.
-    if (apiBaseUrl !== STAGING_ORIGIN) {
+    // Exact origin. The retired Vercel UAT host, a production host and a typo all land here
+    // together, which is the point.
+    if (target.origin !== staging.origin) {
       throw new MisconfiguredFieldBuild(
-        `a staging build points at ${target}; staging may only target ${safeTarget(STAGING_ORIGIN)}`,
+        `a staging build points at ${host}; staging may only target ${staging.host}`,
       );
     }
     return;
   }
 
   // production
-  if (apiBaseUrl === STAGING_ORIGIN) {
-    throw new MisconfiguredFieldBuild(`a production build points at the staging host ${target}`);
-  }
-  if (apiBaseUrl.includes(PRODUCTION_PLACEHOLDER)) {
+  if (target.hostname.includes(PRODUCTION_PLACEHOLDER)) {
     throw new MisconfiguredFieldBuild(
       "a production build still carries the placeholder host; the production host is not decided",
     );
   }
-  if (!apiBaseUrl.startsWith("https://")) {
-    throw new MisconfiguredFieldBuild(`a production build points at ${target} over plain HTTP`);
+  if (target.origin === staging.origin) {
+    throw new MisconfiguredFieldBuild(`a production build points at the staging host ${host}`);
+  }
+  if (target.protocol !== "https:") {
+    throw new MisconfiguredFieldBuild(`a production build points at ${host} over plain HTTP`);
   }
 }
 

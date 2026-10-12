@@ -49,6 +49,13 @@ describe("the three builds that are allowed", () => {
     expect(c.environmentLabel).toBe("Desarrollo local");
   });
 
+  it("local, at the loopback address", () => {
+    build("http://127.0.0.1:3000", "local");
+    const c = fieldConfig();
+    expect(c.environment).toBe("local");
+    expect(c.apiBaseUrl).toBe("http://127.0.0.1:3000");
+  });
+
   it("production, at some future HTTPS host", () => {
     build(PLAUSIBLE_PRODUCTION, "production");
     const c = fieldConfig();
@@ -84,6 +91,61 @@ describe("a build whose environment and target disagree refuses to exist", () =>
     ["production over plain HTTP", "http://campo.example.invalid", "production"],
     ["local aimed at a remote host", STAGING_ORIGIN, "local"],
     ["an environment word nobody declared", STAGING_ORIGIN, "stagin"],
+
+    /*
+     * Below: targets a *string* comparison accepted. Each one is either the staging origin in
+     * another spelling, or a remote host wearing a loopback prefix. `startsWith` read them as
+     * different, or as local; `URL` reads them as what they are.
+     */
+    [
+      "local aimed at a host that merely begins with localhost",
+      "http://localhost.evil.invalid",
+      "local",
+    ],
+    [
+      "local aimed at a host that merely begins with the loopback address",
+      "http://127.0.0.1.evil.invalid",
+      "local",
+    ],
+    ["production aimed at loopback over HTTPS", "https://localhost:3000", "production"],
+    ["production aimed at the loopback address over HTTPS", "https://127.0.0.1:3000", "production"],
+    ["production aimed at a path under the staging host", `${STAGING_ORIGIN}/api`, "production"],
+    [
+      "production aimed at the staging host with a query string",
+      `${STAGING_ORIGIN}?x=1`,
+      "production",
+    ],
+    [
+      "production aimed at the staging host with its default port spelled out",
+      `${STAGING_ORIGIN}:443`,
+      "production",
+    ],
+    [
+      "production aimed at the staging host with embedded credentials",
+      STAGING_ORIGIN.replace("https://", "https://tecnico:hunter2@"),
+      "production",
+    ],
+    [
+      "production aimed at any remote host with embedded credentials",
+      "https://tecnico:hunter2@campo.example.invalid",
+      "production",
+    ],
+    [
+      "production aimed at a path under a remote host",
+      "https://campo.example.invalid/api",
+      "production",
+    ],
+    [
+      "production aimed at a remote host with a fragment",
+      "https://campo.example.invalid#token",
+      "production",
+    ],
+    ["production given something that is not a URL at all", "campo.example.invalid", "production"],
+    [
+      "production given a scheme this build cannot speak",
+      "ftp://campo.example.invalid",
+      "production",
+    ],
   ];
 
   for (const [name, url, env] of refused) {
@@ -111,5 +173,20 @@ describe("what an error is allowed to say", () => {
     expect(message).not.toContain("hunter2");
     expect(message).not.toContain("tecnico");
     expect(message).toContain("embedded credentials");
+  });
+
+  it("says nothing about a path or a query it refused", () => {
+    build(`${STAGING_ORIGIN}/api?token=hunter2#hunter2`, "production");
+    let message = "";
+    try {
+      fieldConfig();
+    } catch (cause) {
+      message = cause instanceof Error ? cause.message : String(cause);
+    }
+    expect(message).not.toContain("hunter2");
+    expect(message).not.toContain("token");
+    expect(message).not.toContain("/api");
+    // It still has to be useful: the host is public and naming it is how somebody fixes the build.
+    expect(message).toContain("vih786wuduzmldekoq3zdies.syntavera.dev");
   });
 });
