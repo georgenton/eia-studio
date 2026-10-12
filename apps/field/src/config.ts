@@ -63,24 +63,93 @@ function readEnvironment(value: string | undefined): AppEnvironment {
   );
 }
 
+/** The one origin an accepted staging build may talk to. */
+export const STAGING_ORIGIN = "https://vih786wuduzmldekoq3zdies.syntavera.dev";
+
 /**
- * The two facts have to agree, and a disagreement stops the build rather than shipping.
+ * Left in `eas.json` on purpose: the production host is not decided, and production is not
+ * deployed (`docs/PRODUCTION_V1_GO_LIVE.md` §4). A build that shipped with it would resolve
+ * nothing and say nothing about why.
+ */
+const PRODUCTION_PLACEHOLDER = "REPLACE-WITH-PRODUCTION-HOST";
+
+function isLocalOrigin(apiBaseUrl: string): boolean {
+  return (
+    apiBaseUrl.startsWith("http://localhost") ||
+    apiBaseUrl.startsWith("http://127.0.0.1") ||
+    apiBaseUrl.startsWith("http://[::1]")
+  );
+}
+
+/**
+ * A reference to the target that is safe to put in an error, and then in a build log.
  *
- * A staging build that fell back to `localhost` would be a phone that cannot reach anything and
- * says nothing about why. A staging build pointed at the production host would be worse: real
- * answers, under a label nobody reads twice.
+ * The origin itself is public — it is in the bundle either way — but a URL can carry
+ * `user:password@` in its authority, and an error message is the one place that would travel
+ * somewhere a bundle does not. So a message names the **host** and nothing else, and says so
+ * loudly when credentials were embedded rather than quietly printing them.
+ */
+function safeTarget(apiBaseUrl: string): string {
+  try {
+    const u = new URL(apiBaseUrl);
+    if (u.username !== "" || u.password !== "") return "<a URL with embedded credentials>";
+    return u.host;
+  } catch {
+    return "<an unparseable URL>";
+  }
+}
+
+/**
+ * The environment and the target have to agree, and a disagreement stops the build.
+ *
+ * The first version of this only guarded one axis — remote-vs-localhost — which left the two
+ * cases that actually matter wide open: a **staging** build aimed at a production host, and a
+ * **production** build aimed at staging. The first writes real answers into a demonstration; the
+ * second shows a client a study that does not exist. Neither is caught by a label, because by
+ * then the label is the lie.
+ *
+ * So the relationship is enumerated, not inferred. Three environments, three rules, deny by
+ * default. No hostname heuristics: staging is *one exact origin*, and anything else — however
+ * plausible it looks — is a build that nobody decided to make.
  */
 function assertCoherent(environment: AppEnvironment, apiBaseUrl: string): void {
-  const isLocalHost = apiBaseUrl.includes("localhost") || apiBaseUrl.includes("127.0.0.1");
-  if (environment !== "local" && isLocalHost) {
+  const target = safeTarget(apiBaseUrl);
+
+  if (environment === "local") {
+    if (!isLocalOrigin(apiBaseUrl)) {
+      throw new MisconfiguredFieldBuild(`a local build points at ${target}, which is not local`);
+    }
+    return;
+  }
+
+  if (isLocalOrigin(apiBaseUrl)) {
     throw new MisconfiguredFieldBuild(
-      `a ${environment} build fell back to ${apiBaseUrl}; EXPO_PUBLIC_API_URL was not set`,
+      `a ${environment} build fell back to a local host; EXPO_PUBLIC_API_URL was not set`,
     );
   }
-  if (environment === "local" && !isLocalHost) {
+
+  if (environment === "staging") {
+    // Exact, after the trailing slash has already been trimmed. The retired Vercel UAT host, a
+    // production host and a typo all land here together, which is the point.
+    if (apiBaseUrl !== STAGING_ORIGIN) {
+      throw new MisconfiguredFieldBuild(
+        `a staging build points at ${target}; staging may only target ${safeTarget(STAGING_ORIGIN)}`,
+      );
+    }
+    return;
+  }
+
+  // production
+  if (apiBaseUrl === STAGING_ORIGIN) {
+    throw new MisconfiguredFieldBuild(`a production build points at the staging host ${target}`);
+  }
+  if (apiBaseUrl.includes(PRODUCTION_PLACEHOLDER)) {
     throw new MisconfiguredFieldBuild(
-      `a local build points at ${apiBaseUrl}, which is not a local host`,
+      "a production build still carries the placeholder host; the production host is not decided",
     );
+  }
+  if (!apiBaseUrl.startsWith("https://")) {
+    throw new MisconfiguredFieldBuild(`a production build points at ${target} over plain HTTP`);
   }
 }
 
