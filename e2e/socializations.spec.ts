@@ -63,11 +63,14 @@ test.describe("Socializaciones · la convocatoria y sus invitaciones", () => {
     await expect(page.getByTestId("invitation-row")).toHaveCount(2);
 
     // The counters are over invitations. Nobody has delivered anything, so: two pending, no
-    // attempts — and the screen says in words that visits are not invitees.
+    // attempts — and the screen says in words that several delivery attempts still belong to one
+    // invitation.
     const counters = page.getByText("Invitaciones", { exact: true }).first();
     await expect(counters).toBeVisible();
     await expect(
-      page.getByText("Tres visitas a un predio son un invitado, no tres."),
+      page.getByText(
+        "Visitas realizadas. Una invitación puede requerir varios intentos de entrega: tres visitas al mismo predio siguen siendo una sola invitación.",
+      ),
     ).toBeVisible();
   });
 

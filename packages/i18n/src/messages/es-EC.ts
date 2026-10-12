@@ -258,7 +258,7 @@ export const messages = {
       noEvents: "Todavía no hay convocatorias en este proyecto.",
       invitations: "Invitaciones",
       invitationsLead:
-        "Una invitación por predio. Las visitas que hagan falta para entregarla son intentos, no invitados.",
+        "Una invitación por predio. Las visitas que hagan falta para entregarla son intentos de entrega, no invitaciones distintas.",
       generate: "Generar invitaciones",
       generated: "{created} invitaciones nuevas; {skipped} ya existían.",
       selectParcels: "Predios a invitar",
@@ -274,7 +274,8 @@ export const messages = {
       refused: "Rechazadas",
       cancelledCount: "Canceladas",
       attempts: "Intentos",
-      attemptsHelp: "Visitas realizadas. Tres visitas a un predio son un invitado, no tres.",
+      attemptsHelp:
+        "Visitas realizadas. Una invitación puede requerir varios intentos de entrega: tres visitas al mismo predio siguen siendo una sola invitación.",
       attemptOutcome: "Resultado",
       attemptWhen: "Cuándo",
       attemptWho: "Quién",

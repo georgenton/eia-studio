@@ -90,7 +90,8 @@ export function SocializationsSurface({
                     <span aria-hidden="true">
                       {SOCIALIZATION_EVENT_PRESENTATION[event.status].glyph}
                     </span>{" "}
-                    {fmt.dateTime(event.startsAt)} · {event.timezone} · {event.locationLabel}
+                    {fmt.dateTimeInZone(event.startsAt, event.timezone)} · {event.timezone} ·{" "}
+                    {event.locationLabel}
                   </div>
                 </div>
                 <div className={styles.counters}>

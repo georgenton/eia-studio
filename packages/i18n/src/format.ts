@@ -83,6 +83,48 @@ export function formatTime(locale: Locale, date: Date): string {
 }
 
 /**
+ * The same shape as `formatDateTime`, read in a named time zone instead of UTC.
+ *
+ * ## Why this exists beside the UTC formatter rather than replacing it
+ *
+ * Almost everything this product timestamps — a sync, a decision, an import — is an instant whose
+ * only honest reading is the one the server recorded, and `formatDateTime` renders those in UTC on
+ * purpose so two readers in two places see the same string.
+ *
+ * A **socialization is different**: it is an appointment, and an appointment is a wall clock in a
+ * place. The hour a convocation starts was typed by a person standing in Ecuador, it is printed on
+ * a sheet handed to a household in Ecuador, and it means nothing anywhere else. Rendering that
+ * instant in UTC while labelling it `America/Guayaquil` told the reader two different times at
+ * once.
+ *
+ * The **calendar date is computed in the zone too**, not only the clock. A 20:00 event in Guayaquil
+ * is 01:00 the next day in UTC, and a sheet that moved the meeting to the following morning would
+ * be worse than one that only got the hour wrong.
+ *
+ * An unusable `timeZone` falls back to the UTC reading rather than throwing: a malformed row should
+ * cost a reader the right hour, not the whole page.
+ */
+export function formatDateTimeInZone(locale: Locale, date: Date, timeZone: string): string {
+  try {
+    const day = new Intl.DateTimeFormat(tag(locale), {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      timeZone,
+    }).format(date);
+    const time = new Intl.DateTimeFormat(tag(locale), {
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+      timeZone,
+    }).format(date);
+    return `${day} · ${time}`;
+  } catch {
+    return formatDateTime(locale, date);
+  }
+}
+
+/**
  * A file size a person can read. Binary units, because that is what an operating system reports
  * and a mismatch between the two is a support conversation nobody needs.
  */
@@ -107,6 +149,8 @@ export interface Format {
   isoDate(iso: string): string;
   isoDateShort(iso: string): string;
   dateTime(date: Date): string;
+  /** A socialization's own wall clock: the same shape, read in the event's time zone. */
+  dateTimeInZone(date: Date, timeZone: string): string;
   time(date: Date): string;
   bytes(bytes: number): string;
 }
@@ -127,6 +171,7 @@ export function createFormat(locale: Locale): Format {
     isoDate: (iso) => formatIsoDate(locale, iso),
     isoDateShort: (iso) => formatIsoDateShort(locale, iso),
     dateTime: (date) => formatDateTime(locale, date),
+    dateTimeInZone: (date, timeZone) => formatDateTimeInZone(locale, date, timeZone),
     time: (date) => formatTime(locale, date),
     bytes: (value) => formatBytes(locale, value),
   };
