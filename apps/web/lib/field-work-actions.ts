@@ -1,7 +1,9 @@
 "use server";
 
 import {
+  activateCampaign,
   assignParcel,
+  createSurveyCampaign,
   createSocializationEvent,
   generateInvitations,
   reassignAssignment,
@@ -36,6 +38,68 @@ function toResult(error: unknown): FieldWorkResult | null {
 
 function revalidateField(tenant: string, project: string): void {
   revalidatePath(`/t/${tenant}/p/${project}/field`, "layout");
+}
+
+/**
+ * Opening the operation, and then deciding it is the current one.
+ *
+ * Two actions rather than one, because they are two decisions: a draft can be looked at, have
+ * parcels assigned to it and be abandoned; activating is the moment a technician's phone starts
+ * downloading it. The use-cases underneath hold every rule — a published questionnaire, at least
+ * one assignment, a channel the offline policy permits, and only one active campaign per project.
+ */
+export async function createCampaignAction(raw: unknown): Promise<FieldWorkResult> {
+  const input = scope
+    .extend({
+      name: z.string().trim().min(3).max(120),
+      surveyVersionId: z.uuid(),
+      captureChannel: z.enum(["NATIVE_WEB", "EIA_FIELD_MOBILE"]),
+      startsOn: z
+        .string()
+        .regex(/^\d{4}-\d{2}-\d{2}$/)
+        .nullable()
+        .default(null),
+      targetOn: z
+        .string()
+        .regex(/^\d{4}-\d{2}-\d{2}$/)
+        .nullable()
+        .default(null),
+    })
+    .strict()
+    .parse(raw);
+  const t = await getTranslator();
+  const access = await resolveSurfaceAccess(input.tenant, input.project, "field");
+  if (access.kind !== "ok") return { ok: false, error: t("actions.noSurfaceAccess") };
+  try {
+    const created = await createSurveyCampaign(getDb(), access.ctx, {
+      name: input.name,
+      surveyVersionId: input.surveyVersionId,
+      captureChannel: input.captureChannel,
+      startsOn: input.startsOn,
+      targetOn: input.targetOn,
+    });
+    revalidateField(input.tenant, input.project);
+    return {
+      ok: true,
+      message: created.reused ? t("field.campaign.alreadyOpen") : t("field.campaign.created"),
+    };
+  } catch (error) {
+    return toResult(error) ?? throwIt(error);
+  }
+}
+
+export async function activateCampaignAction(raw: unknown): Promise<FieldWorkResult> {
+  const input = scope.extend({ campaignId: z.uuid() }).strict().parse(raw);
+  const t = await getTranslator();
+  const access = await resolveSurfaceAccess(input.tenant, input.project, "field");
+  if (access.kind !== "ok") return { ok: false, error: t("actions.noSurfaceAccess") };
+  try {
+    await activateCampaign(getDb(), access.ctx, input.campaignId);
+    revalidateField(input.tenant, input.project);
+    return { ok: true, message: t("field.campaign.activated") };
+  } catch (error) {
+    return toResult(error) ?? throwIt(error);
+  }
 }
 
 export async function assignParcelAction(raw: unknown): Promise<FieldWorkResult> {
