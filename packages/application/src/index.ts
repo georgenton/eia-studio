@@ -253,6 +253,19 @@ export type { ProcessSyncOptions } from "./field/sync";
 export { activateDatasetVersion } from "./gis/activate-dataset-version";
 export type { DatasetActivation } from "./gis/activate-dataset-version";
 export {
+  applyCorridorIntake,
+  CORRIDOR_INTAKE_CONTRACT,
+  corridorIntakeInputSchema,
+  planCorridorIntake,
+  PROVISIONAL_SOURCE_CODE,
+} from "./gis/corridor-intake";
+export type {
+  CorridorIntakeInput,
+  CorridorIntakePlan,
+  CorridorIntakeProblem,
+  CorridorIntakeResult,
+} from "./gis/corridor-intake";
+export {
   loadParcelExplorer,
   loadParcelWorkspace,
   loadTerritorialSummary,
