@@ -1,8 +1,4 @@
-import {
-  applyCorridorIntake,
-  planCorridorIntake,
-  type CorridorIntakeInput,
-} from "@eia/application";
+import { applyCorridorIntake, planCorridorIntake, type CorridorIntakeInput } from "../src/index";
 import {
   CAPABILITY_KEYS,
   PROJECT_ROLE_PERMISSIONS,
@@ -20,7 +16,7 @@ import {
   resetDatabase,
   seedTwoTenantWorld,
   type TwoTenantWorld,
-} from "../../src/index";
+} from "@eia/testing";
 
 /**
  * Loading a consultancy's own corridor — the axis and the parcels — into a project it owns.

@@ -508,15 +508,9 @@ importers:
       '@aws-sdk/client-s3':
         specifier: ^3.1134.0
         version: 3.1134.0
-      '@eia/application':
-        specifier: workspace:*
-        version: link:../application
       '@eia/config':
         specifier: workspace:*
         version: link:../config
-      '@eia/domain':
-        specifier: workspace:*
-        version: link:../domain
       '@types/pg':
         specifier: 8.23.1
         version: 8.23.1

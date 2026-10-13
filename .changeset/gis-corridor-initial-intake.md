@@ -1,6 +1,5 @@
 ---
 "@eia/application": minor
-"@eia/testing": patch
 ---
 
 A project's first corridor can be loaded into it: `planCorridorIntake` reports what a delivery
