@@ -1,4 +1,4 @@
-import { gisSchema, withDbContext, type Database } from "@eia/db";
+import { gisSchema, withDbContext, type Database, type DbTx } from "@eia/db";
 import {
   assertActivationIsValid,
   NotFound,
@@ -49,9 +49,33 @@ export async function activateDatasetVersion(
   if (ctx.projectId === null) {
     throw new Error("activateDatasetVersion requires a project context");
   }
+  return withDbContext(db, ctx, (tx) => activateDatasetVersionInTx(tx, ctx, versionId));
+}
+
+/**
+ * The same activation, inside a transaction somebody else opened.
+ *
+ * Extracted so an import can activate what it just wrote **without committing in between**. The
+ * corridor intake wrote two versions and then activated them through the public function, which
+ * opens its own transaction each time: a failure on the second activation left the map showing a
+ * new axis beside the old parcels, and nothing rolled that back. One caller, one transaction.
+ *
+ * The guards stay on the public function because that is the entry point; a caller already inside
+ * a transaction has passed them on its own way in, and the assertion below keeps that honest.
+ */
+export async function activateDatasetVersionInTx(
+  tx: DbTx,
+  ctx: RequestContext,
+  versionId: string,
+): Promise<DatasetActivation> {
+  requireCapability(ctx, "gis.parcels");
+  requirePermission(ctx, "geometry.import");
+  if (ctx.projectId === null) {
+    throw new Error("activateDatasetVersion requires a project context");
+  }
   const projectId = ctx.projectId;
 
-  return withDbContext(db, ctx, async (tx) => {
+  {
     const candidates = await tx
       .select({
         id: gisSchema.spatialDatasetVersion.id,
@@ -179,5 +203,5 @@ export async function activateDatasetVersion(
       geometriesActivated: activated.length,
       geometriesSuperseded,
     };
-  });
+  }
 }

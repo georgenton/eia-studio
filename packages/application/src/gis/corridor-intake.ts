@@ -1,8 +1,10 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 
 import { gisSchema, withDbContext, type Database, type DbTx } from "@eia/db";
 import { requireCapability, requirePermission, type RequestContext } from "@eia/domain";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
+
+import { activateDatasetVersionInTx, type DatasetActivation } from "./activate-dataset-version";
 import { z } from "zod";
 
 /**
@@ -18,7 +20,7 @@ import { z } from "zod";
  * else; affectations, chainage and influence areas are **absent, not empty**, so this use-case
  * neither demands them nor writes a zero that would read as "none exist".
  */
-export const CORRIDOR_INTAKE_CONTRACT = "corridor-intake@1" as const;
+export const CORRIDOR_INTAKE_CONTRACT = "corridor-intake@2" as const;
 
 /**
  * A source code is the delivery's own, and this product does not yet know whether it survives the
@@ -52,10 +54,15 @@ export const corridorIntakeInputSchema = z
      * overlap, proximity or row order.
      */
     identityConfirmedForNewPackage: z.boolean().default(false),
+    /**
+     * Activation happens **inside the writing transaction** or not at all. Activating afterwards
+     * is what let a failure leave a new axis on the map beside the old parcels.
+     */
+    activate: z.boolean().default(false),
   })
   .strict();
 
-export type CorridorIntakeInput = z.infer<typeof corridorIntakeInputSchema>;
+export type CorridorIntakeInput = z.input<typeof corridorIntakeInputSchema>;
 
 const positionSchema = z.tuple([z.number().finite(), z.number().finite()]).rest(z.number());
 const ringSchema = z.array(positionSchema).min(4);
@@ -95,7 +102,9 @@ export interface CorridorIntakeProblem {
     | "parcel_code_missing"
     | "parcel_code_duplicated"
     | "geometry_invalid"
-    | "geometry_empty";
+    | "geometry_empty"
+    | "multiple_alignments"
+    | "incomplete_import_state";
   readonly detail: string;
   /** Source codes or row positions, never an attribute value of a person. */
   readonly subjects: readonly string[];
@@ -103,6 +112,16 @@ export interface CorridorIntakeProblem {
 
 export interface CorridorIntakePlan {
   readonly contract: typeof CORRIDOR_INTAKE_CONTRACT;
+  /**
+   * What an operator approves, and what APPLY must be handed back **separately**.
+   *
+   * It covers the destination, the declared source, the **bytes actually read** for each layer,
+   * the mapping, both SRIDs, the condition and the destination's current version state. A GeoJSON
+   * edited after the plan was reviewed changes it, and so does a version appearing underneath.
+   */
+  readonly fingerprint: string;
+  readonly layerSha256: { readonly alignment: string; readonly parcels: string };
+  readonly destinationVersionLabels: readonly string[];
   readonly tenantId: string;
   readonly projectId: string;
   readonly sourceSha256: string;
@@ -116,6 +135,7 @@ export interface CorridorIntakePlan {
   /** Layers the delivery did not contain. Absent, never zero. */
   readonly layersAbsent: readonly string[];
   readonly versionLabels: { readonly parcels: string; readonly alignment: string };
+  /** True only when **both** versions of this exact package are already present. */
   readonly reusesExistingVersions: boolean;
   readonly problems: readonly CorridorIntakeProblem[];
   readonly applicable: boolean;
@@ -133,6 +153,33 @@ export interface CorridorIntakeResult {
   readonly chainageDerived: number;
   readonly parcelsVersionId: string | null;
   readonly alignmentVersionId: string | null;
+  /** Empty unless activation was opted into; produced in the same transaction as the writes. */
+  readonly activations: readonly DatasetActivation[];
+}
+
+/**
+ * A hash of what was actually read, not of what the descriptor claims.
+ *
+ * `sourceSha256` names the archive and is a declaration: an operator can write it beside a GeoJSON
+ * somebody edited afterwards, and the no-op would then hide a different package behind a matching
+ * label. So each layer is hashed from its own parsed content, with object keys sorted, so the same
+ * data hashes the same way whatever order a tool wrote it in.
+ */
+function stableHash(value: unknown): string {
+  const canonical = (v: unknown): unknown => {
+    if (Array.isArray(v)) return v.map(canonical);
+    if (v !== null && typeof v === "object") {
+      return Object.fromEntries(
+        Object.keys(v as Record<string, unknown>)
+          .sort()
+          .map((k) => [k, canonical((v as Record<string, unknown>)[k])]),
+      );
+    }
+    return v;
+  };
+  return createHash("sha256")
+    .update(JSON.stringify(canonical(value)))
+    .digest("hex");
 }
 
 /** A label that *is* the package's identity, so the existing unique index enforces the no-op. */
@@ -140,7 +187,7 @@ function versionLabel(kind: "parcels" | "alignment", sha256: string): string {
   return `${kind}_intake_${sha256.slice(0, 12)}`;
 }
 
-function readLayers(input: CorridorIntakeInput): {
+function readLayers(input: ParsedIntake): {
   parcels: z.infer<ReturnType<typeof collectionSchema<typeof parcelFeatureSchema>>> | null;
   alignment: z.infer<ReturnType<typeof collectionSchema<typeof alignmentFeatureSchema>>> | null;
   problems: CorridorIntakeProblem[];
@@ -245,7 +292,7 @@ async function checkGeometries(
 async function resolveDestination(
   tx: DbTx,
   ctx: RequestContext,
-  input: CorridorIntakeInput,
+  input: ParsedIntake,
 ): Promise<{ tenantId: string; projectId: string }> {
   const rows = await tx.execute<{ tenant_id: string; project_id: string }>(
     sql`select t.id as tenant_id, p.id as project_id
@@ -264,15 +311,28 @@ async function resolveDestination(
   return { tenantId: row.tenant_id, projectId: row.project_id };
 }
 
+type ParsedIntake = z.output<typeof corridorIntakeInputSchema>;
+
 async function buildPlan(
   tx: DbTx,
   ctx: RequestContext,
-  input: CorridorIntakeInput,
+  input: ParsedIntake,
 ): Promise<CorridorIntakePlan> {
   const { tenantId, projectId } = await resolveDestination(tx, ctx, input);
   const layers = readLayers(input);
   const problems: CorridorIntakeProblem[] = [...layers.problems];
   let codes: string[] = [];
+
+  if (layers.alignment !== null && layers.alignment.features.length !== 1) {
+    // A corridor has one axis. Two lines in the layer may be a split centreline, two alternative
+    // designs or a second road entirely, and this product cannot tell which — so it refuses rather
+    // than importing the first and discarding the rest without saying so.
+    problems.push({
+      code: "multiple_alignments",
+      detail: `the alignment layer carries ${layers.alignment.features.length} features; exactly one is expected`,
+      subjects: layers.alignment.features.map((_, i) => `alignment ${i + 1}`),
+    });
+  }
   if (layers.parcels !== null) {
     const read = readCodes(layers.parcels.features, input.parcelCodeField);
     codes = read.codes;
@@ -299,43 +359,83 @@ async function buildPlan(
           from app.spatial_dataset_version v
           join app.spatial_dataset d on d.tenant_id = v.tenant_id and d.id = v.dataset_id
          where v.tenant_id = ${tenantId} and v.project_id = ${projectId}
-           and d.kind in ('parcels','alignment')`,
+           and d.kind in ('parcels','alignment')
+         order by v.version_label`,
   );
   const existingRows =
     existing.rows ?? (existing as unknown as { version_label: string; kind: string }[]);
-  const samePackage = existingRows.some(
-    (r) => r.version_label === labels.parcels || r.version_label === labels.alignment,
-  );
+  const labelsPresent = new Set(existingRows.map((r) => r.version_label));
+  const hasParcels = labelsPresent.has(labels.parcels);
+  const hasAlignment = labelsPresent.has(labels.alignment);
   const otherPackage = existingRows.some(
     (r) => r.version_label !== labels.parcels && r.version_label !== labels.alignment,
   );
 
   let refusal: string | null = null;
-  if (otherPackage && !samePackage && !input.identityConfirmedForNewPackage) {
+  if (hasParcels !== hasAlignment) {
+    // Half a package is not a no-op. Re-applying would write the missing half against a version
+    // the first run never finished, and reporting "already imported" would hide it.
+    problems.push({
+      code: "incomplete_import_state",
+      detail: "this destination holds one half of this package; the import did not finish",
+      subjects: [hasParcels ? labels.parcels : labels.alignment],
+    });
+    refusal = "INCOMPLETE_IMPORT_STATE";
+  } else if (otherPackage && !(hasParcels && hasAlignment)) {
+    /*
+     * A different package against a destination that already holds one. `ficha_num` is unique
+     * within a delivery and unproven across deliveries, so matching by code could rename somebody
+     * else's parcel. The boolean an operator can set is deliberately **not** enough on its own:
+     * lifting this needs a reviewed mapping, which V1 does not have, and overlap, proximity and
+     * row order are not that mapping.
+     */
     refusal = "IDENTITY_CONFIRMATION_REQUIRED";
   }
 
+  const present = codes.filter((c) => c !== "");
   const matched =
-    codes.length === 0
+    present.length === 0
       ? 0
-      : ((
-          await tx.execute<{ n: number }>(
-            sql`select count(*)::int as n from app.parcel
-         where tenant_id = ${tenantId} and project_id = ${projectId}
-           and parcel_code = any(${sql.raw(
-             `ARRAY[${
-               codes
-                 .filter((c) => c !== "")
-                 .map((c) => `'${c.replace(/'/g, "''")}'`)
-                 .join(",") || "NULL"
-             }]::text[]`,
-           )})`,
-          )
-        ).rows?.[0]?.n ?? 0);
+      : (
+          await tx
+            .select({ code: gisSchema.parcel.parcelCode })
+            .from(gisSchema.parcel)
+            .where(
+              and(
+                eq(gisSchema.parcel.tenantId, tenantId),
+                eq(gisSchema.parcel.projectId, projectId),
+                inArray(gisSchema.parcel.parcelCode, present),
+              ),
+            )
+        ).length;
 
   const parcelsRead = layers.parcels?.features.length ?? 0;
+  const layerSha256 = {
+    alignment: stableHash(input.alignment),
+    parcels: stableHash(input.parcels),
+  };
+  const destinationVersionLabels = existingRows.map((r) => r.version_label);
+
+  const fingerprint = stableHash({
+    contract: CORRIDOR_INTAKE_CONTRACT,
+    tenantId,
+    projectId,
+    sourceSha256: input.sourceSha256,
+    layerSha256,
+    parcelCodeField: input.parcelCodeField,
+    sourceSrid: input.sourceSrid,
+    analysisSrid: input.analysisSrid,
+    condition: input.condition,
+    identityBasis: PROVISIONAL_SOURCE_CODE,
+    destinationVersionLabels,
+    activate: input.activate,
+  });
+
   return {
     contract: CORRIDOR_INTAKE_CONTRACT,
+    fingerprint,
+    layerSha256,
+    destinationVersionLabels,
     tenantId,
     projectId,
     sourceSha256: input.sourceSha256,
@@ -348,7 +448,7 @@ async function buildPlan(
     parcelsToMatch: matched,
     layersAbsent: ["affectations", "chainage", "influenceAreas"],
     versionLabels: labels,
-    reusesExistingVersions: samePackage,
+    reusesExistingVersions: hasParcels && hasAlignment,
     problems,
     applicable: problems.length === 0 && refusal === null,
     refusal,
@@ -371,26 +471,38 @@ export async function planCorridorIntake(
   });
 }
 
+/**
+ * Writes once, inside one transaction, against a plan somebody else approved.
+ *
+ * `approvedPlanFingerprint` is handed in **separately** from the input. The earlier version let
+ * the caller build its own expectation out of the very descriptor it was applying, which is not
+ * an approval but a tautology: it agreed with itself about a GeoJSON nobody had reviewed. Here
+ * the plan is recomputed inside the writing transaction, from the files as they are *now*, and a
+ * fingerprint that no longer matches is `STALE_OR_UNAPPROVED_PLAN`.
+ */
 export async function applyCorridorIntake(
   db: Database,
   ctx: RequestContext,
   input: CorridorIntakeInput,
-  expected: { sourceSha256: string; tenantSlug: string; projectSlug: string },
+  approvedPlanFingerprint: string,
 ): Promise<CorridorIntakeResult> {
   requireCapability(ctx, "gis.parcels");
   requirePermission(ctx, "geometry.import");
   const parsed = corridorIntakeInputSchema.parse(input);
-  if (
-    expected.sourceSha256 !== parsed.sourceSha256 ||
-    expected.tenantSlug !== parsed.tenantSlug ||
-    expected.projectSlug !== parsed.projectSlug
-  ) {
-    throw new Error("corridor intake: the plan this apply opted into does not match the input");
+  if (approvedPlanFingerprint.length !== 64) {
+    throw new Error("corridor intake: apply requires the fingerprint of an approved plan");
   }
 
   return withDbContext(db, ctx, async (tx) => {
-    // Re-checked inside the writing transaction, not trusted from the planning one.
+    // Recomputed inside the writing transaction, from the files as they are now — not carried
+    // over from the planning one, and not derived from this call's own input.
     const plan = await buildPlan(tx, ctx, parsed);
+    if (plan.fingerprint !== approvedPlanFingerprint) {
+      throw new Error(
+        "corridor intake refused: STALE_OR_UNAPPROVED_PLAN — the layers, the destination or " +
+          "the options changed since the plan was approved",
+      );
+    }
     if (plan.reusesExistingVersions) {
       return {
         plan,
@@ -403,6 +515,7 @@ export async function applyCorridorIntake(
         chainageDerived: 0,
         parcelsVersionId: null,
         alignmentVersionId: null,
+        activations: [],
       };
     }
     if (!plan.applicable) {
@@ -572,6 +685,19 @@ export async function applyCorridorIntake(
           from (select ST_SetSRID(ST_GeomFromGeoJSON(${geomJson}), 4326) as g) s`);
     }
 
+    /*
+     * Activation shares this transaction. Done afterwards through the public use-case it opened a
+     * transaction of its own per version, so a failure on the second committed the first and left
+     * the map showing this package's axis beside the previous package's parcels, with nothing to
+     * roll it back. Both, or neither.
+     */
+    const activations: DatasetActivation[] = [];
+    if (parsed.activate) {
+      for (const id of [alignmentVersionId, parcelsVersionId]) {
+        activations.push(await activateDatasetVersionInTx(tx, ctx, id));
+      }
+    }
+
     return {
       plan,
       applied: true,
@@ -583,6 +709,7 @@ export async function applyCorridorIntake(
       chainageDerived,
       parcelsVersionId,
       alignmentVersionId,
+      activations,
     };
   });
 }

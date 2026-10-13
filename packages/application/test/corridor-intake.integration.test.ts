@@ -137,6 +137,11 @@ function input(overrides: Partial<CorridorIntakeInput> = {}): CorridorIntakeInpu
   };
 }
 
+/** Plan, read it, and hand its fingerprint to apply — the two-step the operator performs. */
+async function approvedPlan(ctx: RequestContext, i: CorridorIntakeInput): Promise<string> {
+  return (await planCorridorIntake(db.runtime, ctx, i)).fingerprint;
+}
+
 async function countIn(ctx: RequestContext, table: string): Promise<number> {
   return asContext(db.runtime, ctx, async (tx) => {
     const r = await tx.execute<{ n: number }>(
@@ -168,11 +173,12 @@ describe("A · an axis and parcels import without the three layers that did not 
     expect(plan.applicable).toBe(true);
     expect(plan.layersAbsent).toEqual(["affectations", "chainage", "influenceAreas"]);
 
-    const result = await applyCorridorIntake(db.runtime, ctx, input(), {
-      sourceSha256: SHA_A,
-      tenantSlug: w.tenantA.slug,
-      projectSlug: w.projectX.slug,
-    });
+    const result = await applyCorridorIntake(
+      db.runtime,
+      ctx,
+      input(),
+      await approvedPlan(ctx, input()),
+    );
     expect(result.applied).toBe(true);
     expect(result.parcelsCreated).toBe(4);
     expect(await countIn(ctx, "app.affectation")).toBe(0);
@@ -193,11 +199,8 @@ describe("B · PLAN writes nothing; APPLY preserves counts, codes and provenance
 
   it("keeps the delivered codes as text and records an imported, non-demo provenance", async () => {
     const ctx = contextFor(w, "GIS_SPECIALIST", w.projectX, w.tenantA);
-    await applyCorridorIntake(db.runtime, ctx, input({ parcels: parcelsLayer(["001", "002"]) }), {
-      sourceSha256: SHA_A,
-      tenantSlug: w.tenantA.slug,
-      projectSlug: w.projectX.slug,
-    });
+    const codesInput = input({ parcels: parcelsLayer(["001", "002"]) });
+    await applyCorridorIntake(db.runtime, ctx, codesInput, await approvedPlan(ctx, codesInput));
     const codes = await asContext(db.runtime, ctx, async (tx) => {
       const r = await tx.execute<{ parcel_code: string }>(
         sql`select parcel_code from app.parcel order by parcel_code`,
@@ -224,11 +227,7 @@ describe("B · PLAN writes nothing; APPLY preserves counts, codes and provenance
 
   it("derives side and chainage, and leaves the declared abscissa null", async () => {
     const ctx = contextFor(w, "GIS_SPECIALIST", w.projectX, w.tenantA);
-    const r = await applyCorridorIntake(db.runtime, ctx, input(), {
-      sourceSha256: SHA_A,
-      tenantSlug: w.tenantA.slug,
-      projectSlug: w.projectX.slug,
-    });
+    const r = await applyCorridorIntake(db.runtime, ctx, input(), await approvedPlan(ctx, input()));
     expect(r.sideDerived).toBe(4);
     const rows = await asContext(db.runtime, ctx, async (tx) => {
       const q = await tx.execute<{
@@ -250,18 +249,21 @@ describe("B · PLAN writes nothing; APPLY preserves counts, codes and provenance
 describe("C · the same package twice is a no-op", () => {
   it("creates nothing the second time and keeps the same Parcel.id", async () => {
     const ctx = contextFor(w, "GIS_SPECIALIST", w.projectX, w.tenantA);
-    const expected = {
-      sourceSha256: SHA_A,
-      tenantSlug: w.tenantA.slug,
-      projectSlug: w.projectX.slug,
-    };
+    const expected = await approvedPlan(ctx, input());
     const first = await applyCorridorIntake(db.runtime, ctx, input(), expected);
     const idsBefore = await asContext(db.runtime, ctx, async (tx) =>
       (
         await tx.execute<{ id: string }>(sql`select id from app.parcel order by parcel_code`)
       ).rows.map((r) => r.id),
     );
-    const second = await applyCorridorIntake(db.runtime, ctx, input(), expected);
+    /*
+     * Re-applying means planning again. The fingerprint covers the destination's version state,
+     * so the plan approved before the import no longer describes the project afterwards — which
+     * is the point of including it. The fresh plan is the one that says "already here".
+     */
+    const replan = await planCorridorIntake(db.runtime, ctx, input());
+    expect(replan.reusesExistingVersions).toBe(true);
+    const second = await applyCorridorIntake(db.runtime, ctx, input(), replan.fingerprint);
     expect(first.applied).toBe(true);
     expect(second.noop).toBe(true);
     expect(second.parcelsCreated).toBe(0);
@@ -276,11 +278,7 @@ describe("C · the same package twice is a no-op", () => {
 
   it("a concurrent retry is stopped by the unique index, not by a prior SELECT", async () => {
     const ctx = contextFor(w, "GIS_SPECIALIST", w.projectX, w.tenantA);
-    const expected = {
-      sourceSha256: SHA_A,
-      tenantSlug: w.tenantA.slug,
-      projectSlug: w.projectX.slug,
-    };
+    const expected = await approvedPlan(ctx, input());
     const outcomes = await Promise.allSettled([
       applyCorridorIntake(db.runtime, ctx, input(), expected),
       applyCorridorIntake(db.runtime, ctx, input(), expected),
@@ -292,28 +290,84 @@ describe("C · the same package twice is a no-op", () => {
   });
 });
 
-describe("D · a failure half way rolls the whole package back", () => {
-  it("writes nothing when one parcel cannot be inserted", async () => {
+describe("D · a failure after the first activation rolls the whole package back", () => {
+  it("leaves no parcel, no version and no activation behind", async () => {
     const ctx = contextFor(w, "GIS_SPECIALIST", w.projectX, w.tenantA);
-    // A code longer than any sane identifier is still text; the failure is forced by a duplicate
-    // insert against the project's unique code index, created directly beforehand.
-    await asContext(db.runtime, ctx, async (tx) => {
-      await tx.execute(sql`
-        insert into app.provenance_record (id, tenant_id, project_id, regime, origin, transformations,
-          granularity, title, note, validation_state)
-        values (${randomUUID()}, ${w.tenantA.id}, ${w.projectX.id}, 'LIVE_OPERATIONAL','IMPORTED_DATASET',
-          ARRAY['ORIGINAL']::app.provenance_transformation[], 'INDIVIDUAL','x','y','PENDING')`);
-    });
-    const broken = input({ parcels: { type: "FeatureCollection", features: [] } });
-    await expect(
-      applyCorridorIntake(db.runtime, ctx, broken, {
-        sourceSha256: SHA_A,
-        tenantSlug: w.tenantA.slug,
-        projectSlug: w.projectX.slug,
-      }),
-    ).rejects.toThrow();
+    const withActivation = input({ activate: true });
+    const fp = await approvedPlan(ctx, withActivation);
+
+    /*
+     * The failure has to land *after* something has been activated, or this proves nothing: an
+     * empty layer that fails validation never writes, and calling that a rollback would be a test
+     * agreeing with itself. A deferred constraint trigger on the second activation's table fires
+     * at the first write that follows the first activation, inside the same transaction.
+     */
+    await db.migrator.execute(sql`
+      create or replace function app.eia_test_block_parcel_activation() returns trigger
+      language plpgsql as $$
+      begin
+        if NEW.is_active then
+          raise exception 'induced failure after the first activation';
+        end if;
+        return NEW;
+      end $$;
+      create trigger eia_test_block_parcel_activation
+        before update on app.parcel_geometry
+        for each row execute function app.eia_test_block_parcel_activation();`);
+    try {
+      /*
+       * The ordering is proven by where the trigger sits, not by the message: it fires on
+       * `parcel_geometry` being activated, which is the *second* activation, so the axis version
+       * had already been activated in this transaction when it raised. The driver wraps the
+       * message, so the assertion is that it rejected at all — the rollback below is the claim.
+       */
+      await expect(applyCorridorIntake(db.runtime, ctx, withActivation, fp)).rejects.toThrow();
+    } finally {
+      await db.migrator.execute(sql`
+        drop trigger if exists eia_test_block_parcel_activation on app.parcel_geometry;
+        drop function if exists app.eia_test_block_parcel_activation();`);
+    }
+
+    // Everything the transaction had already done — including the axis it activated — is gone.
     expect(await countIn(ctx, "app.parcel")).toBe(0);
+    expect(await countIn(ctx, "app.parcel_geometry")).toBe(0);
+    expect(await countIn(ctx, "app.alignment")).toBe(0);
     expect(await countIn(ctx, "app.spatial_dataset_version")).toBe(0);
+  });
+
+  it("activation is opt-in: without it the versions are prepared and inactive", async () => {
+    const ctx = contextFor(w, "GIS_SPECIALIST", w.projectX, w.tenantA);
+    const r = await applyCorridorIntake(db.runtime, ctx, input(), await approvedPlan(ctx, input()));
+    expect(r.activations).toEqual([]);
+    const active = await asContext(
+      db.runtime,
+      ctx,
+      async (tx) =>
+        (
+          await tx.execute<{ n: number }>(
+            sql`select count(*)::int as n from app.spatial_dataset_version where is_active`,
+          )
+        ).rows[0]?.n,
+    );
+    expect(active).toBe(0);
+  });
+
+  it("with activation, both versions become active in the same transaction", async () => {
+    const ctx = contextFor(w, "GIS_SPECIALIST", w.projectX, w.tenantA);
+    const i = input({ activate: true });
+    const r = await applyCorridorIntake(db.runtime, ctx, i, await approvedPlan(ctx, i));
+    expect(r.activations).toHaveLength(2);
+    const active = await asContext(
+      db.runtime,
+      ctx,
+      async (tx) =>
+        (
+          await tx.execute<{ n: number }>(
+            sql`select count(*)::int as n from app.spatial_dataset_version where is_active`,
+          )
+        ).rows[0]?.n,
+    );
+    expect(active).toBe(2);
   });
 });
 
@@ -325,11 +379,7 @@ describe("E · invalid geometry and bad codes are refused without writing", () =
     expect(plan.applicable).toBe(false);
     expect(plan.problems.map((p: { code: string }) => p.code)).toContain("geometry_invalid");
     await expect(
-      applyCorridorIntake(db.runtime, ctx, bad, {
-        sourceSha256: SHA_A,
-        tenantSlug: w.tenantA.slug,
-        projectSlug: w.projectX.slug,
-      }),
+      applyCorridorIntake(db.runtime, ctx, bad, await approvedPlan(ctx, bad)),
     ).rejects.toThrow();
     expect(await countIn(ctx, "app.parcel")).toBe(0);
   });
@@ -371,35 +421,19 @@ describe("F · the wrong tenant, the wrong role and a stale plan are refused", (
 
   it("refuses an apply whose opt-in does not match the input", async () => {
     const ctx = contextFor(w, "GIS_SPECIALIST", w.projectX, w.tenantA);
-    await expect(
-      applyCorridorIntake(db.runtime, ctx, input(), {
-        sourceSha256: SHA_B,
-        tenantSlug: w.tenantA.slug,
-        projectSlug: w.projectX.slug,
-      }),
-    ).rejects.toThrow();
+    await expect(applyCorridorIntake(db.runtime, ctx, input(), "f".repeat(64))).rejects.toThrow();
   });
 });
 
 describe("G · a different package may not silently update the first", () => {
   it("refuses with IDENTITY_CONFIRMATION_REQUIRED and leaves history intact", async () => {
     const ctx = contextFor(w, "GIS_SPECIALIST", w.projectX, w.tenantA);
-    await applyCorridorIntake(db.runtime, ctx, input(), {
-      sourceSha256: SHA_A,
-      tenantSlug: w.tenantA.slug,
-      projectSlug: w.projectX.slug,
-    });
+    await applyCorridorIntake(db.runtime, ctx, input(), await approvedPlan(ctx, input()));
     const second = input({ sourceSha256: SHA_B, parcels: parcelsLayer(["1", "2", "3", "4", "5"]) });
     const plan = await planCorridorIntake(db.runtime, ctx, second);
     expect(plan.refusal).toBe("IDENTITY_CONFIRMATION_REQUIRED");
     expect(plan.applicable).toBe(false);
-    await expect(
-      applyCorridorIntake(db.runtime, ctx, second, {
-        sourceSha256: SHA_B,
-        tenantSlug: w.tenantA.slug,
-        projectSlug: w.projectX.slug,
-      }),
-    ).rejects.toThrow();
+    await expect(applyCorridorIntake(db.runtime, ctx, second, "f".repeat(64))).rejects.toThrow();
     // Nothing of the first package moved.
     expect(await countIn(ctx, "app.parcel")).toBe(4);
     expect(await countIn(ctx, "app.spatial_dataset_version")).toBe(2);
@@ -409,11 +443,7 @@ describe("G · a different package may not silently update the first", () => {
 describe("H · nothing outside the two layers is touched", () => {
   it("writes no campaign, questionnaire, metric or document", async () => {
     const ctx = contextFor(w, "GIS_SPECIALIST", w.projectX, w.tenantA);
-    await applyCorridorIntake(db.runtime, ctx, input(), {
-      sourceSha256: SHA_A,
-      tenantSlug: w.tenantA.slug,
-      projectSlug: w.projectX.slug,
-    });
+    await applyCorridorIntake(db.runtime, ctx, input(), await approvedPlan(ctx, input()));
     for (const table of [
       "app.survey_campaign",
       "app.survey_version",
@@ -422,5 +452,101 @@ describe("H · nothing outside the two layers is touched", () => {
     ]) {
       expect(await countIn(ctx, table)).toBe(0);
     }
+  });
+});
+
+describe("the plan is an approval, not a restatement of the input", () => {
+  it("A · the fingerprint is stable across identical plans and PLAN still writes nothing", async () => {
+    const ctx = contextFor(w, "GIS_SPECIALIST", w.projectX, w.tenantA);
+    const one = await planCorridorIntake(db.runtime, ctx, input());
+    const two = await planCorridorIntake(db.runtime, ctx, input());
+    expect(one.fingerprint).toBe(two.fingerprint);
+    expect(one.fingerprint).toHaveLength(64);
+    expect(await countIn(ctx, "app.parcel")).toBe(0);
+    expect(await countIn(ctx, "app.spatial_dataset_version")).toBe(0);
+  });
+
+  it("B · apply without an approved fingerprint is refused", async () => {
+    const ctx = contextFor(w, "GIS_SPECIALIST", w.projectX, w.tenantA);
+    await expect(applyCorridorIntake(db.runtime, ctx, input(), "")).rejects.toThrow(
+      /fingerprint of an approved plan/,
+    );
+    await expect(applyCorridorIntake(db.runtime, ctx, input(), "f".repeat(64))).rejects.toThrow(
+      /STALE_OR_UNAPPROVED_PLAN/,
+    );
+    expect(await countIn(ctx, "app.parcel")).toBe(0);
+  });
+
+  it("C · the declared source hash is unchanged but the layer bytes are not", async () => {
+    const ctx = contextFor(w, "GIS_SPECIALIST", w.projectX, w.tenantA);
+    const reviewed = input();
+    const fp = await approvedPlan(ctx, reviewed);
+    // Same sourceSha256, same destination — a different polygon. The declaration did not change;
+    // the data did, and that is exactly what a text field cannot notice.
+    const edited = input({ parcels: parcelsLayer(["1", "2", "3", "9"]) });
+    await expect(applyCorridorIntake(db.runtime, ctx, edited, fp)).rejects.toThrow(
+      /STALE_OR_UNAPPROVED_PLAN/,
+    );
+    expect(await countIn(ctx, "app.parcel")).toBe(0);
+  });
+
+  it("the fingerprint also moves when the destination changes underneath", async () => {
+    const ctx = contextFor(w, "GIS_SPECIALIST", w.projectX, w.tenantA);
+    const fp = await approvedPlan(ctx, input());
+    await applyCorridorIntake(db.runtime, ctx, input(), fp);
+    // The same plan, approved before the import existed, no longer describes this destination.
+    await expect(applyCorridorIntake(db.runtime, ctx, input(), fp)).rejects.toThrow(
+      /STALE_OR_UNAPPROVED_PLAN/,
+    );
+  });
+});
+
+describe("half an import is not a no-op", () => {
+  it("D · one version present reports INCOMPLETE_IMPORT_STATE", async () => {
+    const ctx = contextFor(w, "GIS_SPECIALIST", w.projectX, w.tenantA);
+    await applyCorridorIntake(db.runtime, ctx, input(), await approvedPlan(ctx, input()));
+    // Remove one half, as a crashed earlier run would have left it.
+    await db.migrator.execute(sql`
+      delete from app.alignment;
+      delete from app.spatial_dataset_version where version_label like 'alignment_intake_%';`);
+    const plan = await planCorridorIntake(db.runtime, ctx, input());
+    expect(plan.reusesExistingVersions).toBe(false);
+    expect(plan.refusal).toBe("INCOMPLETE_IMPORT_STATE");
+    expect(plan.problems.map((p: { code: string }) => p.code)).toContain("incomplete_import_state");
+    expect(plan.applicable).toBe(false);
+  });
+});
+
+describe("G · a second axis is refused rather than silently dropped", () => {
+  it("names both features and writes nothing", async () => {
+    const ctx = contextFor(w, "GIS_SPECIALIST", w.projectX, w.tenantA);
+    const two = input({
+      alignment: {
+        type: "FeatureCollection",
+        features: [...alignmentLayer.features, ...alignmentLayer.features],
+      },
+    });
+    const plan = await planCorridorIntake(db.runtime, ctx, two);
+    expect(plan.problems.map((p: { code: string }) => p.code)).toContain("multiple_alignments");
+    expect(plan.applicable).toBe(false);
+    await expect(applyCorridorIntake(db.runtime, ctx, two, plan.fingerprint)).rejects.toThrow();
+    expect(await countIn(ctx, "app.alignment")).toBe(0);
+  });
+});
+
+describe("H · the boolean alone does not lift the identity block", () => {
+  it("a different package is still refused with identityConfirmedForNewPackage true", async () => {
+    const ctx = contextFor(w, "GIS_SPECIALIST", w.projectX, w.tenantA);
+    await applyCorridorIntake(db.runtime, ctx, input(), await approvedPlan(ctx, input()));
+    const different = input({
+      sourceSha256: SHA_B,
+      parcels: parcelsLayer(["1", "2", "3", "4", "5"]),
+      identityConfirmedForNewPackage: true,
+    });
+    const plan = await planCorridorIntake(db.runtime, ctx, different);
+    expect(plan.refusal).toBe("IDENTITY_CONFIRMATION_REQUIRED");
+    expect(plan.applicable).toBe(false);
+    // The first package is untouched.
+    expect(await countIn(ctx, "app.parcel")).toBe(4);
   });
 });
