@@ -104,7 +104,8 @@ export interface CorridorIntakeProblem {
     | "geometry_invalid"
     | "geometry_empty"
     | "multiple_alignments"
-    | "incomplete_import_state";
+    | "incomplete_import_state"
+    | "import_content_mismatch";
   readonly detail: string;
   /** Source codes or row positions, never an attribute value of a person. */
   readonly subjects: readonly string[];
@@ -180,6 +181,44 @@ function stableHash(value: unknown): string {
   return createHash("sha256")
     .update(JSON.stringify(canonical(value)))
     .digest("hex");
+}
+
+/**
+ * What a stored version can prove about itself.
+ *
+ * The label is built from `sourceSha256`, which is a hash an operator **declares** for the
+ * archive. Nothing in it is evidence about the bytes that were actually imported, so a label
+ * match alone once answered "already here" about geometry the import had never seen. This note
+ * carries the hash of the layer as read, the declared source it came with, the contract that
+ * wrote it and the feature count, so a repeat can be verified instead of assumed.
+ *
+ * It lives in `spatial_dataset_version.note`, an existing text column: a table for four fields
+ * would be a migration this does not need. It is JSON so it parses unambiguously, and it is
+ * versioned by `contract`, so a note this code did not write — or cannot read — denies the no-op
+ * rather than being guessed at.
+ */
+const intakeNoteSchema = z
+  .object({
+    contract: z.literal(CORRIDOR_INTAKE_CONTRACT),
+    kind: z.enum(["parcels", "alignment"]),
+    sourceSha256: z.string().regex(/^[0-9a-f]{64}$/),
+    layerSha256: z.string().regex(/^[0-9a-f]{64}$/),
+    condition: z.enum(["PRELIMINARY_DRAFT", "FINAL"]),
+    featureCount: z.number().int().nonnegative(),
+  })
+  .strict();
+
+type IntakeNote = z.infer<typeof intakeNoteSchema>;
+
+function readIntakeNote(note: string | null): IntakeNote | null {
+  if (note === null || note === "") return null;
+  try {
+    const parsed: unknown = JSON.parse(note);
+    const result = intakeNoteSchema.safeParse(parsed);
+    return result.success ? result.data : null;
+  } catch {
+    return null;
+  }
 }
 
 /** A label that *is* the package's identity, so the existing unique index enforces the no-op. */
@@ -354,34 +393,122 @@ async function buildPlan(
     alignment: versionLabel("alignment", input.sourceSha256),
   };
 
-  const existing = await tx.execute<{ version_label: string; kind: string }>(
-    sql`select v.version_label, d.kind
+  const layerSha256 = {
+    alignment: stableHash(input.alignment),
+    parcels: stableHash(input.parcels),
+  };
+
+  /*
+   * What the destination already holds, with each version's note and the geometry actually
+   * attached to it. The counts come back in the same query because they are the cheap half of
+   * rule E: a note claiming 170 features over a version carrying 3 rows is not this package.
+   */
+  const existing = await tx.execute<{
+    version_label: string;
+    kind: string;
+    note: string | null;
+    feature_count: number;
+    stored: number;
+  }>(
+    sql`select v.version_label, d.kind, v.note, v.feature_count,
+               case when d.kind = 'parcels'
+                    then (select count(*)::int from app.parcel_geometry g
+                           where g.tenant_id = v.tenant_id and g.dataset_version_id = v.id)
+                    else (select count(*)::int from app.alignment a
+                           where a.tenant_id = v.tenant_id and a.dataset_version_id = v.id)
+               end as stored
           from app.spatial_dataset_version v
           join app.spatial_dataset d on d.tenant_id = v.tenant_id and d.id = v.dataset_id
          where v.tenant_id = ${tenantId} and v.project_id = ${projectId}
            and d.kind in ('parcels','alignment')
          order by v.version_label`,
   );
-  const existingRows =
-    existing.rows ?? (existing as unknown as { version_label: string; kind: string }[]);
-  const labelsPresent = new Set(existingRows.map((r) => r.version_label));
-  const hasParcels = labelsPresent.has(labels.parcels);
-  const hasAlignment = labelsPresent.has(labels.alignment);
+  type ExistingVersion = {
+    version_label: string;
+    kind: string;
+    note: string | null;
+    feature_count: number;
+    stored: number;
+  };
+  const existingRows = existing.rows ?? (existing as unknown as ExistingVersion[]);
+  const byLabel = new Map(existingRows.map((r) => [r.version_label, r]));
+  const parcelsRow = byLabel.get(labels.parcels);
+  const alignmentRow = byLabel.get(labels.alignment);
   const otherPackage = existingRows.some(
     (r) => r.version_label !== labels.parcels && r.version_label !== labels.alignment,
   );
 
+  const expectedParcels = layers.parcels?.features.length ?? 0;
+  const expectedAlignments = layers.alignment?.features.length ?? 0;
+
+  /** Does a stored version demonstrably hold *this* layer? A note it cannot prove says no. */
+  const proves = (
+    row: ExistingVersion | undefined,
+    kind: "parcels" | "alignment",
+    expectedHash: string,
+    expectedFeatures: number,
+  ): { ok: boolean; why: string } => {
+    if (row === undefined) return { ok: false, why: "absent" };
+    const note = readIntakeNote(row.note);
+    if (note === null) return { ok: false, why: "its note is missing or cannot be read" };
+    if (note.kind !== kind) return { ok: false, why: "its note names another layer" };
+    if (note.sourceSha256 !== input.sourceSha256) {
+      return { ok: false, why: "it was imported from a different declared source" };
+    }
+    if (note.layerSha256 !== expectedHash) {
+      return { ok: false, why: "the layer content differs from what is stored" };
+    }
+    if (note.condition !== input.condition) {
+      return { ok: false, why: "it was imported under a different condition" };
+    }
+    if (note.featureCount !== expectedFeatures || row.feature_count !== expectedFeatures) {
+      return { ok: false, why: "the feature count differs" };
+    }
+    if (row.stored !== expectedFeatures) {
+      return { ok: false, why: "the geometry rows attached to it do not match its count" };
+    }
+    return { ok: true, why: "" };
+  };
+
+  const parcelsProven = proves(parcelsRow, "parcels", layerSha256.parcels, expectedParcels);
+  const alignmentProven = proves(
+    alignmentRow,
+    "alignment",
+    layerSha256.alignment,
+    expectedAlignments,
+  );
+
   let refusal: string | null = null;
-  if (hasParcels !== hasAlignment) {
-    // Half a package is not a no-op. Re-applying would write the missing half against a version
-    // the first run never finished, and reporting "already imported" would hide it.
+  const bothPresent = parcelsRow !== undefined && alignmentRow !== undefined;
+  const eitherPresent = parcelsRow !== undefined || alignmentRow !== undefined;
+  const reuses = parcelsProven.ok && alignmentProven.ok;
+
+  if (eitherPresent && !bothPresent) {
     problems.push({
       code: "incomplete_import_state",
       detail: "this destination holds one half of this package; the import did not finish",
-      subjects: [hasParcels ? labels.parcels : labels.alignment],
+      subjects: [parcelsRow !== undefined ? labels.parcels : labels.alignment],
     });
     refusal = "INCOMPLETE_IMPORT_STATE";
-  } else if (otherPackage && !(hasParcels && hasAlignment)) {
+  } else if (bothPresent && !reuses) {
+    /*
+     * Both labels are here and at least one cannot prove it holds this content. The declared
+     * source hash is unchanged — that is exactly the case a label comparison called a no-op.
+     */
+    problems.push({
+      code: "import_content_mismatch",
+      detail:
+        "versions with these labels already exist but do not hold this package's content: " +
+        [
+          parcelsProven.ok ? null : `parcels — ${parcelsProven.why}`,
+          alignmentProven.ok ? null : `alignment — ${alignmentProven.why}`,
+        ]
+          .filter((x): x is string => x !== null)
+          .join("; "),
+      subjects: [labels.parcels, labels.alignment],
+    });
+    refusal = "IMPORT_CONTENT_MISMATCH";
+  } else if (otherPackage && !reuses) {
     /*
      * A different package against a destination that already holds one. `ficha_num` is unique
      * within a delivery and unproven across deliveries, so matching by code could rename somebody
@@ -410,16 +537,15 @@ async function buildPlan(
         ).length;
 
   const parcelsRead = layers.parcels?.features.length ?? 0;
-  const layerSha256 = {
-    alignment: stableHash(input.alignment),
-    parcels: stableHash(input.parcels),
-  };
   const destinationVersionLabels = existingRows.map((r) => r.version_label);
 
   const fingerprint = stableHash({
     contract: CORRIDOR_INTAKE_CONTRACT,
     tenantId,
     projectId,
+    sourceLabel: input.sourceLabel,
+    receivedAt: input.receivedAt,
+    alignmentLabel: input.alignmentLabel,
     sourceSha256: input.sourceSha256,
     layerSha256,
     parcelCodeField: input.parcelCodeField,
@@ -448,7 +574,7 @@ async function buildPlan(
     parcelsToMatch: matched,
     layersAbsent: ["affectations", "chainage", "influenceAreas"],
     versionLabels: labels,
-    reusesExistingVersions: hasParcels && hasAlignment,
+    reusesExistingVersions: reuses,
     problems,
     applicable: problems.length === 0 && refusal === null,
     refusal,
@@ -501,6 +627,13 @@ export async function applyCorridorIntake(
       throw new Error(
         "corridor intake refused: STALE_OR_UNAPPROVED_PLAN — the layers, the destination or " +
           "the options changed since the plan was approved",
+      );
+    }
+    // Applicability first. A no-op reached before this would have answered "already imported"
+    // over an input whose geometry or codes this run had just refused.
+    if (!plan.applicable && !plan.reusesExistingVersions) {
+      throw new Error(
+        `corridor intake refused: ${plan.refusal ?? plan.problems.map((p) => p.code).join(", ")}`,
       );
     }
     if (plan.reusesExistingVersions) {
@@ -579,10 +712,22 @@ export async function applyCorridorIntake(
     const version = async (
       datasetId: string,
       label: string,
+      kind: "parcels" | "alignment",
       count: number,
+      layerHash: string,
       provenanceId: string,
     ) => {
       const id = randomUUID();
+      // The note is what a later run reads to decide whether this package is already here. It
+      // carries the hash of the layer actually imported, not the label an operator declared.
+      const note: IntakeNote = {
+        contract: CORRIDOR_INTAKE_CONTRACT,
+        kind,
+        sourceSha256: parsed.sourceSha256,
+        layerSha256: layerHash,
+        condition: parsed.condition,
+        featureCount: count,
+      };
       // The unique index on (tenant_id, dataset_id, version_label) is what makes a concurrent
       // retry of the same package fail rather than duplicate. A SELECT before INSERT would not.
       await tx.execute(sql`
@@ -591,8 +736,7 @@ export async function applyCorridorIntake(
            feature_count, is_active, produced_at, note, provenance_id, created_at)
         values (${id}, ${tenantId}, ${projectId}, ${datasetId}, ${label}, 'imported',
                 ${parsed.sourceSrid}, ${parsed.analysisSrid}, ${count}, false,
-                ${parsed.receivedAt}::timestamptz,
-                ${`${parsed.condition} · ${CORRIDOR_INTAKE_CONTRACT} · sha256:${parsed.sourceSha256.slice(0, 12)}`},
+                ${parsed.receivedAt}::timestamptz, ${JSON.stringify(note)},
                 ${provenanceId}, now())`);
       return id;
     };
@@ -602,13 +746,17 @@ export async function applyCorridorIntake(
     const alignmentVersionId = await version(
       alignmentDatasetId,
       plan.versionLabels.alignment,
+      "alignment",
       1,
+      plan.layerSha256.alignment,
       alignProv,
     );
     const parcelsVersionId = await version(
       parcelsDatasetId,
       plan.versionLabels.parcels,
+      "parcels",
       parcelFeatures.length,
+      plan.layerSha256.parcels,
       parcelProv,
     );
 

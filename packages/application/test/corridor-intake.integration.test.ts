@@ -550,3 +550,146 @@ describe("H · the boolean alone does not lift the identity block", () => {
     expect(await countIn(ctx, "app.parcel")).toBe(4);
   });
 });
+
+/**
+ * The defect this suite was written for, before it was fixed.
+ *
+ * A version's identity was its **label**, and the label was built from `sourceSha256` — the hash
+ * an operator *declares* for the archive. Nothing persisted said which bytes had actually been
+ * imported. So editing one coordinate, keeping the declaration, and planning *afresh* produced a
+ * plan whose fingerprint matched its own input and whose labels matched the stored versions: the
+ * import answered "already here" about geometry it had never seen.
+ *
+ * A stale plan was never the issue; this path uses a new one.
+ */
+describe("content, not the label an operator typed", () => {
+  it("refuses a changed polygon that keeps the declared source hash", async () => {
+    const ctx = contextFor(w, "GIS_SPECIALIST", w.projectX, w.tenantA);
+
+    const a = input();
+    await applyCorridorIntake(db.runtime, ctx, a, await approvedPlan(ctx, a));
+    expect(await countIn(ctx, "app.parcel")).toBe(4);
+    expect(await countIn(ctx, "app.spatial_dataset_version")).toBe(2);
+
+    // One coordinate moves. `sourceSha256` is left exactly as it was.
+    const moved = parcelsLayer(["1", "2", "3", "4"]);
+    const ring = (moved.features[0] as { geometry: { coordinates: number[][][] } }).geometry
+      .coordinates[0] as number[][];
+    (ring[0] as number[])[0] = (ring[0] as number[])[0]! + 0.0004;
+    const b = input({ parcels: moved });
+    expect(b.sourceSha256).toBe(a.sourceSha256);
+
+    // A brand-new plan over the changed bytes — not the one approved before.
+    const planB = await planCorridorIntake(db.runtime, ctx, b);
+    expect(planB.reusesExistingVersions).toBe(false);
+    expect(planB.refusal).toBe("IMPORT_CONTENT_MISMATCH");
+    expect(planB.applicable).toBe(false);
+
+    await expect(applyCorridorIntake(db.runtime, ctx, b, planB.fingerprint)).rejects.toThrow(
+      /IMPORT_CONTENT_MISMATCH/,
+    );
+
+    // The first package is untouched: same parcels, same versions, no third version.
+    expect(await countIn(ctx, "app.parcel")).toBe(4);
+    expect(await countIn(ctx, "app.spatial_dataset_version")).toBe(2);
+  });
+});
+
+describe("a stored version that cannot prove what it holds", () => {
+  it("5 · an unreadable note denies the no-op rather than being guessed at", async () => {
+    const ctx = contextFor(w, "GIS_SPECIALIST", w.projectX, w.tenantA);
+    const a = input();
+    await applyCorridorIntake(db.runtime, ctx, a, await approvedPlan(ctx, a));
+    // As a version written by an older contract, or by hand, would look.
+    await db.migrator.execute(
+      sql`update app.spatial_dataset_version set note = 'imported from somewhere'
+           where version_label like 'parcels_intake_%'`,
+    );
+    const plan = await planCorridorIntake(db.runtime, ctx, a);
+    expect(plan.reusesExistingVersions).toBe(false);
+    expect(plan.refusal).toBe("IMPORT_CONTENT_MISMATCH");
+    expect(plan.problems.map((p: { code: string }) => p.code)).toContain("import_content_mismatch");
+  });
+
+  it("6 · a count that disagrees with the geometry attached to it is refused", async () => {
+    const ctx = contextFor(w, "GIS_SPECIALIST", w.projectX, w.tenantA);
+    const a = input();
+    await applyCorridorIntake(db.runtime, ctx, a, await approvedPlan(ctx, a));
+    // One geometry row disappears, as a partially rolled back run would leave it.
+    await db.migrator.execute(sql`
+      delete from app.parcel_geometry
+       where id = (select id from app.parcel_geometry limit 1)`);
+    const plan = await planCorridorIntake(db.runtime, ctx, a);
+    expect(plan.reusesExistingVersions).toBe(false);
+    expect(plan.refusal).toBe("IMPORT_CONTENT_MISMATCH");
+  });
+
+  it("8 · an invalid input never reads as 'already imported'", async () => {
+    const ctx = contextFor(w, "GIS_SPECIALIST", w.projectX, w.tenantA);
+    const a = input();
+    await applyCorridorIntake(db.runtime, ctx, a, await approvedPlan(ctx, a));
+    const bad = input({ parcels: parcelsLayer(["1", "2", "3", "4"], { invalid: true }) });
+    const plan = await planCorridorIntake(db.runtime, ctx, bad);
+    expect(plan.reusesExistingVersions).toBe(false);
+    expect(plan.applicable).toBe(false);
+    expect(plan.problems.map((p: { code: string }) => p.code)).toContain("geometry_invalid");
+    await expect(applyCorridorIntake(db.runtime, ctx, bad, plan.fingerprint)).rejects.toThrow();
+  });
+});
+
+describe("metadata an operator read in the plan is part of what they approved", () => {
+  const cases: ReadonlyArray<readonly [string, Partial<CorridorIntakeInput>]> = [
+    ["9 · sourceLabel", { sourceLabel: "otro-paquete.rar" }],
+    ["10 · receivedAt", { receivedAt: "2026-01-01T00:00:00Z" }],
+    ["11 · alignmentLabel", { alignmentLabel: "Otro eje" }],
+  ];
+  for (const [name, change] of cases) {
+    it(`${name} changed after the plan is STALE_OR_UNAPPROVED_PLAN`, async () => {
+      const ctx = contextFor(w, "GIS_SPECIALIST", w.projectX, w.tenantA);
+      const approved = await approvedPlan(ctx, input());
+      await expect(applyCorridorIntake(db.runtime, ctx, input(change), approved)).rejects.toThrow(
+        /STALE_OR_UNAPPROVED_PLAN/,
+      );
+      expect(await countIn(ctx, "app.parcel")).toBe(0);
+    });
+  }
+});
+
+describe("12 · a genuine repeat keeps every identity", () => {
+  it("same Parcel.id, same versions, no new geometry and no new provenance", async () => {
+    const ctx = contextFor(w, "GIS_SPECIALIST", w.projectX, w.tenantA);
+    const a = input();
+    await applyCorridorIntake(db.runtime, ctx, a, await approvedPlan(ctx, a));
+
+    const snapshot = async () =>
+      asContext(db.runtime, ctx, async (tx) => ({
+        parcels: (
+          await tx.execute<{ id: string }>(sql`select id from app.parcel order by parcel_code`)
+        ).rows.map((r) => r.id),
+        versions: (
+          await tx.execute<{ id: string; note: string }>(
+            sql`select id, note from app.spatial_dataset_version order by version_label`,
+          )
+        ).rows,
+        geometries: (
+          await tx.execute<{ n: number }>(sql`select count(*)::int as n from app.parcel_geometry`)
+        ).rows[0]?.n,
+        provenance: (
+          await tx.execute<{ n: number }>(sql`select count(*)::int as n from app.provenance_record`)
+        ).rows[0]?.n,
+      }));
+
+    const before = await snapshot();
+    const replan = await planCorridorIntake(db.runtime, ctx, a);
+    expect(replan.reusesExistingVersions).toBe(true);
+    const second = await applyCorridorIntake(db.runtime, ctx, a, replan.fingerprint);
+    expect(second.noop).toBe(true);
+
+    const after = await snapshot();
+    expect(after.parcels).toEqual(before.parcels);
+    expect(after.versions).toEqual(before.versions);
+    expect(after.geometries).toBe(before.geometries);
+    // A no-op writes no provenance either: nothing happened, so nothing is recorded as having.
+    expect(after.provenance).toBe(before.provenance);
+  });
+});
