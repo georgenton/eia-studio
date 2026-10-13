@@ -19,7 +19,8 @@
     "ops:doctor": "tsx scripts/ops-doctor.ts",
     "go-live:doctor": "tsx scripts/go-live-doctor.ts",
     "demo:eight-projects": "tsx scripts/seed-demo-eight-projects.ts",
-    "intake:plan": "tsx scripts/intake-plan.ts"
+    "intake:plan": "tsx scripts/intake-plan.ts",
+    "gis:corridor-intake": "tsx scripts/gis-corridor-intake.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1134.0",
