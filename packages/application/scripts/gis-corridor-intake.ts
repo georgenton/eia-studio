@@ -8,11 +8,12 @@ import { createDatabase, createPool } from "@eia/db";
 import { config as loadDotenv } from "dotenv";
 import { sql } from "drizzle-orm";
 import { readFileSync } from "node:fs";
-import { dirname, isAbsolute, resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 
 import { activateDatasetVersion } from "../src/gis/activate-dataset-version";
 import { applyCorridorIntake, planCorridorIntake } from "../src/gis/corridor-intake";
 import { buildRequestContext } from "../src/tenancy/request-context";
+import { resolveDescriptorPath } from "./resolve-descriptor-path";
 
 /**
  * Operator-assisted corridor intake: `plan` reports, `apply` writes once.
@@ -45,10 +46,16 @@ if (app.APP_ENV === "production") {
   process.exit(1);
 }
 
-const descriptorFile = isAbsolute(descriptorPath)
-  ? descriptorPath
-  : resolve(process.cwd(), descriptorPath);
-const descriptor = JSON.parse(readFileSync(descriptorFile, "utf8")) as Record<string, unknown>;
+const descriptorFile = resolveDescriptorPath(descriptorPath, process.env, process.cwd());
+let descriptorText: string;
+try {
+  descriptorText = readFileSync(descriptorFile, "utf8");
+} catch {
+  // A stack trace about `fs.readFileSync` tells an operator nothing. The path actually tried does.
+  console.error(`gis:corridor-intake: no descriptor at ${descriptorFile}`);
+  process.exit(1);
+}
+const descriptor = JSON.parse(descriptorText) as Record<string, unknown>;
 const base = dirname(descriptorFile);
 
 function text(key: string): string {
