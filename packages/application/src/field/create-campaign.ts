@@ -12,6 +12,7 @@ import { z } from "zod";
 
 import { recordAudit } from "../audit/record";
 import { withFieldContext } from "./context";
+import { lockProjectForOperationChange } from "./project-operation-lock";
 
 /**
  * Opening the operation that field work belongs to.
@@ -75,6 +76,9 @@ export async function createSurveyCampaign(
   const input = createSurveyCampaignInputSchema.parse(raw);
 
   return withFieldContext(db, ctx, async (tx) => {
+    // Before anything is read: two simultaneous submits would otherwise both find no draft.
+    await lockProjectForOperationChange(tx, ctx.tenantId, projectId);
+
     /*
      * The version must be this project's and must be PUBLISHED. A DRAFT can still change under
      * the campaign's feet, and a RETIRED one was deliberately taken out of use; either would mean
@@ -112,7 +116,11 @@ export async function createSurveyCampaign(
      * does not merge two drafts somebody meant to keep apart.
      */
     const existing = await tx
-      .select({ id: fieldSchema.surveyCampaign.id })
+      .select({
+        id: fieldSchema.surveyCampaign.id,
+        startsOn: fieldSchema.surveyCampaign.startsOn,
+        targetOn: fieldSchema.surveyCampaign.targetOn,
+      })
       .from(fieldSchema.surveyCampaign)
       .where(
         and(
@@ -125,9 +133,24 @@ export async function createSurveyCampaign(
         ),
       )
       .limit(1);
-    if (existing[0] !== undefined) {
+    const prior = existing[0];
+    if (prior !== undefined) {
+      /*
+       * Same name, same questionnaire, same channel — but the dates were not part of that
+       * comparison, and two requests whose planned dates differ are not the same request. Handing
+       * back the first draft would quietly give the caller a campaign planned for days they did
+       * not ask for; creating a second would leave the project two campaigns with one name. So it
+       * is a refusal that says what the existing one is planned for, and the person decides.
+       */
+      if (prior.startsOn !== input.startsOn || prior.targetOn !== input.targetOn) {
+        throw new InvalidInput(
+          `a draft campaign named «${input.name}» already exists for this questionnaire, planned ` +
+            `${prior.startsOn ?? "sin inicio"} → ${prior.targetOn ?? "sin cierre"}. Change its ` +
+            `dates on that campaign, or open this one under a different name.`,
+        );
+      }
       return {
-        campaignId: existing[0].id,
+        campaignId: prior.id,
         name: input.name,
         status: "DRAFT" as const,
         surveyVersionId: input.surveyVersionId,

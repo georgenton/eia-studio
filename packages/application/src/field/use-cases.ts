@@ -31,6 +31,7 @@ import { z } from "zod";
 import { recordAudit } from "../audit/record";
 import { applyCorrectionIfAny } from "./corrections";
 import { withFieldContext } from "./context";
+import { lockProjectForOperationChange } from "./project-operation-lock";
 import { loadSurveyQuestions } from "./read-models";
 
 /**
@@ -239,11 +240,16 @@ export async function activateCampaign(
      * to end.
      */
     if (row.status !== "ACTIVE") {
+      /*
+       * The lock comes first. `FOR UPDATE` below locks the campaigns it returns, and the case
+       * this guard exists for is the one where it returns none: two transactions activating two
+       * different drafts would each see zero and each write one.
+       */
+      await lockProjectForOperationChange(tx, ctx.tenantId, projectId);
       const others = await tx.execute<{ id: string; name: string }>(
         sql`select id, name from app.survey_campaign
              where tenant_id = ${ctx.tenantId} and project_id = ${projectId}
-               and status = 'ACTIVE' and id <> ${campaignId}
-             for update`,
+               and status = 'ACTIVE' and id <> ${campaignId}`,
       );
       const other = (others.rows ?? [])[0];
       if (other !== undefined) {

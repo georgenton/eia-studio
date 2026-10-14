@@ -550,3 +550,156 @@ describe("M · opening a campaign touches nothing else", () => {
     expect(list[0]?.templateName).toBe("Ficha ficha_pub");
   });
 });
+
+/**
+ * Two people clicking at the same time, from two connections.
+ *
+ * The sequential cases pass without any of this: a second request that arrives after the first
+ * has committed sees what it wrote. These are the ones where both requests read the world before
+ * either writes to it, and a `SELECT ... FOR UPDATE` over *no rows* locks nothing at all.
+ */
+describe("concurrency", () => {
+  async function draftWithAssignment(key: string, name: string): Promise<string> {
+    const ctx = coordinator();
+    const versionId = await publishedVersion(key);
+    const [parcelId] = await synthParcels(1);
+    const tech = await technicianMembership();
+    const c = await createSurveyCampaign(db.runtime, ctx, {
+      name,
+      surveyVersionId: versionId,
+      captureChannel: "EIA_FIELD_MOBILE",
+    });
+    await assignParcel(db.runtime, ctx, {
+      campaignId: c.campaignId,
+      parcelId: parcelId!,
+      assigneeMembershipId: tech.membershipId,
+      note: null,
+    });
+    return c.campaignId;
+  }
+
+  it("two activations in parallel leave exactly one campaign ACTIVE", async () => {
+    const ctx = coordinator();
+    const first = await draftWithAssignment("ficha_cc1", "Paralela A");
+    const second = await draftWithAssignment("ficha_cc2", "Paralela B");
+
+    const outcomes = await Promise.allSettled([
+      activateCampaign(db.runtime, ctx, first),
+      activateCampaign(db.runtime, ctx, second),
+    ]);
+    const fulfilled = outcomes.filter((o) => o.status === "fulfilled").length;
+
+    const rows = await asContext(
+      db.runtime,
+      ctx,
+      async (tx) =>
+        (
+          await tx.execute<{ id: string; status: string; name: string }>(
+            sql`select id, status, name from app.survey_campaign order by name`,
+          )
+        ).rows,
+    );
+    const active = rows.filter((r) => r.status === "ACTIVE");
+    const drafts = rows.filter((r) => r.status === "DRAFT");
+
+    expect(active).toHaveLength(1);
+    expect(drafts).toHaveLength(1);
+    expect(fulfilled).toBe(1);
+    // The one that lost keeps everything it had; nothing was closed or renamed.
+    expect(drafts[0]?.name).toMatch(/Paralela [AB]/);
+  });
+
+  it("two identical creations in parallel leave exactly one draft", async () => {
+    const ctx = coordinator();
+    const versionId = await publishedVersion("ficha_cc3");
+    const input = {
+      name: "Creada dos veces a la vez",
+      surveyVersionId: versionId,
+      captureChannel: "EIA_FIELD_MOBILE" as const,
+    };
+
+    const outcomes = await Promise.allSettled([
+      createSurveyCampaign(db.runtime, ctx, input),
+      createSurveyCampaign(db.runtime, ctx, input),
+    ]);
+    const ids = outcomes
+      .filter(
+        (o): o is PromiseFulfilledResult<Awaited<ReturnType<typeof createSurveyCampaign>>> =>
+          o.status === "fulfilled",
+      )
+      .map((o) => o.value.campaignId);
+
+    const campaigns = await asContext(
+      db.runtime,
+      ctx,
+      async (tx) =>
+        (await tx.execute<{ n: number }>(sql`select count(*)::int as n from app.survey_campaign`))
+          .rows[0]?.n,
+    );
+    expect(campaigns).toBe(1);
+    // Whatever each caller was told, they were told about the same campaign.
+    expect(new Set(ids).size).toBe(1);
+
+    const audits = await db.migrator.execute<{ n: number }>(
+      sql`select count(*)::int as n from audit.log where action = 'field.campaign.created'`,
+    );
+    expect((audits.rows[0] as { n: number }).n).toBe(1);
+    const provenance = await db.migrator.execute<{ n: number }>(
+      sql`select count(*)::int as n from app.provenance_record
+           where title = 'Campaña de campo abierta en el producto'`,
+    );
+    expect((provenance.rows[0] as { n: number }).n).toBe(1);
+  });
+});
+
+describe("the dates are part of what was asked for", () => {
+  it("refuses a same-named draft whose planned dates differ, rather than reusing the old ones", async () => {
+    const ctx = coordinator();
+    const versionId = await publishedVersion("ficha_dates");
+    const base = {
+      name: "Con fechas",
+      surveyVersionId: versionId,
+      captureChannel: "EIA_FIELD_MOBILE" as const,
+    };
+    const first = await createSurveyCampaign(db.runtime, ctx, {
+      ...base,
+      startsOn: "2026-11-02",
+      targetOn: "2026-11-12",
+    });
+    expect(first.reused).toBe(false);
+
+    await expect(
+      createSurveyCampaign(db.runtime, ctx, { ...base, startsOn: "2027-01-05", targetOn: null }),
+    ).rejects.toThrow(/2026-11-02/);
+
+    // Still one campaign, and its dates are the ones that were actually asked for.
+    const rows = await asContext(
+      db.runtime,
+      ctx,
+      async (tx) =>
+        (
+          await tx.execute<{ n: number; starts_on: string | null }>(
+            sql`select count(*)::int as n, min(starts_on::text) as starts_on from app.survey_campaign`,
+          )
+        ).rows[0],
+    );
+    expect(rows?.n).toBe(1);
+    expect(rows?.starts_on).toBe("2026-11-02");
+  });
+
+  it("the same dates are still the same request", async () => {
+    const ctx = coordinator();
+    const versionId = await publishedVersion("ficha_dates_same");
+    const same = {
+      name: "Fechas iguales",
+      surveyVersionId: versionId,
+      captureChannel: "EIA_FIELD_MOBILE" as const,
+      startsOn: "2026-11-02",
+      targetOn: "2026-11-12",
+    };
+    const a = await createSurveyCampaign(db.runtime, ctx, same);
+    const b = await createSurveyCampaign(db.runtime, ctx, same);
+    expect(b.reused).toBe(true);
+    expect(b.campaignId).toBe(a.campaignId);
+  });
+});
