@@ -130,3 +130,18 @@
 .subSurfaces a {
   color: var(--eia-accent);
 }
+
+/* The sentence under a panel heading that says what the surface is for. */
+.lead {
+  color: var(--color-text-muted);
+  margin: 0 0 12px;
+  max-width: 62ch;
+}
+
+/* A short column of labelled controls. Nothing here is a layout system. */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 420px;
+}

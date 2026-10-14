@@ -1,13 +1,14 @@
 import {
   listEligibleTechnicians,
+  listPublishableSurveyVersions,
   loadCurrentAssignmentBoard,
   loadWorkspaceHeader,
 } from "@eia/application";
 import { can } from "@eia/domain";
-import { EmptyState } from "@eia/ui";
 import { notFound, redirect } from "next/navigation";
 
 import { AssignmentBoardSurface } from "@/components/field/assignment-board";
+import { CampaignOpener } from "@/components/field/campaign-opener";
 import { projectBreadcrumb, projectLabel, WorkspaceShell } from "@/components/workspace-shell";
 import { getSessionUser } from "@/lib/context";
 import { getDb } from "@/lib/db";
@@ -84,17 +85,35 @@ export default async function AssignmentsPage({
   }
 
   const board = await loadCurrentAssignmentBoard(getDb(), ctx);
+
+  /*
+   * No campaign was the dead end this surface used to reach: an empty state, and nothing on any
+   * screen that could open one. A project with cartography and a published questionnaire now has
+   * the one control it was missing.
+   */
   if (board === null) {
+    const versions = await listPublishableSurveyVersions(getDb(), ctx);
     return (
       <WorkspaceShell {...shell}>
-        <EmptyState title={t("field.assignments.noCampaign")} />
+        <CampaignOpener draft={null} project={project} tenant={tenant} versions={versions} />
       </WorkspaceShell>
     );
   }
+
   const technicians = await listEligibleTechnicians(getDb(), ctx, board.campaignId);
+  const assigned = board.rows.filter((row) => row.assigneeMembershipId !== null).length;
 
   return (
     <WorkspaceShell {...shell}>
+      {/* A draft shows what it still needs; an active campaign shows none of this. */}
+      {board.campaignStatus === "DRAFT" && (
+        <CampaignOpener
+          draft={{ id: board.campaignId, name: board.campaignName, assignments: assigned }}
+          project={project}
+          tenant={tenant}
+          versions={[]}
+        />
+      )}
       <AssignmentBoardSurface
         board={board}
         project={project}

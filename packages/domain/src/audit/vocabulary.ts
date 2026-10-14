@@ -35,6 +35,7 @@ export const AUDIT_ACTIONS = [
   // FieldFlow (Slice 3). Material workflow events only: the row records *that* a response was
   // submitted, never what it said. Ordinary row mutations are not audited — an event store that
   // mirrors every write is noise nobody reads.
+  "field.campaign.created",
   "field.campaign.activated",
   "field.campaign.closed",
   /*

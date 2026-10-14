@@ -214,6 +214,32 @@ export const messages: Messages = {
     submitForm: "Submit form",
     questionRequired: "This question is required.",
     /* ---- Survey assignment (block 3) ---- */
+    campaign: {
+      createTitle: "Open a campaign",
+      createLead:
+        "A campaign connects a published questionnaire with parcel assignments. It opens as a draft; activating it is a separate decision.",
+      name: "Campaign name",
+      namePlaceholder: "Parcel survey — first stage",
+      version: "Published questionnaire",
+      noVersions:
+        "This project has no published questionnaire yet. One is written and published in Prepare project › Forms.",
+      channel: "Capture channel",
+      channelMobile: "EIA Field (phone)",
+      channelWeb: "Web form",
+      startsOn: "Planned start",
+      targetOn: "Planned close",
+      create: "Create campaign",
+      created: "Campaign created as a draft.",
+      alreadyOpen: "An identical draft already exists; that one is kept.",
+      draftTitle: "Draft, not yet active",
+      draftLead:
+        "Assign at least one parcel and then activate it. Until then no phone downloads it.",
+      assignmentCount: "{count} assignments",
+      activate: "Activate campaign",
+      activated: "Campaign activated.",
+      activeTitle: "Active campaign",
+      goToAssignments: "Go to parcel assignment",
+    },
     assignments: {
       title: "Parcel assignment",
       lead: "Who surveys each parcel of the campaign. Decided here; there is no automatic split.",

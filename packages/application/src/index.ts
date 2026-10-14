@@ -143,6 +143,12 @@ export type {
   TechnicianWorkload,
 } from "./field/read-models";
 export {
+  createSurveyCampaign,
+  createSurveyCampaignInputSchema,
+  listPublishableSurveyVersions,
+} from "./field/create-campaign";
+export type { CreatedSurveyCampaign, CreateSurveyCampaignInput } from "./field/create-campaign";
+export {
   activateCampaign,
   closeCampaign,
   completeVisit,

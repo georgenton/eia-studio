@@ -217,6 +217,33 @@ export const messages = {
     submitting: "Enviando…",
     submitForm: "Enviar ficha",
     questionRequired: "Esta pregunta es obligatoria.",
+    /* ---- Abrir la operación de campo ---- */
+    campaign: {
+      createTitle: "Abrir campaña",
+      createLead:
+        "Una campaña conecta un cuestionario publicado con las asignaciones de predios. Se abre como borrador; activarla es una decisión aparte.",
+      name: "Nombre de la campaña",
+      namePlaceholder: "Levantamiento predial — primera etapa",
+      version: "Cuestionario publicado",
+      noVersions:
+        "Este proyecto todavía no tiene ningún cuestionario publicado. Se escribe y se publica en Preparar proyecto › Formularios.",
+      channel: "Canal de captura",
+      channelMobile: "EIA Field (teléfono)",
+      channelWeb: "Formulario web",
+      startsOn: "Inicio previsto",
+      targetOn: "Cierre previsto",
+      create: "Crear campaña",
+      created: "Campaña creada como borrador.",
+      alreadyOpen: "Ya existe un borrador idéntico; se mantiene ese.",
+      draftTitle: "Borrador sin activar",
+      draftLead:
+        "Asigna al menos un predio y luego actívala. Hasta entonces ningún teléfono la descarga.",
+      assignmentCount: "{count} asignaciones",
+      activate: "Activar campaña",
+      activated: "Campaña activada.",
+      activeTitle: "Campaña activa",
+      goToAssignments: "Ir a asignación de predios",
+    },
     /* ---- Asignación de levantamientos (bloque 3) ---- */
     assignments: {
       title: "Asignación de predios",

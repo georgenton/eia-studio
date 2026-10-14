@@ -116,7 +116,7 @@ export default defineConfig({
     {
       name: "coordinator",
       testMatch:
-        /(^|\/)(journey|mvp-journey|gis|field-coordinator|field-integration|authorization|screenshots|accessibility|documents|documents-accessibility|documents-screenshots|intake|pgas|reports|vocabulary|journey-integrity|reports-accessibility|reports-screenshots|portal|portal-accessibility|portal-screenshots)\.spec\.ts$/,
+        /(^|\/)(journey|mvp-journey|gis|field-coordinator|field-integration|authorization|screenshots|accessibility|documents|documents-accessibility|documents-screenshots|intake|pgas|reports|vocabulary|journey-integrity|reports-accessibility|reports-screenshots|portal|portal-accessibility|portal-screenshots|field-campaign)\.spec\.ts$/,
       dependencies: ["setup"],
       use: {
         ...devices["Desktop Chrome"],

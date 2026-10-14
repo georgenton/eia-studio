@@ -1,5 +1,6 @@
 import { appSchema, fieldSchema, type Database, type DbTx } from "@eia/db";
 import {
+  InvalidInput,
   answerInputSchema,
   assertAssignmentTransition,
   assertCampaignActivatable,
@@ -30,6 +31,7 @@ import { z } from "zod";
 import { recordAudit } from "../audit/record";
 import { applyCorrectionIfAny } from "./corrections";
 import { withFieldContext } from "./context";
+import { lockProjectForOperationChange } from "./project-operation-lock";
 import { loadSurveyQuestions } from "./read-models";
 
 /**
@@ -228,6 +230,35 @@ export async function activateCampaign(
     if (!row) throw new NotFound("survey campaign");
 
     const offlineMode = readFieldOfflineMode(row.offline_mode);
+
+    /*
+     * One current operation per project (ADR-026). Two ACTIVE campaigns would give a technician's
+     * phone two answers to "what am I working on", and the analytics two denominators for the same
+     * corridor. The other campaign is **not** closed here: superseding one is a decision somebody
+     * makes on purpose, through `supersedeOtherCampaigns`, which records what the closed operation
+     * carried. Closing it as a side effect of activating another would end field work nobody said
+     * to end.
+     */
+    if (row.status !== "ACTIVE") {
+      /*
+       * The lock comes first. `FOR UPDATE` below locks the campaigns it returns, and the case
+       * this guard exists for is the one where it returns none: two transactions activating two
+       * different drafts would each see zero and each write one.
+       */
+      await lockProjectForOperationChange(tx, ctx.tenantId, projectId);
+      const others = await tx.execute<{ id: string; name: string }>(
+        sql`select id, name from app.survey_campaign
+             where tenant_id = ${ctx.tenantId} and project_id = ${projectId}
+               and status = 'ACTIVE' and id <> ${campaignId}`,
+      );
+      const other = (others.rows ?? [])[0];
+      if (other !== undefined) {
+        throw new InvalidInput(
+          `this project already has an active campaign («${other.name}»); close it before ` +
+            `activating another, so the operation that ran keeps its own record`,
+        );
+      }
+    }
 
     // Throws CampaignNotActivatable or OfflineCaptureUnsupported, both with a readable message.
     assertCampaignActivatable({
