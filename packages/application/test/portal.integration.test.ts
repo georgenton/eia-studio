@@ -207,7 +207,8 @@ describe("building what a client may be shown", () => {
     expect(keys).toContain("consultation_participants");
     // The corridor length exists as a figure, but the only value for it here is simulated.
     expect(keys).not.toContain("corridor_length_km");
-    expect(draft.withheld.map((item) => item.key)).toContain("field_operation_progress");
+    // And the draft says so: a figure left out is named with the reason it was left out.
+    expect(draft.withheld.map((item) => item.key)).toContain("corridor_length_km");
   });
 
   it("never publishes the unresolved affected-parcel count", async () => {
@@ -223,7 +224,29 @@ describe("building what a client may be shown", () => {
     expect(facts.map((fact) => fact.value)).not.toContain("70");
     expect(facts.map((fact) => fact.value)).not.toContain("71");
     expect(facts.map((fact) => fact.label).join(" ")).not.toMatch(/afecta/i);
-    expect(draft.withheld.map((item) => item.key)).toContain("affected_parcels");
+  });
+
+  /**
+   * A withheld figure is an explanation, and an explanation has to be true of this project.
+   *
+   * Both sentences used to be spread into every draft from a constant, so a project with no
+   * documents told its reader the file records two conflicting figures, and a project whose
+   * campaign is `LIVE_OPERATIONAL` was described as a simulation. This fixture has neither an
+   * unsettled `rule.affectation_count` finding nor a demonstration campaign, so it must claim
+   * neither — while still withholding what its own evidence does justify.
+   */
+  it("invents no reason for withholding a figure this project has no reason to withhold", async () => {
+    const ctx = await contextFor(coordinator);
+    const draft = await buildClientPublicationDraft(db.runtime, ctx);
+    const keys = draft.withheld.map((item) => item.key);
+
+    expect(keys).not.toContain("affected_parcels");
+    expect(keys).not.toContain("field_operation_progress");
+    // Not "withholds nothing": the simulated corridor length is still named, on its own evidence.
+    expect(keys).toContain("corridor_length_km");
+    for (const item of draft.withheld) {
+      expect(item.reason.trim().length).toBeGreaterThan(0);
+    }
   });
 
   it("publishes the corridor and its delimited areas, and no parcel geometry", async () => {
