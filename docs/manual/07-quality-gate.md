@@ -14,16 +14,17 @@ are written. The layout is the argument.
 
 ## The rules that ship
 
-Five, all deterministic. They are listed on the page whether or not they fired, because a gate that
+Six, all deterministic. They are listed on the page whether or not they fired, because a gate that
 shows only its findings is indistinguishable from one that never ran.
 
-| Rule                                  | Compares                                                      | Severity                 |
-| ------------------------------------- | ------------------------------------------------------------- | ------------------------ |
-| `rule.affectation_count`              | the affected-parcel total stated in two documents of the file | alta                     |
-| `rule.territorial_institution`        | an institution's jurisdiction against the project's own       | alta                     |
-| `rule.consultation_planned_vs_actual` | the planned consultation date against the one recorded        | media                    |
-| `rule.vulnerability_conclusion`       | a legal conclusion against the social chapter's own figure    | alta, interdisciplinaria |
-| `rule.project_identity`               | an identifier in the file against the project record          | media                    |
+| Rule                                  | Compares                                                                            | Severity                 |
+| ------------------------------------- | ----------------------------------------------------------------------------------- | ------------------------ |
+| `rule.affectation_count`              | the affected-parcel total stated in two documents of the file                       | alta                     |
+| `rule.territorial_institution`        | an institution's jurisdiction against the project's own                             | alta                     |
+| `rule.consultation_planned_vs_actual` | the planned consultation date against the one recorded                              | media                    |
+| `rule.vulnerability_conclusion`       | a legal conclusion against the social chapter's own figure                          | alta, interdisciplinaria |
+| `rule.project_identity`               | an identifier in the file against the project record                                | media                    |
+| `rule.pgas_place_vs_influence_area`   | the area a management plan says it applies in against the project's own cartography | media                    |
 
 A rule whose inputs are missing produces **no finding** — it is reported as skipped. "The document
 does not say" and "we could not find where it says it" are different claims, and only the first is
