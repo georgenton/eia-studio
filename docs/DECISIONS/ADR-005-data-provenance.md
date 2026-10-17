@@ -44,7 +44,9 @@ run-level provenance with a single FK; event-sourced lineage.
    `REAL_AGGREGATE` · `RECONSTRUCTED` · `ANONYMIZED` · `SYNTHETIC` are derived from the facets by a
    pure mapping table in the UI package (precedence: DEMO regime → SYNTHETIC; ANONYMIZED in
    transformations → ANONYMIZED; last transformation RECONSTRUCTED/DERIVED → RECONSTRUCTED;
-   ORIGINAL + AGGREGATE → REAL_AGGREGATE; otherwise no badge). The drawer always shows the raw
+   HISTORICAL_OBSERVED + ORIGINAL + AGGREGATE → REAL_AGGREGATE; otherwise no badge — the
+   regime condition was added 17 Oct 2026, after a live campaign's progress was found
+   wearing *Dato histórico*; it is a clarification of this contract, not a new decision). The drawer always shows the raw
    facets beneath the label. Renaming or splitting labels is a design change with no backend
    impact. (Replaces the earlier seven-value "source type" proposal.)
 6. **Spatial layers are versioned datasets**; the legend keys (`REAL_BASE_MAP`,

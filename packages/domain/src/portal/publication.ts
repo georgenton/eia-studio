@@ -68,13 +68,21 @@ export type PublicFactKey = z.infer<typeof publicFactKeySchema>;
  * an unresolved question on the client's screen, by accident, in the firm's name; publishing both
  * would hand the client an internal review record. Omitting it is the only honest option until a
  * reviewer resolves it, and this constant is why the omission is deliberate rather than forgotten.
+ *
+ * These are **sentences, not decisions**. Each one is added by `buildClientPublicationDraft`
+ * only when that project's own evidence calls for it — an open `rule.affectation_count`
+ * finding, a demonstration campaign. They used to be seeded unconditionally, so a project with
+ * no documents at all told its reader the file recorded two conflicting figures, and a project
+ * whose campaign is `LIVE_OPERATIONAL` was described as a simulation. A withheld figure has to
+ * be true about the project it is withheld from, or it is just another invented statement.
  */
-export const PUBLICATION_WITHHELD_FIGURES: ReadonlyArray<{
-  readonly key: string;
-  readonly label: string;
-  readonly reason: string;
-}> = [
-  {
+export const PUBLICATION_WITHHELD_FIGURES: Readonly<
+  Record<
+    "affectedParcels" | "fieldOperationProgress",
+    { key: string; label: string; reason: string }
+  >
+> = {
+  affectedParcels: {
     key: "affected_parcels",
     label: "Predios con afectación",
     reason:
@@ -82,14 +90,14 @@ export const PUBLICATION_WITHHELD_FIGURES: ReadonlyArray<{
       "Una publicación no resuelve una discrepancia interna: la cifra se omite hasta que la " +
       "revisión concluya.",
   },
-  {
+  fieldOperationProgress: {
     key: "field_operation_progress",
     label: "Avance del levantamiento en curso",
     reason:
       "El avance operativo disponible hoy es una simulación de demostración. Un cliente no puede " +
       "ver actividad simulada como progreso de su proyecto.",
   },
-];
+};
 
 /**
  * One published figure.

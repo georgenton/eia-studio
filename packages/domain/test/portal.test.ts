@@ -130,15 +130,32 @@ describe("which regimes may reach a client", () => {
   });
 });
 
+/**
+ * These are the *sentences* a withheld figure is explained with, not the decision to withhold it.
+ * Which of them a draft carries is decided per project from its own evidence, in
+ * `buildClientPublicationDraft`; keeping the words here keeps them reviewable in one place.
+ */
 describe("the figures deliberately not published", () => {
   it("names the affected-parcel count and says why it is withheld", () => {
-    const withheld = PUBLICATION_WITHHELD_FIGURES.find((f) => f.key === "affected_parcels");
-    expect(withheld).toBeDefined();
-    expect(withheld!.reason).toMatch(/revisión/i);
+    const withheld = PUBLICATION_WITHHELD_FIGURES.affectedParcels;
+    expect(withheld.key).toBe("affected_parcels");
+    expect(withheld.reason).toMatch(/revisión/i);
   });
 
   it("names the simulated field operation", () => {
-    expect(PUBLICATION_WITHHELD_FIGURES.map((f) => f.key)).toContain("field_operation_progress");
+    expect(PUBLICATION_WITHHELD_FIGURES.fieldOperationProgress.key).toBe(
+      "field_operation_progress",
+    );
+    expect(PUBLICATION_WITHHELD_FIGURES.fieldOperationProgress.reason).toMatch(/simulaci/i);
+  });
+
+  it("is a vocabulary, so nothing here is seeded into a draft by itself", () => {
+    // Two entries, both keyed by name: a list would invite `[...PUBLICATION_WITHHELD_FIGURES]`,
+    // which is exactly how every project came to carry both sentences.
+    expect(Object.keys(PUBLICATION_WITHHELD_FIGURES).sort()).toEqual([
+      "affectedParcels",
+      "fieldOperationProgress",
+    ]);
   });
 });
 

@@ -94,7 +94,12 @@ this precedence (first match wins):
 2. `ANONYMIZED ∈ transformations` → **ANONYMIZED**.
 3. last transformation ∈ {`RECONSTRUCTED`, `DERIVED`} → **RECONSTRUCTED** (the v0.2 label; the
    drawer's contextual note states "derived by calculation" vs "reconstructed approximation").
-4. `transformation = [ORIGINAL]` and `granularity = AGGREGATE` → **REAL_AGGREGATE**.
+4. `regime = HISTORICAL_OBSERVED` **and** `transformation = [ORIGINAL]` and
+   `granularity = AGGREGATE` → **REAL_AGGREGATE**. The regime condition is load-bearing: the
+   badge reads *Dato histórico*, and without it a live operational aggregate — a running
+   campaign's progress, computed minutes ago — was presented to a reader as a historical fact
+   of the finished study. The pilot could not reveal it, because there the aggregates are
+   historical; it appeared the first time a second project existed (17 Oct 2026).
 5. otherwise (original individual records: field captures, imported records, documents) → no
    badge; the drawer shows origin and capture medium ("CAPTURADO · FieldFlow", "IMPORTADO").
 
