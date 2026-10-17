@@ -11,12 +11,12 @@ import {
   transitionSocializationEvent,
   updateSocializationEvent,
 } from "@eia/application";
-import { DomainError } from "@eia/domain";
+import { CampaignNotActivatable, DomainError } from "@eia/domain";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { getDb } from "@/lib/db";
-import { getTranslator } from "@/lib/locale";
+import { getTranslator, type Translator } from "@/lib/locale";
 import { resolveSurfaceAccess } from "@/lib/surface-access";
 
 /**
@@ -30,8 +30,24 @@ const scope = z.object({ tenant: z.string().min(1), project: z.string().min(1) }
 
 export type FieldWorkResult = { ok: true; message: string } | { ok: false; error: string };
 
-/** A refusal a person should read, as opposed to one that is this product's own fault. */
-function toResult(error: unknown): FieldWorkResult | null {
+/**
+ * A refusal a person should read, as opposed to one that is this product's own fault.
+ *
+ * A `DomainError`'s message is developer-facing English: it belongs in logs and tests, not on a
+ * Spanish screen (ADR-025). Where the domain offers a code, the reader gets the catalogue's
+ * sentence instead. Everything else still falls back to the message, which is honest about being
+ * the best this surface currently has, and is the next thing worth narrowing.
+ */
+const CAMPAIGN_NOT_ACTIVATABLE_MESSAGES = {
+  CLOSED: "actions.campaignNotActivatableClosed",
+  SURVEY_VERSION_NOT_PUBLISHED: "actions.campaignNotActivatableVersionNotPublished",
+  NO_ASSIGNMENTS: "actions.campaignNotActivatableNoAssignments",
+} as const;
+
+function toResult(error: unknown, t: Translator): FieldWorkResult | null {
+  if (error instanceof CampaignNotActivatable) {
+    return { ok: false, error: t(CAMPAIGN_NOT_ACTIVATABLE_MESSAGES[error.reasonCode]) };
+  }
   if (error instanceof DomainError) return { ok: false, error: error.message };
   return null;
 }
@@ -84,7 +100,7 @@ export async function createCampaignAction(raw: unknown): Promise<FieldWorkResul
       message: created.reused ? t("field.campaign.alreadyOpen") : t("field.campaign.created"),
     };
   } catch (error) {
-    return toResult(error) ?? throwIt(error);
+    return toResult(error, t) ?? throwIt(error);
   }
 }
 
@@ -98,7 +114,7 @@ export async function activateCampaignAction(raw: unknown): Promise<FieldWorkRes
     revalidateField(input.tenant, input.project);
     return { ok: true, message: t("field.campaign.activated") };
   } catch (error) {
-    return toResult(error) ?? throwIt(error);
+    return toResult(error, t) ?? throwIt(error);
   }
 }
 
@@ -124,7 +140,7 @@ export async function assignParcelAction(raw: unknown): Promise<FieldWorkResult>
     revalidateField(input.tenant, input.project);
     return { ok: true, message: t("field.assignments.saved") };
   } catch (error) {
-    return toResult(error) ?? throwIt(error);
+    return toResult(error, t) ?? throwIt(error);
   }
 }
 
@@ -144,7 +160,7 @@ export async function reassignAssignmentAction(raw: unknown): Promise<FieldWorkR
     revalidateField(input.tenant, input.project);
     return { ok: true, message: t("field.assignments.saved") };
   } catch (error) {
-    return toResult(error) ?? throwIt(error);
+    return toResult(error, t) ?? throwIt(error);
   }
 }
 
@@ -172,7 +188,7 @@ export async function createEventAction(raw: unknown): Promise<FieldWorkResult> 
     revalidateField(input.tenant, input.project);
     return { ok: true, message: t("field.socializations.created") };
   } catch (error) {
-    return toResult(error) ?? throwIt(error);
+    return toResult(error, t) ?? throwIt(error);
   }
 }
 
@@ -196,7 +212,7 @@ export async function updateEventAction(raw: unknown): Promise<FieldWorkResult> 
     revalidateField(input.tenant, input.project);
     return { ok: true, message: t("field.socializations.saved") };
   } catch (error) {
-    return toResult(error) ?? throwIt(error);
+    return toResult(error, t) ?? throwIt(error);
   }
 }
 
@@ -227,7 +243,7 @@ export async function transitionEventAction(raw: unknown): Promise<FieldWorkResu
           : t("field.socializations.saved"),
     };
   } catch (error) {
-    return toResult(error) ?? throwIt(error);
+    return toResult(error, t) ?? throwIt(error);
   }
 }
 
@@ -272,7 +288,7 @@ export async function generateInvitationsAction(raw: unknown): Promise<FieldWork
       }),
     };
   } catch (error) {
-    return toResult(error) ?? throwIt(error);
+    return toResult(error, t) ?? throwIt(error);
   }
 }
 
@@ -292,7 +308,7 @@ export async function reassignInvitationAction(raw: unknown): Promise<FieldWorkR
     revalidateField(input.tenant, input.project);
     return { ok: true, message: t("field.socializations.saved") };
   } catch (error) {
-    return toResult(error) ?? throwIt(error);
+    return toResult(error, t) ?? throwIt(error);
   }
 }
 

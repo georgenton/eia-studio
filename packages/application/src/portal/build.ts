@@ -122,7 +122,7 @@ export async function buildClientPublicationDraft(
 
   return withDbContext(db, ctx, async (tx) => {
     const project = await readProject(tx, ctx, projectId);
-    const withheld: WithheldFigure[] = [...PUBLICATION_WITHHELD_FIGURES];
+    const withheld: WithheldFigure[] = await readEvidenceBackedWithholdings(tx, ctx, projectId);
     const provenanceIds = new Set<string>();
 
     const { summaryFacts, participationFacts } = await readFigures(
@@ -198,6 +198,53 @@ async function readProject(
     locality: row.locationLabel ?? "—",
     programmeReference: row.programmeReference,
   };
+}
+
+/**
+ * The figures this project withholds, each because of something true about *this* project.
+ *
+ * Both sentences were seeded unconditionally before, which made facts about one project print
+ * on every project's draft: a project with no documents was told the file holds two conflicting
+ * figures, and a `LIVE_OPERATIONAL` campaign was described as a demonstration. A withheld figure
+ * has to be earned by evidence, exactly like a published one.
+ */
+async function readEvidenceBackedWithholdings(
+  tx: DbTx,
+  ctx: RequestContext,
+  projectId: string,
+): Promise<WithheldFigure[]> {
+  const withheld: WithheldFigure[] = [];
+
+  // The affected-parcel total is withheld while a consistency finding about it is unsettled.
+  // `state` carries the reviewer's decision; anything not yet decided keeps the figure out.
+  const openCount = await tx.execute<{ n: number }>(sql`
+    select count(*)::int as n
+      from app.quality_finding
+     where tenant_id = ${ctx.tenantId}
+       and project_id = ${projectId}
+       and requirement_key = 'rule.affectation_count'
+       and state in ('OPEN', 'IN_REVIEW')
+  `);
+  if (((openCount.rows[0] as { n: number } | undefined)?.n ?? 0) > 0) {
+    withheld.push({ ...PUBLICATION_WITHHELD_FIGURES.affectedParcels });
+  }
+
+  // Operational progress is withheld only when the operation it would describe is simulated.
+  const demoCampaign = await tx.execute<{ n: number }>(sql`
+    select count(*)::int as n
+      from app.survey_campaign c
+      join app.provenance_record pr
+        on pr.tenant_id = c.tenant_id and pr.id = c.provenance_id
+     where c.tenant_id = ${ctx.tenantId}
+       and c.project_id = ${projectId}
+       and c.status = 'ACTIVE'
+       and pr.regime = 'DEMO_SIMULATION'
+  `);
+  if (((demoCampaign.rows[0] as { n: number } | undefined)?.n ?? 0) > 0) {
+    withheld.push({ ...PUBLICATION_WITHHELD_FIGURES.fieldOperationProgress });
+  }
+
+  return withheld;
 }
 
 async function readFigures(

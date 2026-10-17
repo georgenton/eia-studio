@@ -28,10 +28,24 @@ export type CampaignStatus = z.infer<typeof campaignStatusSchema>;
 
 /* Words: `vocabulary.campaignStatus.*` in `@eia/i18n`. */
 
+/**
+ * Why a campaign cannot be activated, as a code a surface can translate.
+ *
+ * The message below is developer-facing — it reaches logs and tests. A reader gets a sentence
+ * from the message catalogue, chosen by this code: ADR-025's rule is that a stored or thrown
+ * value is never rendered, only a label for it. Before this code existed the English message
+ * was shown verbatim on a Spanish screen.
+ */
+export type CampaignNotActivatableReason =
+  "CLOSED" | "SURVEY_VERSION_NOT_PUBLISHED" | "NO_ASSIGNMENTS";
+
 export class CampaignNotActivatable extends InvalidInput {
-  constructor(reason: string) {
+  readonly reasonCode: CampaignNotActivatableReason;
+
+  constructor(reasonCode: CampaignNotActivatableReason, reason: string) {
     super(`this campaign cannot be activated: ${reason}`);
     this.name = "CampaignNotActivatable";
+    this.reasonCode = reasonCode;
   }
 }
 
@@ -50,16 +64,18 @@ export function assertCampaignActivatable(input: {
   readonly offlineMode: FieldOfflineMode;
 }): void {
   if (input.status === "CLOSED") {
-    throw new CampaignNotActivatable("it is closed; a closed campaign is not reopened");
+    throw new CampaignNotActivatable("CLOSED", "it is closed; a closed campaign is not reopened");
   }
   if (input.surveyVersionStatus !== "PUBLISHED") {
     throw new CampaignNotActivatable(
+      "SURVEY_VERSION_NOT_PUBLISHED",
       `its survey version is ${input.surveyVersionStatus}; answers may only be captured against a ` +
         "published version, because a draft can still change under them",
     );
   }
   if (input.assignmentCount < 1) {
     throw new CampaignNotActivatable(
+      "NO_ASSIGNMENTS",
       "it has no assignments, so nobody has been asked to do anything",
     );
   }

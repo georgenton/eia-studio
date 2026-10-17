@@ -979,6 +979,12 @@ export const messages: Messages = {
   },
   actions: {
     noSurfaceAccess: "You do not have access to this surface.",
+    campaignNotActivatableClosed:
+      "This campaign is closed. A closed campaign is not reopened: to keep collecting, open a new one.",
+    campaignNotActivatableVersionNotPublished:
+      "This campaign's questionnaire is not published yet. Answers are only captured against a published version, because a draft can still change under the answers already given.",
+    campaignNotActivatableNoAssignments:
+      "This campaign has no parcels assigned, so nobody has been asked to do anything. Assign at least one parcel and activate it again.",
     noAssignmentAccess: "You do not have access to this assignment.",
     checkPayload: "Check the data you sent.",
     qualityRun: "Check completed: {parts}.",

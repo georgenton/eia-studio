@@ -133,11 +133,13 @@ export default async function DocumentPage({
                       : document.processingState === "PROCESSING"
                         ? t("documents.processingNote")
                         : t("documents.notProcessedYet")}
-                {/* Operator-facing and bounded: it names the *kind* of failure, or — for a scan —
-                    the numbers behind the verdict. Never the document's text (ADR-033). */}
-                {document.processingNote === null ? null : (
-                  <span className={styles.strategy}> {document.processingNote}</span>
-                )}
+                {/* `processingNote` is deliberately *not* rendered. It is operator-facing English
+                    produced by the extractor — `TOO_LITTLE_TEXT: 1 of 1 pages carry text, 110
+                    characters in total` — and printing it appended an English fragment to a
+                    Spanish sentence, which ADR-025 forbids: a stored value is never rendered, a
+                    label for it is. The note stays on `document_version.processing_note` and in
+                    the worker's logs, where an operator reads it. The reader gets the state's own
+                    sentence above, which already says what happened and what can be done. */}
               </p>
             )}
             {/* The one control this page was missing. A version that could not be read, or one

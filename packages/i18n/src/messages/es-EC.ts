@@ -987,6 +987,12 @@ export const messages = {
   },
   actions: {
     noSurfaceAccess: "No tienes acceso a esta superficie.",
+    campaignNotActivatableClosed:
+      "Esta campaña está cerrada. Una campaña cerrada no se reabre: para seguir levantando información se abre una nueva.",
+    campaignNotActivatableVersionNotPublished:
+      "El cuestionario de esta campaña todavía no está publicado. Sólo se captura contra una versión publicada, porque un borrador aún puede cambiar bajo las respuestas ya dadas.",
+    campaignNotActivatableNoAssignments:
+      "Esta campaña no tiene predios asignados, así que no se le ha pedido trabajo a nadie. Asigna al menos un predio y vuelve a activarla.",
     noAssignmentAccess: "No tienes acceso a esta asignación.",
     checkPayload: "Revisa los datos enviados.",
     qualityRun: "Revisión ejecutada: {parts}.",
