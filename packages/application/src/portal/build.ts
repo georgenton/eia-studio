@@ -223,7 +223,7 @@ async function readEvidenceBackedWithholdings(
      where tenant_id = ${ctx.tenantId}
        and project_id = ${projectId}
        and requirement_key = 'rule.affectation_count'
-       and state in ('OPEN', 'IN_REVIEW')
+       and state in ('OPEN', 'UNDER_REVIEW')
   `);
   if (((openCount.rows[0] as { n: number } | undefined)?.n ?? 0) > 0) {
     withheld.push({ ...PUBLICATION_WITHHELD_FIGURES.affectedParcels });
