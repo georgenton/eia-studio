@@ -117,4 +117,33 @@ test.describe("A questionnaire written in the product", () => {
     await expect(main).toContainText("v1");
     await expect(main).toContainText("v2");
   });
+  /**
+   * Typing, one key at a time, the way a person does.
+   *
+   * Every other assertion here uses `fill()`, which sets a value in one operation — and that is
+   * exactly why this went unnoticed. The row was keyed by `index`-plus-`question.code`, so each
+   * keystroke in *Código* changed the key, React remounted the row, and the fresh input came back
+   * without focus. The author got one character and then nothing, with no error to explain it.
+   *
+   * `pressSequentially` is the whole point of this test: `fill()` cannot fail this way.
+   */
+  test("a question code can be typed, not only filled", async ({ page }) => {
+    await page.goto(`/t/${TENANT}/p/${SLUG}/intake?stage=surveys`);
+    const main = page.getByRole("main");
+    await main.getByRole("link", { name: "Editar" }).first().click();
+    await expect(main).toContainText("Borrador v2");
+
+    await main.getByRole("button", { name: "Añadir pregunta" }).click();
+    const code = main.getByLabel("Código", { exact: true }).last();
+    await code.click();
+    await code.pressSequentially("uso_observado", { delay: 20 });
+    await expect(code).toHaveValue("uso_observado");
+
+    // The neighbouring fields of the same row survive it too: a remount would have cleared them.
+    const statement = main.getByLabel("Español (definición) · Enunciado").last();
+    await statement.click();
+    await statement.pressSequentially("Tipo general de uso", { delay: 20 });
+    await expect(statement).toHaveValue("Tipo general de uso");
+    await expect(code).toHaveValue("uso_observado");
+  });
 });

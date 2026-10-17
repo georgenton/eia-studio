@@ -372,7 +372,12 @@ function VersionEditor({
           <QuestionEditor
             editable={editable}
             index={index}
-            key={`${index}-${question.code}`}
+            // Keyed by position, never by `question.code`: the code is a field the author is
+            // typing, so keying by it changed this row's identity on every keystroke, which
+            // remounted the input and dropped the focus after one character. `QuestionEditor`
+            // holds no state of its own — it is driven by `question` and `onChange` — so a
+            // positional key is both safe across *Subir* / *Bajar* and the only stable one.
+            key={index}
             onChange={(next) => update(index, next)}
             onMove={(delta) => move(index, delta)}
             onRemove={() =>
