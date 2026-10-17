@@ -102,6 +102,36 @@ export const USERS = {
  */
 export const SYNTHETIC_LOCATION = { longitude: -78.9412, latitude: -4.0761 } as const;
 
+/**
+ * Every open text a response in this project can carry.
+ *
+ * The Social coding queue shows the words somebody wrote in the questionnaire's open question,
+ * verbatim — and *which* words depends on which **generation** of a response the analysis currently
+ * means. A submitted response is never edited; correcting one is a new capture, the superseded
+ * answer keeps its words, and `app.effective_survey_instance` resolves to the replacement
+ * (ADR-038). So `social.spec.ts` asserts the queue's text against this set rather than against one
+ * sentence: pinning the assertion to a single phrase asserts that no correction has ever been
+ * applied to the database it runs against, which is a statement about the suite's own history
+ * rather than about the product.
+ *
+ * These are the demonstration campaign's synthetic answers, copied from the `concerns` list in
+ * `packages/application/scripts/seed-demo-project.ts`. Nothing here is a real person's words.
+ */
+export const SEEDED_OPEN_TEXTS = [
+  "Preocupa el polvo durante la construcción y el acceso al predio mientras dure la obra.",
+  "Consulta por el cruce peatonal cerca de la escuela.",
+  "Interesa saber si el acceso vehicular al predio se mantendrá durante los trabajos.",
+  "Preocupa el ruido en horario nocturno.",
+  "Espera que la vía mejore el traslado de productos al mercado.",
+] as const;
+
+/**
+ * The one open text this suite submits itself, in `field-technician.spec.ts` — and therefore the
+ * text a correction revisit carries too, because the technician's capture path is what picks a
+ * revisit up.
+ */
+export const TECHNICIAN_CONCERN_TEXT = "Consulta por el acceso al predio durante la obra.";
+
 export function password(): string {
   const value = process.env.DEMO_USER_PASSWORD;
   if (!value) throw new Error("DEMO_USER_PASSWORD must be set to run the e2e suite");
