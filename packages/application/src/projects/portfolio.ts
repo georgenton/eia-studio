@@ -11,7 +11,7 @@ import {
   type WorkspaceSurface,
   isWorkspaceSurface,
 } from "@eia/domain";
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 
 import { facetsOf, loadProvenanceRecords } from "./provenance";
 
@@ -30,6 +30,8 @@ export interface PortfolioCard {
   readonly locationLabel: string | null;
   readonly profileKey: string;
   readonly lifecycle: string;
+  /** Whether this caller may open the project, not merely see that it exists (D-015). */
+  readonly accessible: boolean;
   readonly metrics: ReadonlyArray<MetricSnapshot>;
   /** Social progress = surveys complete ÷ estimated universe, when both exist. */
   readonly progressRatio: number | null;
@@ -67,7 +69,26 @@ export interface PortfolioView {
  */
 export interface WorkspaceHeader {
   readonly tenantName: string;
-  readonly projects: ReadonlyArray<{ id: string; slug: string; name: string }>;
+  readonly projects: ReadonlyArray<ShellProjectRow>;
+}
+
+/**
+ * A project as the shell needs it, plus whether this caller can actually open it.
+ *
+ * `accessible` exists because listing a project and being able to read it are different things
+ * (D-015): a tenant ADMIN sees every project of the firm by name and may open none of them. The
+ * shell uses it to decide which project the rail should point at when the URL names none; without
+ * it the rail picked the oldest project in the list and sent an administrator straight into a
+ * `permission denied` they had done nothing to deserve.
+ *
+ * It is the database's own `app.has_project_access`, the same predicate the row-level policies
+ * apply, so the answer cannot drift from what the next request will actually allow.
+ */
+export interface ShellProjectRow {
+  readonly id: string;
+  readonly slug: string;
+  readonly name: string;
+  readonly accessible: boolean;
 }
 
 export async function loadWorkspaceHeader(
@@ -90,6 +111,7 @@ export async function loadWorkspaceHeader(
           id: appSchema.project.id,
           slug: appSchema.project.slug,
           name: appSchema.project.name,
+          accessible: sql<boolean>`app.has_project_access(${appSchema.project.tenantId}, ${appSchema.project.id})`,
         })
         .from(appSchema.project)
         .where(eq(appSchema.project.tenantId, ctx.tenantId))
@@ -120,6 +142,7 @@ export async function loadPortfolio(db: Database, ctx: RequestContext): Promise<
           profileKey: appSchema.project.profileKey,
           lifecycle: appSchema.project.lifecycle,
           locationLabel: appSchema.project.locationLabel,
+          accessible: sql<boolean>`app.has_project_access(${appSchema.project.tenantId}, ${appSchema.project.id})`,
         })
         .from(appSchema.project)
         .where(eq(appSchema.project.tenantId, ctx.tenantId))
@@ -217,6 +240,7 @@ export async function loadPortfolio(db: Database, ctx: RequestContext): Promise<
           locationLabel: row.locationLabel,
           profileKey: row.profileKey,
           lifecycle: row.lifecycle,
+          accessible: row.accessible,
           metrics,
           progressRatio,
           progressLabel:
