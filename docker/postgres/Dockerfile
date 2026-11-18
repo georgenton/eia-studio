@@ -31,7 +31,7 @@ FROM imresamu/postgis:17-3.5@sha256:35fe7dceda62bfe7d2965b0ba78d915ff9f901b5e046
 # Silently installing a different pgvector into a database that already holds vector columns is
 # the failure we do not.
 ARG PGVECTOR_VERSION=0.8.6-1.pgdg12+2
-ARG PGBACKREST_VERSION=2.59.1-1.pgdg12+1
+ARG PGBACKREST_VERSION=2.60.1-1.pgdg12+1
 
 # pgvector: required by migration 0000 (`CREATE EXTENSION vector`), which is not conditional.
 # pgBackRest: continuous WAL archiving and point-in-time recovery for the self-hosted deployments
