@@ -64,6 +64,16 @@ const VALIDITY = {
   basis: "sesión",
 } as const;
 
+/**
+ * A moment inside `VALIDITY`, for the tests that are about something else.
+ *
+ * `saveDelivery` falls back to the real clock when it is given no `now`, and the window above is
+ * a fixed week. Once that week passed, two assertions about *revocation* started failing with
+ * `OfflineWorkExpired` — a test that reported the calendar rather than the code. Anything that
+ * is not itself exercising the window states the moment it happens at.
+ */
+const INSIDE_WINDOW = new Date("2026-11-05T00:00:00.000Z");
+
 function invitation(over: Partial<Record<string, unknown>> = {}) {
   return {
     invitationId: "0199f3a2-7c41-7abc-8d0f-00000000b001",
@@ -897,6 +907,7 @@ describe("a revoked invitation", () => {
         note: null,
         location: null,
         photo: null,
+        now: INSIDE_WINDOW,
       }),
     ).rejects.toMatchObject({ name: "InvitationNoLongerCapturable" });
     expect(await listDeliveryAttempts(db)).toEqual([]);
@@ -916,6 +927,7 @@ describe("a revoked invitation", () => {
       note: null,
       location: null,
       photo: null,
+      now: INSIDE_WINDOW,
     });
     expect((await listDeliveryAttempts(db))[0]?.localId).toBe(localId);
   });
@@ -982,7 +994,7 @@ describe("a revoked invitation", () => {
  * ========================================================================================== */
 
 describe("the window the server stamped", () => {
-  const BEFORE = new Date("2026-11-05T00:00:00.000Z");
+  const BEFORE = INSIDE_WINDOW;
   const AFTER = new Date("2026-11-09T00:00:00.000Z");
 
   async function withPendingInvitation() {
