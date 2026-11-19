@@ -29,13 +29,20 @@ export const dynamic = "force-dynamic";
  * `cache-control: no-store` because the response is a redirect to a credential.
  */
 export async function GET(
-  request: Request,
+  _request: Request,
   { params }: { params: Promise<{ tenant: string; project: string; versionId: string }> },
 ) {
   const { tenant, project, versionId } = await params;
   const access = await resolveSurfaceAccess(tenant, project, "documents");
   if (access.kind === "unauthenticated") {
-    return NextResponse.redirect(new URL("/sign-in", request.url), { status: 303 });
+    /*
+     * A **relative** Location, which RFC 7231 §7.1.2 permits and every browser resolves against
+     * the address it asked for. `new URL("/sign-in", request.url)` resolved against the container's
+     * own bind address and sent people to `https://0.0.0.0:3000/sign-in` — observed on staging on
+     * 19 November 2026. Behind a proxy the process does not know its public origin, and guessing it
+     * from a forwarded header would be trusting a header to build a redirect.
+     */
+    return new NextResponse(null, { status: 303, headers: { location: "/sign-in" } });
   }
   if (access.kind !== "ok") return new NextResponse(null, { status: 404 });
 
