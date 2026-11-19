@@ -150,7 +150,14 @@ jobs:
 
   e2e:
     name: e2e
-    runs-on: ubuntu-latest
+    # Pinned, unlike the other jobs. `ubuntu-latest` rolled to Ubuntu 26.04 and Playwright 1.58.1
+    # has no browser build for it — `Playwright does not support chromium on ubuntu26.04-x64`, so
+    # the suite failed before a single test ran. 24.04 is among the versions Playwright lists.
+    #
+    # The pin is on this job alone: `quality` and `db` run fine on 26.04, and pinning them too
+    # would be fixing something that is not broken. It comes off when Playwright ships browsers
+    # for the newer image — a dependency bump is the right moment, not this one.
+    runs-on: ubuntu-24.04
     needs: quality
     steps:
       - name: Checkout
