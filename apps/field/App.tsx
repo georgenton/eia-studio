@@ -4,7 +4,7 @@ import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 
 import { authClient } from "./src/auth/client";
-import { countPendingWork } from "./src/core/project-switch";
+import { countPendingWork, retryableNow } from "./src/core/project-switch";
 import { AssignmentScreen } from "./src/screens/assignment";
 import { InvitationDeliveryScreen } from "./src/screens/invitation-delivery";
 import { MyWorkScreen } from "./src/screens/my-work";
@@ -68,19 +68,33 @@ function Routed({ session, sessionPending }: { session: unknown; sessionPending:
    * sign-out refusal and this (`core/project-switch.ts`).
    */
   const pending = countPendingWork(pendingWork);
+  /*
+   * **A different number for the trigger**, and the difference is the point.
+   *
+   * `pending` is what this phone is holding, which is what the badge shows and what the sign-out
+   * refusal protects. `deliverable` is what a request could actually move — a queued command, a
+   * photograph, a delivery photograph. A refused order and an unsubmitted draft are in the first
+   * and not the second (`core/project-switch.ts`).
+   *
+   * Triggering on the first made the trigger permanent: the attempt ran, changed nothing, ended,
+   * and ending re-ran it. Observed on the emulator on 19 November 2026 with one saved draft.
+   */
+  const deliverable = retryableNow(pendingWork);
 
   /*
    * The guaranteed synchronisation pathways: opening the application, and connectivity returning
    * while it is open. Both are foreground and both are the technician's own action or an event
    * they can see the result of — which is the point. Background sync is an enhancement that has
    * not been built, and nothing about data safety is allowed to depend on one (Phase 18).
+   *
+   * `sync` is referentially stable now (`store.tsx`), so this effect runs when the **situation**
+   * changes — connectivity, or something new to deliver — and not when a synchronisation ends.
    */
   const attempt = useCallback(() => {
-    // Anything undelivered, not just a queued command: a photograph whose upload failed has no
-    // outbox row until its bytes are stored, and it is exactly the thing that should go when
-    // signal returns.
-    if (online && pending > 0) void sync();
-  }, [online, pending, sync]);
+    // A photograph whose upload failed has no outbox row until its bytes are stored, and it is
+    // exactly the thing that should go when signal returns; `retryableNow` counts it.
+    if (online && deliverable > 0) void sync();
+  }, [online, deliverable, sync]);
 
   useEffect(() => {
     attempt();
