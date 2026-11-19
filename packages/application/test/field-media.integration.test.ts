@@ -17,7 +17,7 @@ import {
   setTenantCapability,
   type TwoTenantWorld,
 } from "@eia/testing";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, inject, it } from "vitest";
 
@@ -369,6 +369,71 @@ describe("what a declaration is refused for", () => {
       );
       expect(error, user.email).toMatch(/permission|denied|media\.upload/i);
     }
+  });
+
+  /**
+   * The ordinary offline capture, and the reason the rule changed.
+   *
+   * `media.declare` names a `storedObjectId` only this server issues, so it cannot be formed
+   * without signal. A technician working offline queues `survey.submit` first, that completes the
+   * visit, and the declaration arrives behind it on the first bar of signal. Refusing it meant the
+   * bytes sat in storage attached to nothing and the device held the file for ever — reproduced on
+   * a real device on 19 November 2026.
+   */
+  it("a photograph taken while the visit was open, declared after it was completed", async () => {
+    const { ctx, stored } = await storePhotograph(technician);
+    const tomada = new Date();
+
+    await db.migrator.execute(sql`
+      update app.field_visit
+         set status = 'COMPLETED', completed_at = ${new Date(tomada.getTime() + 60_000)}
+       where id = ${visitId}
+    `);
+
+    const result = await declareFieldMedia(
+      db.runtime,
+      ctx,
+      declaration({
+        storedObjectId: stored.storedObjectId,
+        capturedAt: tomada.toISOString(),
+      }),
+    );
+    expect(result.outcome).toBe("stored");
+
+    const [row] = await db.migrator
+      .select()
+      .from(fieldSchema.fieldMedia)
+      .where(eq(fieldSchema.fieldMedia.id, result.mediaId));
+    expect(row?.visitId).toBe(visitId);
+  });
+
+  /** What the original rule was actually protecting: evidence bolted on afterwards. */
+  it("but not one taken after the visit was completed", async () => {
+    const { ctx, stored } = await storePhotograph(technician);
+    const cerrada = new Date();
+
+    await db.migrator.execute(sql`
+      update app.field_visit
+         set status = 'COMPLETED', completed_at = ${cerrada}
+       where id = ${visitId}
+    `);
+
+    await expect(
+      declareFieldMedia(
+        db.runtime,
+        ctx,
+        declaration({
+          storedObjectId: stored.storedObjectId,
+          capturedAt: new Date(cerrada.getTime() + 60_000).toISOString(),
+        }),
+      ),
+    ).rejects.toThrow(/taken after the visit was completed/);
+  });
+
+  afterAll(async () => {
+    await db.migrator.execute(sql`
+      update app.field_visit set status = 'IN_PROGRESS', completed_at = null where id = ${visitId}
+    `);
   });
 
   it("an assignment the visit does not belong to", async () => {

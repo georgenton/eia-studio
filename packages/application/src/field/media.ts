@@ -61,7 +61,9 @@ export async function declareFieldMedia(
   const input = parseFieldMediaDeclaration(raw);
 
   return withFieldContext(db, ctx, async (tx) => {
-    const visit = await resolveOwnVisit(tx, ctx, projectId, input.visitId, input.assignmentId);
+    const visit = await resolveOwnVisit(tx, ctx, projectId, input.visitId, input.assignmentId, {
+      capturedAt: new Date(input.capturedAt),
+    });
 
     const [existing] = await tx
       .select({ id: fieldSchema.fieldMedia.id })
@@ -163,9 +165,28 @@ interface ResolvedVisit {
 /**
  * The visit must be open, this caller's own, and on the assignment the device named.
  *
- * Open, because a photograph declared against a finished visit is evidence arriving after the work
- * was reported done — and a device that finished a visit and then uploaded is a device whose queue
- * ran out of order, which the `superseded` outcome exists to settle rather than to accept.
+ * Open **or finished with the shutter inside it**.
+ *
+ * The rule used to be "open, full stop", on the reasoning that a photograph declared against a
+ * finished visit is evidence arriving after the work was reported done, and that a device which
+ * finished and then uploaded had run its queue out of order. The second half of that is not what
+ * happens, and it made the ordinary offline capture impossible:
+ *
+ *   - `media.declare` names a `storedObjectId`, which only this server issues, so the command
+ *     **cannot be formed** until the device has signal. A technician working offline queues
+ *     `survey.submit` long before the declaration can exist;
+ *   - `survey.submit` completes the visit;
+ *   - so on the first bar of signal the submit applied, the visit closed, and the declaration that
+ *     followed it in the same batch was refused. The photograph's bytes were already in storage,
+ *     the device kept the local file for ever, and the parcel showed a photograph nobody could
+ *     open. Reproduced end to end on 19 November 2026 (predio 102).
+ *
+ * The queue was in order. The declaration simply could not be written earlier, by design.
+ *
+ * What the original rule protects is still protected, by the shutter rather than by the delivery:
+ * a photograph **taken after** the visit was completed is evidence bolted on afterwards, and is
+ * still refused. A photograph taken while the visit was open is accepted however late its bytes
+ * arrive, which is the promise an offline product makes.
  */
 async function resolveOwnVisit(
   tx: Tx,
@@ -173,9 +194,10 @@ async function resolveOwnVisit(
   projectId: string,
   visitId: string,
   assignmentId: string,
+  capture: { capturedAt: Date },
 ): Promise<ResolvedVisit> {
   const rows = await tx.execute(sql`
-    select v.id, v.assignment_id, v.status, v.technician_user_id,
+    select v.id, v.assignment_id, v.status, v.technician_user_id, v.completed_at,
            p.regime = 'DEMO_SIMULATION' as demo
       from app.field_visit v
       join app.provenance_record p on p.tenant_id = v.tenant_id and p.id = v.provenance_id
@@ -188,6 +210,7 @@ async function resolveOwnVisit(
         assignment_id: string;
         status: string;
         technician_user_id: string;
+        completed_at: string | Date | null;
         demo: boolean;
       }
     | undefined;
@@ -204,7 +227,19 @@ async function resolveOwnVisit(
     throw new InvalidInput("that visit does not belong to the assignment named");
   }
   if (row.status !== "IN_PROGRESS") {
-    throw new InvalidInput("that visit is finished; a photograph cannot be added to it");
+    // A finished visit still accepts a photograph the shutter caught while it was open: the
+    // delivery is late, not the capture. Without a recorded end there is nothing to compare, so
+    // the stricter answer stands.
+    const completedAt = row.completed_at === null ? null : new Date(row.completed_at);
+    const takenWhileOpen =
+      completedAt !== null &&
+      !Number.isNaN(completedAt.getTime()) &&
+      capture.capturedAt.getTime() <= completedAt.getTime();
+    if (!takenWhileOpen) {
+      throw new InvalidInput(
+        "that photograph was taken after the visit was completed; it cannot be added to it",
+      );
+    }
   }
   return { id: row.id, assignmentId: row.assignment_id, demo: row.demo };
 }
