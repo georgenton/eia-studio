@@ -26,13 +26,20 @@ export const dynamic = "force-dynamic";
  * project, and a second identifier the handler trusted would be a second thing to get wrong.
  */
 export async function GET(
-  request: Request,
+  _request: Request,
   { params }: { params: Promise<{ tenant: string; project: string; mediaId: string }> },
 ) {
   const { tenant, project, mediaId } = await params;
   const access = await resolveSurfaceAccess(tenant, project, "gis");
   if (access.kind === "unauthenticated") {
-    return NextResponse.redirect(new URL("/sign-in", request.url), { status: 303 });
+    /*
+     * A **relative** Location, which RFC 7231 §7.1.2 permits and every browser resolves against
+     * the address it asked for. `new URL("/sign-in", request.url)` resolved against the container's
+     * own bind address and sent people to `https://0.0.0.0:3000/sign-in` — observed on staging on
+     * 19 November 2026. Behind a proxy the process does not know its public origin, and guessing it
+     * from a forwarded header would be trusting a header to build a redirect.
+     */
+    return new NextResponse(null, { status: 303, headers: { location: "/sign-in" } });
   }
   if (access.kind !== "ok") return new NextResponse(null, { status: 404 });
 
