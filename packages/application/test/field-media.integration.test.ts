@@ -21,6 +21,8 @@ import { eq, sql } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, inject, it } from "vitest";
 
+import { FIELD_PACK_SCHEMA_VERSION, FIELD_SYNC_PROTOCOL_VERSION } from "@eia/field-sync-contract";
+
 import {
   buildRequestContext,
   createS3Storage,
@@ -30,6 +32,7 @@ import {
   loadParcelMedia,
   loadVisitMedia,
   resolveFinalizedUpload,
+  processSyncCommands,
   startVisit,
   uploadDocumentVersion,
 } from "../src/index";
@@ -55,6 +58,7 @@ let gisSpecialist: { id: string; email: string };
 let storage: ReturnType<typeof createS3Storage>;
 let assignmentId: string;
 let parcelId: string;
+let surveyVersionId: string;
 let visitId: string;
 
 const PNG_BYTES = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x01]);
@@ -175,6 +179,7 @@ beforeAll(async () => {
     projectId: w.projectX.id,
     provenanceId: provenance.id,
   });
+  surveyVersionId = survey.versionId;
   const campaign = await createCampaign(db.migrator, {
     tenantId: w.tenantA.id,
     projectId: w.projectX.id,
@@ -376,27 +381,27 @@ describe("what a declaration is refused for", () => {
    *
    * `media.declare` names a `storedObjectId` only this server issues, so it cannot be formed
    * without signal. A technician working offline queues `survey.submit` first, that completes the
-   * visit, and the declaration arrives behind it on the first bar of signal. Refusing it meant the
-   * bytes sat in storage attached to nothing and the device held the file for ever — reproduced on
-   * a real device on 19 November 2026.
+   * visit, and the declaration arrives behind it on the first bar of signal. Refusing it left the
+   * bytes in storage belonging to nothing and the device holding the file for ever — reproduced
+   * on an Android emulator on 19 November 2026 (predio 102).
+   *
+   * The admissibility question is answered with **two of this server's own timestamps**: the
+   * upload intent was issued before the visit was completed. The device's clock plays no part,
+   * which is why these cases never set `capturedAt` to make a point.
    */
-  it("a photograph taken while the visit was open, declared after it was completed", async () => {
+  it("a photograph whose bytes this server took before the visit closed", async () => {
     const { ctx, stored } = await storePhotograph(technician);
-    const tomada = new Date();
 
+    // The close happens after the intent was issued — which is the real order, because
+    // `uploadPendingMedia` runs before the outbox is drained.
     await db.migrator.execute(sql`
-      update app.field_visit
-         set status = 'COMPLETED', completed_at = ${new Date(tomada.getTime() + 60_000)}
-       where id = ${visitId}
+      update app.field_visit set status = 'COMPLETED', completed_at = now() where id = ${visitId}
     `);
 
     const result = await declareFieldMedia(
       db.runtime,
       ctx,
-      declaration({
-        storedObjectId: stored.storedObjectId,
-        capturedAt: tomada.toISOString(),
-      }),
+      declaration({ storedObjectId: stored.storedObjectId }),
     );
     expect(result.outcome).toBe("stored");
 
@@ -407,27 +412,96 @@ describe("what a declaration is refused for", () => {
     expect(row?.visitId).toBe(visitId);
   });
 
-  /** What the original rule was actually protecting: evidence bolted on afterwards. */
-  it("but not one taken after the visit was completed", async () => {
-    const { ctx, stored } = await storePhotograph(technician);
-    const cerrada = new Date();
-
+  /** What the original rule protected: bytes this server first saw after the work was reported. */
+  it("but not one uploaded after the visit closed", async () => {
     await db.migrator.execute(sql`
-      update app.field_visit
-         set status = 'COMPLETED', completed_at = ${cerrada}
-       where id = ${visitId}
+      update app.field_visit set status = 'COMPLETED', completed_at = now() where id = ${visitId}
     `);
+    const { ctx, stored } = await storePhotograph(technician);
 
     await expect(
-      declareFieldMedia(
+      declareFieldMedia(db.runtime, ctx, declaration({ storedObjectId: stored.storedObjectId })),
+    ).rejects.toThrow(/not uploaded before it closed/);
+  });
+
+  /**
+   * A device whose clock is wrong decides nothing.
+   *
+   * Both halves use the same bytes, uploaded before the same close; only the hour the phone
+   * believes it is changes. Admissibility must not move with it — in either direction.
+   */
+  it("a phone an hour fast, and a phone an hour slow, are admitted alike", async () => {
+    for (const desvio of [-3_600_000, 3_600_000]) {
+      await db.migrator.execute(sql`
+        update app.field_visit set status = 'IN_PROGRESS', completed_at = null where id = ${visitId}
+      `);
+      const { ctx, stored } = await storePhotograph(technician);
+      await db.migrator.execute(sql`
+        update app.field_visit set status = 'COMPLETED', completed_at = now() where id = ${visitId}
+      `);
+
+      const result = await declareFieldMedia(
         db.runtime,
         ctx,
         declaration({
           storedObjectId: stored.storedObjectId,
-          capturedAt: new Date(cerrada.getTime() + 60_000).toISOString(),
+          capturedAt: new Date(Date.now() + desvio).toISOString(),
         }),
-      ),
-    ).rejects.toThrow(/taken after the visit was completed/);
+      );
+      expect(result.outcome, `desvío ${desvio} ms`).toBe("stored");
+    }
+  });
+
+  /**
+   * The whole failure, end to end, without touching a row by hand.
+   *
+   * This is the sequence a technician actually produces and the one that was broken: the visit is
+   * open, the bytes are uploaded, `survey.submit` arrives and **completes the visit**, and the
+   * declaration follows it in the same batch. Nothing here edits `field_visit`; the close is the
+   * product's own, through `processSyncCommands`.
+   */
+  it("a ficha submitted offline closes the visit, and the photograph still attaches", async () => {
+    await db.migrator.execute(sql`
+      update app.field_visit set status = 'IN_PROGRESS', completed_at = null where id = ${visitId}
+    `);
+
+    // Signal returns: the device uploads first, exactly as `uploadPendingMedia` does.
+    const { ctx, stored } = await storePhotograph(technician);
+
+    // …then the outbox drains, and the submit closes the visit.
+    const submitted = await processSyncCommands(db.runtime, ctx, [
+      {
+        commandId: randomUUID(),
+        protocolVersion: FIELD_SYNC_PROTOCOL_VERSION,
+        deviceRevision: 1,
+        occurredAt: new Date().toISOString(),
+        appVersion: "0.1.0",
+        packSchemaVersion: FIELD_PACK_SCHEMA_VERSION,
+        type: "survey.submit",
+        payload: {
+          assignmentId,
+          visitId,
+          surveyVersionId,
+          answers: { has_concern: { kind: "boolean" as const, value: true } },
+        },
+      },
+    ]);
+    expect(submitted.results[0]!.outcome).toBe("applied");
+
+    const [visita] = await db.migrator
+      .select({ status: fieldSchema.fieldVisit.status })
+      .from(fieldSchema.fieldVisit)
+      .where(eq(fieldSchema.fieldVisit.id, visitId));
+    expect(visita?.status, "the submit is what closes the visit").toBe("COMPLETED");
+
+    // …and the declaration, last in the batch, is accepted.
+    const declared = await declareFieldMedia(
+      db.runtime,
+      ctx,
+      declaration({ storedObjectId: stored.storedObjectId }),
+    );
+    expect(declared.outcome).toBe("stored");
+    expect(declared.visitId).toBe(visitId);
   });
 
   afterAll(async () => {

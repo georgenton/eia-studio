@@ -118,6 +118,23 @@ function superseded(commandId: string, message: string): CommandResult {
   return { ...EMPTY, commandId, outcome: "superseded", message };
 }
 
+/**
+ * Replay a remembered answer.
+ *
+ * `duplicate` is a *success* word: the client's `SETTLED` list is `applied | duplicate |
+ * superseded`, so a settled `media.declare` runs `acknowledgeMedia` and the next sweep deletes the
+ * photograph's local file. Relabelling every remembered answer `duplicate` therefore turned a
+ * refusal whose response was lost into a confirmation, and the device threw away the only copy of
+ * a photograph the server had never stored.
+ *
+ * So only an `applied` becomes `duplicate` — that is the case the word is for, and the one the
+ * device must not perform twice. Everything else is replayed exactly as it was decided: a
+ * rejection stays a rejection on the fifth attempt as on the first.
+ */
+function replayOf(receipt: CommandResult): CommandResult {
+  return receipt.outcome === "applied" ? { ...receipt, outcome: "duplicate" as const } : receipt;
+}
+
 async function processOne(
   db: Database,
   ctx: RequestContext,
@@ -129,9 +146,9 @@ async function processOne(
       findReceipt(tx, ctx, projectId, command.commandId),
     );
     if (replay) {
-      // The device did not hear us the first time. Say the same thing again, verbatim, relabelled
-      // so it knows the work was not done twice.
-      return { ...replay, outcome: "duplicate" as const };
+      // The device did not hear us the first time. Say the same thing again — the *same* thing,
+      // which for a refusal means the refusal (see `replayOf`).
+      return replayOf(replay);
     }
 
     const guard =
@@ -638,7 +655,11 @@ async function processDelivery(
   const replay = await withFieldContext(db, ctx, (tx) =>
     findV4Receipt(tx, ctx, projectId, command.commandId),
   );
-  if (replay) return { ...replay, outcome: "duplicate" as const };
+  // Same rule as `processOne`: only an `applied` is a duplicate. A delivery attempt the server
+  // refused must stay refused on the retry, or the handset discards the invitation's photograph.
+  if (replay) {
+    return replay.outcome === "applied" ? { ...replay, outcome: "duplicate" as const } : replay;
+  }
 
   let decided: V4CommandResult;
   try {
