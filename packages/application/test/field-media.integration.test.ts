@@ -29,6 +29,7 @@ import {
   createUploadIntent,
   declareFieldMedia,
   finalizeUpload,
+  issueFieldMediaDownload,
   loadParcelMedia,
   loadVisitMedia,
   resolveFinalizedUpload,
@@ -650,6 +651,98 @@ describe("who may see a photograph", () => {
       loadParcelMedia(db.runtime, await contextFor(gisSpecialist), parcelId),
     );
     expect(error).toMatch(/permission|denied|field\.responses\.read/i);
+  });
+});
+
+/**
+ * Opening one photograph (ADR-034).
+ *
+ * Until this existed the parcel workspace listed a photograph and offered no way to look at it,
+ * under a note saying that downloading one was deliberate and recorded. These cases pin the door:
+ * the same one a household's answers go through, and the same 404 for every refusal.
+ */
+describe("handing somebody a photograph", () => {
+  let mediaId: string;
+
+  beforeAll(async () => {
+    await db.migrator.execute(sql`
+      update app.field_visit set status = 'IN_PROGRESS', completed_at = null where id = ${visitId}
+    `);
+    const { ctx, stored } = await storePhotograph(technician);
+    const declared = await declareFieldMedia(
+      db.runtime,
+      ctx,
+      declaration({ storedObjectId: stored.storedObjectId }),
+    );
+    mediaId = declared.mediaId;
+  });
+
+  it("gives a coordinator who may read responses a short-lived link, and audits it", async () => {
+    const before = await db.migrator.execute(sql`
+      select count(*)::int as n from audit.log where action = 'field.media.download_issued'
+    `);
+    const link = await issueFieldMediaDownload(
+      db.runtime,
+      await contextFor(coordinator),
+      storage,
+      mediaId,
+    );
+    expect(link.url).toContain("http");
+    expect(new Date(link.expiresAt).getTime()).toBeGreaterThan(Date.now());
+    expect(link.sizeBytes).toBeGreaterThan(0);
+
+    const after = await db.migrator.execute(sql`
+      select action, object_kind, object_id, details
+        from audit.log where action = 'field.media.download_issued'
+       order by occurred_at desc limit 1
+    `);
+    expect((before.rows[0] as unknown as { n: number }).n + 1).toBeGreaterThan(0);
+    const row = after.rows[0] as unknown as {
+      object_kind: string;
+      object_id: string;
+      details: Record<string, unknown>;
+    };
+    expect(row.object_kind).toBe("field_media");
+    expect(row.object_id).toBe(mediaId);
+    expect(row.details).toMatchObject({ visitId, kind: "parcel" });
+    // Never the filename, the key, the link or the note.
+    const written = JSON.stringify(row.details);
+    expect(written).not.toMatch(/predio\.png|t\/|field-media\/|http/);
+  });
+
+  it("gives the technician who took it one too, through the row's own policy", async () => {
+    const link = await issueFieldMediaDownload(
+      db.runtime,
+      await contextFor(technician),
+      storage,
+      mediaId,
+    );
+    expect(link.url).toContain("http");
+  });
+
+  it("refuses a GIS specialist, who holds field.read and not field.responses.read", async () => {
+    // Not-found rather than denied: the row-level policy excluded it, so this use-case never saw
+    // it, and a distinguishable answer would confirm the photograph exists (ADR-016).
+    const error = await attempt(
+      issueFieldMediaDownload(db.runtime, await contextFor(gisSpecialist), storage, mediaId),
+    );
+    expect(error).toMatch(/not found|field media/i);
+  });
+
+  it("answers another technician with not-found rather than with a denial", async () => {
+    // The row-level policy excluded it, so the use-case never saw it — and the caller cannot tell
+    // "not yours" from "does not exist", which is the point (ADR-016).
+    const error = await attempt(
+      issueFieldMediaDownload(db.runtime, await contextFor(otherTechnician), storage, mediaId),
+    );
+    expect(error).toMatch(/not found|field media/i);
+  });
+
+  it("answers an id that is not a photograph of this project the same way", async () => {
+    const error = await attempt(
+      issueFieldMediaDownload(db.runtime, await contextFor(coordinator), storage, randomUUID()),
+    );
+    expect(error).toMatch(/not found|field media/i);
   });
 });
 

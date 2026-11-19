@@ -85,6 +85,13 @@ export const AUDIT_ACTIONS = [
   "field.survey.correction_cancelled",
   "field.survey.submitted",
   "field.media.declared",
+  /*
+   * Somebody was handed one photograph of a visit (ADR-034). A presigned GET over an object
+   * that may show a house, a vehicle or a face is exactly the issuance SECURITY.md §9 requires
+   * to be recorded. The row carries the visit and the kind; never the filename, the key, the
+   * link, the technician's note or the coordinate.
+   */
+  "field.media.download_issued",
   // Social Intelligence (Slice 4). Two events, for the two moments that matter: text left this
   // system for a model, and a human settled what a response means. Neither row carries a word of
   // what was said — counts, codes and configuration only.

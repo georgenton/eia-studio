@@ -121,7 +121,7 @@ export function ParcelWorkspace({
           t={t}
         />
       ) : null}
-      {tab === "media" ? <MediaTab i18n={i18n} media={media} /> : null}
+      {tab === "media" ? <MediaTab basePath={basePath} i18n={i18n} media={media} /> : null}
       {tab === "calidad" ? (
         <PendingModule
           capability="quality.document_gate"
@@ -385,18 +385,25 @@ function VisitsTab({
 /**
  * The photographs taken on this parcel's visits.
  *
- * Descriptions, never links: a link is a short-lived signature, minted one at a time after the row
- * has been read under the caller's own context. Forty signed URLs rendered because somebody opened
- * a tab would be forty grants nobody asked for (ADR-032).
+ * **A route, never a signed URL.** Forty signatures rendered because somebody opened a tab would
+ * be forty grants nobody asked for (ADR-032), so what each row carries is an ordinary link to a
+ * handler. The signature is minted when the link is followed, one at a time, after the row has
+ * been read under the caller's own context — and the issuance is audited (ADR-034).
+ *
+ * Until this existed the table described a photograph nobody could look at, under a note that
+ * said downloading one was deliberate and recorded. The note was right about the design and wrong
+ * about the product.
  *
  * The note under the table is not decoration. Field media is the kind of evidence people assume
  * flows onwards — into the client's portal, into a report, into a model — and saying plainly that
  * it does not is part of the control.
  */
 function MediaTab({
+  basePath,
   media,
   i18n: { t, fmt },
 }: {
+  basePath: string;
   media: ReadonlyArray<VisitMedia> | null;
   i18n: I18n;
 }) {
@@ -428,6 +435,7 @@ function MediaTab({
               <th scope="col">{t("parcel.mediaCapturedAt")}</th>
               <th scope="col">{t("parcel.mediaNote")}</th>
               <th scope="col">{t("parcel.mediaSize")}</th>
+              <th scope="col">{t("parcel.mediaOpenColumn")}</th>
             </tr>
           </thead>
           <tbody>
@@ -444,6 +452,16 @@ function MediaTab({
                 </td>
                 <td>{item.note ?? t("common.missing")}</td>
                 <td>{fmt.bytes(item.sizeBytes)}</td>
+                <td>
+                  {/*
+                    No `target="_blank"`: the handler answers 303 to a link that lives for five
+                    minutes, and a tab left open on an expired credential is a tab showing an
+                    error nobody can act on.
+                  */}
+                  <a href={`${basePath}/media/${item.id}`} rel="noreferrer">
+                    {t("parcel.mediaOpen")}
+                  </a>
+                </td>
               </tr>
             ))}
           </tbody>

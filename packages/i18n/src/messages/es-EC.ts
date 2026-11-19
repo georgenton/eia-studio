@@ -619,6 +619,8 @@ export const messages = {
     mediaCapturedAt: "Captura",
     mediaSize: "Tamaño",
     mediaNote: "Nota del técnico",
+    mediaOpenColumn: "Archivo",
+    mediaOpen: "Abrir",
     mediaHasLocation: "Con ubicación del técnico",
     mediaNoLocation: "Sin ubicación",
     tabQuality: "Calidad",

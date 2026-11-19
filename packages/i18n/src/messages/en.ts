@@ -613,6 +613,8 @@ export const messages: Messages = {
     mediaCapturedAt: "Captured",
     mediaSize: "Size",
     mediaNote: "Technician's note",
+    mediaOpenColumn: "File",
+    mediaOpen: "Open",
     mediaHasLocation: "With the technician's location",
     mediaNoLocation: "No location",
     tabQuality: "Quality",
