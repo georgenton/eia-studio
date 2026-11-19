@@ -60,12 +60,12 @@ describe("the staging build points at the accepted staging backend", () => {
 describe("the native build identity", () => {
   /*
    * Four codes are already spent: EAS staging builds with **2** (24 September 2026) and **3**
-   * (12 October), and three local builds installed on the training emulator — **3**, **4** and
-   * **5** — on 19 November. Android refuses an install that goes backwards, and a reused code is the kind of
+   * (12 October), and four local builds installed on the training emulator — **3**, **4**, **5**
+   * and **6** — on 19 November. Android refuses an install that goes backwards, and a reused code is the kind of
    * thing that looks like "the APK did not update" on somebody's phone.
    */
   it("uses an Android versionCode above every one already built", () => {
-    expect(app.expo.android.versionCode).toBeGreaterThanOrEqual(6);
+    expect(app.expo.android.versionCode).toBeGreaterThanOrEqual(7);
   });
 
   it("asks for the camera and location, and for nothing else", () => {
