@@ -177,6 +177,17 @@ export function AssignmentScreen({
           : null,
       });
       setMediaVersion((version) => version + 1);
+      /*
+       * **And the shared summary.** `mediaVersion` only re-reads this parcel's own list; the store
+       * holds the number every other surface shows — the chip, the badge, Ajustes, the Centro de
+       * sincronización — and the **sign-out refusal**.
+       *
+       * Without this the summary stayed as it was until the next sync or pull-to-refresh, so a
+       * device with nothing else pending could take a photograph and be allowed to sign out, which
+       * discards the database and the file. Observed on the emulator on 19 November 2026: the chip
+       * read *2 por sincronizar* with three things on the phone.
+       */
+      await refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : t("mobile.captureFailed"));
     } finally {

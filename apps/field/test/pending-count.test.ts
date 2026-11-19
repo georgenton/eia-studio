@@ -59,6 +59,18 @@ describe("countPendingWork", () => {
     expect(decision.total).toBe(countPendingWork(resumen));
   });
 
+  /**
+   * The fifth place, found on the emulator on 19 November 2026: the bottom bar read
+   * *Sincronizar ahora (1)* on the same screen whose chip read *2 por sincronizar*, because the
+   * badge counted `sync_outbox` and the chip counted everything. `App.tsx` now calls this
+   * function, and this case says what that has to mean.
+   */
+  it("is what the tab bar badge must show, not the outbox alone", () => {
+    const resumen = { ...EMPTY_PENDING, outboxPending: 1, unsyncedSurveys: 1 };
+    expect(countPendingWork(resumen)).toBe(2);
+    expect(countPendingWork(resumen)).not.toBe(resumen.outboxPending);
+  });
+
   it("lets the chip read 'all synced' only when sign-out would also be allowed", () => {
     expect(countPendingWork(EMPTY_PENDING)).toBe(0);
     expect(decideSignOut(EMPTY_PENDING).kind).toBe("allowed");

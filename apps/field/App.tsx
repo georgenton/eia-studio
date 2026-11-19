@@ -4,6 +4,7 @@ import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 
 import { authClient } from "./src/auth/client";
+import { countPendingWork } from "./src/core/project-switch";
 import { AssignmentScreen } from "./src/screens/assignment";
 import { InvitationDeliveryScreen } from "./src/screens/invitation-delivery";
 import { MyWorkScreen } from "./src/screens/my-work";
@@ -57,7 +58,16 @@ function Root() {
 function Routed({ session, sessionPending }: { session: unknown; sessionPending: boolean }) {
   const t = useT();
   const [route, setRoute] = useState<Route>({ name: "my-work" });
-  const { db, openError, sync, online, pending } = useField();
+  const { db, openError, sync, online, pendingWork } = useField();
+  /*
+   * The fifth place this was counted differently.
+   *
+   * The badge read `sync_outbox` alone, so on 19 November 2026 the bar said
+   * *Sincronizar ahora (1)* on the same screen whose chip said *2 por sincronizar*. One
+   * arithmetic for all of them — the chip, Ajustes, the Centro de sincronización, the
+   * sign-out refusal and this (`core/project-switch.ts`).
+   */
+  const pending = countPendingWork(pendingWork);
 
   /*
    * The guaranteed synchronisation pathways: opening the application, and connectivity returning
@@ -66,6 +76,9 @@ function Routed({ session, sessionPending }: { session: unknown; sessionPending:
    * not been built, and nothing about data safety is allowed to depend on one (Phase 18).
    */
   const attempt = useCallback(() => {
+    // Anything undelivered, not just a queued command: a photograph whose upload failed has no
+    // outbox row until its bytes are stored, and it is exactly the thing that should go when
+    // signal returns.
     if (online && pending > 0) void sync();
   }, [online, pending, sync]);
 
