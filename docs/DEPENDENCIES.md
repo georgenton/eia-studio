@@ -128,7 +128,7 @@ advisory):
    `postgres-image.yml` starts the built image and asserts the versions it actually contains.
 
 **Closed (ADR-040).** The apt layer is pinned too — `postgresql-17-pgvector=0.8.6-1.pgdg12+2`
-and `pgbackrest=2.59.1-1.pgdg12+1`, both from the PGDG repository the base image already trusts —
+and `pgbackrest=2.60.1-1.pgdg12+1`, both from the PGDG repository the base image already trusts —
 and the image is published to `ghcr.io/georgenton/eia-studio-postgres` and deployed **by digest**.
 An apt pin is reproducible while PGDG keeps the version in its index and fails the build loudly
 when it does not; the published digest is what makes the artefact permanent.
