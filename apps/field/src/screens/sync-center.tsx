@@ -106,6 +106,16 @@ export function SyncCenterScreen({ onBack }: { onBack: () => void }) {
               {t("mobile.syncUnsentSurveys", { count: pendingWork.unsyncedSurveys })}
             </Body>
           ) : null}
+          {/*
+            Not a failure and not a queue that is stuck: a ficha deliberately held back until the
+            photograph of its visit has been delivered, because a closed visit cannot afterwards
+            accept one (`core/outbox-policy.ts`).
+          */}
+          {lastOutcome && lastOutcome.withheldForMedia > 0 ? (
+            <Body muted>
+              {t("mobile.syncWithheldForMedia", { count: lastOutcome.withheldForMedia })}
+            </Body>
+          ) : null}
           {pendingWork.outboxFailed > 0 ? (
             <Notice
               text={t("mobile.syncNeedsAttention", { count: pendingWork.outboxFailed })}

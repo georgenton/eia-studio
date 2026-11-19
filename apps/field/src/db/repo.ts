@@ -752,6 +752,97 @@ export async function countPendingMedia(db: SQLite.SQLiteDatabase): Promise<numb
 }
 
 /**
+ * Is a command for this entity already waiting in the queue?
+ *
+ * `uploadPendingMedia` forms a declaration for every photograph the server has not acknowledged,
+ * on every synchronisation. A photograph whose declaration is still `PENDING` therefore gained a
+ * second, a third and a fourth identical order — which is what produced *"4 elementos sin
+ * sincronizar"* on the emulator for one photograph on 19 November 2026.
+ *
+ * Nothing was corrupted by it: `localId` is unique, so the extra orders come back
+ * `already_declared` and settle. But a count a technician reads must mean something, and a queue
+ * that grows by one per press is not a queue.
+ *
+ * `FAILED` deliberately does **not** count here. That is how predio 102 recovers: the refusal is
+ * not retried automatically, and a fresh order formed after the server was corrected is a new
+ * attempt rather than a replay of a decision.
+ */
+export async function pendingCommandExists(
+  db: SQLite.SQLiteDatabase,
+  entityKind: string,
+  entityLocalId: string,
+): Promise<boolean> {
+  const row = await db.getFirstAsync<{ n: number }>(
+    `select count(*) as n from sync_outbox
+      where state = 'PENDING' and entity_kind = ? and entity_local_id = ?`,
+    entityKind,
+    entityLocalId,
+  );
+  return (row?.n ?? 0) > 0;
+}
+
+/**
+ * Which assignments this device still holds a photograph of that the server has not acknowledged.
+ *
+ * The question `withholdClosuresForUndeliveredMedia` asks before a push: a visit must not be
+ * closed while its own evidence is still on the phone (`core/outbox-policy.ts`). `server_media_id`
+ * is the only column that answers it, because it is written by the acknowledgement and by nothing
+ * else — not by the PUT, not by the finalize.
+ */
+export async function assignmentsHoldingMedia(
+  db: SQLite.SQLiteDatabase,
+): Promise<ReadonlySet<string>> {
+  const rows = await db.getAllAsync<{ assignment_local_id: string }>(
+    `select distinct assignment_local_id from local_media where server_media_id is null`,
+  );
+  return new Set(rows.map((row) => row.assignment_local_id));
+}
+
+/**
+ * A photograph was delivered; the orders that failed to deliver *it* are no longer pending work.
+ *
+ * ## Why a `FAILED` row cannot simply be left alone
+ *
+ * `FAILED` means the server rejected the command, so it is excluded from `pendingCommands` and
+ * never retried — correctly. But `summarisePendingWork` counts it, which means the sign-out guard
+ * and the project switch keep blocking on a photograph that has since arrived. Predio 102's
+ * refusal would have blocked that device for ever, with nothing a technician could do about it.
+ *
+ * ## What this does and does not do
+ *
+ * It marks **only** the failed orders for the same photograph — same `entity_kind`, same
+ * `entity_local_id` — and only once a later order for that photograph settled. The row stays,
+ * with the server's own rejection text still in `last_error`, and the state records that
+ * something else resolved it. Every other failed order keeps blocking, which is the point: a
+ * queue that stopped counting failures would stop protecting the work that really is undelivered.
+ */
+export async function supersedeResolvedCommands(
+  db: SQLite.SQLiteDatabase,
+  input: { entityKind: string; entityLocalId: string; byCommandId: string },
+): Promise<number> {
+  // Counted before the update rather than read from a driver-specific `changes`, so the number is
+  // the same against `expo-sqlite` on the handset and `node:sqlite` in the test harness.
+  const rows = await db.getAllAsync<{ command_id: string }>(
+    `select command_id from sync_outbox
+      where state = 'FAILED' and entity_kind = ? and entity_local_id = ? and command_id <> ?`,
+    input.entityKind,
+    input.entityLocalId,
+    input.byCommandId,
+  );
+  for (const row of rows) {
+    await db.runAsync(
+      `update sync_outbox
+          set state = 'SUPERSEDED',
+              last_error = coalesce(last_error, '') || ' · resuelto por ' || ?
+        where command_id = ?`,
+      input.byCommandId,
+      row.command_id,
+    );
+  }
+  return rows.length;
+}
+
+/**
  * The visit id a photograph belongs to, once `visit.start` has been acknowledged.
  *
  * Photographs taken before the acknowledgement wait with `visit_server_id` null; this is what

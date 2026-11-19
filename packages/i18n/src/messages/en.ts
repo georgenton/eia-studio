@@ -613,6 +613,8 @@ export const messages: Messages = {
     mediaCapturedAt: "Captured",
     mediaSize: "Size",
     mediaNote: "Technician's note",
+    mediaOpenColumn: "File",
+    mediaOpen: "Open",
     mediaHasLocation: "With the technician's location",
     mediaNoLocation: "No location",
     tabQuality: "Quality",
@@ -1982,6 +1984,8 @@ export const messages: Messages = {
     downloadedWork: "Downloaded work",
     syncPendingMedia: "{count} photograph(s) still on the phone.",
     syncUnsentSurveys: "{count} unsent response(s).",
+    syncWithheldForMedia:
+      "{count} response(s) are waiting for their visit's photograph to be delivered.",
     syncNeedsAttention:
       "{count} order(s) the server refused. Tell the coordinator: waiting will not clear them.",
     offlineWindowValid: "valid",

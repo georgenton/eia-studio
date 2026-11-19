@@ -15,10 +15,15 @@ import * as Crypto from "expo-crypto";
 import type * as SQLite from "expo-sqlite";
 
 import { withResolvedVisitId } from "../core/commands";
-import { dispositionFor, dispositionForTransportFailure } from "../core/outbox-policy";
+import {
+  dispositionFor,
+  dispositionForTransportFailure,
+  withholdClosuresForUndeliveredMedia,
+} from "../core/outbox-policy";
 import {
   applyAssignments,
   applyResult,
+  assignmentsHoldingMedia,
   countPending,
   countPendingMedia,
   pendingCommands,
@@ -27,6 +32,7 @@ import {
   saveFieldPack,
   setCursor,
   settleCommand,
+  supersedeResolvedCommands,
 } from "../db/repo";
 import { decideProjectSwitch, type PendingKind } from "../core/project-switch";
 import {
@@ -91,6 +97,26 @@ export interface SyncOutcome {
   readonly deliveriesQueued: number;
   /** Local delivery photographs released, which only an acknowledgement permits. */
   readonly evidenceReleased: number;
+  /**
+   * Visit-closing commands held back because this device still holds a photograph of that visit
+   * (`core/outbox-policy.ts`). They keep their place in the queue and go out once it is delivered.
+   */
+  readonly withheldForMedia: number;
+}
+
+/**
+ * How many times one synchronisation may advance the queue.
+ *
+ * Three, because three is the length of the longest legitimate chain: a visit acknowledged, then
+ * its photograph declared, then the visit closed. A fourth pass would be a queue that is not
+ * draining, and looping until it does is how a device spends a technician's battery on a server
+ * that keeps saying no.
+ */
+const SYNC_PASSES = 3;
+
+/** One sentence, in one place, for a ficha deliberately waiting on its own photograph. */
+async function noteWithheld(db: SQLite.SQLiteDatabase, count: number): Promise<void> {
+  await recordSyncError(db, "media", `${count} orden(es) en espera de la fotografía de su visita`);
 }
 
 export async function synchronise(db: SQLite.SQLiteDatabase): Promise<SyncOutcome> {
@@ -113,6 +139,7 @@ export async function synchronise(db: SQLite.SQLiteDatabase): Promise<SyncOutcom
       evidenceUploaded: 0,
       deliveriesQueued: 0,
       evidenceReleased: 0,
+      withheldForMedia: 0,
     };
   }
   const scope = {
@@ -125,39 +152,81 @@ export async function synchronise(db: SQLite.SQLiteDatabase): Promise<SyncOutcom
   let conflicts = 0;
   let error: string | null = null;
 
+  let mediaUploaded = 0;
+  let mediaPendingAfter = await countPendingMedia(db);
+  let evidenceUploaded = 0;
+  let deliveriesQueued = 0;
+  let withheldForMedia = 0;
+
   /*
-   * Photographs first, and *then* the outbox — not the other way round.
+   * ## Why the push is a loop
    *
-   * A `media.declare` formed here joins the queue this same run, so one window of signal moves a
-   * photograph all the way rather than half of it. The upload itself never touches the outbox: it
-   * is bytes to a provider, and only the declaration is a command.
+   * Three things must happen in a fixed order and each one is what makes the next possible:
+   * `visit.start` is acknowledged, so a photograph has a visit to belong to and can be declared;
+   * the declaration is acknowledged, so the visit may be closed. A technician who captured a whole
+   * parcel with no signal at all produces exactly that chain, and a single pass would deliver one
+   * link of it per press of *Sincronizar*.
+   *
+   * So each pass advances the photographs, forms whatever commands that made possible, and pushes
+   * what may go. It stops as soon as a pass has nothing to send — which is the common case on the
+   * first pass — and is bounded, because a loop that drains a queue is one bug away from a loop
+   * that never ends.
    */
-  const media = await uploadPendingMedia(db, scope, appVersion());
-  if (media.error) await recordSyncError(db, "media", media.error);
+  for (let pass = 0; pass < SYNC_PASSES; pass += 1) {
+    /*
+     * Photographs first, and *then* the outbox — not the other way round.
+     *
+     * A `media.declare` formed here joins the queue this same pass, so one window of signal moves a
+     * photograph all the way rather than half of it. The upload itself never touches the outbox: it
+     * is bytes to a provider, and only the declaration is a command.
+     */
+    const media = await uploadPendingMedia(db, scope, appVersion());
+    if (media.error) await recordSyncError(db, "media", media.error);
+    mediaUploaded += media.uploaded;
+    mediaPendingAfter = media.pendingAfter;
 
-  /*
-   * Then the delivery half, in the same window and in the same order for the same reason: the
-   * bytes go to the provider, the id comes back, and only then is a command formed. A delivery
-   * whose photograph has not been stored has nothing to name, so it is not queued at all —
-   * which is what keeps a `DELIVERED` with no `storedObjectId` from ever reaching the server.
-   */
-  const evidence = await uploadPendingEvidence(db, scope);
-  if (evidence.errors > 0) {
-    await recordSyncError(db, "evidence", `${evidence.errors} evidencia(s) sin subir`);
-  }
-  /*
-   * The id and the outbox row are written together, inside the repository, in one transaction.
-   * They used to be two calls with a window between them, and an application killed in that
-   * window left a delivery with an id and no command — stuck, with no way out through the
-   * product. `repaired` counts rows found in that state and put right with their own id.
-   */
-  const deliveries = await queueReadyDeliveries(db, Crypto.randomUUID, appVersion());
-  if (deliveries.repaired > 0) {
-    await recordSyncError(db, "evidence", `${deliveries.repaired} entrega(s) reencoladas`);
-  }
+    /*
+     * Then the delivery half, in the same window and in the same order for the same reason: the
+     * bytes go to the provider, the id comes back, and only then is a command formed. A delivery
+     * whose photograph has not been stored has nothing to name, so it is not queued at all —
+     * which is what keeps a `DELIVERED` with no `storedObjectId` from ever reaching the server.
+     */
+    const evidence = await uploadPendingEvidence(db, scope);
+    if (evidence.errors > 0) {
+      await recordSyncError(db, "evidence", `${evidence.errors} evidencia(s) sin subir`);
+    }
+    evidenceUploaded += evidence.uploaded;
+    /*
+     * The id and the outbox row are written together, inside the repository, in one transaction.
+     * They used to be two calls with a window between them, and an application killed in that
+     * window left a delivery with an id and no command — stuck, with no way out through the
+     * product. `repaired` counts rows found in that state and put right with their own id.
+     */
+    const deliveries = await queueReadyDeliveries(db, Crypto.randomUUID, appVersion());
+    if (deliveries.repaired > 0) {
+      await recordSyncError(db, "evidence", `${deliveries.repaired} entrega(s) reencoladas`);
+    }
+    deliveriesQueued += deliveries.queued;
 
-  const queue = await pendingCommands(db, SYNC_PUSH_LIMIT);
-  if (queue.length > 0) {
+    /*
+     * A visit must not be closed while this device is still holding a photograph of it.
+     *
+     * This is the ordering that made predio 102's photograph undeliverable on 19 November 2026:
+     * the upload failed, the error was recorded, and the drain carried straight on to
+     * `survey.submit`, which closed the visit. The next upload authorization was then issued after
+     * the close, and the server refused it — rightly, because a finished visit must not grow new
+     * evidence.
+     *
+     * So the closing command is held, by assignment, and nothing else is: the `media.declare` of
+     * that very photograph goes out in this same push and is admitted, because the visit is still
+     * open. Other parcels are unaffected.
+     */
+    const everything = await pendingCommands(db, SYNC_PUSH_LIMIT);
+    const holding = await assignmentsHoldingMedia(db);
+    const { send: queue, withheld } = withholdClosuresForUndeliveredMedia(everything, holding);
+    withheldForMedia = withheld.length;
+    if (queue.length === 0) break;
+
     // A command formed before its visit was acknowledged carries `visitId: null`; the server id is
     // known by now, so it is filled in here. The `commandId` is untouched, so patching cannot
     // create a duplicate.
@@ -175,7 +244,7 @@ export async function synchronise(db: SQLite.SQLiteDatabase): Promise<SyncOutcom
         ...scope,
         commands: resolved.map((entry) => entry.command),
       });
-      pushed = resolved.length;
+      pushed += resolved.length;
       const byId = new Map(response.results.map((result) => [result.commandId, result]));
       for (const entry of resolved) {
         const result = byId.get(entry.command.commandId);
@@ -205,6 +274,18 @@ export async function synchronise(db: SQLite.SQLiteDatabase): Promise<SyncOutcom
           // saying the row exists (ADR-032).
           if (entry.row.entityKind === "media") {
             await acknowledgeMedia(db, entry.row.entityLocalId);
+            /*
+             * An earlier order for this same photograph may be sitting at `FAILED` — predio 102's
+             * is. It is not retried, correctly, but `summarisePendingWork` counts it, so the
+             * sign-out guard and the project switch would block for ever on a photograph that has
+             * since arrived. It is marked resolved, by this command, with the server's own
+             * rejection text kept. Nothing else stops counting.
+             */
+            await supersedeResolvedCommands(db, {
+              entityKind: "media",
+              entityLocalId: entry.row.entityLocalId,
+              byCommandId: entry.command.commandId,
+            });
           }
         } else if (disposition.kind === "conflict") {
           await settleCommand(db, entry.row.seq, "CONFLICT", disposition.message);
@@ -225,8 +306,11 @@ export async function synchronise(db: SQLite.SQLiteDatabase): Promise<SyncOutcom
           : "error desconocido";
       const retry = dispositionForTransportFailure(detail);
       error = retry.kind === "retry" ? retry.message : detail;
+      // Only what was actually sent. A withheld command was never attempted, and counting an
+      // attempt against it would walk it up the backoff for somebody else's failure.
       for (const entry of queue) await recordAttempt(db, entry.seq, detail);
       await recordSyncError(db, "push", detail);
+      if (withheldForMedia > 0) await noteWithheld(db, withheldForMedia);
       return {
         pushed: 0,
         settled,
@@ -234,14 +318,16 @@ export async function synchronise(db: SQLite.SQLiteDatabase): Promise<SyncOutcom
         pendingAfter: await countPending(db),
         pulled: false,
         error,
-        mediaUploaded: media.uploaded,
-        mediaPending: media.pendingAfter,
-        evidenceUploaded: evidence.uploaded,
-        deliveriesQueued: deliveries.queued,
+        mediaUploaded,
+        mediaPending: mediaPendingAfter,
+        evidenceUploaded,
+        deliveriesQueued,
         evidenceReleased: 0,
+        withheldForMedia,
       };
     }
   }
+  if (withheldForMedia > 0) await noteWithheld(db, withheldForMedia);
 
   let pulled = false;
   try {
@@ -307,11 +393,12 @@ export async function synchronise(db: SQLite.SQLiteDatabase): Promise<SyncOutcom
     pendingAfter: await countPending(db),
     pulled,
     error,
-    mediaUploaded: media.uploaded,
+    mediaUploaded,
     mediaPending: await countPendingMedia(db),
-    evidenceUploaded: evidence.uploaded,
-    deliveriesQueued: deliveries.queued,
+    evidenceUploaded,
+    deliveriesQueued,
     evidenceReleased: swept.released,
+    withheldForMedia,
   };
 }
 

@@ -82,6 +82,8 @@ export { resolveFinalizedUpload } from "./storage/upload";
 export type { FinalizedUpload, IssuedUploadIntent } from "./storage/upload";
 export { declareFieldMedia, loadParcelMedia, loadVisitMedia } from "./field/media";
 export type { DeclaredFieldMedia, VisitMedia } from "./field/media";
+export { issueFieldMediaDownload } from "./field/media-download";
+export type { FieldMediaDownloadLink } from "./field/media-download";
 export {
   activateProject,
   loadProjectIntake,

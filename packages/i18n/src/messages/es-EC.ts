@@ -619,6 +619,8 @@ export const messages = {
     mediaCapturedAt: "Captura",
     mediaSize: "Tamaño",
     mediaNote: "Nota del técnico",
+    mediaOpenColumn: "Archivo",
+    mediaOpen: "Abrir",
     mediaHasLocation: "Con ubicación del técnico",
     mediaNoLocation: "Sin ubicación",
     tabQuality: "Calidad",
@@ -1992,6 +1994,7 @@ export const messages = {
     downloadedWork: "Trabajo descargado",
     syncPendingMedia: "{count} fotografía(s) todavía en el teléfono.",
     syncUnsentSurveys: "{count} ficha(s) sin enviar.",
+    syncWithheldForMedia: "{count} ficha(s) esperan a que se entregue la fotografía de su visita.",
     syncNeedsAttention:
       "{count} orden(es) que el servidor rechazó. Avisa a la coordinación: no se resuelven esperando.",
     offlineWindowValid: "vigente",
