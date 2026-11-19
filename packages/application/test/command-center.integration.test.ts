@@ -294,4 +294,21 @@ describe("loadPortfolio", () => {
     for (const project of view.projects) expect(project.metrics).toHaveLength(0);
     expect(view.metricsRestricted).toBe(true);
   });
+
+  /**
+   * Listing a project and being able to open it are different, and the shell needs to be told
+   * which is which — otherwise it points its rail at a project the caller will be refused from,
+   * which is what happened to the coordinator account on staging.
+   */
+  it("says of each project whether this caller may open it, not merely list it", async () => {
+    const adminCtx = await contextFor(w.adminA);
+    const adminView = await loadPortfolio(db.runtime, adminCtx);
+    expect(adminView.projects.length).toBeGreaterThan(0);
+    for (const project of adminView.projects) expect(project.accessible).toBe(false);
+
+    const memberCtx = await contextFor(w.memberA);
+    const memberView = await loadPortfolio(db.runtime, memberCtx);
+    const projectX = memberView.projects.find((p) => p.slug === w.projectX.slug);
+    expect(projectX?.accessible).toBe(true);
+  });
 });

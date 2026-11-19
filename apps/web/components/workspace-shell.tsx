@@ -17,6 +17,7 @@ import {
 import type { ReactNode } from "react";
 
 import { LocaleProvider } from "@/components/i18n/locale-provider";
+import { chooseActiveProjectSlug } from "@/lib/active-project";
 import { getDb } from "@/lib/db";
 import { getLocale, getTranslator } from "@/lib/locale";
 import { buildWorkspaceNav, projectPath } from "@/lib/navigation";
@@ -24,6 +25,11 @@ import { buildWorkspaceNav, projectPath } from "@/lib/navigation";
 export interface ShellProject {
   readonly slug: string;
   readonly name: string;
+  /**
+   * Whether this caller may open the project, not merely see that it is there. Listing and
+   * reading are separate in this model (D-015), and the rail has to know the difference.
+   */
+  readonly accessible: boolean;
 }
 
 /**
@@ -68,7 +74,16 @@ export async function WorkspaceShell({
   // At tenant scope the rail still lists the workspace, pointed at the active project, so the
   // shell never collapses (invariant 1). The links are ordinary routes: each one rebuilds and
   // re-verifies its own context server-side.
-  const activeProjectSlug = ctx.projectSlug ?? projects[0]?.slug ?? null;
+  //
+  // Which project, when the URL names none, is the question this line used to get wrong. It took
+  // the first of the list — the oldest project of the firm — and a tenant ADMIN who administers
+  // every project but is assigned to one was sent into a project they may list and may not read.
+  // Every rail link then answered `permission denied`, which reads as a broken product rather
+  // than as the deliberate separation of administering a firm from working on a study (D-015).
+  //
+  // So: prefer a project this caller can actually open. The rule itself lives in
+  // `lib/active-project.ts`, pure, so it can be asserted without rendering this component.
+  const activeProjectSlug = chooseActiveProjectSlug(ctx.projectSlug, projects);
   const t = await getTranslator();
   const locale = await getLocale();
   const { entries, currentKey } = buildWorkspaceNav(
