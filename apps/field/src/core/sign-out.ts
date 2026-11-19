@@ -1,4 +1,9 @@
-import { hasPendingWork, PENDING_KINDS, type PendingWorkSummary } from "./project-switch";
+import {
+  countPendingWork,
+  hasPendingWork,
+  PENDING_KINDS,
+  type PendingWorkSummary,
+} from "./project-switch";
 
 /**
  * Whether this device may sign out, which on this application means **delete the local database**.
@@ -45,6 +50,6 @@ export function decideSignOut(pending: PendingWorkSummary): SignOutDecision {
   return {
     kind: "blocked",
     blocking: PENDING_KINDS.filter((kind) => pending[kind] > 0),
-    total: PENDING_KINDS.reduce((sum, kind) => sum + pending[kind], 0),
+    total: countPendingWork(pending),
   };
 }

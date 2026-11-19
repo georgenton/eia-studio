@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { RefreshControl, ScrollView, StyleSheet, TextInput, View } from "react-native";
 
+import { countPendingWork } from "../core/project-switch";
 import { downloadProject } from "../sync/engine";
 import { useT } from "../i18n";
 import { useField } from "../store";
@@ -32,7 +33,7 @@ export function MyWorkScreen({
     pack,
     assignments,
     invitations,
-    pending,
+    pendingWork,
     online,
     syncing,
     sync,
@@ -40,6 +41,18 @@ export function MyWorkScreen({
     db,
     offlineState,
   } = useField();
+  /*
+   * What the chip counts.
+   *
+   * It used to count `sync_outbox` rows in state PENDING, and that is not what a technician reads
+   * it as. With a photograph still on the phone the chip said **Todo sincronizado** — reproduced
+   * on the emulator on 19 November 2026 — while the parcel itself still said *Pendiente de
+   * subida*. A chip that says the day is delivered when it is not is worse than no chip.
+   *
+   * `countPendingWork` is the same arithmetic the sign-out guard uses, so the two cannot drift.
+   */
+  const undelivered = countPendingWork(pendingWork);
+
   const [query, setQuery] = useState("");
   const [message, setMessage] = useState<string | null>(null);
 
@@ -91,9 +104,11 @@ export function MyWorkScreen({
             />
             <Chip
               text={
-                pending === 0 ? t("mobile.allSynced") : t("mobile.pendingCount", { count: pending })
+                undelivered === 0
+                  ? t("mobile.allSynced")
+                  : t("mobile.pendingCount", { count: undelivered })
               }
-              tone={pending === 0 ? "ok" : "warn"}
+              tone={undelivered === 0 ? "ok" : "warn"}
             />
           </View>
         </View>
