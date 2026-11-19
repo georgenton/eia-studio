@@ -11,7 +11,8 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc -p tsconfig.json",
-    "provision:identity": "tsx scripts/provision-identity.ts"
+    "provision:identity": "tsx scripts/provision-identity.ts",
+    "bootstrap:owner": "tsx scripts/bootstrap-owner.ts"
   },
   "dependencies": {
     "@better-auth/core": "1.7.2",
