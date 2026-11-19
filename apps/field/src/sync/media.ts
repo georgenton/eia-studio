@@ -132,8 +132,18 @@ export async function uploadPendingMedia(
         bumpAttempt: true,
       });
       error = step.detail;
-      // One failure is the whole network being gone; the rest would fail the same way.
-      break;
+      /*
+       * **Keep going.** This used to `break`, on the reasoning that one failure is the whole
+       * network being gone and the rest would fail the same way. That is true of a lost signal and
+       * false of a single bad file — and in the second case the first photograph permanently
+       * blocked every one behind it, including the ones that would have uploaded. Since a
+       * visit-closing command is now held while *any* photograph of that visit is undelivered
+       * (`core/outbox-policy.ts`), one unuploadable file would have held a ficha for ever.
+       *
+       * The cost is bounded: a device holds a day's photographs, not a backlog, and the sync
+       * button is disabled while offline, so the no-signal case is rare rather than routine.
+       */
+      continue;
     }
 
     uploaded += 1;

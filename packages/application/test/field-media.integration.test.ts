@@ -59,6 +59,10 @@ let storage: ReturnType<typeof createS3Storage>;
 let assignmentId: string;
 let parcelId: string;
 let surveyVersionId: string;
+/** The fully-offline journey gets its own parcel, assignment and visit, so it collides with
+ *  nothing: the other cases in this file share one visit and reopen it between them. */
+let offlineParcelId: string;
+let offlineAssignmentId: string;
 let visitId: string;
 
 const PNG_BYTES = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x01]);
@@ -118,6 +122,18 @@ async function storePhotograph(
     objectKey: intent.key,
   });
   return { ctx, intent, stored };
+}
+
+/** The parts of a command envelope no test needs to think about. */
+function envelope() {
+  return {
+    commandId: randomUUID(),
+    protocolVersion: FIELD_SYNC_PROTOCOL_VERSION,
+    deviceRevision: 1,
+    occurredAt: new Date().toISOString(),
+    appVersion: "0.1.0",
+    packSchemaVersion: FIELD_PACK_SCHEMA_VERSION,
+  } as const;
 }
 
 function declaration(over: Record<string, unknown> = {}) {
@@ -196,6 +212,26 @@ beforeAll(async () => {
     assigneeUserId: technician.id,
   });
   assignmentId = assignment.id;
+
+  const otherParcel = await createParcelWithGeometry(db.migrator, {
+    tenantId: w.tenantA.id,
+    projectId: w.projectX.id,
+    datasetVersionId: dataset.id,
+    provenanceId: provenance.id,
+    parcelCode: "PRED-OFFLINE-001",
+  });
+  offlineParcelId = otherParcel.parcelId;
+  offlineAssignmentId = (
+    await createAssignment(db.migrator, {
+      tenantId: w.tenantA.id,
+      projectId: w.projectX.id,
+      provenanceId: provenance.id,
+      campaignId: campaign.id,
+      parcelId: otherParcel.parcelId,
+      assigneeMembershipId: tech.membershipId,
+      assigneeUserId: technician.id,
+    })
+  ).id;
 
   // Through the use-case, not a factory: the visit a photograph attaches to is the one a
   // technician actually starts.
@@ -425,6 +461,55 @@ describe("what a declaration is refused for", () => {
   });
 
   /**
+   * The refusal whose answer never arrived.
+   *
+   * This is the half the sync tests cannot reach: they replay a `visit.start` conflict and a
+   * `visit.start` acceptance, which proves the receipt machinery and proves nothing about a
+   * **photograph's file**. Here the refused command is a `media.declare`, it is replayed through
+   * `processSyncCommands` with the same `commandId`, and the two things that matter are asserted —
+   * the answer is still a refusal, and no `field_media` row exists for that photograph.
+   *
+   * Were the replay to come back `duplicate`, the device's `SETTLED` list would treat it as a
+   * success, `acknowledgeMedia` would run and the next sweep would delete the only copy of a
+   * photograph this server never stored.
+   */
+  it("a refused declaration replayed is still refused, and writes no row", async () => {
+    await db.migrator.execute(sql`
+      update app.field_visit set status = 'COMPLETED', completed_at = now() where id = ${visitId}
+    `);
+    const { ctx, stored } = await storePhotograph(technician);
+    const localId = randomUUID();
+    const command = {
+      ...envelope(),
+      type: "media.declare" as const,
+      payload: {
+        assignmentId,
+        visitId,
+        localId,
+        storedObjectId: stored.storedObjectId,
+        kind: "parcel" as const,
+        capturedAt: new Date().toISOString(),
+        note: null,
+        location: null,
+      },
+    };
+
+    const first = await processSyncCommands(db.runtime, ctx, [command]);
+    expect(first.results[0]!.outcome).toBe("rejected");
+
+    // The device never heard the answer and sends the identical command again.
+    const replay = await processSyncCommands(db.runtime, ctx, [command]);
+    expect(replay.results[0]!.outcome, "a refusal is not a duplicate").toBe("rejected");
+    expect(replay.results[0]!.message).toBe(first.results[0]!.message);
+
+    const rows = await db.migrator
+      .select({ id: fieldSchema.fieldMedia.id })
+      .from(fieldSchema.fieldMedia)
+      .where(eq(fieldSchema.fieldMedia.localId, localId));
+    expect(rows, "nothing was stored, so nothing may be acknowledged").toHaveLength(0);
+  });
+
+  /**
    * A device whose clock is wrong decides nothing.
    *
    * Both halves use the same bytes, uploaded before the same close; only the hour the phone
@@ -592,5 +677,145 @@ describe("a declaration is written once", () => {
         .where(eq(fieldSchema.fieldMedia.id, result.mediaId)),
     );
     expect(remove).toMatch(/written once/i);
+  });
+});
+
+/**
+ * The whole parcel captured with no signal at all, delivered in the order the fixed client sends.
+ *
+ * A technician opens the assignment in a valley: `visit.start` is queued, the ficha is filled and
+ * submitted locally, two photographs are taken. Nothing has a server id. Then one bar of signal.
+ *
+ * The device's passes are what produce this order (`apps/field/src/sync/engine.ts`): the visit is
+ * acknowledged first, which is what gives the photographs a visit to belong to; the declarations
+ * go next, while the visit is still open; the ficha goes last and closes it. The assertions are
+ * the relations a coordinator reads on the web — ficha ↔ visita ↔ predio ↔ fotografías.
+ *
+ * It has its own parcel and its own assignment, because the cases above share one visit and
+ * reopen it between them, and a test that borrowed it would be asserting their photographs.
+ */
+describe("a parcel captured entirely offline", () => {
+  it("arrives whole, and every relation holds", async () => {
+    const ctxTech = await contextFor(technician);
+
+    // Pass 1 — the visit. Until this is acknowledged the photographs have nothing to belong to.
+    const started = await processSyncCommands(db.runtime, ctxTech, [
+      {
+        ...envelope(),
+        type: "visit.start",
+        payload: {
+          assignmentId: offlineAssignmentId,
+          location: null,
+          locationOutcome: "not_attempted",
+        },
+      },
+    ]);
+    expect(started.results[0]!.outcome).toBe("applied");
+    const visitaId = started.results[0]!.visitId!;
+
+    // Pass 2 — the bytes, then the declarations, while the visit is still open.
+    const first = await storePhotograph(technician);
+    const second = await storePhotograph(technician);
+    const localIds = [randomUUID(), randomUUID()] as const;
+    const declared = await processSyncCommands(
+      db.runtime,
+      ctxTech,
+      [0, 1].map((index) => ({
+        ...envelope(),
+        type: "media.declare" as const,
+        payload: {
+          assignmentId: offlineAssignmentId,
+          visitId: visitaId,
+          localId: localIds[index]!,
+          storedObjectId: (index === 0 ? first : second).stored.storedObjectId,
+          kind: index === 0 ? ("parcel" as const) : ("access" as const),
+          capturedAt: new Date().toISOString(),
+          note: null,
+          location: null,
+        },
+      })),
+    );
+    expect(declared.results.map((result) => result.outcome)).toEqual(["applied", "applied"]);
+
+    // Pass 3 — the ficha, which closes the visit.
+    const submitted = await processSyncCommands(db.runtime, ctxTech, [
+      {
+        ...envelope(),
+        type: "survey.submit",
+        payload: {
+          assignmentId: offlineAssignmentId,
+          visitId: visitaId,
+          surveyVersionId,
+          answers: { has_concern: { kind: "boolean" as const, value: true } },
+        },
+      },
+    ]);
+    expect(submitted.results[0]!.outcome).toBe("applied");
+    const instanceId = submitted.results[0]!.instanceId!;
+
+    // ── the relations a coordinator reads ─────────────────────────────────────────────────────
+    const [visita] = await db.migrator
+      .select({
+        status: fieldSchema.fieldVisit.status,
+        assignmentId: fieldSchema.fieldVisit.assignmentId,
+      })
+      .from(fieldSchema.fieldVisit)
+      .where(eq(fieldSchema.fieldVisit.id, visitaId));
+    expect(visita?.status).toBe("COMPLETED");
+    expect(visita?.assignmentId).toBe(offlineAssignmentId);
+
+    const [instance] = await db.migrator
+      .select({
+        status: fieldSchema.surveyInstance.status,
+        visitId: fieldSchema.surveyInstance.visitId,
+      })
+      .from(fieldSchema.surveyInstance)
+      .where(eq(fieldSchema.surveyInstance.id, instanceId));
+    expect(instance?.status).toBe("SUBMITTED");
+    expect(instance?.visitId, "the ficha names the visit it was captured in").toBe(visitaId);
+
+    const [asignacion] = await db.migrator
+      .select({ parcelId: fieldSchema.fieldAssignment.parcelId })
+      .from(fieldSchema.fieldAssignment)
+      .where(eq(fieldSchema.fieldAssignment.id, offlineAssignmentId));
+    expect(asignacion?.parcelId, "and the assignment names the parcel").toBe(offlineParcelId);
+
+    // Two photographs on that visit, and one row each.
+    const fotos = await loadVisitMedia(db.runtime, ctxTech, visitaId);
+    expect(fotos).toHaveLength(2);
+    expect([...fotos].map((foto) => foto.kind).sort()).toEqual(["access", "parcel"]);
+
+    // What the web surface itself answers, for the coordinator rather than the technician.
+    const delPredio = await loadParcelMedia(
+      db.runtime,
+      await contextFor(coordinator),
+      offlineParcelId,
+    );
+    expect(delPredio).toHaveLength(2);
+
+    /*
+     * And the whole thing again, as a device that never heard the answers would send it: the same
+     * `commandId`s and the same `localId`s. Nothing may double.
+     */
+    const again = await processSyncCommands(db.runtime, ctxTech, [
+      {
+        ...envelope(),
+        type: "media.declare",
+        payload: {
+          assignmentId: offlineAssignmentId,
+          visitId: visitaId,
+          localId: localIds[0]!,
+          storedObjectId: first.stored.storedObjectId,
+          kind: "parcel" as const,
+          capturedAt: new Date().toISOString(),
+          note: null,
+          location: null,
+        },
+      },
+    ]);
+    expect(again.results[0]!.outcome, "already declared is a success the device can act on").toBe(
+      "applied",
+    );
+    expect(await loadVisitMedia(db.runtime, ctxTech, visitaId)).toHaveLength(2);
   });
 });
