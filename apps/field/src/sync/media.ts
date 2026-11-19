@@ -9,6 +9,7 @@ import {
   forgetLocalMedia,
   insertLocalMedia,
   listAllMedia,
+  pendingCommandExists,
   setMediaState,
   type LocalMediaRecord,
 } from "../db/repo";
@@ -152,6 +153,16 @@ export async function uploadPendingMedia(
       storedObjectId: step.storedObjectId,
       lastError: null,
     });
+
+    /*
+     * One order per photograph in the queue at a time. This loop runs on every synchronisation,
+     * so a declaration still waiting used to gain an identical twin each time — harmless to the
+     * data, because `localId` is unique, and ruinous to a count a technician is asked to trust.
+     *
+     * A `FAILED` order does not block a new one: that is how a refusal the server has since
+     * stopped giving gets a second chance.
+     */
+    if (await pendingCommandExists(db, "media", record.localId)) continue;
 
     // Through the ordinary outbox: the declaration inherits the ordering, the backoff and the
     // receipt replay the other commands already have, rather than getting its own retry loop.

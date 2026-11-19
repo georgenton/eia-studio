@@ -752,6 +752,36 @@ export async function countPendingMedia(db: SQLite.SQLiteDatabase): Promise<numb
 }
 
 /**
+ * Is a command for this entity already waiting in the queue?
+ *
+ * `uploadPendingMedia` forms a declaration for every photograph the server has not acknowledged,
+ * on every synchronisation. A photograph whose declaration is still `PENDING` therefore gained a
+ * second, a third and a fourth identical order — which is what produced *"4 elementos sin
+ * sincronizar"* on the emulator for one photograph on 19 November 2026.
+ *
+ * Nothing was corrupted by it: `localId` is unique, so the extra orders come back
+ * `already_declared` and settle. But a count a technician reads must mean something, and a queue
+ * that grows by one per press is not a queue.
+ *
+ * `FAILED` deliberately does **not** count here. That is how predio 102 recovers: the refusal is
+ * not retried automatically, and a fresh order formed after the server was corrected is a new
+ * attempt rather than a replay of a decision.
+ */
+export async function pendingCommandExists(
+  db: SQLite.SQLiteDatabase,
+  entityKind: string,
+  entityLocalId: string,
+): Promise<boolean> {
+  const row = await db.getFirstAsync<{ n: number }>(
+    `select count(*) as n from sync_outbox
+      where state = 'PENDING' and entity_kind = ? and entity_local_id = ?`,
+    entityKind,
+    entityLocalId,
+  );
+  return (row?.n ?? 0) > 0;
+}
+
+/**
  * Which assignments this device still holds a photograph of that the server has not acknowledged.
  *
  * The question `withholdClosuresForUndeliveredMedia` asks before a push: a visit must not be

@@ -20,6 +20,7 @@ import {
   insertLocalMedia,
   pendingCommands,
   setMediaState,
+  pendingCommandExists,
   settleCommand,
   supersedeResolvedCommands,
 } from "../src/db/repo";
@@ -281,6 +282,42 @@ describe("against the device's own database", () => {
       await assignmentsHoldingMedia(database.db),
     );
     expect(after.withheld).toEqual([]);
+  });
+
+  /**
+   * One order per photograph in the queue.
+   *
+   * `uploadPendingMedia` forms a declaration for every unacknowledged photograph on every
+   * synchronisation. Without this guard, a declaration still waiting gained an identical twin each
+   * time, and the emulator read *"4 elementos sin sincronizar"* for a single photograph.
+   */
+  it("knows when a photograph already has an order waiting, and when it only has a refusal", async () => {
+    await photograph("0199f3a2-7c41-7abc-8d0f-0000000000d1");
+    expect(
+      await pendingCommandExists(database.db, "media", "0199f3a2-7c41-7abc-8d0f-0000000000d1"),
+    ).toBe(false);
+
+    await enqueue(database.db, {
+      command: declareA,
+      entityKind: "media",
+      entityLocalId: "0199f3a2-7c41-7abc-8d0f-0000000000d1",
+    });
+    expect(
+      await pendingCommandExists(database.db, "media", "0199f3a2-7c41-7abc-8d0f-0000000000d1"),
+    ).toBe(true);
+
+    // A refusal does not block a new attempt — which is exactly how predio 102 recovers once the
+    // server has stopped refusing.
+    const row = (await pendingCommands(database.db, 50))[0]!;
+    await settleCommand(database.db, row.seq, "FAILED", "rechazada");
+    expect(
+      await pendingCommandExists(database.db, "media", "0199f3a2-7c41-7abc-8d0f-0000000000d1"),
+    ).toBe(false);
+
+    // And another photograph's order is not this photograph's.
+    expect(
+      await pendingCommandExists(database.db, "media", "0199f3a2-7c41-7abc-8d0f-0000000000d2"),
+    ).toBe(false);
   });
 
   /**
