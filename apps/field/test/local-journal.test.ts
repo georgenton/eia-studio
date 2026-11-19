@@ -21,8 +21,9 @@ import {
   settleDelivery,
   summarisePendingWork,
 } from "../src/db/repo-v4";
-import { listAssignments, readPack } from "../src/db/repo";
+import { countPending, listAssignments, readPack } from "../src/db/repo";
 import { mayRecordDelivery } from "../src/core/delivery";
+import { decideSignOut } from "../src/core/sign-out";
 import { queueReadyDeliveries } from "../src/sync/delivery-queue";
 import { saveDelivery } from "../src/sync/evidence-capture";
 import {
@@ -874,6 +875,52 @@ describe("changing road", () => {
     expect(pending.unsettledDeliveries).toBe(1);
     expect(pending.pendingEvidence).toBe(1);
     expect(pending.outboxPending).toBe(0);
+  });
+
+  /**
+   * The two shapes that used to let signing out through — and signing out deletes the database.
+   *
+   * The old guard asked `countPending`, which is `sync_outbox where state = 'PENDING'`. Both of
+   * these answer zero to that question while the device is still holding a technician's work, so
+   * they are asserted against the narrow counter *and* the full summary: the gap is the point.
+   */
+  it("J · a draft that never queued a command is invisible to the outbox and not to the summary", async () => {
+    const { db, raw } = database;
+    await saveWorkPack(db, pack({ surveyWork: surveyWork() }));
+    const assignment = surveyWork().assignments[0]!.id;
+    raw.exec(`insert into local_survey (id, assignment_id, survey_version_id, state,
+              device_revision, updated_at)
+              values ('s-orphan', '${assignment}', 'v1', 'DRAFT', 1, '2026-11-12T00:00:00.000Z')`);
+
+    expect(await countPending(db)).toBe(0);
+
+    const pending = await summarisePendingWork(db);
+    expect(pending.outboxPending).toBe(0);
+    expect(pending.unsyncedSurveys).toBe(1);
+    expect(decideSignOut(pending).kind).toBe("blocked");
+  });
+
+  it("K · a photograph still to upload blocks it, with the command queue empty", async () => {
+    const { db, raw } = database;
+    await saveWorkPack(db, pack({ surveyWork: surveyWork() }));
+    const assignment = surveyWork().assignments[0]!.id;
+    raw.exec(`insert into local_media (local_id, assignment_local_id, file_uri, mime_type,
+              size_bytes, kind, captured_at)
+              values ('m-orphan', '${assignment}', 'file:///m.jpg', 'image/jpeg', 10, 'parcel',
+                      '2026-11-12T00:00:00.000Z')`);
+
+    expect(await countPending(db)).toBe(0);
+
+    const pending = await summarisePendingWork(db);
+    expect(pending.outboxPending).toBe(0);
+    expect(pending.pendingMedia).toBe(1);
+    expect(decideSignOut(pending).kind).toBe("blocked");
+  });
+
+  it("L · and an empty device still signs out, which is the behaviour worth keeping", async () => {
+    const { db } = database;
+    await saveWorkPack(db, pack({ surveyWork: surveyWork() }));
+    expect(decideSignOut(await summarisePendingWork(db))).toEqual({ kind: "allowed" });
   });
 });
 
