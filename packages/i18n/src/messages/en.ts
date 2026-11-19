@@ -1980,6 +1980,10 @@ export const messages: Messages = {
     localSchema: "Local schema: v{version}",
     pendingToSync: "Pending sync: {count}",
     downloadedWork: "Downloaded work",
+    syncPendingMedia: "{count} photograph(s) still on the phone.",
+    syncUnsentSurveys: "{count} unsent response(s).",
+    syncNeedsAttention:
+      "{count} order(s) the server refused. Tell the coordinator: waiting will not clear them.",
     offlineWindowValid: "valid",
     offlineWindowExpiring: "expiring",
     offlineWindowExpired: "expired",
