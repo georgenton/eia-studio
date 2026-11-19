@@ -7,6 +7,7 @@ import { authClient } from "../auth/client";
 import { fieldConfig } from "../config";
 import { useT } from "../i18n";
 import { LanguageToggle } from "../language-toggle";
+import { countPendingWork } from "../core/project-switch";
 import { decideSignOut } from "../core/sign-out";
 
 /**
@@ -48,7 +49,7 @@ export function SettingsScreen({
   onBack: () => void;
 }) {
   const t = useT();
-  const { db, pack, pending, lastSyncAt, offlineState } = useField();
+  const { db, pack, pendingWork, lastSyncAt, offlineState } = useField();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const config = fieldConfig();
@@ -109,7 +110,14 @@ export function SettingsScreen({
           <Body muted>{t("mobile.appVersion", { version: config.appVersion })}</Body>
           <Body muted>{t("mobile.environment", { environment: config.environmentLabel })}</Body>
           <Body muted>{t("mobile.localSchema", { version: LOCAL_SCHEMA_VERSION })}</Body>
-          <Body muted>{t("mobile.pendingToSync", { count: pending })}</Body>
+          {/*
+            The same number the chip shows and the same number the sign-out refusal quotes.
+
+            It used to read the command queue, so this screen could say "Pendientes de
+            sincronizar: 0" two lines above "Hay 2 elemento(s) sin sincronizar" — one screen
+            contradicting itself about the one thing a technician needs to trust.
+          */}
+          <Body muted>{t("mobile.pendingToSync", { count: countPendingWork(pendingWork) })}</Body>
           <Body muted>
             {lastSyncAt
               ? t("mobile.lastSync", { when: new Date(lastSyncAt).toLocaleString(t.locale) })
