@@ -5,13 +5,11 @@ import {
   createFormat,
   createTranslator,
   isLocale,
-  localeCandidatesFromHeader,
-  resolveLocale,
   type Format,
   type Locale,
   type Translator,
 } from "@eia/i18n";
-import { cookies, headers } from "next/headers";
+import { cookies } from "next/headers";
 
 /**
  * Which language this request is answered in.
@@ -26,10 +24,17 @@ import { cookies, headers } from "next/headers";
  *
  * ## The order, and why
  *
- * An explicit choice beats what the browser advertised, which beats the default. A reviewer who
- * switched to English on this machine meant it; a Spanish-speaking consultant whose browser is
- * configured in English did not ask for an English product, which is why the default is last
- * rather than first.
+ * **The cookie, then the default. The browser's `Accept-Language` is not consulted.**
+ *
+ * It used to sit between the two, and that was the wrong shape for the reason this file already
+ * stated and then contradicted: *a Spanish-speaking consultant whose browser is configured in
+ * English did not ask for an English product.* With the header in the chain, that consultant got
+ * English — which is what ADR-029 says must not happen, and what a room full of borrowed laptops
+ * would have shown during a Spanish-language training session.
+ *
+ * `Accept-Language` is a statement about the operating system a browser was installed under. The
+ * language this product answers in is a choice somebody made on screen, and the toggle writes the
+ * cookie. Absent that choice, the default is `es-EC`.
  */
 export const LOCALE_COOKIE = "eia.locale";
 
@@ -37,8 +42,7 @@ export async function getLocale(): Promise<Locale> {
   const store = await cookies();
   const chosen = store.get(LOCALE_COOKIE)?.value;
   if (chosen && isLocale(chosen)) return chosen;
-  const accept = (await headers()).get("accept-language");
-  return resolveLocale(localeCandidatesFromHeader(accept));
+  return DEFAULT_LOCALE;
 }
 
 /** The translator for this request. Server components take it as a value, not from a context. */

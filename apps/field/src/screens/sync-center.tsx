@@ -3,6 +3,7 @@ import type { Translator } from "@eia/i18n";
 import { useEffect, useState } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 
+import { countPendingWork } from "../core/project-switch";
 import { pendingCommands, type OutboxRow } from "../db/repo";
 import { useT } from "../i18n";
 import { useField } from "../store";
@@ -39,6 +40,9 @@ export function SyncCenterScreen({ onBack }: { onBack: () => void }) {
     void pendingCommands(db, 50).then(setQueue);
   }, [db, pending, syncing]);
 
+  /** The same arithmetic as Mi trabajo, Ajustes and the sign-out refusal. */
+  const undelivered = countPendingWork(pendingWork);
+
   /*
    * Deliveries a person has to look at. They stay here after another sync, because
    * `REQUIRES_REVIEW` is not a transport failure that clears itself — the outbox has stopped
@@ -66,9 +70,11 @@ export function SyncCenterScreen({ onBack }: { onBack: () => void }) {
             />
             <Chip
               text={
-                pending === 0 ? t("mobile.noPending") : t("mobile.pendingCount", { count: pending })
+                undelivered === 0
+                  ? t("mobile.noPending")
+                  : t("mobile.pendingCount", { count: undelivered })
               }
-              tone={pending === 0 ? "ok" : "warn"}
+              tone={undelivered === 0 ? "ok" : "warn"}
             />
           </View>
           <Body muted>
@@ -85,6 +91,26 @@ export function SyncCenterScreen({ onBack }: { onBack: () => void }) {
             <Body muted>
               {pendingWork.pendingEvidence} {t("mobile.pendingPendingEvidence")}
             </Body>
+          ) : null}
+          {/*
+            "Órdenes pendientes" below is the command queue, and it is honestly labelled. What
+            this screen was missing is everything that is *not* a queued command: a photograph
+            still uploading, a draft never submitted, and an order the server refused, which no
+            amount of waiting will clear. Naming them here is what makes the four screens agree.
+          */}
+          {pendingWork.pendingMedia > 0 ? (
+            <Body muted>{t("mobile.syncPendingMedia", { count: pendingWork.pendingMedia })}</Body>
+          ) : null}
+          {pendingWork.unsyncedSurveys > 0 ? (
+            <Body muted>
+              {t("mobile.syncUnsentSurveys", { count: pendingWork.unsyncedSurveys })}
+            </Body>
+          ) : null}
+          {pendingWork.outboxFailed > 0 ? (
+            <Notice
+              text={t("mobile.syncNeedsAttention", { count: pendingWork.outboxFailed })}
+              tone="warn"
+            />
           ) : null}
         </View>
 

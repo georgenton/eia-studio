@@ -102,6 +102,10 @@ export async function declareFieldMedia(
       throw new InvalidInput("that file was uploaded by another person");
     }
 
+    if (!visit.open) {
+      await assertBytesPredateTheClose(tx, ctx, projectId, input.storedObjectId, visit.id);
+    }
+
     const counted = await tx
       .select({ count: sql<number>`count(*)::int` })
       .from(fieldSchema.fieldMedia)
@@ -158,14 +162,15 @@ interface ResolvedVisit {
   readonly id: string;
   readonly assignmentId: string;
   readonly demo: boolean;
+  /** `IN_PROGRESS`. A closed visit is decided by `assertBytesPredateTheClose`, not here. */
+  readonly open: boolean;
 }
 
 /**
  * The visit must be open, this caller's own, and on the assignment the device named.
  *
- * Open, because a photograph declared against a finished visit is evidence arriving after the work
- * was reported done — and a device that finished a visit and then uploaded is a device whose queue
- * ran out of order, which the `superseded` outcome exists to settle rather than to accept.
+ * The visit, and whether it is still open. A closed one is not refused here — see
+ * `assertBytesPredateTheClose`, which needs the file before it can decide.
  */
 async function resolveOwnVisit(
   tx: Tx,
@@ -203,10 +208,76 @@ async function resolveOwnVisit(
   if (row.assignment_id !== assignmentId) {
     throw new InvalidInput("that visit does not belong to the assignment named");
   }
-  if (row.status !== "IN_PROGRESS") {
-    throw new InvalidInput("that visit is finished; a photograph cannot be added to it");
+  return {
+    id: row.id,
+    assignmentId: row.assignment_id,
+    demo: row.demo,
+    open: row.status === "IN_PROGRESS",
+  };
+}
+
+/**
+ * A closed visit still takes a photograph **this server already knew about before it closed**.
+ *
+ * ## Why the rule had to change at all
+ *
+ * `media.declare` names a `storedObjectId` that only this server issues, so the command cannot be
+ * formed without signal. A technician working offline queues `survey.submit` first, that completes
+ * the visit, and the declaration arrives behind it on the first bar of signal. Refusing it made
+ * the ordinary offline capture impossible: the bytes sat in storage belonging to nothing, the
+ * device kept the local file for ever, and the parcel showed a photograph nobody could open.
+ * Reproduced end to end on an Android emulator on 19 November 2026 (predio 102).
+ *
+ * ## Why not the time the device says it took the picture
+ *
+ * Because that is the device's clock, declared by the same person the rule constrains, and the
+ * contract says as much. A phone an hour fast, an hour slow, or simply set by hand would decide
+ * whether evidence is admissible. `capturedAt` is worth recording and worthless as proof.
+ *
+ * ## What the server can actually vouch for
+ *
+ * Its own clock, twice. `upload_intent.issued_at` is written when **this server** mints the
+ * presigned URL for these exact bytes; `field_visit.completed_at` is written when **this server**
+ * applies the command that closes the visit. If the first precedes the second, the device was
+ * already holding this photograph, for this project, before the visit closed — and no statement
+ * by the device is involved in either timestamp.
+ *
+ * That ordering is not luck: `uploadPendingMedia` runs before the outbox is drained, so the
+ * legitimate offline flow always asks for the URL before the submit is applied. A photograph taken
+ * **after** the close asks for its URL after the close, and is refused — which is what the
+ * original rule was protecting.
+ *
+ * Deliberately not `started_at`: a visit that begins offline is recorded when the device syncs, so
+ * a perfectly good photograph can predate that row.
+ */
+async function assertBytesPredateTheClose(
+  tx: Tx,
+  ctx: RequestContext,
+  projectId: string,
+  storedObjectId: string,
+  visitId: string,
+): Promise<void> {
+  const rows = await tx.execute(sql`
+    select ui.issued_at < v.completed_at as before_close
+      from app.stored_object so
+      join app.upload_intent ui
+        on ui.tenant_id = so.tenant_id and ui.object_key = so.object_key
+      join app.field_visit v
+        on v.tenant_id = so.tenant_id and v.project_id = so.project_id and v.id = ${visitId}
+     where so.tenant_id = ${ctx.tenantId}
+       and so.project_id = ${projectId}
+       and so.id = ${storedObjectId}
+       and v.completed_at is not null
+     order by ui.issued_at asc
+     limit 1
+  `);
+  const beforeClose = (rows.rows[0] as unknown as { before_close: boolean } | undefined)
+    ?.before_close;
+  if (beforeClose !== true) {
+    throw new InvalidInput(
+      "that visit is finished, and this file was not uploaded before it closed",
+    );
   }
-  return { id: row.id, assignmentId: row.assignment_id, demo: row.demo };
 }
 
 async function createMediaProvenance(

@@ -187,6 +187,6 @@ describe("what an error is allowed to say", () => {
     expect(message).not.toContain("token");
     expect(message).not.toContain("/api");
     // It still has to be useful: the host is public and naming it is how somebody fixes the build.
-    expect(message).toContain("vih786wuduzmldekoq3zdies.syntavera.dev");
+    expect(message).toContain("eia-staging.syntavera.dev");
   });
 });

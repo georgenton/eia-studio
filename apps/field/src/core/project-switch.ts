@@ -81,6 +81,19 @@ export function decideProjectSwitch(input: {
   return { kind: "allowed" };
 }
 
+/**
+ * Everything the device is still holding, across every kind.
+ *
+ * One function, because three places used to answer this question and two of them answered it
+ * with `sync_outbox` alone: the sign-out guard (fixed by counting the full summary) and the
+ * "Todo sincronizado" chip, which told a technician their day had been delivered while a
+ * photograph was still on the phone. A number a technician trusts to decide whether they may walk
+ * away from a parcel is not a number two screens may compute differently.
+ */
+export function countPendingWork(pending: PendingWorkSummary): number {
+  return PENDING_KINDS.reduce((total, kind) => total + pending[kind], 0);
+}
+
 export function hasPendingWork(pending: PendingWorkSummary): boolean {
   return PENDING_KINDS.some((kind) => pending[kind] > 0);
 }

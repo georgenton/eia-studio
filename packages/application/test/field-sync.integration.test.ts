@@ -469,7 +469,19 @@ describe("conflicts preserve the technician's work", () => {
     expect(result.results[0]!.conflictReason).toBe("survey_version_changed");
   });
 
-  it("a conflict is recorded once and replayed, so the device is told the same thing", async () => {
+  /**
+   * A retry replays the answer. The *same* answer.
+   *
+   * This used to expect `duplicate` on the second attempt, and that was the bug rather than the
+   * contract. `duplicate` is a success word: the device's `SETTLED` list is
+   * `applied | duplicate | superseded`, so a settled `media.declare` runs `acknowledgeMedia` and
+   * the next sweep deletes the photograph's local file. A refusal whose response was lost came
+   * back as a confirmation, and the only copy of a photograph the server had never stored was
+   * thrown away by the device that held it.
+   *
+   * So `duplicate` is now reserved for what it means: the work *was* done, do not do it twice.
+   */
+  it("a conflict replayed is still a conflict, not a duplicate", async () => {
     const ctx = await contextFor(technician);
     const stolen = command("visit.start", {
       assignmentId: otherAssignmentId,
@@ -479,8 +491,35 @@ describe("conflicts preserve the technician's work", () => {
     const first = await processSyncCommands(db.runtime, ctx, [stolen]);
     const second = await processSyncCommands(db.runtime, ctx, [stolen]);
     expect(first.results[0]!.outcome).toBe("conflict");
-    expect(second.results[0]!.outcome).toBe("duplicate");
+    expect(second.results[0]!.outcome).toBe("conflict");
     expect(second.results[0]!.conflictReason).toBe(first.results[0]!.conflictReason);
+    expect(second.results[0]!.message).toBe(first.results[0]!.message);
+  });
+
+  /**
+   * The other direction, which must keep working: an acceptance whose response was lost.
+   *
+   * The device never heard "applied", retries with the same `commandId`, and must be told the work
+   * is already done — once, without a second row.
+   */
+  it("an acceptance replayed is a duplicate, and writes nothing twice", async () => {
+    const ctx = await contextFor(technician);
+    const start = command("visit.start", {
+      assignmentId,
+      location: null,
+      locationOutcome: "denied",
+    });
+    const first = await processSyncCommands(db.runtime, ctx, [start]);
+    expect(first.results[0]!.outcome).toBe("applied");
+
+    const second = await processSyncCommands(db.runtime, ctx, [start]);
+    expect(second.results[0]!.outcome).toBe("duplicate");
+    expect(second.results[0]!.visitId).toBe(first.results[0]!.visitId);
+
+    const visits = await db.migrator.execute(
+      sql`select count(*)::int as n from app.field_visit where assignment_id = ${assignmentId}`,
+    );
+    expect((visits.rows[0] as unknown as { n: number }).n).toBe(1);
   });
 });
 
