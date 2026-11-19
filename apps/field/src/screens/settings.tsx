@@ -1,11 +1,27 @@
 import { useState } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 
+import type { OfflineAccessState } from "@eia/domain/mobile";
+
 import { authClient } from "../auth/client";
 import { fieldConfig } from "../config";
 import { useT } from "../i18n";
 import { LanguageToggle } from "../language-toggle";
 import { decideSignOut } from "../core/sign-out";
+
+/**
+ * The words for the offline window, keyed by the state the domain computes.
+ *
+ * `OfflineAccessState` is an enum — `valid`, `expiring`, `expired` — and this screen printed it
+ * raw, so a Spanish diagnostics screen read "· valid". ADR-025's rule is one sentence: **a stored
+ * value is never rendered; a label for it is.** The mapping is exhaustive by type, so adding a
+ * fourth state stops compiling here rather than leaking a fourth English word onto the screen.
+ */
+const OFFLINE_WINDOW_LABEL = {
+  valid: "mobile.offlineWindowValid",
+  expiring: "mobile.offlineWindowExpiring",
+  expired: "mobile.offlineWindowExpired",
+} as const satisfies Record<OfflineAccessState, string>;
 import { LOCAL_SCHEMA_VERSION, wipeLocalData } from "../db/open";
 import { summarisePendingWork } from "../db/repo-v4";
 import { useField } from "../store";
@@ -103,7 +119,7 @@ export function SettingsScreen({
             {t("mobile.downloadedWork")}:{" "}
             {pack
               ? `${new Date(pack.validity.expiresAt).toLocaleString(t.locale)}${
-                  offlineState ? ` · ${offlineState}` : ""
+                  offlineState ? ` · ${t(OFFLINE_WINDOW_LABEL[offlineState])}` : ""
                 }`
               : t("common.missing")}
           </Body>

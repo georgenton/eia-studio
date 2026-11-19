@@ -1990,6 +1990,9 @@ export const messages = {
     localSchema: "Esquema local: v{version}",
     pendingToSync: "Pendientes de sincronizar: {count}",
     downloadedWork: "Trabajo descargado",
+    offlineWindowValid: "vigente",
+    offlineWindowExpiring: "por vencer",
+    offlineWindowExpired: "vencido",
     diagnosticsPrivacy:
       "Este diagnóstico no incluye respuestas, identificadores de personas ni credenciales.",
     signOutBlocked:
