@@ -8,6 +8,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -182,17 +183,32 @@ export function FieldProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  /*
+   * `sync` must not change identity when a synchronisation starts or ends.
+   *
+   * It used to depend on `syncing`, so `setSyncing(false)` produced a **new** `sync`, which
+   * produced a new `attempt` in `App.tsx`, which re-ran the effect that calls it. With anything
+   * left in the count the loop never closed: on the emulator on 19 November 2026, one saved draft
+   * and an empty queue had the device synchronising every few seconds with nobody touching it.
+   *
+   * The guard against overlapping runs is the same guard, read from a ref instead of from state.
+   * `syncing` stays as state because the screens render it — *Sincronizando…*, the disabled
+   * button, the pull-to-refresh spinner — and that is all it is for now.
+   */
+  const syncingRef = useRef(false);
   const sync = useCallback(async () => {
-    if (!db || syncing) return;
+    if (!db || syncingRef.current) return;
+    syncingRef.current = true;
     setSyncing(true);
     try {
       const outcome = await synchronise(db);
       setLastOutcome(outcome);
       await refresh();
     } finally {
+      syncingRef.current = false;
       setSyncing(false);
     }
-  }, [db, refresh, syncing]);
+  }, [db, refresh]);
 
   const discover = useCallback(async () => {
     if (!db) return { ok: false as const, message: "la base local no está abierta" };

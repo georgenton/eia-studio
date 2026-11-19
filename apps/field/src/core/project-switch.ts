@@ -94,6 +94,41 @@ export function countPendingWork(pending: PendingWorkSummary): number {
   return PENDING_KINDS.reduce((total, kind) => total + pending[kind], 0);
 }
 
+/**
+ * The kinds an automatic attempt could actually move **right now**.
+ *
+ * ## Why this is not `countPendingWork`
+ *
+ * They answer different questions, and conflating them produced a device that synchronised
+ * without stopping. `countPendingWork` answers *what is this phone still holding?* — the number a
+ * technician reads and the number the sign-out refusal protects. It therefore counts work that is
+ * on the device for ever until a **person** acts: an order the server refused, a delivery that
+ * needs review, a draft nobody has submitted.
+ *
+ * The automatic trigger needs the other question: *is there anything a request would deliver?*
+ * Asking the first one made the answer permanently yes — the attempt ran, changed nothing,
+ * finished, and the effect fired again. Observed on the emulator on 19 November 2026: one saved
+ * draft, an empty queue, and *Sincronizando…* on screen with the last-sync time advancing every
+ * few seconds with nobody touching the phone.
+ *
+ * ## What is in, and what is deliberately out
+ *
+ * In: queued commands, photographs of visits and delivery photographs — bytes and intents the
+ * next request can carry.
+ *
+ * Out: `outboxFailed`, because the server **answered and refused**, and a decision does not change
+ * by being asked again (TD-128). Out: `unsyncedSurveys`, because a draft is either already in the
+ * queue — and then `outboxPending` counts it — or it is a draft nobody submitted, which no number
+ * of requests will send. Out: `unsettledDeliveries`, for the same reason the sync centre keeps
+ * showing them: `REQUIRES_REVIEW` needs a person, not a retry.
+ *
+ * All four stay in `countPendingWork`. Nothing stops being shown, and nothing stops blocking
+ * sign-out; they just stop starting requests that cannot help.
+ */
+export function retryableNow(pending: PendingWorkSummary): number {
+  return pending.outboxPending + pending.pendingMedia + pending.pendingEvidence;
+}
+
 export function hasPendingWork(pending: PendingWorkSummary): boolean {
   return PENDING_KINDS.some((kind) => pending[kind] > 0);
 }

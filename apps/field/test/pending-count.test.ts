@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { countPendingWork, EMPTY_PENDING } from "../src/core/project-switch";
+import { countPendingWork, EMPTY_PENDING, retryableNow } from "../src/core/project-switch";
 import { decideSignOut } from "../src/core/sign-out";
 
 /**
@@ -74,5 +74,70 @@ describe("countPendingWork", () => {
   it("lets the chip read 'all synced' only when sign-out would also be allowed", () => {
     expect(countPendingWork(EMPTY_PENDING)).toBe(0);
     expect(decideSignOut(EMPTY_PENDING).kind).toBe("allowed");
+  });
+});
+
+/**
+ * What may start a synchronisation on its own.
+ *
+ * The automatic trigger used to ask `countPendingWork`, which counts work that only a **person**
+ * can clear. The attempt therefore ran, changed nothing, finished — and finishing re-ran it.
+ * Measured on the emulator on 19 November 2026: one saved draft, an empty queue, and
+ * *Sincronizando…* on screen with the last-sync time going from 17:51:41 to 17:52:31 in fifty
+ * seconds that nobody touched the phone.
+ *
+ * These cases keep the two numbers apart: everything still shows and still blocks sign-out, and
+ * only what a request could deliver may start one.
+ */
+describe("retryableNow", () => {
+  it("is zero on a clean device", () => {
+    expect(retryableNow(EMPTY_PENDING)).toBe(0);
+  });
+
+  /** Case 1 of the observation: a draft pending, nothing new that could be sent. */
+  it("does not start a synchronisation for a draft nobody submitted", () => {
+    const resumen = { ...EMPTY_PENDING, unsyncedSurveys: 1 };
+    expect(retryableNow(resumen)).toBe(0);
+    // …and it is still held, still shown, and still blocks sign-out.
+    expect(countPendingWork(resumen)).toBe(1);
+    expect(decideSignOut(resumen).kind).toBe("blocked");
+  });
+
+  /** Case 2: an order the server refused, which no amount of asking will change (TD-128). */
+  it("does not start a synchronisation for an order the server refused", () => {
+    const resumen = { ...EMPTY_PENDING, outboxFailed: 2 };
+    expect(retryableNow(resumen)).toBe(0);
+    expect(countPendingWork(resumen)).toBe(2);
+    expect(decideSignOut(resumen).kind).toBe("blocked");
+  });
+
+  it("does not start one for a delivery that needs a person", () => {
+    const resumen = { ...EMPTY_PENDING, unsettledDeliveries: 1 };
+    expect(retryableNow(resumen)).toBe(0);
+    expect(countPendingWork(resumen)).toBe(1);
+  });
+
+  /**
+   * The half that must keep working: coming back into signal has to deliver a photograph whose
+   * upload failed, which has no outbox row at all until its bytes are stored.
+   */
+  it("starts one for a photograph still on the phone", () => {
+    expect(retryableNow({ ...EMPTY_PENDING, pendingMedia: 1 })).toBe(1);
+    expect(retryableNow({ ...EMPTY_PENDING, pendingEvidence: 1 })).toBe(1);
+    expect(retryableNow({ ...EMPTY_PENDING, outboxPending: 3 })).toBe(3);
+  });
+
+  it("never exceeds what the device is holding", () => {
+    const resumen = {
+      outboxPending: 2,
+      outboxFailed: 1,
+      unsyncedSurveys: 1,
+      pendingMedia: 1,
+      unsettledDeliveries: 1,
+      pendingEvidence: 1,
+    };
+    expect(retryableNow(resumen)).toBe(4);
+    expect(countPendingWork(resumen)).toBe(7);
+    expect(retryableNow(resumen)).toBeLessThan(countPendingWork(resumen));
   });
 });

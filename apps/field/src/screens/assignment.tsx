@@ -179,13 +179,15 @@ export function AssignmentScreen({
       setMediaVersion((version) => version + 1);
       /*
        * **And the shared summary.** `mediaVersion` only re-reads this parcel's own list; the store
-       * holds the number every other surface shows — the chip, the badge, Ajustes, the Centro de
-       * sincronización — and the **sign-out refusal**.
+       * holds the number every other surface shows — the chip, the badge, Ajustes and the Centro
+       * de sincronización. Without this it stayed as it was until the next synchronisation or
+       * pull-to-refresh: observed on the emulator on 19 November 2026 with the chip reading
+       * *2 por sincronizar* while the phone held three things.
        *
-       * Without this the summary stayed as it was until the next sync or pull-to-refresh, so a
-       * device with nothing else pending could take a photograph and be allowed to sign out, which
-       * discards the database and the file. Observed on the emulator on 19 November 2026: the chip
-       * read *2 por sincronizar* with three things on the phone.
+       * What this is **not**: a data-loss fix. The sign-out refusal does not read this number —
+       * since ADR-028's hardening it calls `summarisePendingWork` against the database at the
+       * moment of the tap, precisely because a snapshot can be stale (`screens/settings.tsx`).
+       * The defect here is a count a technician reads, which is reason enough.
        */
       await refresh();
     } catch (error) {
