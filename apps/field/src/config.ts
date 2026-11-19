@@ -64,7 +64,7 @@ function readEnvironment(value: string | undefined): AppEnvironment {
 }
 
 /** The one origin an accepted staging build may talk to. */
-export const STAGING_ORIGIN = "https://vih786wuduzmldekoq3zdies.syntavera.dev";
+export const STAGING_ORIGIN = "https://eia-staging.syntavera.dev";
 
 /**
  * Left in `eas.json` on purpose: the production host is not decided, and production is not

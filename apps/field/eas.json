@@ -19,7 +19,7 @@
       "android": { "buildType": "apk" },
       "ios": { "simulator": false },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://vih786wuduzmldekoq3zdies.syntavera.dev",
+        "EXPO_PUBLIC_API_URL": "https://eia-staging.syntavera.dev",
         "EXPO_PUBLIC_APP_ENV": "staging"
       }
     },

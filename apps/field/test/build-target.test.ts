@@ -25,7 +25,7 @@ const app = JSON.parse(readFileSync(resolve(here, "../app.json"), "utf8")) as {
   expo: { android: { versionCode: number; permissions: string[] }; plugins: unknown[] };
 };
 
-const STAGING_HOST = "https://vih786wuduzmldekoq3zdies.syntavera.dev";
+const STAGING_HOST = "https://eia-staging.syntavera.dev";
 
 describe("the staging build points at the accepted staging backend", () => {
   it("targets the Coolify host, not the retired Vercel UAT one", () => {
