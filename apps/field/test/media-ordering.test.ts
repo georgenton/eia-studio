@@ -321,6 +321,28 @@ describe("against the device's own database", () => {
   });
 
   /**
+   * A photograph on its own is pending work, and the guard must see it.
+   *
+   * `capture` used to bump only the parcel's own list, leaving the shared summary as it was until
+   * the next sync — so a device with nothing else pending could take a photograph and be allowed
+   * to sign out, which discards the database and the file. The screen now refreshes the summary;
+   * this pins what that summary has to say.
+   */
+  it("counts a photograph nobody has synced, and refuses sign-out for it alone", async () => {
+    expect(decideSignOut(await summarisePendingWork(database.db)).kind).toBe("allowed");
+
+    await photograph("0199f3a2-7c41-7abc-8d0f-0000000000d1");
+
+    const summary = await summarisePendingWork(database.db);
+    expect(summary.pendingMedia).toBe(1);
+    expect(summary.outboxPending).toBe(0);
+    const decision = decideSignOut(summary);
+    expect(decision.kind).toBe("blocked");
+    if (decision.kind !== "blocked") return;
+    expect(decision.blocking).toContain("pendingMedia");
+  });
+
+  /**
    * Predio 102's residue: the order the server refused is `FAILED`, which is excluded from the
    * retry queue and **counted** as pending work. Left alone it blocks sign-out and the project
    * switch for ever, over a photograph that has since arrived.
