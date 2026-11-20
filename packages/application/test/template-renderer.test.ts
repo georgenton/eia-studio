@@ -70,7 +70,17 @@ describe("what the archive must be before it is a template", () => {
     expect(() => assertTemplateArchiveSafe(buildNotAWordPackage())).toThrow(UnsupportedUpload);
   });
 
-  it("refuses an archive that expands far beyond its size", () => {
+  /*
+   * Thirty seconds, for one test, on purpose. `buildZipBomb` deflates 80 MB of zeros at level 9 to
+   * produce a genuine archive that lies about its expanded size, and on a loaded machine that
+   * crosses the default five-second timeout — observed failing at 7 060 ms in a full run on
+   * 19 November 2026, and passing in 2 s when the file ran alone.
+   *
+   * The cheap alternative would be a smaller bomb, and it would weaken the test: the point is an
+   * archive whose declared sizes are far beyond the limit, not a fixture that happens to trip a
+   * comparison. A slow test that checks the real thing beats a fast one that checks a stand-in.
+   */
+  it("refuses an archive that expands far beyond its size", { timeout: 30_000 }, () => {
     expect(() => assertTemplateArchiveSafe(buildZipBomb())).toThrow(UnsupportedUpload);
   });
 

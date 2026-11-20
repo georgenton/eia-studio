@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 
+import type { ProjectRole, TenantRole } from "@eia/domain";
 import { and, eq, sql } from "drizzle-orm";
 
 import {
@@ -18,15 +19,15 @@ import {
  * Inserts run with the migrator connection (bypasses RLS) to arrange state; assertions then use
  * the runtime connection.
  */
-export type TenantRoleName = "OWNER" | "ADMIN" | "MEMBER";
-export type ProjectRoleName =
-  | "COORDINATOR"
-  | "SOCIAL_SPECIALIST"
-  | "ENVIRONMENTAL_SPECIALIST"
-  | "GIS_SPECIALIST"
-  | "FIELD_TECHNICIAN"
-  | "REVIEWER"
-  | "VIEWER";
+/*
+ * Derived from the authorization model rather than re-listed here. The hand-written copy went
+ * stale the day `PROJECT_DATA_MANAGER` was added (ADR-030): the role existed, held permissions and
+ * had a surface, and no test could create one — so the first test that needed it failed to compile
+ * instead of failing on the behaviour it was written for. A role the product has is now a role the
+ * factories can make, by construction.
+ */
+export type TenantRoleName = TenantRole;
+export type ProjectRoleName = ProjectRole;
 
 let counter = 0;
 const next = () => (++counter).toString(36);

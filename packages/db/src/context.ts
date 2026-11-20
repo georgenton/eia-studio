@@ -29,6 +29,16 @@ export interface DbContext {
    * `app.pii_access`).
    */
   readonly fieldResponsesAccess?: boolean;
+  /**
+   * Whether this unit of work may read the project's **field workflow** — campaigns, assignments
+   * and their counts — as opposed to an individual's answers.
+   *
+   * Set from `field.read` by the application layer, for the same reason and in the same shape as
+   * the line above. It exists because project access is not the permission: a `FIELD_TECHNICIAN`
+   * is a member of the project and must not obtain its overview, so the privileged counters of
+   * migration 0059 ask for this rather than for `has_project_access` alone. Default `false`.
+   */
+  readonly fieldWorkflowAccess?: boolean;
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -49,13 +59,15 @@ export async function withDbContext<T>(
   const projectId = uuidOrEmpty(ctx.projectId, "projectId");
   const surface = ctx.surface ?? "internal";
   const fieldResponses = ctx.fieldResponsesAccess === true ? "on" : "off";
+  const fieldWorkflow = ctx.fieldWorkflowAccess === true ? "on" : "off";
   return db.transaction(async (tx) => {
     await tx.execute(
       sql`select set_config('app.user_id', ${userId}, true),
                  set_config('app.tenant_id', ${tenantId}, true),
                  set_config('app.project_id', ${projectId}, true),
                  set_config('app.surface', ${surface}, true),
-                 set_config('app.field_responses_access', ${fieldResponses}, true)`,
+                 set_config('app.field_responses_access', ${fieldResponses}, true),
+                 set_config('app.field_read_access', ${fieldWorkflow}, true)`,
     );
     return fn(tx);
   });

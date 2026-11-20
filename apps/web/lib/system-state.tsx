@@ -1,6 +1,7 @@
 import { SystemState } from "@eia/ui";
 import { ButtonLink } from "@/components/navigation";
 import { getTranslator } from "@/lib/locale";
+import { roleLabel } from "@/lib/role-label";
 
 /**
  * The 15 system states are produced by the server as typed outcomes (ARCHITECTURE.md §11).
@@ -26,7 +27,7 @@ export async function PermissionDeniedState({
     <SystemState state="permission denied" title={t("systemState.permissionDeniedTitle")}>
       <p>
         {t("systemState.permissionDeniedBody", {
-          role: role ?? t("systemState.currentRole"),
+          role: roleLabel(t, role),
           restricted: restrictedData,
         })}{" "}
         {t("systemState.permissionDeniedBody2")}

@@ -164,5 +164,20 @@ export const ignores = {
     "**/next-env.d.ts",
     // Vendored third-party bundles copied into /public by a build step (the MapLibre worker).
     "apps/*/public/vendor/**",
+    /*
+     * Git worktrees the agent harness creates inside the repository.
+     *
+     * Each is a **complete second checkout** of this repository on another branch, so without
+     * this line `pnpm lint` reports the whole project once per worktree — 5 985 errors from six
+     * checkouts on 19 November 2026, every one of them a rule that passes in the file's real
+     * location. The signal from the actual working tree was buried under copies of itself.
+     *
+     * Narrow on purpose: this directory and nothing else. Not hidden directories in general, not
+     * a glob that would match any folder called "worktrees" anywhere, and not a file extension —
+     * any of which would quietly stop linting code somebody is working on. The copies are ignored
+     * by Git too, so nothing here is ever committed from them; the branches inside them are linted
+     * when *they* are checked out.
+     */
+    ".claude/worktrees/**",
   ],
 };
