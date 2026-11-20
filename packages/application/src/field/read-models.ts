@@ -22,7 +22,6 @@ import { sql } from "drizzle-orm";
 
 import { facetsOf, loadProvenanceRecords } from "../projects/provenance";
 import { readsAllFieldResponses, withFieldContext } from "./context";
-import { IS_EFFECTIVE_INSTANCE } from "./corrections";
 
 /** Shape check only; whether the row exists, and whose it is, stays the database's answer. */
 const UUID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -92,6 +91,17 @@ export interface FieldOverview {
  * What a coordinator or social specialist sees: the campaigns, their progress and who is carrying
  * the work. Counts only — no individual response is read here, so a role with `field.read` and no
  * `field.responses.read` still gets a useful picture without seeing anyone's answers.
+ *
+ * That sentence was a promise this function did not keep until migration 0059. The counts were
+ * aggregates over `app.field_assignment` and `app.survey_instance`, whose policies admit a row
+ * only when it is the caller's own *or* they hold `field.responses.read`; a *Gestor de
+ * información*, who holds `field.read` and not that, saw **0 asignadas · 0 pendientes · 0
+ * enviadas** for a campaign a coordinator saw as 13 and 8. A plausible, entirely false
+ * tabulation — the failure TD-045 names, arriving through a different door.
+ *
+ * The counts now come from `app.field_campaign_counts` and `app.field_technician_workload`, which
+ * return integers and identifiers and have nowhere to put an answer. Reading one household's
+ * ficha is unchanged and still needs `field.responses.read`.
  */
 export async function loadFieldOverview(db: Database, ctx: RequestContext): Promise<FieldOverview> {
   requireCapability(ctx, "field.surveys");
@@ -117,47 +127,19 @@ export async function loadFieldOverview(db: Database, ctx: RequestContext): Prom
              coalesce(a.in_progress, 0)::int as in_progress,
              coalesce(a.completed, 0)::int as completed,
              coalesce(a.cancelled, 0)::int as cancelled,
-             coalesce(s.submitted, 0)::int as submitted,
-             coalesce(corr.corrections_open, 0)::int as corrections_open
+             coalesce(a.submitted, 0)::int as submitted,
+             coalesce(a.corrections_open, 0)::int as corrections_open
       from app.survey_campaign c
       join app.survey_version v on v.tenant_id = c.tenant_id and v.id = c.survey_version_id
       join app.survey_template t on t.tenant_id = v.tenant_id and t.id = v.template_id
       /*
-       * Progress is about the work the campaign set out to do, so a **correction assignment is not
-       * a parcel** (ADR-038): counting it would turn 141 parcels into 142 the moment somebody asked
-       * for one response to be captured again, and a coordinator reading a falling percentage would
-       * have no way to tell why. Corrections are counted separately, beside the four states, and
-       * the surface says so in words.
+       * The four states, the corrections and the submitted responses all come from one privileged
+       * counter (migration 0059) rather than from aggregates this caller may not see rows for. It
+       * keeps the rules the lateral joins used to express: a **correction assignment is not a
+       * parcel** (ADR-038), and one effective response per household whatever its lineage.
        */
-      left join lateral (
-        select count(*) filter (where fa.status = 'PENDING') as pending,
-               count(*) filter (where fa.status = 'IN_PROGRESS') as in_progress,
-               count(*) filter (where fa.status = 'COMPLETED') as completed,
-               count(*) filter (where fa.status = 'CANCELLED') as cancelled
-        from app.field_assignment fa
-        where fa.tenant_id = c.tenant_id and fa.campaign_id = c.id
-          and fa.corrects_assignment_id is null
-      ) a on true
-      left join lateral (
-        select count(*) filter (where fa.status in ('PENDING', 'IN_PROGRESS'))
-                 as corrections_open
-        from app.field_assignment fa
-        where fa.tenant_id = c.tenant_id and fa.campaign_id = c.id
-          and fa.corrects_assignment_id is not null
-      ) corr on true
-      /*
-       * One effective response per household, whatever its lineage: a corrected parcel has two
-       * submitted responses and is still one answered parcel.
-       */
-      left join lateral (
-        select count(*) as submitted
-        from app.survey_instance si
-        join app.field_assignment fa2
-          on fa2.tenant_id = si.tenant_id and fa2.id = si.assignment_id
-        where si.tenant_id = c.tenant_id
-          and fa2.campaign_id = c.id
-          and ${IS_EFFECTIVE_INSTANCE("si")}
-      ) s on true
+      left join app.field_campaign_counts(${ctx.tenantId}::uuid, ${projectId}::uuid) a
+        on a.campaign_id = c.id
       where c.tenant_id = ${ctx.tenantId} and c.project_id = ${projectId}
       order by c.created_at desc
     `);
@@ -217,19 +199,23 @@ export async function loadFieldOverview(db: Database, ctx: RequestContext): Prom
       };
     });
 
-    // Workload is a count per technician, not a list of their responses. A coordinator needs to
-    // know who is carrying what; that does not require reading anybody's answers.
+    /*
+     * Workload is a count per technician, not a list of their responses. A coordinator needs to
+     * know who is carrying what; that does not require reading anybody's answers — and since
+     * migration 0059 it no longer requires permission to read the assignment rows either.
+     *
+     * The **name** is joined here, under ordinary RLS, rather than returned by the counter: whose
+     * name a reader may see stays a question `app."user"`'s own policy answers. A row whose user
+     * is not visible keeps its counts and loses its label, which is the safe direction.
+     */
     const workloadRows = await tx.execute(sql`
-      select fa.assignee_user_id as user_id,
-             coalesce(u.name, u.email) as display_name,
-             count(*) filter (where fa.status = 'PENDING')::int as pending,
-             count(*) filter (where fa.status = 'IN_PROGRESS')::int as in_progress,
-             count(*) filter (where fa.status = 'COMPLETED')::int as completed
-      from app.field_assignment fa
-      join app."user" u on u.id = fa.assignee_user_id
-      where fa.tenant_id = ${ctx.tenantId} and fa.project_id = ${projectId}
-        and fa.status <> 'CANCELLED'
-      group by fa.assignee_user_id, coalesce(u.name, u.email)
+      select w.assignee_user_id as user_id,
+             coalesce(u.name, u.email, '') as display_name,
+             w.pending,
+             w.in_progress,
+             w.completed
+      from app.field_technician_workload(${ctx.tenantId}::uuid, ${projectId}::uuid) w
+      left join app."user" u on u.id = w.assignee_user_id
       order by 2
     `);
 

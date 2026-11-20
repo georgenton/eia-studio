@@ -153,6 +153,15 @@ by the application layer from the resolved permission — the same shape as `app
 (SECURITY.md §5). A caller that forgets to set it sees only its own rows, which is the safe
 direction to fail in.
 
+It is not, however, the safe direction for a **count**. Until migration 0059 the field progress
+figures were ordinary aggregates over those same rows, so a role holding `field.read` and not
+`field.responses.read` — a `PROJECT_DATA_MANAGER`, a `GIS_SPECIALIST` — was shown *0 asignadas ·
+0 enviadas* for a campaign a coordinator read as 13 and 8. Nothing failed, nothing was denied, and
+the number on the screen was false. The counts now come from two SECURITY DEFINER counters that
+return integers and identifiers and have nowhere to put an answer, so **how many** no longer
+requires permission to read **which**; opening one household's ficha is unchanged (SECURITY.md
+§10b, TD-045).
+
 ### 3.2 Social permissions, and the one that is reused rather than duplicated (Slice 4)
 
 Social Intelligence has three distinguishable acts, and they are not the same grant.

@@ -81,10 +81,45 @@ const PRIVILEGED_BOUNDED_ANSWERS = [
   { name: "socialization_delivery_conflict", type: "app.socialization_delivery_block" },
 ] as const;
 
+/**
+ * **Class 4 — counting without reading (migration 0059).**
+ *
+ * `field.read` and `field.responses.read` are different grants, and the row policies enforce the
+ * difference. Counting over those rows therefore produced **zeros** for a role that may see the
+ * workflow and not the answers — a plausible, entirely false tabulation on a coordinator's screen
+ * (TD-045). Denying the whole surface would have contradicted what the role is for, so the counts
+ * moved behind these two.
+ *
+ * They cannot be boolean, and they are not claiming work, so they are their own class. The rule is
+ * the one class 2 follows: **every returned column is a uuid or an integer**. There is no text
+ * column, which is what makes "no answer can cross this boundary" a fact about the type rather
+ * than a promise about the body — and the access check lives *inside* them, because `eia_policy`
+ * carries BYPASSRLS.
+ */
+const PRIVILEGED_COUNTERS = [
+  {
+    name: "field_campaign_counts",
+    columns: [
+      "campaign_id",
+      "pending",
+      "in_progress",
+      "completed",
+      "cancelled",
+      "submitted",
+      "corrections_open",
+    ],
+  },
+  {
+    name: "field_technician_workload",
+    columns: ["assignee_user_id", "pending", "in_progress", "completed"],
+  },
+] as const;
+
 const PRIVILEGED = [
   ...PRIVILEGED_PREDICATES,
   ...PRIVILEGED_JOB_HELPERS,
   ...PRIVILEGED_BOUNDED_ANSWERS.map((f) => f.name),
+  ...PRIVILEGED_COUNTERS.map((f) => f.name),
 ] as const;
 
 /** A login role with no grants at all: stands in for "any role that only has PUBLIC". */
@@ -210,9 +245,11 @@ describe("hardening contract of the privileged helpers", () => {
       from pg_proc p join pg_namespace n on n.oid = p.pronamespace
       where n.nspname = 'app' and p.prosecdef
         and p.proname not in (${sql.join(
-          [...PRIVILEGED_JOB_HELPERS, ...PRIVILEGED_BOUNDED_ANSWERS.map((f) => f.name)].map(
-            (name) => sql`${name}`,
-          ),
+          [
+            ...PRIVILEGED_JOB_HELPERS,
+            ...PRIVILEGED_BOUNDED_ANSWERS.map((f) => f.name),
+            ...PRIVILEGED_COUNTERS.map((f) => f.name),
+          ].map((name) => sql`${name}`),
           sql`, `,
         )})
     `);
@@ -313,6 +350,146 @@ describe("hardening contract of the privileged helpers", () => {
     }
   });
 
+  it("the counters return identifiers and integers, never content", async () => {
+    // The guarantee is the return type, not the body: a text column here would be a place an
+    // answer, a parcel code or a technician's note could be put by a later edit, and nobody would
+    // notice until it was on a screen.
+    for (const fn of PRIVILEGED_COUNTERS) {
+      const result = await db.migrator.execute(sql`
+        select arg.name as column, pg_catalog.format_type(arg.type, null) as type
+          from pg_proc p
+          join pg_namespace n on n.oid = p.pronamespace,
+               lateral unnest(p.proargnames, p.proallargtypes, p.proargmodes)
+                 with ordinality as arg(name, type, mode, ord)
+         where n.nspname = 'app' and p.proname = ${fn.name} and arg.mode = 't'
+         order by arg.ord
+      `);
+      const columns = result.rows as Array<{ column: string; type: string }>;
+      expect(
+        columns.map((c) => c.column),
+        fn.name,
+      ).toEqual([...fn.columns]);
+      for (const column of columns) {
+        expect(["uuid", "integer"], `${fn.name}.${column.column}`).toContain(column.type);
+      }
+    }
+  });
+
+  /*
+   * The checks that make BYPASSRLS survivable, run as `eia_app` — the real runtime role — in a
+   * real transaction context. Preparing fixtures with the migrator is fine; making the *protected*
+   * call with it would hide exactly the failure these assert.
+   *
+   * Every one of them must **raise**. A privileged counter that answered a refusal with an empty
+   * result would be reproducing the defect it was written to fix, one layer down: the read model
+   * coalesces a missing row to zero.
+   */
+  const callCounters = async (
+    settings: Record<string, string>,
+    tenant: string,
+    project: string,
+  ) => {
+    const errors: string[] = [];
+    for (const fn of ["field_campaign_counts", "field_technician_workload"]) {
+      const error = await attempt(
+        db.runtime.transaction(async (tx) => {
+          for (const [key, value] of Object.entries(settings)) {
+            await tx.execute(sql`select set_config(${key}, ${value}, true)`);
+          }
+          await tx.execute(
+            sql`select * from ${sql.raw(`app.${fn}`)}(${tenant}::uuid, ${project}::uuid)`,
+          );
+        }),
+      );
+      errors.push(error ?? "NO ERROR");
+    }
+    return errors;
+  };
+
+  it("a counter refuses a caller with no access to the project", async () => {
+    // Tenant B's owner is a real user with real memberships — just not here.
+    for (const error of await callCounters(
+      {
+        "app.user_id": w.ownerB.id,
+        "app.tenant_id": w.tenantA.id,
+        "app.project_id": w.projectX.id,
+        "app.field_read_access": "on",
+      },
+      w.tenantA.id,
+      w.projectX.id,
+    )) {
+      expect(error).toMatch(/require access to the project/i);
+    }
+  });
+
+  it("a counter refuses a member of the project who lacks field.read", async () => {
+    // The contract `has_project_access` does not express. A technician belongs to the project and
+    // must still not obtain its overview; without this the use-case's permission check would be
+    // bypassable by calling the function directly.
+    for (const error of await callCounters(
+      {
+        "app.user_id": w.memberA.id,
+        "app.tenant_id": w.tenantA.id,
+        "app.project_id": w.projectX.id,
+        "app.field_read_access": "off",
+      },
+      w.tenantA.id,
+      w.projectX.id,
+    )) {
+      expect(error).toMatch(/require the field\.read permission/i);
+    }
+  });
+
+  it("a counter refuses a transaction with no context at all", async () => {
+    for (const error of await callCounters({}, w.tenantA.id, w.projectX.id)) {
+      expect(error).toMatch(/require a transaction context/i);
+    }
+  });
+
+  it("a counter refuses an argument that contradicts the transaction", async () => {
+    // Asking about project Y while acting on project X, and about tenant B while acting on A.
+    for (const error of await callCounters(
+      {
+        "app.user_id": w.memberA.id,
+        "app.tenant_id": w.tenantA.id,
+        "app.project_id": w.projectX.id,
+        "app.field_read_access": "on",
+      },
+      w.tenantA.id,
+      w.projectY.id,
+    )) {
+      expect(error).toMatch(/not acting on/i);
+    }
+    for (const error of await callCounters(
+      {
+        "app.user_id": w.memberA.id,
+        "app.tenant_id": w.tenantA.id,
+        "app.project_id": w.projectX.id,
+        "app.field_read_access": "on",
+      },
+      w.tenantB.id,
+      w.projectZ.id,
+    )) {
+      expect(error).toMatch(/not acting on/i);
+    }
+  });
+
+  it("the runtime role cannot execute the guard's reader as a way around it", async () => {
+    // `app.field_read_access` is a transaction-local setting, so a caller who can set it
+    // arbitrarily already holds the runtime role — the caveat IG0-B01 states. What must hold is
+    // that the application never sets it without the permission, which the application tests
+    // assert; here we only check the reader exists, is not privileged, and defaults to off.
+    const row = await db.migrator.execute<{ secdef: boolean }>(sql`
+      select p.prosecdef as secdef from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+       where n.nspname = 'app' and p.proname = 'can_read_field_workflow'
+    `);
+    expect(row.rows[0]?.secdef).toBe(false);
+    const off = await db.runtime.transaction(async (tx) =>
+      tx.execute<{ on: boolean }>(sql`select app.can_read_field_workflow() as on`),
+    );
+    expect(off.rows[0]?.on).toBe(false);
+  });
+
   it("no helper body uses dynamic SQL", async () => {
     const result = await db.migrator.execute(sql`
       select p.proname as name, p.prosrc as src, l.lanname as lang
@@ -324,8 +501,13 @@ describe("hardening contract of the privileged helpers", () => {
       // Membership predicates are plain SQL; the job helpers need control flow, so they are
       // plpgsql. Both are held to the rules that actually protect the boundary: no dynamic SQL,
       // no identifier interpolation, every relation schema-qualified.
-      const isJobHelper = (PRIVILEGED_JOB_HELPERS as ReadonlyArray<string>).includes(row.name);
-      expect(row.lang, row.name).toBe(isJobHelper ? "plpgsql" : "sql");
+      // Membership predicates are plain SQL. The job helpers need control flow, and so do the
+      // counters: their guard must **raise**, because a privileged function that answered a
+      // refusal with an empty result would be printing `0 asignadas` again (migration 0059).
+      const needsControlFlow =
+        (PRIVILEGED_JOB_HELPERS as ReadonlyArray<string>).includes(row.name) ||
+        PRIVILEGED_COUNTERS.some((f) => f.name === row.name);
+      expect(row.lang, row.name).toBe(needsControlFlow ? "plpgsql" : "sql");
       // `EXECUTE` as a plpgsql statement is dynamic SQL; `FOR UPDATE ... ` is not. The job helpers
       // must not contain the former.
       expect(row.src.toLowerCase(), row.name).not.toMatch(

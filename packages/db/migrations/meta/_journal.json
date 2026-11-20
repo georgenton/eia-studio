@@ -414,6 +414,13 @@
       "when": 1791347102676,
       "tag": "0058_socialization_sync_command",
       "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1791347103676,
+      "tag": "0059_field_progress_counts",
+      "breakpoints": true
     }
   ]
 }
