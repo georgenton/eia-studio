@@ -311,4 +311,31 @@ describe("loadPortfolio", () => {
     const projectX = memberView.projects.find((p) => p.slug === w.projectX.slug);
     expect(projectX?.accessible).toBe(true);
   });
+
+  /**
+   * A project with no figures yet is not a project you are refused from.
+   *
+   * `metricsRestricted` used to be read off the *absence of metric rows* plus a permission the
+   * caller cannot hold at tenant scope, so a tenant whose projects simply had no figures — which
+   * is every project on its first day, and the training project the night before a workshop —
+   * showed everyone a `permission denied` panel saying their role administers the organisation
+   * and has no access to the figures. Both halves were false: nothing had been denied, and the
+   * figures did not exist. Observed on staging on 19 November 2026 with six roles, the
+   * coordinator's included.
+   *
+   * The owner of tenant B is the case in one line: implicit access to every project of the tenant
+   * (D-015), no metric row anywhere in it, and no project in context, so no project permission is
+   * resolved. The question the flag answers is now access, and access alone.
+   */
+  it("does not call an absence of figures a denial", async () => {
+    const ctx = await buildRequestContext(db.runtime, {
+      sessionUser: session(w.ownerB),
+      tenantSlug: w.tenantB.slug,
+    });
+    const view = await loadPortfolio(db.runtime, ctx);
+    expect(view.projects.length).toBeGreaterThan(0);
+    expect(view.projects.every((p) => p.metrics.length === 0)).toBe(true);
+    expect(view.projects.every((p) => p.accessible)).toBe(true);
+    expect(view.metricsRestricted).toBe(false);
+  });
 });
