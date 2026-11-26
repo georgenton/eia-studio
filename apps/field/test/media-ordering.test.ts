@@ -180,6 +180,7 @@ describe("against the device's own database", () => {
       kind: "parcel",
       note: null,
       locationOutcome: "not_attempted",
+      locationSession: null,
     });
 
   /**

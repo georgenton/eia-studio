@@ -476,6 +476,17 @@ function MediaTab({
                         capturedAt: t("parcel.mediaLocationCapturedAt"),
                         none: t("parcel.mediaLocationNone"),
                         caveat: t("parcel.mediaLocationCaveat"),
+                        simulated: t("parcel.mediaLocationSimulated"),
+                        simulatedBody: t("parcel.mediaLocationSimulatedBody"),
+                        outcome: {
+                          captured: t("parcel.mediaLocationOutcomeCaptured"),
+                          denied: t("parcel.mediaLocationOutcomeDenied"),
+                          timed_out: t("parcel.mediaLocationOutcomeTimedOut"),
+                          unavailable: t("parcel.mediaLocationOutcomeUnavailable"),
+                          not_attempted: t("parcel.mediaLocationOutcomeNotAttempted"),
+                        },
+                        outcomeUnknown: t("parcel.mediaLocationOutcomeUnknown"),
+                        source: t("parcel.mediaLocationSource"),
                       }}
                       mediaId={item.id}
                       project={project}

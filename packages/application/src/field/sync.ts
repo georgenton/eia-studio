@@ -274,6 +274,19 @@ async function execute(
               locatedAt: command.payload.location.capturedAt,
             }
           : null,
+        /*
+         * What is known about the attempt. Absent from an older build's declaration and therefore
+         * absent here: the use-case stores null, and null means unknown rather than "no position".
+         */
+        ...(command.payload.locationOutcome === undefined
+          ? {}
+          : { locationOutcome: command.payload.locationOutcome }),
+        ...(command.payload.locationMocked === undefined
+          ? {}
+          : { locationMocked: command.payload.locationMocked }),
+        ...(command.payload.locationSource === undefined
+          ? {}
+          : { locationSource: command.payload.locationSource }),
       });
       return {
         ...EMPTY,

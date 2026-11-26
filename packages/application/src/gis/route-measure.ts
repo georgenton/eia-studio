@@ -150,8 +150,25 @@ export async function measureRoute(
  * when a project has not stated where its 0+000 is, the posts are **calculated distance from the
  * first vertex** rather than abscissas, and every surface that draws them has to say so.
  */
+/** A kilometre post with the place it sits, in canonical EPSG:4326 for drawing. */
+export interface PlacedMilestone extends Milestone {
+  readonly longitude: number;
+  readonly latitude: number;
+}
+
 export interface CorridorMilestones {
-  readonly milestones: ReadonlyArray<Milestone>;
+  readonly milestones: ReadonlyArray<PlacedMilestone>;
+  /**
+   * The ends of the merged route, in the order the geometry runs.
+   *
+   * `ST_LineMerge` may return the route reversed with respect to how it was delivered, and nothing
+   * in the geometry says which end the abscissa starts at. So both ends are returned and the
+   * caller — a surface, or whoever declares the frame — can see which one the declared origin is
+   * being anchored to instead of trusting the merge's direction (block C.5).
+   */
+  readonly startPoint: { readonly longitude: number; readonly latitude: number };
+  readonly endPoint: { readonly longitude: number; readonly latitude: number };
+  readonly routeLengthM: number;
   readonly frame: ChainageFrame;
   /**
    * False when the origin and direction were assumed rather than declared. The labels are then a
@@ -174,6 +191,7 @@ export async function loadCorridorMilestones(
 ): Promise<
   CorridorMilestones | { readonly kind: "discontinuous"; readonly partsAfterMerge: number }
 > {
+  const projectId = requireProject(ctx);
   const measurement = await measureRoute(db, ctx, input.datasetVersionId);
   if (measurement.kind === "discontinuous") {
     return { kind: "discontinuous", partsAfterMerge: measurement.partsAfterMerge };
@@ -186,8 +204,75 @@ export async function loadCorridorMilestones(
     direction: input.direction ?? "forward",
   };
 
+  const milestones = milestonesFor(frame, input.spacingM);
+
+  /*
+   * The places, interpolated on **the same metric route the length came from**.
+   *
+   * One query, with the distances passed in as an array, so every post is placed on the geometry
+   * that produced the measurement rather than on a second reading of it. Interpolation happens in
+   * the projected CRS — `ST_LineInterpolatePoint` takes a fraction of length, and a fraction of a
+   * geographic line's length is a fraction of degrees — and the result is transformed back to
+   * EPSG:4326, which is what every map in this product consumes (ADR-017).
+   */
+  const placed = await withDbContext(db, ctx, async (tx) => {
+    const distances = milestones.map((m) => m.distanceAlongM);
+    const result = await tx.execute(sql`
+      with v as (
+        select analysis_srid from app.spatial_dataset_version
+         where tenant_id = ${ctx.tenantId} and project_id = ${projectId}
+           and id = ${input.datasetVersionId}
+         limit 1
+      ),
+      r as (
+        select ST_LineMerge(ST_Transform(al.geom, v.analysis_srid::integer)) as route,
+               v.analysis_srid
+          from app.alignment al, v
+         where al.tenant_id = ${ctx.tenantId} and al.project_id = ${projectId}
+           and al.dataset_version_id = ${input.datasetVersionId}
+         limit 1
+      ),
+      len as (select route, analysis_srid, ST_Length(route) as total from r),
+      d as (
+        select ordinality - 1 as idx, value::double precision as distance_m
+          from unnest(${sql.raw(`ARRAY[${distances.map((x) => Number(x)).join(",") || "NULL::double precision"}]::double precision[]`)})
+               with ordinality as t(value, ordinality)
+      )
+      select d.idx,
+             ST_X(ST_Transform(ST_LineInterpolatePoint(len.route,
+               least(greatest(d.distance_m / nullif(len.total, 0), 0), 1)), 4326)) as lon,
+             ST_Y(ST_Transform(ST_LineInterpolatePoint(len.route,
+               least(greatest(d.distance_m / nullif(len.total, 0), 0), 1)), 4326)) as lat,
+             ST_X(ST_Transform(ST_StartPoint(len.route), 4326)) as start_lon,
+             ST_Y(ST_Transform(ST_StartPoint(len.route), 4326)) as start_lat,
+             ST_X(ST_Transform(ST_EndPoint(len.route), 4326)) as end_lon,
+             ST_Y(ST_Transform(ST_EndPoint(len.route), 4326)) as end_lat
+        from d, len
+       order by d.idx
+    `);
+    return result.rows as unknown as ReadonlyArray<{
+      idx: number;
+      lon: number | string;
+      lat: number | string;
+      start_lon: number | string;
+      start_lat: number | string;
+      end_lon: number | string;
+      end_lat: number | string;
+    }>;
+  });
+
+  const ends = placed[0];
+  if (ends === undefined) throw new NotFound("alignment");
+
   return {
-    milestones: milestonesFor(frame, input.spacingM),
+    milestones: milestones.map((m, index) => {
+      const row = placed.find((r) => Number(r.idx) === index);
+      if (row === undefined) throw new NotFound("milestone placement");
+      return { ...m, longitude: Number(row.lon), latitude: Number(row.lat) };
+    }),
+    startPoint: { longitude: Number(ends.start_lon), latitude: Number(ends.start_lat) },
+    endPoint: { longitude: Number(ends.end_lon), latitude: Number(ends.end_lat) },
+    routeLengthM: measurement.routeLengthM,
     frame,
     declared,
     analysisSrid: measurement.analysisSrid,

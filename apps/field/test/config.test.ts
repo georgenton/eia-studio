@@ -2,7 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("expo-constants", () => ({ default: { expoConfig: { version: "1.0.0" } } }));
 
-import { fieldConfig, MisconfiguredFieldBuild, STAGING_ORIGIN } from "../src/config";
+import {
+  ENVIRONMENT_ORIGINS,
+  ENVIRONMENT_SCHEMES,
+  fieldConfig,
+  MisconfiguredFieldBuild,
+  STAGING_ORIGIN,
+} from "../src/config";
 
 /**
  * Which backend a build talks to, and what it tells the technician it is.
@@ -17,8 +23,11 @@ import { fieldConfig, MisconfiguredFieldBuild, STAGING_ORIGIN } from "../src/con
  * No network is touched: the production URL below is a unit-test placeholder, and the production
  * host is still undecided.
  */
-const PLAUSIBLE_PRODUCTION = "https://campo.example.invalid";
+const PRODUCTION_ORIGIN = ENVIRONMENT_ORIGINS.production;
+const DEMO_ORIGIN = ENVIRONMENT_ORIGINS.demo;
 const RETIRED_UAT = "https://eia-field-uat.vercel.app";
+/** A host that is plausible and is not any of the three. Every build must refuse it. */
+const STRANGER = "https://campo.example.invalid";
 
 const saved = { url: process.env["EXPO_PUBLIC_API_URL"], env: process.env["EXPO_PUBLIC_APP_ENV"] };
 
@@ -32,7 +41,7 @@ function build(url: string | undefined, env: string | undefined): void {
 beforeEach(() => build(undefined, undefined));
 afterEach(() => build(saved.url, saved.env));
 
-describe("the three builds that are allowed", () => {
+describe("the four builds that are allowed", () => {
   it("staging, at the accepted Coolify origin", () => {
     build(STAGING_ORIGIN, "staging");
     const c = fieldConfig();
@@ -56,11 +65,40 @@ describe("the three builds that are allowed", () => {
     expect(c.apiBaseUrl).toBe("http://127.0.0.1:3000");
   });
 
-  it("production, at some future HTTPS host", () => {
-    build(PLAUSIBLE_PRODUCTION, "production");
+  it("production, at the verified production origin", () => {
+    build(PRODUCTION_ORIGIN, "production");
     const c = fieldConfig();
     expect(c.environment).toBe("production");
+    expect(c.apiBaseUrl).toBe(PRODUCTION_ORIGIN);
     expect(c.environmentLabel).toBe("Producción");
+  });
+
+  /*
+   * The environment `eas.json` and `app.config.ts` have admitted since the three-identity change,
+   * and that this contract refused outright until now: `readEnvironment("demo")` threw, so the
+   * demo APK could not construct its auth client and failed at launch.
+   */
+  it("demo, at the demo origin", () => {
+    build(DEMO_ORIGIN, "demo");
+    const c = fieldConfig();
+    expect(c.environment).toBe("demo");
+    expect(c.apiBaseUrl).toBe(DEMO_ORIGIN);
+    expect(c.environmentLabel).toContain("DEMO");
+    expect(c.environmentLabel).not.toContain("Producción");
+  });
+
+  /** One scheme per installable application: two builds claiming one scheme is a coin toss. */
+  it("gives each environment its own deep-link scheme, and they are all different", () => {
+    const seen = new Map<string, string>();
+    for (const [environment, origin] of Object.entries(ENVIRONMENT_ORIGINS)) {
+      build(origin, environment);
+      const c = fieldConfig();
+      expect(c.scheme).toBe(ENVIRONMENT_SCHEMES[c.environment]);
+      seen.set(environment, c.scheme);
+    }
+    expect(new Set(seen.values()).size).toBe(seen.size);
+    // The installed staging application keeps the scheme it already claims.
+    expect(seen.get("staging")).toBe("eiafield");
   });
 
   it("still reads as local development when nothing is declared", () => {
@@ -76,7 +114,16 @@ describe("the three builds that are allowed", () => {
 
 describe("a build whose environment and target disagree refuses to exist", () => {
   const refused: ReadonlyArray<readonly [string, string | undefined, string]> = [
-    ["staging aimed at a production-looking host", PLAUSIBLE_PRODUCTION, "staging"],
+    ["staging aimed at the production host", PRODUCTION_ORIGIN, "staging"],
+    ["staging aimed at the demo host", DEMO_ORIGIN, "staging"],
+    ["demo aimed at the staging host", STAGING_ORIGIN, "demo"],
+    ["demo aimed at the production host", PRODUCTION_ORIGIN, "demo"],
+    ["demo aimed at localhost", "http://localhost:3000", "demo"],
+    ["demo with no URL at all", undefined, "demo"],
+    ["demo aimed at a stranger", STRANGER, "demo"],
+    ["production aimed at the demo host", DEMO_ORIGIN, "production"],
+    ["production aimed at a stranger", STRANGER, "production"],
+    ["staging aimed at a stranger", STRANGER, "staging"],
     ["staging aimed at the retired Vercel UAT host", RETIRED_UAT, "staging"],
     ["staging aimed at localhost", "http://localhost:3000", "staging"],
     ["staging with no URL at all", undefined, "staging"],
@@ -88,7 +135,7 @@ describe("a build whose environment and target disagree refuses to exist", () =>
       "https://REPLACE-WITH-PRODUCTION-HOST",
       "production",
     ],
-    ["production over plain HTTP", "http://campo.example.invalid", "production"],
+    ["production over plain HTTP", PRODUCTION_ORIGIN.replace("https://", "http://"), "production"],
     ["local aimed at a remote host", STAGING_ORIGIN, "local"],
     ["an environment word nobody declared", STAGING_ORIGIN, "stagin"],
 
@@ -127,14 +174,10 @@ describe("a build whose environment and target disagree refuses to exist", () =>
     ],
     [
       "production aimed at any remote host with embedded credentials",
-      "https://tecnico:hunter2@campo.example.invalid",
+      `https://tecnico:hunter2@${new URL(PRODUCTION_ORIGIN).host}`,
       "production",
     ],
-    [
-      "production aimed at a path under a remote host",
-      "https://campo.example.invalid/api",
-      "production",
-    ],
+    ["production aimed at a path under its own host", `${PRODUCTION_ORIGIN}/api`, "production"],
     [
       "production aimed at a remote host with a fragment",
       "https://campo.example.invalid#token",

@@ -631,6 +631,19 @@ export const messages: Messages = {
     mediaLocationCaveat:
       "This is the position the technician's device computed, not a dwelling's, and it does not " +
       "certify the exact place or moment of the shot.",
+    /* Absence means **unknown**, which is not the same as saying there was no position. */
+    mediaLocationSimulated: "SIMULATED POSITION",
+    mediaLocationSimulatedBody:
+      "The platform reported that a mock provider produced this position. Every position an " +
+      "emulator reports is one. It is not a measurement of the ground.",
+    mediaLocationOutcomeCaptured: "the platform returned a position",
+    mediaLocationOutcomeDenied: "the technician did not allow location",
+    mediaLocationOutcomeTimedOut: "the bounded wait expired without an answer",
+    mediaLocationOutcomeUnavailable: "the platform could not return a position",
+    mediaLocationOutcomeNotAttempted: "location was not requested",
+    mediaLocationOutcomeUnknown:
+      "The build that took it did not report how the attempt ended. Unknown is not \u201creal\u201d.",
+    mediaLocationSource: "provider: {source}",
     tabQuality: "Quality",
     sections: "Parcel sections",
     backToExplorer: "Back to the explorer",
@@ -1954,6 +1967,35 @@ export const messages: Messages = {
     syncNow: "Sync now",
     syncing: "Syncing…",
     refreshWork: "Refresh assigned work",
+    /* The offline map: drawn from the project's own geometry, with no tile provider. */
+    mapTitle: "Locate parcel",
+    mapLoading: "Opening the stored map\u2026",
+    mapAbsent:
+      "You have not downloaded this project's map yet. Do it where there is signal: afterwards it " +
+      "works without any, even if you close the application.",
+    mapUnreadable:
+      "The stored map comes from a newer version of the application and cannot be read. Download " +
+      "it again.",
+    mapParcel: "Parcel",
+    mapParcelAbsent:
+      "The downloaded cartography does not include this parcel. It may have no geometry loaded " +
+      "yet; the work stays in your list with its code and its chainage.",
+    mapReferencePoint:
+      "A reference point, not an entrance. It is inside the parcel; it does not mark the dwelling " +
+      "or the access.",
+    mapChainageCalculated:
+      "The posts are a distance calculated along the axis, not the study's official chainage: " +
+      "nobody has declared where 0+000 is.",
+    mapPositionSimulated:
+      "SIMULATED POSITION. The platform reported that a mock provider produced it; on an emulator " +
+      "it always does. It is not a measurement of the ground.",
+    mapFetchedAt: "Map downloaded on {when}",
+    mapLocateMe: "My location",
+    mapDownload: "Download the map",
+    mapDownloadFailed: "The map could not be downloaded. Try again where there is signal.",
+    mapLocationDenied: "You did not allow location, so your position cannot be drawn.",
+    mapLocationTimedOut: "The wait for a position expired. You can try again.",
+    mapLocationUnavailable: "The platform could not return a position.",
     workUpdated: "Work updated.",
     noFieldProject:
       "You have no field work assigned. When the coordination team assigns you parcels, tap Refresh assigned work again.",

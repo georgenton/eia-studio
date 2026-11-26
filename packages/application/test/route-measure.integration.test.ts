@@ -148,6 +148,64 @@ describe("a route delivered in two pieces that meet", () => {
    * needs something to navigate by — but `declared` is false, and every surface that renders them
    * has to say they are a calculated distance rather than the study's abscissado.
    */
+  /**
+   * Block C.5: a post is not a label, it is a place.
+   *
+   * The arithmetic said *where along the route* each kilometre falls; this is the half that turns
+   * that into a coordinate, interpolated on **the same projected route the length came from**. The
+   * cases that matter are the ones a first-piece-only measurement got wrong: a post past the join,
+   * an origin that is not zero, and a reversed frame.
+   */
+  it("places each post on the route, including past the first piece", async () => {
+    const versionId = await alignmentFrom(
+      "MULTILINESTRING((-78.72 -3.79, -78.62 -3.79), (-78.62 -3.79, -78.57 -3.79))",
+    );
+    const result = await loadCorridorMilestones(db.runtime, await ctxFor(), {
+      datasetVersionId: versionId,
+      startChainageM: 0,
+      direction: "forward",
+    });
+    expect("milestones" in result).toBe(true);
+    if (!("milestones" in result)) return;
+
+    // Monotonic along the corridor, which runs west to east on one parallel.
+    const longitudes = result.milestones.map((m) => m.longitude);
+    expect(longitudes).toEqual([...longitudes].sort((a, b) => a - b));
+    // Every post is on the parallel the route follows, so latitude barely moves.
+    for (const m of result.milestones) expect(m.latitude).toBeCloseTo(-3.79, 3);
+    // And the posts past the join are east of it, which a first-piece measurement could not do.
+    const join = -78.62;
+    expect(result.milestones.some((m) => m.longitude > join)).toBe(true);
+    // The ends of the merged route are returned, because the merge does not prove orientation.
+    expect(result.startPoint.longitude).toBeCloseTo(-78.72, 3);
+    expect(result.endPoint.longitude).toBeCloseTo(-78.57, 3);
+  });
+
+  it("mirrors the places when the frame runs against the geometry", async () => {
+    const versionId = await alignmentFrom("LINESTRING(-78.72 -3.79, -78.62 -3.79)");
+    const forward = await loadCorridorMilestones(db.runtime, await ctxFor(), {
+      datasetVersionId: versionId,
+      startChainageM: 0,
+      direction: "forward",
+    });
+    const reversed = await loadCorridorMilestones(db.runtime, await ctxFor(), {
+      datasetVersionId: versionId,
+      startChainageM: 12_000,
+      direction: "reverse",
+    });
+    if (!("milestones" in forward) || !("milestones" in reversed)) throw new Error("discontinuous");
+
+    /*
+     * Same road, same geometry, opposite numbering. `0+000` sits at the first vertex going forward
+     * and the highest post sits there going backwards — which is the property a label alone cannot
+     * show and the reason the places are computed rather than assumed.
+     */
+    expect(forward.milestones[0]?.label).toBe("0+000");
+    expect(forward.milestones[0]?.longitude).toBeCloseTo(-78.72, 3);
+    expect(reversed.milestones.at(-1)?.label).toBe("12+000");
+    expect(reversed.milestones.at(-1)?.longitude).toBeCloseTo(-78.72, 3);
+  });
+
   it("says when the origin was assumed rather than declared", async () => {
     const versionId = await alignmentFrom("LINESTRING(-78.72 -3.79, -78.62 -3.79)");
     const result = await loadCorridorMilestones(db.runtime, await ctxFor(), {

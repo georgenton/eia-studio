@@ -170,3 +170,22 @@
   outline-offset: 2px;
   border-radius: 2px;
 }
+
+/*
+ * *Posición simulada*: the one label in this table that changes what the numbers above it mean.
+ *
+ * An emulator reports every position as produced by a mock provider, so a demonstration and a real
+ * field day look identical in the coordinates and differ only here. It is given the warning
+ * treatment — not the muted note treatment the rest of the row uses — because a reader who skims
+ * past it would read a simulation as a measurement.
+ */
+.simulatedBadge {
+  display: inline-block;
+  background: var(--eia-warn-bg, #f7eceb);
+  color: var(--eia-warn-ink, #7a2b22);
+  border-left: 3px solid var(--eia-warn-ink, #7a2b22);
+  padding: 1px 6px;
+  margin-top: 2px;
+  letter-spacing: 0.06em;
+  font-size: 9.5px;
+}

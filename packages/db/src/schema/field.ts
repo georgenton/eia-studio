@@ -898,6 +898,17 @@ export const fieldMedia = app.table(
      * fix; nothing is derived from `captured_at` to fill it.
      */
     locatedAt: timestamp("located_at", { withTimezone: true, mode: "date" }),
+    /**
+     * What is known about the *attempt*, beyond whether a point arrived (migration 0061).
+     *
+     * All three are nullable and **null means unknown** — a photograph declared by a build that
+     * predates this, or one whose platform reported nothing. Null is never "no position": that is
+     * what a null `location` says. Nothing derives these from the point or from `captured_at`.
+     */
+    locationOutcome: text("location_outcome"),
+    /** The platform's own flag. Every position an emulator reports is a mocked one. */
+    locationMocked: boolean("location_mocked"),
+    locationSource: text("location_source"),
     provenanceId: uuid("provenance_id").notNull(),
     createdAt: createdAt(),
   },

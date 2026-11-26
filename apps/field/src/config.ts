@@ -27,13 +27,47 @@ const FALLBACK = "http://localhost:3000";
  * So the environment is now a build input beside the URL, and the two are checked against each
  * other below. It is not a secret: it is one word, in a bundle that is public anyway.
  */
-export const APP_ENVIRONMENTS = ["local", "staging", "production"] as const;
+export const APP_ENVIRONMENTS = ["local", "demo", "staging", "production"] as const;
 export type AppEnvironment = (typeof APP_ENVIRONMENTS)[number];
 
 const LABELS: Record<AppEnvironment, string> = {
   local: "Desarrollo local",
+  demo: "DEMO · Entorno de demostración",
   staging: "STAGING · Entorno de pruebas",
   production: "Producción",
+};
+
+/**
+ * The deep-link scheme each installable build claims, which is **one per application**.
+ *
+ * Android resolves a link against whatever claims the scheme, so two installed builds claiming
+ * `eiafield://` makes which one receives a sign-in callback an arbitrary consequence of install
+ * order. The manifest (`app.config.ts`) gives each build its own; this is the same list, on the
+ * runtime side, so the two can be checked against each other instead of drifting apart.
+ */
+export const ENVIRONMENT_SCHEMES: Record<AppEnvironment, string> = {
+  local: "eiafielddev",
+  demo: "eiafielddemo",
+  staging: "eiafield",
+  production: "eiafieldprod",
+};
+
+/**
+ * The one origin each distributed environment may talk to.
+ *
+ * Exact origins rather than rules, for all three, because every interesting mistake is a *cross*:
+ * a demo build aimed at production writes a demonstration into a real study; a production build
+ * aimed at staging shows a client a study that does not exist; a staging build aimed at demo
+ * quietly moves the training campaign. None of those is caught by a label, because by then the
+ * label is the lie.
+ *
+ * `local` is absent on purpose: it is the only environment identified by a *property* of its
+ * target — loopback — rather than by a named host.
+ */
+export const ENVIRONMENT_ORIGINS: Record<Exclude<AppEnvironment, "local">, string> = {
+  demo: "https://eia-demo.syntavera.dev",
+  staging: "https://eia-staging.syntavera.dev",
+  production: "https://eia.syntavera.dev",
 };
 
 export class MisconfiguredFieldBuild extends Error {
@@ -41,13 +75,6 @@ export class MisconfiguredFieldBuild extends Error {
     super(message);
     this.name = "MisconfiguredFieldBuild";
   }
-}
-
-export interface FieldConfig {
-  readonly apiBaseUrl: string;
-  readonly appVersion: string;
-  readonly environment: AppEnvironment;
-  readonly environmentLabel: string;
 }
 
 function readEnvironment(value: string | undefined): AppEnvironment {
@@ -63,13 +90,13 @@ function readEnvironment(value: string | undefined): AppEnvironment {
   );
 }
 
-/** The one origin an accepted staging build may talk to. */
-export const STAGING_ORIGIN = "https://eia-staging.syntavera.dev";
+/** Kept as a named export: `STAGING_ORIGIN` is referenced by tests and by the build-target gate. */
+export const STAGING_ORIGIN = ENVIRONMENT_ORIGINS.staging;
 
 /**
- * Left in `eas.json` on purpose: the production host is not decided, and production is not
- * deployed (`docs/PRODUCTION_V1_GO_LIVE.md` §4). A build that shipped with it would resolve
- * nothing and say nothing about why.
+ * The placeholder `eas.json` carried until the production host was verified. It is gone from the
+ * profile, and the check stays: a build that shipped with it would resolve nothing and say nothing
+ * about why, and this produces a sentence rather than a DNS failure three screens later.
  */
 const PRODUCTION_PLACEHOLDER = "replace-with-production-host";
 
@@ -179,9 +206,7 @@ function assertBareOrigin(target: URL): void {
 function assertCoherent(environment: AppEnvironment, apiBaseUrl: string): void {
   const target = parseTarget(apiBaseUrl);
   assertBareOrigin(target);
-
   const host = describeTarget(target);
-  const staging = new URL(STAGING_ORIGIN);
 
   if (environment === "local") {
     if (!isLoopback(target)) {
@@ -197,41 +222,78 @@ function assertCoherent(environment: AppEnvironment, apiBaseUrl: string): void {
       `a ${environment} build points at the loopback host ${host}; EXPO_PUBLIC_API_URL was not set to a real backend`,
     );
   }
-
-  if (environment === "staging") {
-    // Exact origin. The retired Vercel UAT host, a production host and a typo all land here
-    // together, which is the point.
-    if (target.origin !== staging.origin) {
-      throw new MisconfiguredFieldBuild(
-        `a staging build points at ${host}; staging may only target ${staging.host}`,
-      );
-    }
-    return;
-  }
-
-  // production
-  if (target.hostname.includes(PRODUCTION_PLACEHOLDER)) {
-    throw new MisconfiguredFieldBuild(
-      "a production build still carries the placeholder host; the production host is not decided",
-    );
-  }
-  if (target.origin === staging.origin) {
-    throw new MisconfiguredFieldBuild(`a production build points at the staging host ${host}`);
-  }
   if (target.protocol !== "https:") {
-    throw new MisconfiguredFieldBuild(`a production build points at ${host} over plain HTTP`);
+    throw new MisconfiguredFieldBuild(`a ${environment} build points at ${host} over plain HTTP`);
+  }
+  if (target.hostname.includes(PRODUCTION_PLACEHOLDER)) {
+    throw new MisconfiguredFieldBuild(`a ${environment} build still carries the placeholder host`);
+  }
+
+  /*
+   * One comparison for the three distributed environments, between **canonical origins** — what
+   * `URL` returns once it has normalised the port and lower-cased the host. A build aimed at the
+   * right host with `:443` spelled out, or at `HOST/api`, is aimed at that host and used to compare
+   * unequal; anything that is not purely an origin has already been refused above.
+   */
+  const expected = new URL(ENVIRONMENT_ORIGINS[environment]);
+  if (target.origin !== expected.origin) {
+    throw new MisconfiguredFieldBuild(
+      `a ${environment} build points at ${host}; ${environment} may only target ${expected.host}`,
+    );
   }
 }
 
+export interface FieldConfig {
+  readonly apiBaseUrl: string;
+  readonly appVersion: string;
+  readonly environment: AppEnvironment;
+  readonly environmentLabel: string;
+  /** The deep-link scheme this build claims. One per installable application. */
+  readonly scheme: string;
+}
+
+/**
+ * How the build's inputs reach the bundle, and why they are read twice.
+ *
+ * `babel-preset-expo` replaces `process.env.EXPO_PUBLIC_*` at build time, and the published
+ * artefacts confirm it works through the bracket form as well: the demo bundle contains
+ * `https://eia-demo.syntavera.dev`, a string that appears nowhere in this repository's source and
+ * can only have come from `eas.json`. So the substitution is not in doubt.
+ *
+ * What *is* worth not depending on is a single mechanism. `app.config.ts` also writes the
+ * environment and the application id into `expo.extra`, which travels in the manifest rather than
+ * in the JavaScript, so the two are independent paths from one build. When both are present they
+ * must agree; when only the manifest has it, it is used. A disagreement is a misconfigured build
+ * and says so rather than silently preferring one.
+ */
+function readBuildInputs(): { url: string | undefined; environment: string | undefined } {
+  const extra = Constants.expoConfig?.extra as { eiaEnvironment?: unknown } | undefined;
+  const fromManifest =
+    typeof extra?.eiaEnvironment === "string" ? extra.eiaEnvironment.trim() : undefined;
+  const fromBundle = process.env["EXPO_PUBLIC_APP_ENV"]?.trim();
+
+  if (fromBundle && fromManifest && fromBundle !== fromManifest) {
+    throw new MisconfiguredFieldBuild(
+      `this build says it is "${fromBundle}" in its JavaScript and "${fromManifest}" in its ` +
+        "manifest; the two must agree",
+    );
+  }
+  return {
+    url: process.env["EXPO_PUBLIC_API_URL"]?.trim(),
+    environment: fromBundle ?? fromManifest,
+  };
+}
+
 export function fieldConfig(): FieldConfig {
-  const url = process.env["EXPO_PUBLIC_API_URL"]?.trim();
+  const { url, environment: declared } = readBuildInputs();
   const apiBaseUrl = (url && url.length > 0 ? url : FALLBACK).replace(/\/+$/, "");
-  const environment = readEnvironment(process.env["EXPO_PUBLIC_APP_ENV"]);
+  const environment = readEnvironment(declared);
   assertCoherent(environment, apiBaseUrl);
   return {
     apiBaseUrl,
     appVersion: Constants.expoConfig?.version ?? "0.0.0",
     environment,
     environmentLabel: LABELS[environment],
+    scheme: ENVIRONMENT_SCHEMES[environment],
   };
 }

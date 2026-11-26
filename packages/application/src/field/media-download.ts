@@ -184,6 +184,18 @@ export interface FieldMediaLocation {
   readonly locatedAt: string | null;
   /** The device's clock at the shutter. A different fact. */
   readonly capturedAt: string;
+  /**
+   * How the attempt ended, as the device reported it. **Null means unknown** — a photograph
+   * declared by a build that predates migration 0061 — which is not the same as "no position".
+   */
+  readonly locationOutcome: string | null;
+  /**
+   * Whether the **platform** called this position simulated. Null means it said nothing, and
+   * nothing concludes "real" from that. Every position an emulator reports is a simulated one.
+   */
+  readonly locationMocked: boolean | null;
+  /** Which provider answered, where the platform says. */
+  readonly locationSource: string | null;
 }
 
 interface LocationRow {
@@ -196,6 +208,9 @@ interface LocationRow {
   location_accuracy_m: number | string | null;
   located_at: Date | string | null;
   captured_at: Date | string;
+  location_outcome: string | null;
+  location_mocked: boolean | null;
+  location_source: string | null;
 }
 
 export async function loadFieldMediaLocation(
@@ -210,7 +225,8 @@ export async function loadFieldMediaLocation(
     const rows = await tx.execute(sql`
       select m.id, m.visit_id, m.kind::text as kind, o.namespace::text as namespace,
              ST_Y(m.location) as latitude, ST_X(m.location) as longitude,
-             m.location_accuracy_m, m.located_at, m.captured_at
+             m.location_accuracy_m, m.located_at, m.captured_at,
+             m.location_outcome, m.location_mocked, m.location_source
         from app.field_media m
         join app.stored_object o on o.tenant_id = m.tenant_id and o.id = m.stored_object_id
        where m.tenant_id = ${ctx.tenantId} and m.project_id = ${projectId}
@@ -254,6 +270,9 @@ export async function loadFieldMediaLocation(
     accuracyM: row.location_accuracy_m === null ? null : Number(row.location_accuracy_m),
     locatedAt: asIso(row.located_at),
     capturedAt: asIso(row.captured_at)!,
+    locationOutcome: row.location_outcome,
+    locationMocked: row.location_mocked,
+    locationSource: row.location_source,
   };
 }
 

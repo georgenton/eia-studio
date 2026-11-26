@@ -995,6 +995,94 @@ describe("reading where a photograph was taken", () => {
     return result.mediaId;
   }
 
+  /**
+   * The whole chain, for the one flag nobody can reconstruct afterwards.
+   *
+   * An emulator reports **every** position as produced by a mock provider, so a demonstration and
+   * a real field day are identical in the coordinates and differ only here. Until migration 0061
+   * the device recorded it and the server did not, and the fact died when the local row was
+   * acknowledged and swept.
+   */
+  it("keeps a simulated position marked as simulated, all the way to the read", async () => {
+    const { ctx, stored } = await storePhotograph(technician);
+    const result = await declareFieldMedia(
+      db.runtime,
+      ctx,
+      declaration({
+        storedObjectId: stored.storedObjectId,
+        capturedAt: shutter.toISOString(),
+        location: {
+          latitude: -4.0761,
+          longitude: -78.9412,
+          accuracyM: 8,
+          locatedAt: fix.toISOString(),
+        },
+        locationOutcome: "captured",
+        locationMocked: true,
+        locationSource: "fused",
+      }),
+    );
+
+    const location = await loadFieldMediaLocation(
+      db.runtime,
+      await contextFor(coordinator),
+      result.mediaId,
+    );
+    expect(location.locationOutcome).toBe("captured");
+    expect(location.locationMocked).toBe(true);
+    expect(location.locationSource).toBe("fused");
+  });
+
+  /** An older build says nothing, and nothing is concluded from its silence. */
+  it("records unknown rather than real when the build reported no provenance", async () => {
+    const { ctx, stored } = await storePhotograph(technician);
+    const result = await declareFieldMedia(
+      db.runtime,
+      ctx,
+      declaration({
+        storedObjectId: stored.storedObjectId,
+        location: {
+          latitude: -4.0761,
+          longitude: -78.9412,
+          accuracyM: 8,
+          locatedAt: fix.toISOString(),
+        },
+      }),
+    );
+    const location = await loadFieldMediaLocation(
+      db.runtime,
+      await contextFor(coordinator),
+      result.mediaId,
+    );
+    // A point arrived, and how it arrived is unknown. Not `captured`, and not `false`.
+    expect(location.latitude).toBeCloseTo(-4.0761, 4);
+    expect(location.locationOutcome).toBeNull();
+    expect(location.locationMocked).toBeNull();
+    expect(location.locationSource).toBeNull();
+  });
+
+  /** A refusal carries its reason and no coordinate. */
+  it("records a refused attempt as refused, with nothing standing in for a point", async () => {
+    const { ctx, stored } = await storePhotograph(technician);
+    const result = await declareFieldMedia(
+      db.runtime,
+      ctx,
+      declaration({
+        storedObjectId: stored.storedObjectId,
+        location: null,
+        locationOutcome: "denied",
+      }),
+    );
+    const location = await loadFieldMediaLocation(
+      db.runtime,
+      await contextFor(coordinator),
+      result.mediaId,
+    );
+    expect(location.locationOutcome).toBe("denied");
+    expect(location.latitude).toBeNull();
+    expect(location.locatedAt).toBeNull();
+  });
+
   it("returns the point, its accuracy and both instants to the technician who took it", async () => {
     const mediaId = await photographWithPoint();
     const location = await loadFieldMediaLocation(

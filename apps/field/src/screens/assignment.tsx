@@ -35,10 +35,13 @@ import { Body, Button, Card, Chip, Heading, Label, Notice, Screen, Title } from 
 export function AssignmentScreen({
   assignmentId,
   onOpenSurvey,
+  onLocateParcel,
   onBack,
 }: {
   assignmentId: string;
   onOpenSurvey: (assignmentId: string) => void;
+  /** *Ubicar predio*: the offline map, drawn from geometry this device already holds. */
+  onLocateParcel: (assignmentId: string) => void;
   onBack: () => void;
 }) {
   const t = useT();
@@ -80,16 +83,32 @@ export function AssignmentScreen({
     setBusy(true);
     setMessage(null);
     try {
-      const { coords, outcome } = await readLocation();
+      /*
+       * Bounded, like the photograph's. `getCurrentPositionAsync` has no timeout of its own, so a
+       * provider that never answers used to mean a technician who could never start the ficha —
+       * standing in front of the parcel, holding a screen that does nothing. The visit is the
+       * cheapest thing in the application to record and the least dependent on a satellite.
+       *
+       * A wait that runs out is reported as `unavailable`: the position was not obtained, which is
+       * what that value has always meant, and the visit's own wire vocabulary has no `timed_out`
+       * (adding one would be a parse error on every installed build). The distinction between
+       * *refused*, *timed out* and *the platform failed* is kept where the schema can carry it —
+       * on the photograph — rather than being faked here.
+       *
+       * This bound is on the **platform's** answer, not on the person's. Android's permission
+       * dialog is awaited separately, before the clock starts.
+       */
+      const where = await readPhotographLocation();
       const visitId = Crypto.randomUUID();
       await insertVisit(db, {
         id: visitId,
         assignmentId: assignment.id,
-        latitude: coords?.latitude ?? null,
-        longitude: coords?.longitude ?? null,
-        accuracyM: coords?.accuracy ?? null,
-        locationCapturedAt: coords ? new Date().toISOString() : null,
-        locationOutcome: outcome,
+        latitude: where.latitude,
+        longitude: where.longitude,
+        accuracyM: where.accuracyM,
+        // The moment the **fix** was obtained, not the moment we wrote the row.
+        locationCapturedAt: where.locatedAt,
+        locationOutcome: where.outcome === "timed_out" ? "unavailable" : where.outcome,
       });
       const surveyId = Crypto.randomUUID();
       await upsertSurvey(db, {
@@ -111,15 +130,21 @@ export function AssignmentScreen({
           },
           {
             assignmentId: assignment.id,
-            location: coords
-              ? {
-                  latitude: coords.latitude,
-                  longitude: coords.longitude,
-                  accuracyM: coords.accuracy ?? null,
-                  capturedAt: new Date().toISOString(),
-                }
-              : null,
-            locationOutcome: outcome,
+            /*
+             * `capturedAt` here is `wireLocationSchema`'s field name and means the moment the
+             * **fix** was obtained — which `readPhotographLocation` reports from the platform's
+             * own timestamp rather than from the clock at the moment the row is written.
+             */
+            location:
+              where.latitude === null || where.longitude === null || where.locatedAt === null
+                ? null
+                : {
+                    latitude: where.latitude,
+                    longitude: where.longitude,
+                    accuracyM: where.accuracyM,
+                    capturedAt: where.locatedAt,
+                  },
+            locationOutcome: where.outcome === "timed_out" ? "unavailable" : where.outcome,
           },
         ),
       });
@@ -311,6 +336,15 @@ export function AssignmentScreen({
         </Card>
 
         <View style={styles.actions}>
+          {/*
+            Above the capture actions on purpose: finding the parcel comes before working it, and
+            a technician who is lost is not going to start a ficha first.
+          */}
+          <Button
+            label={t("mobile.mapTitle")}
+            onPress={() => onLocateParcel(assignment.id)}
+            tone="secondary"
+          />
           {hasLocalWork ? (
             <Button
               label={t("mobile.continueSurvey")}
@@ -338,28 +372,6 @@ export function AssignmentScreen({
  * loop and never becomes a fabricated point: the visit is recorded with *why* it has no location,
  * which is a fact the study can read later.
  */
-async function readLocation(): Promise<{
-  coords: { latitude: number; longitude: number; accuracy: number | null } | null;
-  outcome: "captured" | "denied" | "unavailable" | "not_attempted";
-}> {
-  const permission = await Location.requestForegroundPermissionsAsync();
-  if (!permission.granted) return { coords: null, outcome: "denied" };
-  try {
-    const position = await Location.getCurrentPositionAsync({
-      accuracy: Location.Accuracy.Balanced,
-    });
-    return {
-      coords: {
-        latitude: position.coords.latitude,
-        longitude: position.coords.longitude,
-        accuracy: position.coords.accuracy ?? null,
-      },
-      outcome: "captured",
-    };
-  } catch {
-    return { coords: null, outcome: "unavailable" };
-  }
-}
 
 /** How long a photograph's position request may take before it is recorded as timed out. */
 const LOCATION_TIMEOUT_MS = 12_000;

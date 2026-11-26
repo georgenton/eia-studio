@@ -114,6 +114,19 @@ export const fieldMediaDeclarationSchema = z
       })
       .strict()
       .nullable(),
+    /**
+     * What is known about the attempt, beyond whether a point arrived.
+     *
+     * Optional because the payload travels device → server: an older build does not send them and
+     * `.strict()` refuses unknown fields, not absent ones. **Absent means unknown** — not "no
+     * position", and never a real one. Nothing derives them from the point or from `capturedAt`.
+     */
+    locationOutcome: z
+      .enum(["captured", "denied", "unavailable", "timed_out", "not_attempted"])
+      .optional(),
+    /** The platform's own flag. Every position an emulator reports is a mocked one. */
+    locationMocked: z.boolean().nullable().optional(),
+    locationSource: z.string().trim().min(1).max(40).nullable().optional(),
   })
   .strict();
 export type FieldMediaDeclaration = z.infer<typeof fieldMediaDeclarationSchema>;

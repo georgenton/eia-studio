@@ -350,6 +350,60 @@ export const LOCAL_MIGRATIONS: ReadonlyArray<LocalMigration> = [
       `update local_media set location_outcome = 'captured' where latitude is not null`,
     ],
   },
+  {
+    version: 6,
+    name: "photograph_location_session",
+    statements: [
+      /*
+       * Which run of the application is waiting for this photograph's position.
+       *
+       * Migration 5 left a race that cost exactly the thing it was added to record. A capture
+       * writes its row `pending` and asks the platform for a position; a synchronisation — manual
+       * or automatic — settled **every** `pending` row to `unavailable` before reading the list,
+       * on the reasoning that only a dead process leaves one. It does not: a live request is
+       * `pending` too, for up to twelve seconds. `attachMediaLocation` then updated zero rows,
+       * because it only moves a row that is still `pending`, and a perfectly good fix was
+       * discarded. The photograph survived; its location did not.
+       *
+       * So a pending row now names the process that is waiting for it. Settling touches only rows
+       * stamped by some *other* run — which is precisely "nobody is waiting for this any more" —
+       * and a synchronisation at any moment cannot take a position out from under a capture.
+       *
+       * Null means a row written before this migration: unowned, and therefore settleable, which
+       * is the correct reading for a device that has restarted since.
+       */
+      `alter table local_media add column location_session text`,
+    ],
+  },
+  {
+    version: 7,
+    name: "offline_map",
+    statements: [
+      /*
+       * The cartography of one project, as downloaded, so the parcel can be found without signal.
+       *
+       * One row per project and the payload kept whole. The alternative — unpacking the axis, the
+       * posts and the parcels into three tables — buys nothing a phone needs and costs a schema
+       * that has to move every time the server's does; the payload is validated against
+       * `fieldMapResponseSchema` on the way in, so what is stored is known to be well formed.
+       *
+       * `fetched_at` is shown on screen. A map is exactly as old as its download, and a technician
+       * deciding whether to trust an outline needs that number more than they need a newer one.
+       * `schema_version` is what makes an older payload recognisable after an upgrade: a row this
+       * build cannot read is replaced on the next download rather than parsed hopefully.
+       *
+       * Nothing here is private to a household: the payload is the technician's own assignments,
+       * the axis and the posts. The database is the same SQLCipher file as everything else.
+       */
+      `create table if not exists local_map (
+         project_slug text primary key,
+         tenant_slug text not null,
+         schema_version integer not null,
+         payload text not null,
+         fetched_at text not null
+       )`,
+    ],
+  },
 ];
 
 export const LOCAL_SCHEMA_VERSION = LOCAL_MIGRATIONS[LOCAL_MIGRATIONS.length - 1]!.version;

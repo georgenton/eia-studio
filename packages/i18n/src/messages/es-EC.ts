@@ -637,6 +637,23 @@ export const messages = {
     mediaLocationCaveat:
       "Es la posición que el dispositivo del técnico calculó, no la de una vivienda, y no " +
       "certifica el lugar ni el momento exactos del disparo.",
+    /*
+     * La procedencia del intento. Ausente significa **desconocido**: una fotografía declarada por
+     * una versión anterior a la migración 0061 no dice nada de esto, que no es lo mismo que decir
+     * que no hubo posición.
+     */
+    mediaLocationSimulated: "POSICIÓN SIMULADA",
+    mediaLocationSimulatedBody:
+      "La plataforma informó que esta posición la produjo un proveedor simulado. Toda posición de " +
+      "un emulador lo es. No es una medición del terreno.",
+    mediaLocationOutcomeCaptured: "la plataforma entregó una posición",
+    mediaLocationOutcomeDenied: "el técnico no autorizó la ubicación",
+    mediaLocationOutcomeTimedOut: "la espera acotada venció sin respuesta",
+    mediaLocationOutcomeUnavailable: "la plataforma no pudo entregar una posición",
+    mediaLocationOutcomeNotAttempted: "no se pidió la ubicación",
+    mediaLocationOutcomeUnknown:
+      "La versión que la tomó no informó cómo terminó el intento. Desconocido no es «real».",
+    mediaLocationSource: "proveedor: {source}",
     tabQuality: "Calidad",
     sections: "Secciones del predio",
     backToExplorer: "Volver al explorador",
@@ -1963,6 +1980,35 @@ export const messages = {
     syncNow: "Sincronizar ahora",
     syncing: "Sincronizando…",
     refreshWork: "Actualizar trabajo asignado",
+    /* El mapa sin conexión: dibujado con la geometría del proyecto, sin proveedor de mosaicos. */
+    mapTitle: "Ubicar predio",
+    mapLoading: "Abriendo el mapa guardado…",
+    mapAbsent:
+      "Todavía no ha descargado el mapa de este proyecto. Hágalo con señal: después funciona sin " +
+      "ella, aunque cierre la aplicación.",
+    mapUnreadable:
+      "El mapa guardado es de una versión más nueva de la aplicación y no se puede leer. " +
+      "Descárguelo otra vez.",
+    mapParcel: "Predio",
+    mapParcelAbsent:
+      "La cartografía descargada no incluye este predio. Puede que no tenga geometría cargada " +
+      "todavía; el trabajo sigue en su lista con su código y su abscisa.",
+    mapReferencePoint:
+      "Punto de referencia, no una entrada. Está dentro del predio; no indica la vivienda ni el " +
+      "acceso.",
+    mapChainageCalculated:
+      "Los hitos son distancia calculada sobre el eje, no el abscisado oficial del estudio: nadie " +
+      "ha declarado dónde está el 0+000.",
+    mapPositionSimulated:
+      "POSICIÓN SIMULADA. La plataforma informó que la produjo un proveedor simulado; en un " +
+      "emulador siempre es así. No es una medición del terreno.",
+    mapFetchedAt: "Mapa descargado el {when}",
+    mapLocateMe: "Mi ubicación",
+    mapDownload: "Descargar el mapa",
+    mapDownloadFailed: "No se pudo descargar el mapa. Inténtelo con señal.",
+    mapLocationDenied: "No autorizó la ubicación, así que no se puede dibujar su posición.",
+    mapLocationTimedOut: "La espera de la posición venció. Puede intentarlo otra vez.",
+    mapLocationUnavailable: "La plataforma no pudo entregar una posición.",
     workUpdated: "Trabajo actualizado.",
     noFieldProject:
       "No tienes trabajo de campo asignado. Cuando la coordinación te asigne predios, vuelve a pulsar Actualizar trabajo asignado.",
