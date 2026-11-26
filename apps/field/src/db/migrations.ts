@@ -375,6 +375,35 @@ export const LOCAL_MIGRATIONS: ReadonlyArray<LocalMigration> = [
       `alter table local_media add column location_session text`,
     ],
   },
+  {
+    version: 7,
+    name: "offline_map",
+    statements: [
+      /*
+       * The cartography of one project, as downloaded, so the parcel can be found without signal.
+       *
+       * One row per project and the payload kept whole. The alternative — unpacking the axis, the
+       * posts and the parcels into three tables — buys nothing a phone needs and costs a schema
+       * that has to move every time the server's does; the payload is validated against
+       * `fieldMapResponseSchema` on the way in, so what is stored is known to be well formed.
+       *
+       * `fetched_at` is shown on screen. A map is exactly as old as its download, and a technician
+       * deciding whether to trust an outline needs that number more than they need a newer one.
+       * `schema_version` is what makes an older payload recognisable after an upgrade: a row this
+       * build cannot read is replaced on the next download rather than parsed hopefully.
+       *
+       * Nothing here is private to a household: the payload is the technician's own assignments,
+       * the axis and the posts. The database is the same SQLCipher file as everything else.
+       */
+      `create table if not exists local_map (
+         project_slug text primary key,
+         tenant_slug text not null,
+         schema_version integer not null,
+         payload text not null,
+         fetched_at text not null
+       )`,
+    ],
+  },
 ];
 
 export const LOCAL_SCHEMA_VERSION = LOCAL_MIGRATIONS[LOCAL_MIGRATIONS.length - 1]!.version;

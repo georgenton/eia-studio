@@ -35,10 +35,13 @@ import { Body, Button, Card, Chip, Heading, Label, Notice, Screen, Title } from 
 export function AssignmentScreen({
   assignmentId,
   onOpenSurvey,
+  onLocateParcel,
   onBack,
 }: {
   assignmentId: string;
   onOpenSurvey: (assignmentId: string) => void;
+  /** *Ubicar predio*: the offline map, drawn from geometry this device already holds. */
+  onLocateParcel: (assignmentId: string) => void;
   onBack: () => void;
 }) {
   const t = useT();
@@ -333,6 +336,15 @@ export function AssignmentScreen({
         </Card>
 
         <View style={styles.actions}>
+          {/*
+            Above the capture actions on purpose: finding the parcel comes before working it, and
+            a technician who is lost is not going to start a ficha first.
+          */}
+          <Button
+            label={t("mobile.mapTitle")}
+            onPress={() => onLocateParcel(assignment.id)}
+            tone="secondary"
+          />
           {hasLocalWork ? (
             <Button
               label={t("mobile.continueSurvey")}

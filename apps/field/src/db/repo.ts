@@ -1009,3 +1009,73 @@ export async function setMediaState(
 export async function forgetLocalMedia(db: SQLite.SQLiteDatabase, localId: string): Promise<void> {
   await db.runAsync(`delete from local_media where local_id = ?`, localId);
 }
+
+/* ---------------------------------------------------------------------------------------------
+ * The offline map (local migration 7)
+ * ------------------------------------------------------------------------------------------ */
+
+export interface StoredMapPack {
+  readonly tenantSlug: string;
+  readonly projectSlug: string;
+  readonly schemaVersion: number;
+  /** The payload exactly as it was validated on the way in. */
+  readonly payload: string;
+  readonly fetchedAt: string;
+}
+
+/**
+ * Keep one project's cartography, replacing whatever was there.
+ *
+ * Replace rather than merge: a map is a snapshot of what the server held at a moment, and half of
+ * one download beside half of another would be a drawing of a corridor that never existed. The
+ * payload is validated against the contract *before* this is called, so what reaches the table is
+ * known to be well formed — a row this build cannot read is a row from a future build, and the
+ * reader says so instead of guessing.
+ */
+export async function saveMapPack(
+  db: SQLite.SQLiteDatabase,
+  input: {
+    tenantSlug: string;
+    projectSlug: string;
+    schemaVersion: number;
+    payload: string;
+  },
+): Promise<void> {
+  await db.runAsync(
+    `insert into local_map (project_slug, tenant_slug, schema_version, payload, fetched_at)
+     values (?, ?, ?, ?, ?)
+     on conflict(project_slug) do update set
+       tenant_slug = excluded.tenant_slug,
+       schema_version = excluded.schema_version,
+       payload = excluded.payload,
+       fetched_at = excluded.fetched_at`,
+    input.projectSlug,
+    input.tenantSlug,
+    input.schemaVersion,
+    input.payload,
+    nowIso(),
+  );
+}
+
+/** The cartography this device holds for a project, or null when it has never downloaded one. */
+export async function readMapPack(
+  db: SQLite.SQLiteDatabase,
+  projectSlug: string,
+): Promise<StoredMapPack | null> {
+  const rows = await db.getAllAsync<{
+    project_slug: string;
+    tenant_slug: string;
+    schema_version: number;
+    payload: string;
+    fetched_at: string;
+  }>(`select * from local_map where project_slug = ? limit 1`, projectSlug);
+  const row = rows[0];
+  if (row === undefined) return null;
+  return {
+    tenantSlug: row.tenant_slug,
+    projectSlug: row.project_slug,
+    schemaVersion: row.schema_version,
+    payload: row.payload,
+    fetchedAt: row.fetched_at,
+  };
+}

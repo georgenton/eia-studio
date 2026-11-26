@@ -8,6 +8,7 @@ import { countPendingWork, retryableNow } from "./src/core/project-switch";
 import { AssignmentScreen } from "./src/screens/assignment";
 import { InvitationDeliveryScreen } from "./src/screens/invitation-delivery";
 import { MyWorkScreen } from "./src/screens/my-work";
+import { ParcelMapScreen } from "./src/screens/parcel-map";
 import { ProjectSelectorScreen } from "./src/screens/project-selector";
 import { SettingsScreen } from "./src/screens/settings";
 import { SignInScreen } from "./src/screens/sign-in";
@@ -29,6 +30,7 @@ type Route =
   | { readonly name: "my-work" }
   | { readonly name: "assignment"; readonly assignmentId: string }
   | { readonly name: "survey"; readonly assignmentId: string }
+  | { readonly name: "parcel-map"; readonly assignmentId: string }
   // Protocol v4 (ADR-041): a road to choose, and an invitation to deliver.
   | { readonly name: "projects" }
   | { readonly name: "delivery"; readonly invitationId: string }
@@ -163,7 +165,13 @@ function Routed({ session, sessionPending }: { session: unknown; sessionPending:
         <AssignmentScreen
           assignmentId={route.assignmentId}
           onBack={() => setRoute({ name: "my-work" })}
+          onLocateParcel={(assignmentId) => setRoute({ name: "parcel-map", assignmentId })}
           onOpenSurvey={(assignmentId) => setRoute({ name: "survey", assignmentId })}
+        />
+      ) : route.name === "parcel-map" ? (
+        <ParcelMapScreen
+          assignmentId={route.assignmentId}
+          onBack={() => setRoute({ name: "assignment", assignmentId: route.assignmentId })}
         />
       ) : route.name === "survey" ? (
         <SurveyScreen

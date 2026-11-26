@@ -235,10 +235,10 @@ describe("a device that was in the field when the application was updated", () =
 });
 
 describe("the local database upgrades forward", () => {
-  it("adds migrations 4 to 6, and drops nothing a handset is holding", () => {
-    expect(LOCAL_SCHEMA_VERSION).toBe(6);
+  it("adds migrations 4 to 7, and drops nothing a handset is holding", () => {
+    expect(LOCAL_SCHEMA_VERSION).toBe(7);
     const upgrade = pendingMigrations(3);
-    expect(upgrade.map((m) => m.version)).toEqual([4, 5, 6]);
+    expect(upgrade.map((m) => m.version)).toEqual([4, 5, 6, 7]);
     const sql = upgrade
       .flatMap((m) => m.statements)
       .join("\n")
@@ -257,6 +257,8 @@ describe("the local database upgrades forward", () => {
     expect(sql).toContain("alter table local_media add column location_mocked");
     // 6 adds which run of the application is waiting for that position.
     expect(sql).toContain("alter table local_media add column location_session");
+    // 7 adds the offline map, as a table of its own: nothing existing is touched.
+    expect(sql).toContain("create table if not exists local_map");
   });
 
   it("and every migration is still forward-only, from 1", () => {

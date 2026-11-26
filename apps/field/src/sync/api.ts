@@ -26,6 +26,8 @@ import {
   workPackResponseSchema,
   workPullRequestSchema,
   workPullResponseSchema,
+  fieldMapResponseSchema,
+  type FieldMapResponse,
 } from "@eia/field-sync-contract";
 
 import { authHeaders } from "../auth/client";
@@ -203,6 +205,24 @@ export async function pullWork(input: WorkPullRequest): Promise<WorkPullResponse
   return workPullResponseSchema.parse(
     await post("/api/field/v4/pull", workPullRequestSchema.parse(input)),
   );
+}
+
+/**
+ * The cartography for the caller's own work in one project.
+ *
+ * A **separate** call from the pack, deliberately: the pack's schemas are `.strict()` and travel
+ * server → device, so a map inside one would be a parse error on every installed build. A build
+ * that does not know about this endpoint simply never calls it.
+ *
+ * It is also separate in *time*: a technician downloads work far more often than cartography
+ * changes, and a corridor is the largest thing on the wire. Asking for it explicitly is what makes
+ * "download the map before you leave" a thing a person can do rather than a side effect.
+ */
+export async function fetchFieldMap(input: {
+  tenantSlug: string;
+  projectSlug: string;
+}): Promise<FieldMapResponse> {
+  return fieldMapResponseSchema.parse(await post("/api/field/v4/map", input));
 }
 
 export async function pushWorkCommands(input: {

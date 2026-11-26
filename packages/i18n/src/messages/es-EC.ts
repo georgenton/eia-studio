@@ -1980,6 +1980,35 @@ export const messages = {
     syncNow: "Sincronizar ahora",
     syncing: "Sincronizando…",
     refreshWork: "Actualizar trabajo asignado",
+    /* El mapa sin conexión: dibujado con la geometría del proyecto, sin proveedor de mosaicos. */
+    mapTitle: "Ubicar predio",
+    mapLoading: "Abriendo el mapa guardado…",
+    mapAbsent:
+      "Todavía no ha descargado el mapa de este proyecto. Hágalo con señal: después funciona sin " +
+      "ella, aunque cierre la aplicación.",
+    mapUnreadable:
+      "El mapa guardado es de una versión más nueva de la aplicación y no se puede leer. " +
+      "Descárguelo otra vez.",
+    mapParcel: "Predio",
+    mapParcelAbsent:
+      "La cartografía descargada no incluye este predio. Puede que no tenga geometría cargada " +
+      "todavía; el trabajo sigue en su lista con su código y su abscisa.",
+    mapReferencePoint:
+      "Punto de referencia, no una entrada. Está dentro del predio; no indica la vivienda ni el " +
+      "acceso.",
+    mapChainageCalculated:
+      "Los hitos son distancia calculada sobre el eje, no el abscisado oficial del estudio: nadie " +
+      "ha declarado dónde está el 0+000.",
+    mapPositionSimulated:
+      "POSICIÓN SIMULADA. La plataforma informó que la produjo un proveedor simulado; en un " +
+      "emulador siempre es así. No es una medición del terreno.",
+    mapFetchedAt: "Mapa descargado el {when}",
+    mapLocateMe: "Mi ubicación",
+    mapDownload: "Descargar el mapa",
+    mapDownloadFailed: "No se pudo descargar el mapa. Inténtelo con señal.",
+    mapLocationDenied: "No autorizó la ubicación, así que no se puede dibujar su posición.",
+    mapLocationTimedOut: "La espera de la posición venció. Puede intentarlo otra vez.",
+    mapLocationUnavailable: "La plataforma no pudo entregar una posición.",
     workUpdated: "Trabajo actualizado.",
     noFieldProject:
       "No tienes trabajo de campo asignado. Cuando la coordinación te asigne predios, vuelve a pulsar Actualizar trabajo asignado.",
