@@ -35,9 +35,11 @@ import type { ExpoConfig } from "expo/config";
  * - **`name`** carries the environment, because a technician with two icons must be able to see
  *   which is which before opening either. The production build is named plainly; the other two say
  *   what they are.
- * - **`versionCode`** is per package and starts again for the new ones. It is read from the
- *   environment so a build can be numbered without editing a file, and defaults to the value that
- *   was last shipped for staging.
+ * - **`versionCode`** is per package and starts again for the new ones. The committed value is the
+ *   authority: `EIA_FIELD_VERSION_CODE` overrides it for a **local** build and does *not* reach an
+ *   EAS build, because the cloud receives only `eas.json`'s own `env` block — a code passed on the
+ *   command line there is silently ignored. Found by building with it and reading the resulting
+ *   manifest, which came back carrying the committed number.
  * - **The plugins, the permissions and the SQLCipher flag are identical** in all three. A build
  *   that differed there would not be the same application pointed at another server, which is the
  *   only difference these three are allowed to have.
@@ -80,20 +82,20 @@ const IDENTITIES: Record<FieldEnvironment, EnvironmentIdentity> = {
     applicationId: "ec.eiastudio.field.demo",
     name: "EIA Field Demo",
     scheme: "eiafielddemo",
-    versionCode: 1,
+    versionCode: 2,
   },
   // The installed application. Its identity does not change (see above).
   staging: {
     applicationId: "ec.eiastudio.field",
     name: "EIA Field Pruebas",
     scheme: "eiafield",
-    versionCode: 9,
+    versionCode: 10,
   },
   production: {
     applicationId: "ec.eiastudio.field.prod",
     name: "EIA Field",
     scheme: "eiafieldprod",
-    versionCode: 1,
+    versionCode: 2,
   },
 };
 

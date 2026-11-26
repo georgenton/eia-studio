@@ -94,6 +94,33 @@ function positionsFrom(value: unknown): ReadonlyArray<MapPosition> {
   return out;
 }
 
+/**
+ * The delivery's declared condition, out of the dataset version's note.
+ *
+ * `spatial_dataset_version.note` is not a sentence: the corridor importer writes a JSON record of
+ * the contract into it — the source hashes, the feature count, the condition. Sending it whole as
+ * `condition` put a three-hundred-character blob into a forty-character field, and the device's
+ * `.strict()` schema **rejected the entire map**. Observed on the emulator, which is the only place
+ * it could be observed: the server was perfectly happy producing it.
+ *
+ * So the one field a technician can act on is extracted, and anything else — a note somebody typed
+ * by hand, a record from a different importer version, no note at all — reads as null rather than
+ * being truncated into something that looks like a declaration.
+ */
+function conditionFrom(note: string | null): string | null {
+  if (note === null) return null;
+  try {
+    const parsed = JSON.parse(note) as unknown;
+    if (typeof parsed !== "object" || parsed === null) return null;
+    const condition = (parsed as { condition?: unknown }).condition;
+    if (typeof condition !== "string") return null;
+    const trimmed = condition.trim();
+    return trimmed.length > 0 && trimmed.length <= 40 ? trimmed : null;
+  } catch {
+    return null;
+  }
+}
+
 /** A single GeoJSON position, for `ST_PointOnSurface`. */
 function positionFrom(value: unknown): MapPosition | null {
   if (!Array.isArray(value) || value.length < 2) return null;
@@ -263,7 +290,7 @@ export async function loadFieldMap(
     provenance: {
       datasetVersionLabel: axis?.dataset_version_label ?? "sin cartografía activa",
       origin: axis?.origin ?? "none",
-      condition: axis?.condition ?? null,
+      condition: conditionFrom(axis?.condition ?? null),
     },
     axis:
       axis !== null && axisCoordinates.length >= 2
