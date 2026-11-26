@@ -7,7 +7,6 @@ import {
 } from "@eia/contracts";
 import { appSchema, authSchema, createDatabase, createPool } from "@eia/db";
 import pg from "pg";
-import { readFileSync } from "node:fs";
 import { createTenant, slugSchema } from "@eia/application";
 import { betterAuth } from "better-auth";
 import { config as loadDotenv } from "dotenv";
@@ -17,6 +16,7 @@ import { resolve } from "node:path";
 import { z } from "zod";
 
 import { createAuthOptions } from "../lib/auth-options";
+import { tunnelTlsOptions } from "./tunnel-tls";
 
 /**
  * The **first** account of a real deployment: one organisation, one owner, nothing else.
@@ -142,6 +142,22 @@ function tunnelledPool(connectionString: string): pg.Pool {
    * here. The guarantee is unchanged and spelled out: verify the chain against this CA, and
    * require the certificate to carry this name. The URL's `verify-full` has already been checked
    * by `runtimeDatabaseEnvSchema`, which is where that promise is kept.
+   *
+   * ## Why `servername` alone is not enough
+   *
+   * `servername` sets SNI — which name the client *asks* for. It does not decide which name the
+   * certificate is *checked against*: Node's default `checkServerIdentity` runs against the host
+   * it dialled, and through a tunnel that host is `localhost`. So the connection failed with
+   * *Host: localhost is not in the cert's altnames* and the flag did nothing it promised.
+   *
+   * Observed against the production database on 26 November 2026, whose certificate carries the
+   * container's name. The failure was closed rather than open — nothing was weakened, the
+   * connection simply never happened — but a flag that cannot work is worse than no flag,
+   * because its documentation says the opposite.
+   *
+   * The override is not a relaxation. It runs Node's **own** identity algorithm, unchanged,
+   * against the name the operator stated the tunnel leads to, and a certificate for any other
+   * name is still refused — asserted by a negative control in `bootstrap-owner.test.ts`.
    */
   const url = new URL(connectionString);
   url.searchParams.delete("sslmode");
@@ -149,11 +165,7 @@ function tunnelledPool(connectionString: string): pg.Pool {
     connectionString: url.toString(),
     max: 1,
     application_name: "eia-bootstrap",
-    ssl: {
-      rejectUnauthorized: true,
-      servername: tlsServername,
-      ...(tlsCaPath ? { ca: readFileSync(tlsCaPath, "utf8") } : {}),
-    },
+    ssl: tunnelTlsOptions(tlsServername, tlsCaPath),
   });
 }
 
