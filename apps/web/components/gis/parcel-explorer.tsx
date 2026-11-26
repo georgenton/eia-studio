@@ -1,14 +1,23 @@
 "use client";
 
-import type { ParcelExplorerView } from "@eia/application";
+import type {
+  ParcelExplorerView,
+  ParcelFieldProgressView,
+  ParcelReferencePoint,
+} from "@eia/application";
 import {
+  CANONICAL_SRID,
+  describeEpsg,
+  parcelFieldStateOf,
   formatChainage,
   orderLayersForLegend,
   PARCEL_STATUS_PRESENTATION,
   type BasemapCatalogue,
+  type ParcelFieldState,
   type ParcelStatus,
 } from "@eia/domain";
 import { Chip, Panel, PanelBody, PanelHeader, ProvenanceBadge } from "@eia/ui";
+import type { Translator } from "@eia/i18n";
 import { useMemo, useState } from "react";
 
 import { useI18n } from "@/components/i18n/locale-provider";
@@ -34,14 +43,65 @@ import { useParcelSelection } from "./selection";
  */
 const ALL_STATUSES = Object.keys(PARCEL_STATUS_PRESENTATION) as ParcelStatus[];
 
+/**
+ * Six decimal places of a degree is about 0,1 m at this latitude — finer than any handset, and
+ * finer than the cartography this is read off. More digits would suggest a precision the number
+ * does not have; fewer would round away the parcel.
+ */
+const DEGREE_DIGITS = 6;
+
+/** A metre, in a projected CRS whose unit is the metre. Nothing is gained by printing millimetres
+ * of a reference point that was computed rather than surveyed. */
+const METRE_DIGITS = 0;
+
+function formatDegrees(value: number): string {
+  return value.toFixed(DEGREE_DIGITS).replace(".", ",");
+}
+
+function formatMetres(value: number): string {
+  return value.toFixed(METRE_DIGITS).replace(".", ",");
+}
+
+/**
+ * The one line that names a coordinate system, assembled from what the code actually implies.
+ *
+ * `describeEpsg` says what the EPSG number guarantees and nothing else, so a code outside the two
+ * WGS 84 UTM blocks prints as the bare code with an explicit *no description derivable* — never a
+ * plausible zone. The surface carries a note saying the description is derived rather than read
+ * from a registry, because that is the difference between this and a cartographic authority.
+ */
+function crsLine(srid: number, t: Translator): string {
+  const described = describeEpsg(srid);
+  const parts: string[] = [described.code];
+  if (described.datum) parts.push(described.datum);
+  if (described.utm) {
+    parts.push(
+      t("gis.crsUtm", { zone: String(described.utm.zone), hemisphere: described.utm.hemisphere }),
+    );
+  } else if (srid === CANONICAL_SRID) {
+    parts.push(t("gis.crsGeographic"));
+  } else if (!described.datum) {
+    parts.push(t("gis.crsUnknownName"));
+  }
+  return parts.join(" · ");
+}
+
 export function ParcelExplorer({
   view,
   basePath,
   parcelsPath,
   basemap,
+  fieldProgress,
 }: {
   view: ParcelExplorerView;
   basePath: string;
+  /**
+   * How the field work stands per parcel, or why it cannot be shown.
+   *
+   * Never a map of zeros: a caller without `field.read` gets `available: false`, and the surface
+   * offers the colouring with the reason rather than painting every parcel *sin asignar*.
+   */
+  fieldProgress: ParcelFieldProgressView;
   /** What may be drawn under the study's layers here, if anything (`docs/BASEMAP_POLICY.md`). */
   basemap: BasemapCatalogue;
   /** Prefix of the Parcel Workspace route; a plain string because functions cannot cross the
@@ -68,7 +128,39 @@ export function ParcelExplorer({
     [view.layers],
   );
   const [showInfluenceAreas, setShowInfluenceAreas] = useState(true);
+  const [showAlignment, setShowAlignment] = useState(true);
+  const [showParcels, setShowParcels] = useState(true);
+  /*
+   * Where the camera is. It starts null rather than at the project's centre, because until the map
+   * has reported a frame nobody knows where it is looking, and printing the extent's midpoint as
+   * "centre of the view" would be a coordinate the reader is not actually being shown.
+   */
+  const [centre, setCentre] = useState<{ lon: number; lat: number } | null>(null);
+  /*
+   * What the parcel colours mean. Two colourings, never merged: `cartographic` is whether the
+   * geometry is trusted, `field` is whether anybody has been there. They are different facts
+   * about the same object, and one palette meaning both would make them indistinguishable.
+   */
+  const [colourBy, setColourBy] = useState<"cartographic" | "field">("cartographic");
+  const fieldStates = useMemo(() => {
+    if (!fieldProgress.available) return null;
+    const byId = new Map<string, ParcelFieldState>();
+    for (const parcel of view.parcels) {
+      byId.set(parcel.id, parcelFieldStateOf(fieldProgress.byParcelId.get(parcel.id)));
+    }
+    return byId;
+  }, [fieldProgress, view.parcels]);
   const selected = view.parcels.find((p) => p.id === selection.selectedParcelId) ?? null;
+  /*
+   * Which CRS the metric figures were computed in: the **parcels** dataset's own, because that is
+   * the layer whose areas, frontages and reference points this surface prints. Two datasets may
+   * legitimately declare different analysis CRS, so the one shown names its layer rather than
+   * standing for the project.
+   */
+  const metricSrid =
+    view.layers.find((l) => l.datasetKind === "parcels")?.analysisSrid ??
+    view.layers[0]?.analysisSrid ??
+    null;
   const presentStatuses = ALL_STATUSES.filter((s) => view.parcels.some((p) => p.status === s));
 
   const toggleStatus = (status: ParcelStatus) =>
@@ -135,9 +227,14 @@ export function ParcelExplorer({
         <div className={styles.mapArea}>
           <ParcelMap
             basemap={basemap}
+            colourBy={colourBy}
+            fieldStates={fieldStates}
+            onCentreChange={setCentre}
             onSelect={selection.select}
             selectedParcelId={selection.selectedParcelId}
+            showAlignment={showAlignment}
             showInfluenceAreas={showInfluenceAreas}
+            showParcels={showParcels}
             view={view}
           />
           <div className={styles.layerLegend}>
@@ -162,14 +259,10 @@ export function ParcelExplorer({
             */}
             {view.influenceAreas.length > 0 ? (
               <div className={styles.influenceBlock}>
-                <label className={styles.influenceToggle}>
-                  <input
-                    checked={showInfluenceAreas}
-                    onChange={(event) => setShowInfluenceAreas(event.currentTarget.checked)}
-                    type="checkbox"
-                  />
-                  {t("gis.influenceAreas")}
-                </label>
+                {/* The switch moved up into the layer panel, where every layer's is. What stays
+                    here is what the switch is *for*: which areas the study delimited and how big
+                    each one is. */}
+                <div className={styles.layerTitle}>{t("gis.influenceAreas")}</div>
                 <ul className={styles.influenceList}>
                   {view.influenceAreas.map((area) => (
                     <li key={area.kind}>
@@ -182,6 +275,110 @@ export function ParcelExplorer({
               </div>
             ) : null}
           </div>
+        </div>
+
+        <div className={styles.mapTools}>
+          <div className={styles.toolCard}>
+            {/*
+                What is drawn, and the switch for each.
+                A switch here changes only what MapLibre paints: the payload is unchanged, the table
+                keeps every row, and the selection keeps working — which is why the note says so
+                rather than leaving a reader to wonder whether hiding a layer dropped data.
+              */}
+            <div className={styles.layerTitle}>{t("gis.colourBy")}</div>
+            <div className={styles.colourSwitch}>
+              <label className={styles.drawToggle}>
+                <input
+                  checked={colourBy === "cartographic"}
+                  data-testid="colour-by-cartographic"
+                  name="colour-by"
+                  onChange={() => setColourBy("cartographic")}
+                  type="radio"
+                />
+                {t("gis.colourByCartographic")}
+              </label>
+              <label className={styles.drawToggle}>
+                <input
+                  checked={colourBy === "field"}
+                  data-testid="colour-by-field"
+                  disabled={fieldStates === null}
+                  name="colour-by"
+                  onChange={() => setColourBy("field")}
+                  type="radio"
+                />
+                {t("gis.colourByField")}
+              </label>
+            </div>
+            {/*
+              A refusal, never a map of zeros. Painting every parcel "sin asignar" for somebody
+              who may not read the campaign would be a false statement in colour, and nobody
+              doubts a colour.
+            */}
+            {fieldProgress.available ? null : (
+              <p className={styles.layerHint} data-testid="field-colour-unavailable">
+                {t(
+                  fieldProgress.reason === "permission"
+                    ? "gis.colourByFieldDenied"
+                    : "gis.colourByFieldNoProject",
+                )}
+              </p>
+            )}
+            <div className={styles.layerTitle}>{t("gis.layers")}</div>
+            <ul className={styles.drawList}>
+              <li className={styles.drawRow}>
+                <label className={styles.drawToggle}>
+                  <input
+                    checked={showParcels}
+                    data-testid="layer-toggle-parcels"
+                    onChange={(event) => setShowParcels(event.currentTarget.checked)}
+                    type="checkbox"
+                  />
+                  {t("gis.layerParcels")}
+                </label>
+                <span className={styles.drawCount}>{fmt.count(view.parcels.length)}</span>
+              </li>
+              <li className={styles.drawRow}>
+                <label className={styles.drawToggle}>
+                  <input
+                    checked={showAlignment && view.alignment !== null}
+                    data-testid="layer-toggle-alignment"
+                    disabled={view.alignment === null}
+                    onChange={(event) => setShowAlignment(event.currentTarget.checked)}
+                    type="checkbox"
+                  />
+                  {t("gis.layerAlignment")}
+                </label>
+                {view.alignment === null ? (
+                  <span className={styles.drawCount}>{t("common.missing")}</span>
+                ) : null}
+              </li>
+              <li className={styles.drawRow}>
+                <label className={styles.drawToggle}>
+                  <input
+                    checked={showInfluenceAreas && view.influenceAreas.length > 0}
+                    data-testid="layer-toggle-influence"
+                    disabled={view.influenceAreas.length === 0}
+                    onChange={(event) => setShowInfluenceAreas(event.currentTarget.checked)}
+                    type="checkbox"
+                  />
+                  {t("gis.layerInfluence")}
+                </label>
+                {view.influenceAreas.length === 0 ? (
+                  <span className={styles.drawCount}>{t("common.missing")}</span>
+                ) : null}
+              </li>
+            </ul>
+            <p className={styles.layerHint}>{t("gis.layersNote")}</p>
+            <p className={styles.layerHint}>{t("gis.northNote")}</p>
+            <p className={styles.layerHint}>{t("gis.tooltipHint")}</p>
+          </div>
+          <CoordinatesPanel
+            centre={centre}
+            metricSrid={metricSrid}
+            selected={
+              selected ? { code: selected.parcelCode, point: selected.referencePoint } : null
+            }
+          />
         </div>
 
         <aside className={styles.panel}>
@@ -267,6 +464,91 @@ export function ParcelExplorer({
           workspaceHref={workspacePath}
         />
       </div>
+    </div>
+  );
+}
+
+/**
+ * Where the map is looking, and where the selected parcel is — in both coordinate systems, each
+ * named.
+ *
+ * ## Why it is in the document and not on the canvas
+ *
+ * Every other map puts a coordinate readout in a corner of the drawing, where it follows the
+ * cursor. That readout is unreachable here for the same reason the navigation control is (§26,
+ * IG2-005): the canvas is `aria-hidden`, so text inside it is text nobody using a screen reader
+ * will ever be read. This is ordinary document text, it updates when the camera settles, and the
+ * parcel half changes with the one canonical selection the table and the map share.
+ *
+ * ## Why two coordinate systems and not one
+ *
+ * They answer different questions. The geographic pair is what a phone's GPS and this product's
+ * own storage speak; the projected pair is what the study's drawings, a field GPS and a total
+ * station speak, and it is the one a cartographer can check against the delivered cartography in
+ * a second. Showing only one would make a reader convert, and a conversion done by hand beside a
+ * map is a conversion that can be wrong.
+ *
+ * The projected pair comes from PostGIS, in the dataset version's own analysis CRS. The browser
+ * reprojects nothing.
+ */
+function CoordinatesPanel({
+  centre,
+  metricSrid,
+  selected,
+}: {
+  centre: { lon: number; lat: number } | null;
+  metricSrid: number | null;
+  selected: { code: string; point: ParcelReferencePoint | null } | null;
+}) {
+  const { t } = useI18n();
+  return (
+    <div className={styles.coords} data-testid="map-coordinates">
+      <div className={styles.layerTitle}>{t("gis.coordinates")}</div>
+      <dl className={styles.coordsCrs}>
+        <div>
+          <dt>{t("gis.crsShown")}</dt>
+          <dd className={styles.mono}>{crsLine(CANONICAL_SRID, t)}</dd>
+        </div>
+        {metricSrid === null ? null : (
+          <div>
+            <dt>{t("gis.crsMeasured")}</dt>
+            <dd className={styles.mono}>{crsLine(metricSrid, t)}</dd>
+          </div>
+        )}
+      </dl>
+      <p className={styles.coordsNote}>{t("gis.crsNote")}</p>
+
+      {centre === null ? null : (
+        <div className={styles.coordsBlock}>
+          <div className={styles.coordsLabel}>{t("gis.coordinatesCentre")}</div>
+          <p className={styles.mono} data-testid="map-centre">
+            {formatDegrees(centre.lat)} · {formatDegrees(centre.lon)}
+          </p>
+        </div>
+      )}
+
+      {selected === null ? null : (
+        <div className={styles.coordsBlock}>
+          <div className={styles.coordsLabel}>
+            {t("gis.coordinatesParcel", { code: selected.code })}
+          </div>
+          {selected.point === null ? (
+            <p className={styles.coordsNote}>{t("gis.coordinatesNone")}</p>
+          ) : (
+            <>
+              <p className={styles.mono} data-testid="parcel-coordinates-geographic">
+                <span className={styles.coordsKind}>{t("gis.coordinatesGeographic")}</span>{" "}
+                {formatDegrees(selected.point.lat)} · {formatDegrees(selected.point.lon)}
+              </p>
+              <p className={styles.mono} data-testid="parcel-coordinates-projected">
+                <span className={styles.coordsKind}>{t("gis.coordinatesProjected")}</span> E{" "}
+                {formatMetres(selected.point.easting)} · N {formatMetres(selected.point.northing)}
+              </p>
+              <p className={styles.coordsNote}>{t("gis.referencePointNote")}</p>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }

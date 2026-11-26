@@ -125,7 +125,18 @@ test.describe("a configured reference basemap", () => {
       "023",
     );
 
-    const box = (await page.getByTestId("parcel-map").boundingBox())!;
+    /*
+     * The wheel has to land on the map.
+     *
+     * Clicking a row scrolls that row into view, and the table sits below the map — so by the
+     * time the click settles the map can be off the top of the viewport, and a wheel event at
+     * its "centre" scrolls the document instead of zooming anything. Scrolling the map back into
+     * view first is what a person does without thinking about it, and it is the difference
+     * between this test exercising MapLibre's scroll zoom and exercising the page's scrollbar.
+     */
+    const map = page.getByTestId("parcel-map");
+    await map.scrollIntoViewIfNeeded();
+    const box = (await map.boundingBox())!;
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
     for (let i = 0; i < 6; i += 1) await page.mouse.wheel(0, 400);
     await expect

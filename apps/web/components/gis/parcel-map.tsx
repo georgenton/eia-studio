@@ -4,11 +4,14 @@ import type { ParcelExplorerView } from "@eia/application";
 import {
   BASEMAP_MODES,
   collectPositions,
+  PARCEL_FIELD_STATE_PRESENTATION,
+  PARCEL_FIELD_STATES,
   PARCEL_STATUS_PRESENTATION,
   basemapSourceFor,
   resolveInitialBasemapMode,
   type BasemapCatalogue,
   type BasemapMode,
+  type ParcelFieldState,
   type ParcelStatus,
 } from "@eia/domain";
 // MapLibre v6 is pure ESM with named exports and no default export.
@@ -19,10 +22,10 @@ import {
   type MapLayerMouseEvent,
   type MapMouseEvent,
 } from "maplibre-gl";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useI18n } from "@/components/i18n/locale-provider";
-import { basemapModeLabel, parcelStatusLabel } from "@/lib/labels";
+import { basemapModeLabel, parcelFieldStateLabel, parcelStatusLabel } from "@/lib/labels";
 
 import { attachBasemap, detachBasemap, probeBasemap } from "./basemap-layer";
 import { ensureMapWorker, keepMapSized, removeMapFromTabOrder } from "./inert-map";
@@ -59,6 +62,30 @@ const STATUS_LINE: Record<ParcelStatus, string> = {
   estimated: "#a6aeb4",
   not_located: "#8b959c",
   excluded: "#c8d0d6",
+};
+
+/**
+ * The second palette: how far the field work has got, not whether the geometry is trusted.
+ *
+ * Deliberately a different family of hues from the cartographic one, which is pale green through
+ * grey. A reader switching colourings must see that the map now means something else; two
+ * palettes that looked alike would be worse than one, because the legend would be the only thing
+ * saying which question is on screen.
+ *
+ * `unassigned` is white with a visible outline rather than a light tint: it is the state a
+ * coordinator scans for, and "nothing here yet" should read as empty rather than as a colour.
+ */
+const FIELD_FILL: Record<ParcelFieldState, string> = {
+  answered: "#d9e8f2",
+  correcting: "#fbe8cf",
+  assigned: "#e8e4f3",
+  unassigned: "#ffffff",
+};
+const FIELD_LINE: Record<ParcelFieldState, string> = {
+  answered: "#17506b",
+  correcting: "#9a6617",
+  assigned: "#5b4a8a",
+  unassigned: "#8b959c",
 };
 
 /**
@@ -171,13 +198,44 @@ function applyPresentation(map: InstanceType<typeof MapLibreMap>, mode: BasemapM
   set("influence-line", "line-width", p.influenceLineWidth);
 }
 
-function statusExpression(map: Record<ParcelStatus, string>, fallback: string) {
+function matchExpression(
+  property: string,
+  map: Record<string, string>,
+  fallback: string,
+): ExpressionSpecification {
   return [
     "match",
-    ["get", "status"],
-    ...Object.entries(map).flatMap(([status, value]) => [status, value]),
+    ["get", property],
+    ...Object.entries(map).flatMap(([key, value]) => [key, value]),
     fallback,
   ] as unknown as ExpressionSpecification;
+}
+
+/**
+ * Which property the paint reads, and therefore which question the map is answering.
+ *
+ * One source, two possible colourings, switched by swapping the paint expression rather than by
+ * rebuilding the layer: the features, the selection and the camera are untouched, so changing
+ * what the colours *mean* never moves the map or loses what the reader had selected.
+ */
+function fillExpression(colourBy: "cartographic" | "field"): ExpressionSpecification {
+  return colourBy === "field"
+    ? matchExpression("fieldState", FIELD_FILL, FIELD_FILL.unassigned)
+    : matchExpression("status", STATUS_FILL, "#f1f3f5");
+}
+
+function lineExpression(colourBy: "cartographic" | "field"): ExpressionSpecification {
+  return colourBy === "field"
+    ? matchExpression("fieldState", FIELD_LINE, FIELD_LINE.unassigned)
+    : matchExpression("status", STATUS_LINE, "#a6aeb4");
+}
+
+/** What the cursor is over, for the tooltip. Positions are in the container's own pixels. */
+interface HoveredParcel {
+  readonly x: number;
+  readonly y: number;
+  readonly parcelCode: string;
+  readonly status: ParcelStatus;
 }
 
 export function ParcelMap({
@@ -185,19 +243,80 @@ export function ParcelMap({
   selectedParcelId,
   onSelect,
   showInfluenceAreas = true,
+  showAlignment = true,
+  showParcels = true,
   basemap,
+  fieldStates,
+  colourBy = "cartographic",
+  onCentreChange,
 }: {
   view: ParcelExplorerView;
   selectedParcelId: string | null;
   onSelect: (parcelId: string | null) => void;
   /** Whether the delimited areas are drawn. The toggle lives with the legend that names them. */
   showInfluenceAreas?: boolean;
+  /** Whether the centreline is drawn. Same kind of switch, same kind of promise: data is unchanged. */
+  showAlignment?: boolean;
+  showParcels?: boolean;
   /** What this deployment may draw *underneath* the study's layers, if anything. */
   basemap: BasemapCatalogue;
+  /**
+   * The field state of each parcel, or null when this caller may not have it.
+   *
+   * Null is not "no work": the surface never offers the field colouring without these, because a
+   * map coloured entirely *sin asignar* is a false statement and nobody doubts a colour.
+   */
+  fieldStates: ReadonlyMap<string, ParcelFieldState> | null;
+  /** Which question the parcel colours answer. Never both. */
+  colourBy?: "cartographic" | "field";
+  /**
+   * Where the camera is, in the presentation CRS, so the surface can print it.
+   *
+   * The map reports it rather than the readout asking: the camera lives inside an effect that owns
+   * the MapLibre instance, and a component reaching into that instance on a render would be
+   * reading a value that is only defined between two frames.
+   */
+  onCentreChange?: (centre: { lon: number; lat: number }) => void;
 }) {
   const { t } = useI18n();
+  const [hovered, setHovered] = useState<HoveredParcel | null>(null);
+  const onCentreChangeRef = useRef(onCentreChange);
+  useEffect(() => {
+    onCentreChangeRef.current = onCentreChange;
+  }, [onCentreChange]);
   const container = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<InstanceType<typeof MapLibreMap> | null>(null);
+  /*
+   * The features, with each parcel's field state attached.
+   *
+   * It is a *property on the feature* rather than a lookup at paint time because MapLibre's paint
+   * expressions can only read the feature's own properties — and because attaching it here means
+   * the two colourings are the same source with two expressions, so switching between them never
+   * rebuilds a layer, never moves the camera and never drops the selection.
+   */
+  const features = useMemo(
+    () =>
+      view.features.map((feature) => ({
+        ...feature,
+        properties: {
+          ...feature.properties,
+          fieldState: fieldStates?.get(feature.properties.parcelId) ?? "unassigned",
+        },
+      })),
+    [view.features, fieldStates],
+  );
+  const featuresRef = useRef(features);
+  const colourByRef = useRef(colourBy);
+  /*
+   * The two values the build effect reads, synced before it runs.
+   *
+   * Declared above the effect that builds the map, because effects run in declaration order: on
+   * mount these are current by the time MapLibre is constructed, and on a later change the
+   * dedicated effects below re-feed the source and re-paint rather than rebuilding anything.
+   */
+  useEffect(() => {
+    featuresRef.current = features;
+  }, [features]);
   const boundsRef = useRef(view.bounds);
   /*
    * The background is a *view preference*, not project data: no column, no migration, no
@@ -249,6 +368,72 @@ export function ParcelMap({
     }
   }, [showInfluenceAreas]);
 
+  /*
+   * The other two layers, switched the same way.
+   *
+   * A hidden layer is a *drawing* decision and nothing else: the features stay in the payload, the
+   * table keeps every row, the selection keeps working, and a reader who hides the parcels and
+   * clicks where one was selects nothing rather than something invisible. Hiding the parcels also
+   * stops showing the tooltip, because a tooltip for a polygon nobody can see is a fact with no
+   * source on screen — and that is a *render* condition rather than an effect that clears state,
+   * so there is no moment where the two disagree.
+   */
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map?.isStyleLoaded()) return;
+    const visibility = showParcels ? "visible" : "none";
+    for (const id of [
+      "parcels-fill",
+      "parcels-line",
+      "parcels-selected",
+      "parcels-selected-halo",
+    ]) {
+      if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", visibility);
+    }
+  }, [showParcels]);
+
+  /*
+   * Changing what the colours mean: two paint properties, nothing else.
+   *
+   * Not a rebuild. A reader who has a parcel selected and switches to the field colouring keeps
+   * their selection, their camera and their basemap; only the question the colours answer changes.
+   */
+  useEffect(() => {
+    colourByRef.current = colourBy;
+    const map = mapRef.current;
+    if (!map?.isStyleLoaded()) return;
+    if (map.getLayer("parcels-fill")) {
+      map.setPaintProperty("parcels-fill", "fill-color", fillExpression(colourBy));
+    }
+    if (map.getLayer("parcels-line")) {
+      map.setPaintProperty("parcels-line", "line-color", lineExpression(colourBy));
+    }
+  }, [colourBy]);
+
+  // The field states arrive with the page, but a later render may replace them; the source is
+  // re-fed rather than the map rebuilt, for the same reason as above.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map?.isStyleLoaded()) return;
+    const source = map.getSource("parcels");
+    if (source && "setData" in source) {
+      (source as { setData: (d: unknown) => void }).setData({
+        type: "FeatureCollection",
+        features: featuresRef.current,
+      });
+    }
+  }, [fieldStates]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map?.isStyleLoaded()) return;
+    for (const id of ["alignment-halo", "alignment-line"]) {
+      if (map.getLayer(id)) {
+        map.setLayoutProperty(id, "visibility", showAlignment ? "visible" : "none");
+      }
+    }
+  }, [showAlignment]);
+
   useEffect(() => {
     const node = container.current;
     if (!node) return;
@@ -270,7 +455,22 @@ export function ParcelMap({
         : { center: [0, 0] as [number, number], zoom: 1 }),
       fitBoundsOptions: { padding: 48 },
       attributionControl: false,
+      /*
+       * The map does not rotate, and that is what makes the north arrow honest.
+       *
+       * MapLibre lets a reader rotate with a right-button drag, with ctrl-drag, or with two
+       * fingers — usually by accident. A fixed arrow on a map that can turn is a lie waiting for
+       * somebody to trigger it, and an arrow that tracks the bearing is a control inside an
+       * `aria-hidden` canvas (IG2-005). Taking rotation away is the third option, and it costs a
+       * reader nothing here: a corridor is read north-up, and the field application draws its map
+       * north-up for the same reason.
+       */
+      dragRotate: false,
+      pitchWithRotate: false,
+      touchPitch: false,
     });
+    // The constructor option covers the mouse; touch rotation is a separate handler.
+    map.touchZoomRotate.disableRotation();
     mapRef.current = map;
     const stopSizing = keepMapSized(map, node);
     // No NavigationControl (IG2-005). It renders real buttons, and inside an `aria-hidden`
@@ -292,6 +492,8 @@ export function ParcelMap({
      */
     const publishCamera = (): void => {
       const bounds = map.getBounds();
+      const centre = map.getCenter();
+      onCentreChangeRef.current?.({ lon: centre.lng, lat: centre.lat });
       node.dataset["mapView"] =
         `${bounds.getWest()},${bounds.getSouth()},${bounds.getEast()},${bounds.getNorth()}`;
       node.dataset["parcelsInView"] = map.getLayer("parcels-fill")
@@ -373,7 +575,7 @@ export function ParcelMap({
 
       map.addSource("parcels", {
         type: "geojson",
-        data: { type: "FeatureCollection", features: view.features } as never,
+        data: { type: "FeatureCollection", features: featuresRef.current } as never,
         promoteId: "parcelId",
       });
       map.addLayer({
@@ -381,7 +583,7 @@ export function ParcelMap({
         type: "fill",
         source: "parcels",
         paint: {
-          "fill-color": statusExpression(STATUS_FILL, "#f1f3f5"),
+          "fill-color": fillExpression(colourByRef.current),
           "fill-opacity": 0.85,
         },
       });
@@ -390,7 +592,7 @@ export function ParcelMap({
         type: "line",
         source: "parcels",
         paint: {
-          "line-color": statusExpression(STATUS_LINE, "#a6aeb4"),
+          "line-color": lineExpression(colourByRef.current),
           "line-width": 1,
         },
       });
@@ -460,6 +662,32 @@ export function ParcelMap({
     });
     map.on("mouseleave", "parcels-fill", () => {
       map.getCanvas().style.cursor = "";
+      setHovered(null);
+    });
+    /*
+     * The tooltip, and why it is an addition rather than a feature.
+     *
+     * Hovering is a mouse gesture: it does not exist on a touch screen and a keyboard cannot
+     * perform it. So this carries **nothing a reader can only get here** — the code and the state
+     * it shows are in the table row and in the panel, both of which a tap and a keyboard reach,
+     * and the surface says so in `gis.tooltipHint` rather than leaving a reader to discover that
+     * the map is not the way in.
+     *
+     * It is `aria-hidden` for the same reason the canvas is (§26): announcing a tooltip that
+     * follows a pointer would interrupt a screen-reader user with the position of a device they
+     * are not using.
+     */
+    map.on("mousemove", "parcels-fill", (event: MapLayerMouseEvent) => {
+      const feature = event.features?.[0];
+      const parcelCode = feature?.properties?.["parcelCode"];
+      const status = feature?.properties?.["status"];
+      if (typeof parcelCode !== "string" || typeof status !== "string") return;
+      setHovered({
+        x: event.point.x,
+        y: event.point.y,
+        parcelCode,
+        status: status as ParcelStatus,
+      });
     });
 
     return () => {
@@ -586,6 +814,33 @@ export function ParcelMap({
   return (
     <div className={styles.wrap}>
       <div className={styles.canvas} data-testid="parcel-map" ref={container} />
+      {/*
+        North, drawn once and never turned. The map's rotation handlers are disabled at
+        construction, so this is a statement about the map rather than a widget that tracks it —
+        and the note beside the legend says as much, because a reader who expects to be able to
+        rotate should be told they cannot rather than discover it.
+      */}
+      <div aria-hidden="true" className={styles.north} data-testid="map-north">
+        <svg viewBox="0 0 24 44" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 4 L17 15 L12 12 L7 15 Z" fill="currentColor" />
+          <line stroke="currentColor" strokeWidth="1.5" x1="12" x2="12" y1="12" y2="30" />
+        </svg>
+        <span className={styles.northLabel}>N</span>
+      </div>
+      {hovered && showParcels ? (
+        <div
+          aria-hidden="true"
+          className={styles.tooltip}
+          data-testid="parcel-tooltip"
+          style={{ left: hovered.x, top: hovered.y }}
+        >
+          <span className={styles.tooltipCode}>{hovered.parcelCode}</span>
+          <span className={styles.tooltipStatus}>
+            <span aria-hidden="true">{PARCEL_STATUS_PRESENTATION[hovered.status].glyph}</span>{" "}
+            {parcelStatusLabel(t, hovered.status)}
+          </span>
+        </div>
+      ) : null}
       <div className={styles.controls}>
         {view.bounds ? (
           <button
@@ -617,7 +872,7 @@ export function ParcelMap({
           : t("gis.noParcelSelected")}
       </div>
       <p className={styles.srOnly}>{t("gis.mapIsVisual")}</p>
-      <MapLegends view={view} />
+      <MapLegends colourBy={colourBy} fieldStates={fieldStates} view={view} />
     </div>
   );
 }
@@ -722,31 +977,91 @@ function BasemapCredits({
   );
 }
 
-function MapLegends({ view }: { view: ParcelExplorerView }) {
+/**
+ * The legend of **what is drawn**, which is not always the same question.
+ *
+ * The rule that every map carries a state legend is only worth anything if the legend describes
+ * the colours actually on screen. Leaving the cartographic legend up while the parcels are
+ * coloured by field progress would put *Confirmado 121* beside a map where green means nothing of
+ * the kind — a legend that disagrees with its map is worse than no legend, because a reader
+ * trusts it.
+ *
+ * So the legend follows `colourBy`, and the counts are recomputed from whichever classification
+ * is in force. Both halves keep the glyph: a state is never carried by colour alone.
+ */
+function MapLegends({
+  view,
+  colourBy,
+  fieldStates,
+}: {
+  view: ParcelExplorerView;
+  colourBy: "cartographic" | "field";
+  fieldStates: ReadonlyMap<string, ParcelFieldState> | null;
+}) {
   const { t } = useI18n();
-  const counts = view.parcels.reduce<Record<string, number>>((acc, parcel) => {
+  const showField = colourBy === "field" && fieldStates !== null;
+
+  const statusCounts = view.parcels.reduce<Record<string, number>>((acc, parcel) => {
     acc[parcel.status] = (acc[parcel.status] ?? 0) + 1;
     return acc;
   }, {});
-  const present = (Object.keys(PARCEL_STATUS_PRESENTATION) as ParcelStatus[]).filter(
-    (status) => (counts[status] ?? 0) > 0,
-  );
+  const fieldCounts = fieldStates
+    ? [...fieldStates.values()].reduce<Record<string, number>>((acc, state) => {
+        acc[state] = (acc[state] ?? 0) + 1;
+        return acc;
+      }, {})
+    : {};
+
+  /*
+   * A state with no parcels is left out of the cartographic legend and **kept** in the field one.
+   * They are different kinds of zero: no parcel is "excluido" because the layer contains none,
+   * while *En corrección 0* is a fact a coordinator is reading the map to learn.
+   */
+  const rows: ReadonlyArray<{
+    key: string;
+    label: string;
+    glyph: string;
+    fill: string;
+    line: string;
+    count: number;
+  }> = showField
+    ? PARCEL_FIELD_STATES.map((state) => ({
+        key: state,
+        label: parcelFieldStateLabel(t, state),
+        glyph: PARCEL_FIELD_STATE_PRESENTATION[state].glyph,
+        fill: FIELD_FILL[state],
+        line: FIELD_LINE[state],
+        count: fieldCounts[state] ?? 0,
+      }))
+    : (Object.keys(PARCEL_STATUS_PRESENTATION) as ParcelStatus[])
+        .filter((status) => (statusCounts[status] ?? 0) > 0)
+        .map((status) => ({
+          key: status,
+          label: parcelStatusLabel(t, status),
+          glyph: PARCEL_STATUS_PRESENTATION[status].glyph,
+          fill: STATUS_FILL[status],
+          line: STATUS_LINE[status],
+          count: statusCounts[status] ?? 0,
+        }));
+
   return (
     <div className={styles.legends}>
-      <div className={styles.legend}>
-        <div className={styles.legendTitle}>{t("gis.parcelStatusLegend")}</div>
+      <div className={styles.legend} data-testid="map-state-legend">
+        <div className={styles.legendTitle}>
+          {t(showField ? "gis.fieldProgressLegend" : "gis.parcelStatusLegend")}
+        </div>
         <ul className={styles.legendList}>
-          {present.map((status) => (
-            <li className={styles.legendRow} key={status}>
+          {rows.map((row) => (
+            <li className={styles.legendRow} key={row.key}>
               <span
                 aria-hidden="true"
                 className={styles.swatch}
-                style={{ background: STATUS_FILL[status], borderColor: STATUS_LINE[status] }}
+                style={{ background: row.fill, borderColor: row.line }}
               >
-                {PARCEL_STATUS_PRESENTATION[status].glyph}
+                {row.glyph}
               </span>
-              <span className={styles.legendLabel}>{parcelStatusLabel(t, status)}</span>
-              <span className={styles.legendCount}>{counts[status]}</span>
+              <span className={styles.legendLabel}>{row.label}</span>
+              <span className={styles.legendCount}>{row.count}</span>
             </li>
           ))}
         </ul>

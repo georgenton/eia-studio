@@ -522,39 +522,54 @@ try {
     await tx
       .delete(appSchema.provenanceInput)
       .where(eq(appSchema.provenanceInput.projectId, projectId));
-    // Records written by an older run with random ids are removed; the deterministic ones are
-    // updated in place below, so nothing that still references them is ever orphaned.
+    /*
+     * Records written by an older run with random ids are removed; the deterministic ones are
+     * updated in place below, so nothing that still references them is ever orphaned.
+     *
+     * ## The list is read from the catalogue, not written here
+     *
+     * This used to be a hand-written chain of `NOT EXISTS` over every provenance-bearing table,
+     * under a comment promising that every one was listed. It was not: by the time a re-seed was
+     * attempted against a database carrying socialization invitations, **eight** tables were
+     * missing — `document_review_run`, `document_review_candidate`, `field_media`,
+     * `generated_document`, `influence_area`, `report_template_version`, `socialization_event`
+     * and `socialization_invitation` — and the re-seed died on a foreign key.
+     *
+     * The comment was right about the stakes and wrong about the mechanism. A list that must be
+     * edited every time a slice adds a table is a list that will be out of date, and the failure
+     * is either loud (this one) or quiet (a dangling reference). So the tables are read from
+     * `information_schema` at run time: a provenance-bearing table added tomorrow is covered the
+     * day it exists, with nobody remembering anything.
+     *
+     * The identifiers are interpolated with `sql.raw`, which is safe here and nowhere else: they
+     * come from the catalogue of the database being seeded, never from a caller, and each is
+     * checked against a plain-identifier pattern before it is used.
+     */
+    const provenanceBearing = await tx.execute(sql`
+      select c.table_name
+        from information_schema.columns c
+        join information_schema.tables t
+          on t.table_schema = c.table_schema and t.table_name = c.table_name
+       where c.table_schema = 'app'
+         and c.column_name = 'provenance_id'
+         and t.table_type = 'BASE TABLE'
+         -- provenance_input is lineage of the records themselves and was emptied above.
+         and c.table_name <> 'provenance_input'
+       order by c.table_name
+    `);
+    const referencing = (provenanceBearing.rows as unknown as ReadonlyArray<{ table_name: string }>)
+      .map((row) => row.table_name)
+      .filter((name) => /^[a-z_][a-z0-9_]*$/.test(name));
+    if (referencing.length === 0) {
+      throw new Error("no provenance-bearing tables found: refusing to sweep provenance records");
+    }
+    const stillReferenced = referencing
+      .map((table) => `and not exists (select 1 from app.${table} r where r.provenance_id = pr.id)`)
+      .join("\n         ");
     await tx.execute(sql`
       delete from app.provenance_record pr
        where pr.project_id = ${projectId}
-         and not exists (select 1 from app.survey_campaign c where c.provenance_id = pr.id)
-         and not exists (select 1 from app.survey_version v where v.provenance_id = pr.id)
-         and not exists (select 1 from app.field_assignment a where a.provenance_id = pr.id)
-         and not exists (select 1 from app.field_visit fv where fv.provenance_id = pr.id)
-         and not exists (select 1 from app.survey_instance si where si.provenance_id = pr.id)
-         and not exists (select 1 from app.spatial_dataset_version dv where dv.provenance_id = pr.id)
-         and not exists (select 1 from app.parcel p where p.provenance_id = pr.id)
-         and not exists (select 1 from app.parcel_geometry g where g.provenance_id = pr.id)
-         and not exists (select 1 from app.affectation af where af.provenance_id = pr.id)
-         and not exists (select 1 from app.alignment al where al.provenance_id = pr.id)
-         -- Social (Slice 4). A provenance-bearing table added later and forgotten here is a
-         -- re-seed that fails on a foreign key, which is the loud version of the failure; the
-         -- quiet version would be a dangling reference. Both are avoided by listing every one.
-         and not exists (select 1 from app.taxonomy_version tv where tv.provenance_id = pr.id)
-         and not exists (select 1 from app.classification_run cr where cr.provenance_id = pr.id)
-         and not exists (select 1 from app.ai_classification ac where ac.provenance_id = pr.id)
-         and not exists (select 1 from app.human_review hr where hr.provenance_id = pr.id)
-         -- Quality Gate (Slice 5), same discipline.
-         and not exists (select 1 from app.document_assertion da where da.provenance_id = pr.id)
-         and not exists (select 1 from app.quality_run qr where qr.provenance_id = pr.id)
-         and not exists (select 1 from app.quality_finding qf where qf.provenance_id = pr.id)
-         -- Documents (Slice 6).
-         and not exists (select 1 from app.document_version dv where dv.provenance_id = pr.id)
-         -- Reports (Slice 7): a generated version records how it was produced.
-         and not exists (select 1 from app.report_version rv where rv.provenance_id = pr.id)
-         -- The management plan (ADR-024): a superseded import run keeps its provenance, because
-         -- a figure quoted from last month's plan must still be explainable.
-         and not exists (select 1 from app.pgas_import_run ir where ir.provenance_id = pr.id)
+         ${sql.raw(stillReferenced)}
     `);
     /*
      * Provenance ids are **derived from the fixture key**, not random.

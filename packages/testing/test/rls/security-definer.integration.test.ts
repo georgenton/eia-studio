@@ -113,6 +113,16 @@ const PRIVILEGED_COUNTERS = [
     name: "field_technician_workload",
     columns: ["assignee_user_id", "pending", "in_progress", "completed"],
   },
+  /*
+   * The same class, one surface along (migration 0062). Colouring the Parcel Explorer by field
+   * progress is an ordinary aggregate over the same rows, so a `GIS_SPECIALIST` would have been
+   * shown a corridor of parcels painted *sin asignar* — the class-4 defect repeated in colour,
+   * where it is harder to doubt.
+   */
+  {
+    name: "field_parcel_progress",
+    columns: ["parcel_id", "assigned", "submitted", "corrections_open"],
+  },
 ] as const;
 
 const PRIVILEGED = [
@@ -390,7 +400,11 @@ describe("hardening contract of the privileged helpers", () => {
     project: string,
   ) => {
     const errors: string[] = [];
-    for (const fn of ["field_campaign_counts", "field_technician_workload"]) {
+    for (const fn of [
+      "field_campaign_counts",
+      "field_technician_workload",
+      "field_parcel_progress",
+    ]) {
       const error = await attempt(
         db.runtime.transaction(async (tx) => {
           for (const [key, value] of Object.entries(settings)) {

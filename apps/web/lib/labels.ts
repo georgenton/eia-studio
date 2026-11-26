@@ -33,6 +33,8 @@ export const parcelStatusLabel = (t: Translator, value: string) =>
   vocabulary(t, "parcelStatus", value);
 export const parcelStatusNote = (t: Translator, value: string) =>
   vocabulary(t, "parcelStatusNote", value);
+export const parcelFieldStateLabel = (t: Translator, value: string) =>
+  vocabulary(t, "parcelFieldState", value);
 export const layerLegendLabel = (t: Translator, value: string) =>
   vocabulary(t, "layerLegend", value);
 export const layerLegendNote = (t: Translator, value: string) =>

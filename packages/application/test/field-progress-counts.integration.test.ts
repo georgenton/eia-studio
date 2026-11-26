@@ -26,6 +26,7 @@ import {
   loadAssignmentDetail,
   loadFieldOverview,
   loadMyWork,
+  loadParcelFieldProgress,
   withFieldContext,
 } from "../src/index";
 
@@ -625,5 +626,99 @@ describe("project isolation inside one tenant", () => {
       sql`select current_setting('app.tenant_id', true) as v`,
     );
     expect(tenantless.rows[0]!.v ?? "").toBe("");
+  });
+});
+
+/**
+ * The same question, one surface along: *where* is the work, parcel by parcel, on the map.
+ *
+ * The Parcel Explorer colours parcels by their cartographic state. Colouring them by field
+ * progress instead is an ordinary aggregate over `field_assignment` and `survey_instance` — and
+ * therefore exactly the defect of migration 0059, repeated: a `GIS_SPECIALIST` would be shown a
+ * corridor of grey parcels labelled *sin asignar* for an operation a coordinator reads as half
+ * visited. A false map is worse than no map, because nobody doubts a colour.
+ *
+ * So the cases below are, again, in pairs: a figure somebody is entitled to, and the refusal that
+ * takes its place when they are not — never a zero.
+ */
+describe("progress per parcel, for colouring a map", () => {
+  it("gives a coordinator the same totals the campaign counters do", async () => {
+    const view = await loadParcelFieldProgress(db.runtime, await contextFor(coordinator));
+    expect(view.available).toBe(true);
+    if (!view.available) return;
+
+    const totals = [...view.byParcelId.values()].reduce(
+      (acc, p) => ({
+        assigned: acc.assigned + p.assigned,
+        submitted: acc.submitted + p.submitted,
+      }),
+      { assigned: 0, submitted: 0 },
+    );
+    /*
+     * Four original assignments across the project's parcels — the cancelled one is excluded, and
+     * a correction assignment is not a parcel (ADR-038) — and one submitted response.
+     */
+    expect(totals.assigned).toBeGreaterThan(0);
+    expect(totals.submitted).toBeGreaterThan(0);
+    // Every parcel of the project is present, including the ones nobody was sent to: a parcel
+    // missing from the map is a parcel that silently loses its colour.
+    expect(view.byParcelId.size).toBeGreaterThanOrEqual(totals.assigned);
+  });
+
+  it("gives a GIS specialist the same figures, without giving them a single answer", async () => {
+    const ctx = await contextFor(gis);
+    const view = await loadParcelFieldProgress(db.runtime, ctx);
+    expect(view.available).toBe(true);
+    if (!view.available) return;
+
+    const coordinatorView = await loadParcelFieldProgress(
+      db.runtime,
+      await contextFor(coordinator),
+    );
+    expect(coordinatorView.available).toBe(true);
+    if (!coordinatorView.available) return;
+
+    /*
+     * The assertion that matters. This role holds `field.read` and not `field.responses.read`, so
+     * under ordinary RLS every one of these counts would have been zero — and the map would have
+     * said so in colour. They must equal the coordinator's exactly.
+     */
+    expect([...view.byParcelId].sort()).toEqual([...coordinatorView.byParcelId].sort());
+  });
+
+  it("refuses a technician rather than handing them the project's map", async () => {
+    // A technician is a member of the project and passes `has_project_access`; they hold no
+    // `field.read`, and project access is not the permission.
+    const view = await loadParcelFieldProgress(db.runtime, await contextFor(technician));
+    expect(view).toEqual({ available: false, reason: "permission" });
+  });
+
+  it("refuses rather than returning an empty map, which would read as no work anywhere", async () => {
+    const ctx = await contextFor(technician);
+    const message = await refusalFrom(() =>
+      withFieldContext(db.runtime, ctx, (tx) =>
+        tx.execute(
+          sql`select * from app.field_parcel_progress(${w.tenantA.id}::uuid, ${w.projectX.id}::uuid)`,
+        ),
+      ),
+    );
+    /*
+     * Straight at the function, past the use-case's own check. A guard that returned no rows
+     * would be indistinguishable from a project where nobody has been anywhere — the quiet
+     * failure this whole mechanism exists to prevent.
+     */
+    expect(message).toMatch(/field\.read permission/i);
+  });
+
+  it("cannot be asked about another tenant's project, whatever the arguments say", async () => {
+    const ctx = await contextFor(coordinator);
+    const message = await refusalFrom(() =>
+      withFieldContext(db.runtime, ctx, (tx) =>
+        tx.execute(
+          sql`select * from app.field_parcel_progress(${w.tenantB.id}::uuid, ${w.projectX.id}::uuid)`,
+        ),
+      ),
+    );
+    expect(message).toMatch(/tenant or project this transaction is not acting on/i);
   });
 });
