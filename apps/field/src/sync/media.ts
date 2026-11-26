@@ -61,6 +61,18 @@ export interface CaptureInput {
 
 const MEDIA_DIRECTORY_NAME = "media";
 
+/**
+ * This run of the application, for the one question a synchronisation has to be able to answer:
+ * *is somebody still waiting for this photograph's position?*
+ *
+ * Minted once at module load and never regenerated, so every capture in this process shares it and
+ * every row left by a previous process is distinguishable from them. A device that is force-stopped
+ * mid-request gets a new one on relaunch, which is exactly the signal that the old request is gone.
+ *
+ * It is not an identifier of anything outside the device and never leaves it.
+ */
+export const LOCATION_SESSION = randomUUID();
+
 /** Record a photograph. Returns its `localId`, which is what the server will key on for ever. */
 export async function captureMedia(
   db: SQLite.SQLiteDatabase,
@@ -78,6 +90,7 @@ export async function captureMedia(
     kind: input.kind,
     note: input.note,
     locationOutcome: input.locationIntent === "will_ask" ? "pending" : "not_attempted",
+    locationSession: LOCATION_SESSION,
   });
   return localId;
 }
@@ -118,14 +131,14 @@ export async function uploadPendingMedia(
   appVersion: string,
 ): Promise<MediaSyncOutcome> {
   /*
-   * Settle anything still waiting for a position before reading the list.
+   * Settle the photographs **nobody is waiting for any more**, before reading the list.
    *
-   * A photograph is persisted at the shutter and its location is attached a moment later, so a
-   * process killed in between leaves a row marked `pending`. The device cannot afterwards learn
-   * where it was, and the alternative to settling it is holding the photograph back for ever —
-   * which is the failure this whole ordering exists to prevent.
+   * Scoped to other runs of the application. The first version of this settled every `pending`
+   * row, which took the position out from under a capture whose request was still in flight: the
+   * answer arrived a second later and updated nothing. A photograph still waiting in *this*
+   * process is left alone and skipped by the loop below; its own bounded request settles it.
    */
-  await settleAbandonedMediaLocations(db);
+  await settleAbandonedMediaLocations(db, LOCATION_SESSION);
 
   const rows = await listAllMedia(db);
   let uploaded = 0;

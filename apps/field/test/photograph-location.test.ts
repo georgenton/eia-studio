@@ -41,9 +41,14 @@ describe("a photograph is kept before its position is sought", () => {
   });
   afterEach(() => database.close());
 
+  /** The run of the application that is waiting for a position (migration 6). */
+  const THIS_SESSION = "0199f3a2-7c41-7abc-8d0f-00000000s001";
+  const EARLIER_SESSION = "0199f3a2-7c41-7abc-8d0f-00000000s000";
+
   const photograph = async (
     localId: string,
     locationOutcome: "pending" | "not_attempted" = "pending",
+    locationSession: string | null = THIS_SESSION,
   ) =>
     insertLocalMedia(database.db, {
       localId,
@@ -55,6 +60,7 @@ describe("a photograph is kept before its position is sought", () => {
       kind: "parcel",
       note: null,
       locationOutcome,
+      locationSession,
     });
 
   const read = async (localId: string) =>
@@ -173,15 +179,19 @@ describe("a photograph is kept before its position is sought", () => {
     expect(row.latitude).toBeNull();
   });
 
-  it("settles a photograph abandoned mid-request, rather than holding it for ever", async () => {
-    await photograph("0199f3a2-7c41-7abc-8d0f-0000000000e5");
+  it("settles a photograph abandoned by a previous run, not one still being answered", async () => {
+    // Left pending by a process that died: nobody is waiting for it any more.
+    await photograph("0199f3a2-7c41-7abc-8d0f-0000000000e5", "pending", EARLIER_SESSION);
+    // Written before migration 6: unowned, and therefore also settleable.
+    await photograph("0199f3a2-7c41-7abc-8d0f-0000000000e7", "pending", null);
     await photograph("0199f3a2-7c41-7abc-8d0f-0000000000e6", "not_attempted");
 
-    const settled = await settleAbandonedMediaLocations(database.db);
-    expect(settled).toBe(1);
+    expect(await settleAbandonedMediaLocations(database.db, THIS_SESSION)).toBe(2);
 
-    // The process died between the shutter and the answer: the device cannot know where it was.
     expect((await read("0199f3a2-7c41-7abc-8d0f-0000000000e5")).locationOutcome).toBe(
+      "unavailable",
+    );
+    expect((await read("0199f3a2-7c41-7abc-8d0f-0000000000e7")).locationOutcome).toBe(
       "unavailable",
     );
     // A capture that never intended to ask is left exactly as it was.
@@ -189,6 +199,93 @@ describe("a photograph is kept before its position is sought", () => {
       "not_attempted",
     );
     // Idempotent: a second synchronisation settles nothing.
-    expect(await settleAbandonedMediaLocations(database.db)).toBe(0);
+    expect(await settleAbandonedMediaLocations(database.db, THIS_SESSION)).toBe(0);
+  });
+
+  /**
+   * The race that cost the very thing this metadata was added to record.
+   *
+   * Migration 5 settled **every** `pending` row before a synchronisation read the list, on the
+   * reasoning that only a dead process leaves one. A live request is `pending` too, for up to
+   * twelve seconds — so a synchronisation in that window flipped the row to `unavailable`, and the
+   * answer that arrived a second later updated **zero rows**, because `attachMediaLocation` only
+   * moves a row that is still `pending`. The photograph survived; its location was thrown away.
+   *
+   * Reproduced here in the order the application performs it.
+   */
+  it("a synchronisation during a live request does not take the position away", async () => {
+    const id = "0199f3a2-7c41-7abc-8d0f-0000000000r1";
+    await photograph(id); // shutter: row written, request in flight, stamped by this run
+
+    // The synchronisation fires — manual or automatic — while the platform is still thinking.
+    expect(await settleAbandonedMediaLocations(database.db, THIS_SESSION)).toBe(0);
+    expect((await read(id)).locationOutcome).toBe("pending");
+
+    // And then the answer arrives.
+    await attachMediaLocation(database.db, id, {
+      outcome: "captured",
+      latitude: -3.9881,
+      longitude: -78.8712,
+      accuracyM: 6.2,
+      locatedAt: "2026-11-26T18:50:00.000Z",
+      mocked: true,
+      source: null,
+    });
+
+    const row = await read(id);
+    expect(row.locationOutcome).toBe("captured");
+    expect(row.latitude).toBeCloseTo(-3.9881, 4);
+    expect(row.locationMocked).toBe(true);
+  });
+
+  /**
+   * The other half of the same distinction: a run that really did die. The row is settled, the
+   * photograph is deliverable with its absence stated, and a late answer cannot resurrect it.
+   */
+  it("a run that died leaves the photograph deliverable with an explicit absence", async () => {
+    const id = "0199f3a2-7c41-7abc-8d0f-0000000000r2";
+    await photograph(id, "pending", EARLIER_SESSION);
+
+    expect(await settleAbandonedMediaLocations(database.db, THIS_SESSION)).toBe(1);
+    expect((await read(id)).locationOutcome).toBe("unavailable");
+    expect((await read(id)).fileUri).toContain("/media/");
+    expect((await read(id)).state).toBe("PENDING_UPLOAD");
+
+    await attachMediaLocation(database.db, id, {
+      outcome: "captured",
+      latitude: -3.9,
+      longitude: -78.8,
+      accuracyM: 30,
+      locatedAt: "2026-11-26T18:55:00.000Z",
+      mocked: false,
+      source: null,
+    });
+    expect((await read(id)).locationOutcome).toBe("unavailable");
+    expect((await read(id)).latitude).toBeNull();
+  });
+
+  /** And settling disturbs nothing else the device is holding. */
+  it("leaves every other photograph exactly as it was", async () => {
+    await photograph("0199f3a2-7c41-7abc-8d0f-0000000000r3", "not_attempted");
+    const settledRow = "0199f3a2-7c41-7abc-8d0f-0000000000r4";
+    await photograph(settledRow);
+    await attachMediaLocation(database.db, settledRow, {
+      outcome: "captured",
+      latitude: -4,
+      longitude: -78,
+      accuracyM: 5,
+      locatedAt: "2026-11-26T19:00:00.000Z",
+      mocked: false,
+      source: null,
+    });
+    await photograph("0199f3a2-7c41-7abc-8d0f-0000000000r5", "pending", EARLIER_SESSION);
+
+    expect(await settleAbandonedMediaLocations(database.db, THIS_SESSION)).toBe(1);
+    expect((await read("0199f3a2-7c41-7abc-8d0f-0000000000r3")).locationOutcome).toBe(
+      "not_attempted",
+    );
+    const kept = await read(settledRow);
+    expect(kept.locationOutcome).toBe("captured");
+    expect(kept.latitude).toBeCloseTo(-4, 4);
   });
 });

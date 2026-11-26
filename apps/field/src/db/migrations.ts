@@ -350,6 +350,31 @@ export const LOCAL_MIGRATIONS: ReadonlyArray<LocalMigration> = [
       `update local_media set location_outcome = 'captured' where latitude is not null`,
     ],
   },
+  {
+    version: 6,
+    name: "photograph_location_session",
+    statements: [
+      /*
+       * Which run of the application is waiting for this photograph's position.
+       *
+       * Migration 5 left a race that cost exactly the thing it was added to record. A capture
+       * writes its row `pending` and asks the platform for a position; a synchronisation — manual
+       * or automatic — settled **every** `pending` row to `unavailable` before reading the list,
+       * on the reasoning that only a dead process leaves one. It does not: a live request is
+       * `pending` too, for up to twelve seconds. `attachMediaLocation` then updated zero rows,
+       * because it only moves a row that is still `pending`, and a perfectly good fix was
+       * discarded. The photograph survived; its location did not.
+       *
+       * So a pending row now names the process that is waiting for it. Settling touches only rows
+       * stamped by some *other* run — which is precisely "nobody is waiting for this any more" —
+       * and a synchronisation at any moment cannot take a position out from under a capture.
+       *
+       * Null means a row written before this migration: unowned, and therefore settleable, which
+       * is the correct reading for a device that has restarted since.
+       */
+      `alter table local_media add column location_session text`,
+    ],
+  },
 ];
 
 export const LOCAL_SCHEMA_VERSION = LOCAL_MIGRATIONS[LOCAL_MIGRATIONS.length - 1]!.version;

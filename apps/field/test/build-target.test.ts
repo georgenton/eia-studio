@@ -3,7 +3,16 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import type { ExpoConfig } from "expo/config";
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
+
+/*
+ * `src/config.ts` imports `expo-constants`, which pulls the React Native source tree into the
+ * transform. This file only needs the constants the contract declares, so the module is stubbed —
+ * the same stub `config.test.ts` uses.
+ */
+vi.mock("expo-constants", () => ({ default: { expoConfig: { version: "1.1.0" } } }));
+
+import { APP_ENVIRONMENTS, ENVIRONMENT_ORIGINS, ENVIRONMENT_SCHEMES } from "../src/config";
 
 /**
  * Which backend a build talks to, and what it tells the technician it is.
@@ -213,4 +222,47 @@ describe("the native build identity", () => {
       expect(picker?.[1]?.photosPermission).toBe(false);
     },
   );
+});
+
+/**
+ * The three sources of one build have to say the same thing.
+ *
+ * A build's environment is written in three places — the profile in `eas.json`, the manifest from
+ * `app.config.ts`, and the contract in `src/config.ts` — and the one that matters at runtime is
+ * whichever the code happens to read. They had already drifted: `eas.json` and `app.config.ts`
+ * admitted **demo**, and `src/config.ts` did not, so `readEnvironment("demo")` threw and the demo
+ * build could not construct its auth client at all. A build that cannot start is the good failure;
+ * the bad one is a build that starts and quietly reads as something else.
+ *
+ * So the correspondence is asserted rather than maintained by hand.
+ */
+describe("the profile, the manifest and the runtime contract agree", () => {
+  const distributed = ["demo", "staging", "production"] as const;
+
+  it.each(distributed)("%s is an environment the runtime contract admits", (environment) => {
+    expect(APP_ENVIRONMENTS as ReadonlyArray<string>).toContain(environment);
+  });
+
+  it.each(distributed)("%s points at exactly the origin the contract names", (environment) => {
+    expect(eas.build[environment]?.env?.["EXPO_PUBLIC_API_URL"]).toBe(
+      ENVIRONMENT_ORIGINS[environment],
+    );
+  });
+
+  it.each(distributed)("%s declares the same environment in its manifest", async (environment) => {
+    const config = await manifestFor(environment);
+    const extra = config.extra as { eiaEnvironment?: string } | undefined;
+    expect(extra?.eiaEnvironment).toBe(environment);
+  });
+
+  it.each(distributed)("%s claims the scheme the contract assigns it", async (environment) => {
+    const config = await manifestFor(environment);
+    expect(config.scheme).toBe(ENVIRONMENT_SCHEMES[environment]);
+  });
+
+  /* And the three origins are three, not two with a typo. */
+  it("names three distinct origins", () => {
+    const origins = distributed.map((e) => ENVIRONMENT_ORIGINS[e]);
+    expect(new Set(origins).size).toBe(3);
+  });
 });

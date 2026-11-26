@@ -634,6 +634,7 @@ interface MediaRow {
   longitude: number | null;
   accuracy_m: number | null;
   location_outcome: string;
+  location_session: string | null;
   located_at: string | null;
   location_mocked: number | null;
   location_source: string | null;
@@ -667,13 +668,20 @@ export async function insertLocalMedia(
      * be written first; `not_attempted` when it will not ask at all.
      */
     locationOutcome: "pending" | "not_attempted";
+    /**
+     * Which run of the application is waiting for the position (migration 6).
+     *
+     * Required for `pending` and meaningless otherwise: it is what tells a synchronisation that
+     * somebody is still waiting, so it does not settle the row out from under a live request.
+     */
+    locationSession: string | null;
   },
 ): Promise<void> {
   await db.runAsync(
     `insert into local_media
        (local_id, assignment_local_id, visit_server_id, file_uri, mime_type, size_bytes, kind,
-        note, captured_at, location_outcome, state)
-     values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING_UPLOAD')`,
+        note, captured_at, location_outcome, location_session, state)
+     values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING_UPLOAD')`,
     input.localId,
     input.assignmentLocalId,
     input.visitServerId,
@@ -684,6 +692,7 @@ export async function insertLocalMedia(
     input.note,
     nowIso(),
     input.locationOutcome,
+    input.locationOutcome === "pending" ? input.locationSession : null,
   );
 }
 
@@ -714,7 +723,8 @@ export async function attachMediaLocation(
   await db.runAsync(
     `update local_media
         set latitude = ?, longitude = ?, accuracy_m = ?, location_outcome = ?,
-            located_at = ?, location_mocked = ?, location_source = ?
+            located_at = ?, location_mocked = ?, location_source = ?,
+            location_session = null
       where local_id = ? and location_outcome = 'pending'`,
     result.latitude,
     result.longitude,
@@ -728,25 +738,42 @@ export async function attachMediaLocation(
 }
 
 /**
- * Settle every photograph still waiting for a position it is never going to get.
+ * Settle every photograph whose position **nobody is waiting for any more**.
  *
- * The only way a row stays `pending` is a process that died between the shutter and the platform's
- * answer. The device cannot afterwards know where it was, and holding the photograph back for ever
- * would be worse than delivering it with its absence stated. Returns how many it settled.
+ * The qualifier is the whole function. An earlier version settled every `pending` row, on the
+ * reasoning that only a dead process leaves one — and a live request is `pending` too, for as long
+ * as the platform takes to answer. A synchronisation that ran in that window flipped the row to
+ * `unavailable`, and the fix that arrived a second later updated nothing, because
+ * `attachMediaLocation` only moves a row that is still `pending`. The photograph survived; its
+ * location was thrown away.
+ *
+ * So a row is settled only when it carries **another** run's session, or none at all — a row
+ * written before migration 6, by a device that has restarted since. A row this process stamped is
+ * left alone: its own bounded request will settle it within seconds, whatever the outcome.
+ *
+ * Returns how many it settled.
  */
-export async function settleAbandonedMediaLocations(db: SQLite.SQLiteDatabase): Promise<number> {
+export async function settleAbandonedMediaLocations(
+  db: SQLite.SQLiteDatabase,
+  currentSession: string,
+): Promise<number> {
   /*
    * Counted before the update rather than read from the driver's row count: the database handle
    * this application is written against types `runAsync` as returning nothing, and a number the
    * synchronisation reports to a technician should not depend on which driver is underneath.
    */
   const waiting = await db.getAllAsync<{ local_id: string }>(
-    `select local_id from local_media where location_outcome = 'pending'`,
+    `select local_id from local_media
+      where location_outcome = 'pending'
+        and (location_session is null or location_session <> ?)`,
+    currentSession,
   );
   if (waiting.length === 0) return 0;
   await db.runAsync(
-    `update local_media set location_outcome = 'unavailable'
-      where location_outcome = 'pending'`,
+    `update local_media set location_outcome = 'unavailable', location_session = null
+      where location_outcome = 'pending'
+        and (location_session is null or location_session <> ?)`,
+    currentSession,
   );
   return waiting.length;
 }
