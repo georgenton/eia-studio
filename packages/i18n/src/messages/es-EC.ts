@@ -616,6 +616,13 @@ export const messages = {
       "La descripción se deduce del código EPSG, no se lee de un registro de sistemas de referencia. El dato almacenado es el código.",
     referencePointNote:
       "Es un punto interior del predio, calculado para poder ubicarlo; no es un vértice levantado ni la posición de ninguna vivienda.",
+    fieldProgressLegend: "Avance de campo",
+    colourBy: "Colorear predios por",
+    colourByCartographic: "Estado cartográfico",
+    colourByField: "Avance de campo",
+    colourByFieldDenied:
+      "Tu rol puede leer la cartografía pero no el trabajo de campo del proyecto. No se colorea por avance: un mapa con todos los predios «sin asignar» diría algo falso, y un color no se pone en duda.",
+    colourByFieldNoProject: "Sin proyecto activo no hay avance de campo que mostrar.",
     layers: "Capas",
     layersNote: "Qué se dibuja sobre el fondo. Ocultar una capa no cambia ningún dato.",
     layerAlignment: "Eje vial",
@@ -1734,6 +1741,12 @@ export const messages = {
       estimated: "Geometría estimada; el predio aún no se confirma",
       not_located: "No se pudo ubicar el predio en el corredor",
       excluded: "Fuera del universo de análisis",
+    },
+    parcelFieldState: {
+      answered: "Con ficha",
+      correcting: "En corrección",
+      assigned: "Asignado",
+      unassigned: "Sin asignar",
     },
     layerLegend: {
       REAL_BASE_MAP: "Cartografía base real",

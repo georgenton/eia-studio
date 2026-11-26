@@ -1,4 +1,9 @@
-import { loadParcelExplorer, loadWorkspaceHeader } from "@eia/application";
+import {
+  loadParcelExplorer,
+  loadParcelFieldProgress,
+  loadWorkspaceHeader,
+  type ParcelFieldProgressView,
+} from "@eia/application";
 import { type BasemapCatalogue } from "@eia/domain";
 import { notFound, redirect } from "next/navigation";
 
@@ -90,6 +95,17 @@ export default async function GisPage({
     throw error;
   }
 
+  /*
+   * How the field work stands, parcel by parcel, beside the cartography.
+   *
+   * A separate read model and a separate permission (`field.read`), because colouring a map by
+   * field progress is a statement about the campaign rather than about the geometry — and because
+   * a caller who may not have it must get a **refusal** on that one colouring rather than a
+   * corridor of grey parcels labelled "sin asignar". It never throws: the cartography is still
+   * theirs to read.
+   */
+  const fieldProgress = await loadParcelFieldProgress(getDb(), ctx);
+
   return (
     <WorkspaceShell
       {...shell}
@@ -100,6 +116,7 @@ export default async function GisPage({
       <GisSurface
         basemap={getEnv().basemap}
         basePath={basePath}
+        fieldProgress={fieldProgress}
         parcelsPath={parcelsPath}
         t={t}
         view={view}
@@ -113,12 +130,14 @@ function GisSurface({
   basePath,
   parcelsPath,
   basemap,
+  fieldProgress,
   t,
 }: {
   view: Awaited<ReturnType<typeof loadParcelExplorer>>;
   basePath: string;
   parcelsPath: string;
   basemap: BasemapCatalogue;
+  fieldProgress: ParcelFieldProgressView;
   t: Translator;
 }) {
   // `no GIS yet` (system state 9): the project has the capability but no geometry has been loaded.
@@ -135,6 +154,12 @@ function GisSurface({
     );
   }
   return (
-    <ParcelExplorer basemap={basemap} basePath={basePath} parcelsPath={parcelsPath} view={view} />
+    <ParcelExplorer
+      basemap={basemap}
+      basePath={basePath}
+      fieldProgress={fieldProgress}
+      parcelsPath={parcelsPath}
+      view={view}
+    />
   );
 }

@@ -1,13 +1,19 @@
 "use client";
 
-import type { ParcelExplorerView, ParcelReferencePoint } from "@eia/application";
+import type {
+  ParcelExplorerView,
+  ParcelFieldProgressView,
+  ParcelReferencePoint,
+} from "@eia/application";
 import {
   CANONICAL_SRID,
   describeEpsg,
+  parcelFieldStateOf,
   formatChainage,
   orderLayersForLegend,
   PARCEL_STATUS_PRESENTATION,
   type BasemapCatalogue,
+  type ParcelFieldState,
   type ParcelStatus,
 } from "@eia/domain";
 import { Chip, Panel, PanelBody, PanelHeader, ProvenanceBadge } from "@eia/ui";
@@ -85,9 +91,17 @@ export function ParcelExplorer({
   basePath,
   parcelsPath,
   basemap,
+  fieldProgress,
 }: {
   view: ParcelExplorerView;
   basePath: string;
+  /**
+   * How the field work stands per parcel, or why it cannot be shown.
+   *
+   * Never a map of zeros: a caller without `field.read` gets `available: false`, and the surface
+   * offers the colouring with the reason rather than painting every parcel *sin asignar*.
+   */
+  fieldProgress: ParcelFieldProgressView;
   /** What may be drawn under the study's layers here, if anything (`docs/BASEMAP_POLICY.md`). */
   basemap: BasemapCatalogue;
   /** Prefix of the Parcel Workspace route; a plain string because functions cannot cross the
@@ -122,6 +136,20 @@ export function ParcelExplorer({
    * "centre of the view" would be a coordinate the reader is not actually being shown.
    */
   const [centre, setCentre] = useState<{ lon: number; lat: number } | null>(null);
+  /*
+   * What the parcel colours mean. Two colourings, never merged: `cartographic` is whether the
+   * geometry is trusted, `field` is whether anybody has been there. They are different facts
+   * about the same object, and one palette meaning both would make them indistinguishable.
+   */
+  const [colourBy, setColourBy] = useState<"cartographic" | "field">("cartographic");
+  const fieldStates = useMemo(() => {
+    if (!fieldProgress.available) return null;
+    const byId = new Map<string, ParcelFieldState>();
+    for (const parcel of view.parcels) {
+      byId.set(parcel.id, parcelFieldStateOf(fieldProgress.byParcelId.get(parcel.id)));
+    }
+    return byId;
+  }, [fieldProgress, view.parcels]);
   const selected = view.parcels.find((p) => p.id === selection.selectedParcelId) ?? null;
   /*
    * Which CRS the metric figures were computed in: the **parcels** dataset's own, because that is
@@ -199,6 +227,8 @@ export function ParcelExplorer({
         <div className={styles.mapArea}>
           <ParcelMap
             basemap={basemap}
+            colourBy={colourBy}
+            fieldStates={fieldStates}
             onCentreChange={setCentre}
             onSelect={selection.select}
             selectedParcelId={selection.selectedParcelId}
@@ -255,6 +285,44 @@ export function ParcelExplorer({
                 keeps every row, and the selection keeps working — which is why the note says so
                 rather than leaving a reader to wonder whether hiding a layer dropped data.
               */}
+            <div className={styles.layerTitle}>{t("gis.colourBy")}</div>
+            <div className={styles.colourSwitch}>
+              <label className={styles.drawToggle}>
+                <input
+                  checked={colourBy === "cartographic"}
+                  data-testid="colour-by-cartographic"
+                  name="colour-by"
+                  onChange={() => setColourBy("cartographic")}
+                  type="radio"
+                />
+                {t("gis.colourByCartographic")}
+              </label>
+              <label className={styles.drawToggle}>
+                <input
+                  checked={colourBy === "field"}
+                  data-testid="colour-by-field"
+                  disabled={fieldStates === null}
+                  name="colour-by"
+                  onChange={() => setColourBy("field")}
+                  type="radio"
+                />
+                {t("gis.colourByField")}
+              </label>
+            </div>
+            {/*
+              A refusal, never a map of zeros. Painting every parcel "sin asignar" for somebody
+              who may not read the campaign would be a false statement in colour, and nobody
+              doubts a colour.
+            */}
+            {fieldProgress.available ? null : (
+              <p className={styles.layerHint} data-testid="field-colour-unavailable">
+                {t(
+                  fieldProgress.reason === "permission"
+                    ? "gis.colourByFieldDenied"
+                    : "gis.colourByFieldNoProject",
+                )}
+              </p>
+            )}
             <div className={styles.layerTitle}>{t("gis.layers")}</div>
             <ul className={styles.drawList}>
               <li className={styles.drawRow}>

@@ -162,4 +162,61 @@ test.describe("the map says what it is", () => {
       await expect(tooltip).toHaveAttribute("aria-hidden", "true");
     }
   });
+
+  test("the legend says what the colours mean, and changes when they change", async ({ page }) => {
+    await page.goto(GIS);
+    const map = page.getByTestId("parcel-map");
+    await expect(map).toHaveAttribute("data-map-ready", "true");
+
+    /*
+     * The rule that every map carries a state legend is worth nothing unless the legend describes
+     * the colours actually on screen. Leaving *Confirmado 121* up while the parcels are coloured
+     * by field progress would be a legend that disagrees with its map — worse than none, because
+     * a reader trusts it.
+     */
+    const legend = page.getByTestId("map-state-legend");
+    await expect(legend).toContainText("Estado del predio");
+    await expect(legend).toContainText("Confirmado");
+
+    await page.getByTestId("colour-by-field").check();
+    await expect(legend).toContainText("Avance de campo");
+    await expect(legend).toContainText("Con ficha");
+    await expect(legend).not.toContainText("Confirmado");
+
+    /*
+     * `En corrección 0` stays in the legend while `Excluido` is dropped from the other one. They
+     * are different kinds of zero: no parcel is excluded because the layer contains none, and
+     * "no corrections open" is a fact a coordinator is reading the map to learn.
+     */
+    await expect(legend).toContainText("En corrección");
+
+    await page.getByTestId("colour-by-cartographic").check();
+    await expect(legend).toContainText("Estado del predio");
+  });
+
+  test("changing what the colours mean keeps the camera and the selection", async ({ page }) => {
+    await page.goto(GIS);
+    const map = page.getByTestId("parcel-map");
+    await expect(map).toHaveAttribute("data-map-ready", "true");
+    await expect(map).toHaveAttribute("data-map-idle", "true");
+
+    await page
+      .getByRole("table", { name: /Predios/ })
+      .getByRole("row", { name: new RegExp(PARCELS.a) })
+      .first()
+      .click();
+    await expect(page.getByTestId("parcel-coordinates-geographic")).toBeVisible();
+    const before = await map.getAttribute("data-map-view");
+
+    await page.getByTestId("colour-by-field").check();
+    await expect(page.getByTestId("map-state-legend")).toContainText("Avance de campo");
+
+    /*
+     * Two paint properties change and nothing else. A rebuild would reframe the camera and drop
+     * the selection, which would make switching the question cost a reader their place.
+     */
+    expect(await map.getAttribute("data-map-view")).toBe(before);
+    await expect(page.getByTestId("parcel-coordinates-geographic")).toBeVisible();
+    await expect(page.getByRole("main")).toContainText(PARCELS.a);
+  });
 });

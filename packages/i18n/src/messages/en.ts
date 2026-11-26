@@ -610,6 +610,13 @@ export const messages: Messages = {
       "The description is derived from the EPSG code, not read from a coordinate-system registry. What is stored is the code.",
     referencePointNote:
       "A point inside the parcel, computed so it can be found; not a surveyed vertex and not any household's position.",
+    fieldProgressLegend: "Field progress",
+    colourBy: "Colour parcels by",
+    colourByCartographic: "Cartographic status",
+    colourByField: "Field progress",
+    colourByFieldDenied:
+      "Your role may read the cartography but not the project's field work. Parcels are not coloured by progress: a map showing every parcel as \u00abnot assigned\u00bb would state something false, and nobody doubts a colour.",
+    colourByFieldNoProject: "Without an active project there is no field progress to show.",
     layers: "Layers",
     layersNote: "What is drawn over the background. Hiding a layer changes no data.",
     layerAlignment: "Road centreline",
@@ -1720,6 +1727,12 @@ export const messages: Messages = {
       estimated: "Geometry is estimated; the parcel is not confirmed yet",
       not_located: "The parcel could not be located along the corridor",
       excluded: "Outside the universe of analysis",
+    },
+    parcelFieldState: {
+      answered: "Response received",
+      correcting: "Being corrected",
+      assigned: "Assigned",
+      unassigned: "Not assigned",
     },
     layerLegend: {
       REAL_BASE_MAP: "Real base cartography",

@@ -1,6 +1,7 @@
 import { type Database, type DbTx } from "@eia/db";
 import {
   campaignProgress,
+  can,
   NotFound,
   requireCapability,
   requirePermission,
@@ -895,4 +896,72 @@ export async function loadFieldProgress(
     provenanceId: active.provenanceId,
     provenance: active.provenance,
   };
+}
+
+/**
+ * Where the field work stands, parcel by parcel, for the map to colour by.
+ *
+ * ## Two states, never merged
+ *
+ * A parcel has a **cartographic** state — is the geometry trusted — and an **operational** one —
+ * has anybody been there. They are different facts about the same object, and the Parcel Explorer
+ * draws them as two colourings with two legends rather than one palette that means both. This is
+ * the second.
+ *
+ * ## Why it may be unavailable, and why that is not zero
+ *
+ * The counts come from `app.field_parcel_progress`, which refuses a caller without `field.read`
+ * (migration 0062). That refusal must reach the surface **as a refusal**: a `GIS_SPECIALIST`
+ * shown a corridor of grey parcels labelled *sin asignar* would be reading a false map, and
+ * nobody doubts a colour. So this returns a state rather than throwing — the rest of the page is
+ * cartography the caller is perfectly entitled to — and the surface offers the colouring with the
+ * reason it cannot be used.
+ *
+ * `unavailable` is the honest word for both reasons it can happen: the permission is missing, or
+ * the project has no campaign at all. The surface distinguishes them; this does not pretend the
+ * second is an error.
+ */
+export interface ParcelFieldProgress {
+  readonly assigned: number;
+  readonly submitted: number;
+  readonly correctionsOpen: number;
+}
+
+export type ParcelFieldProgressView =
+  | { readonly available: true; readonly byParcelId: ReadonlyMap<string, ParcelFieldProgress> }
+  | { readonly available: false; readonly reason: "permission" | "no_project" };
+
+export async function loadParcelFieldProgress(
+  db: Database,
+  ctx: RequestContext,
+): Promise<ParcelFieldProgressView> {
+  if (ctx.projectId === null) return { available: false, reason: "no_project" };
+  /*
+   * Asked before the query rather than after the refusal: the function raises
+   * `insufficient_privilege`, and letting that abort the transaction to learn something the
+   * resolved context already knows would make an ordinary, expected outcome look like a fault.
+   */
+  if (!can(ctx, "field.read")) return { available: false, reason: "permission" };
+  const projectId = ctx.projectId;
+
+  return withFieldContext(db, ctx, async (tx) => {
+    const rows = await tx.execute(sql`
+      select parcel_id, assigned, submitted, corrections_open
+        from app.field_parcel_progress(${ctx.tenantId}::uuid, ${projectId}::uuid)
+    `);
+    const byParcelId = new Map<string, ParcelFieldProgress>();
+    for (const row of rows.rows as unknown as ReadonlyArray<{
+      parcel_id: string;
+      assigned: number;
+      submitted: number;
+      corrections_open: number;
+    }>) {
+      byParcelId.set(row.parcel_id, {
+        assigned: Number(row.assigned),
+        submitted: Number(row.submitted),
+        correctionsOpen: Number(row.corrections_open),
+      });
+    }
+    return { available: true, byParcelId };
+  });
 }
