@@ -26,8 +26,9 @@ import {
   workPackResponseSchema,
   workPullRequestSchema,
   workPullResponseSchema,
-  fieldMapResponseSchema,
-  type FieldMapResponse,
+  FIELD_MAP_SCHEMA_VERSION_PARTS,
+  fieldMapResponseV2Schema,
+  type FieldMapResponseV2,
 } from "@eia/field-sync-contract";
 
 import { authHeaders } from "../auth/client";
@@ -221,8 +222,20 @@ export async function pullWork(input: WorkPullRequest): Promise<WorkPullResponse
 export async function fetchFieldMap(input: {
   tenantSlug: string;
   projectSlug: string;
-}): Promise<FieldMapResponse> {
-  return fieldMapResponseSchema.parse(await post("/api/field/v4/map", input));
+}): Promise<FieldMapResponseV2> {
+  /*
+   * This build can read version 2 — every piece of a multi-part parcel, and its holes — so it
+   * says so. A server that only knows version 1 ignores an unknown optional field and answers in
+   * version 1, and a *build* older than this one never sends it and is answered in version 1 too.
+   * The negotiation is one optional number travelling device → server, which is the direction
+   * where `.strict()` costs nothing.
+   */
+  return fieldMapResponseV2Schema.parse(
+    await post("/api/field/v4/map", {
+      ...input,
+      acceptsSchemaVersion: FIELD_MAP_SCHEMA_VERSION_PARTS,
+    }),
+  );
 }
 
 export async function pushWorkCommands(input: {

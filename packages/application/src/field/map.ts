@@ -8,9 +8,13 @@ import {
 } from "@eia/domain";
 import {
   FIELD_MAP_SCHEMA_VERSION,
+  FIELD_MAP_SCHEMA_VERSION_PARTS,
   type FieldMapResponse,
+  type FieldMapResponseV2,
   type MapMilestone,
   type MapParcel,
+  type MapParcelPart,
+  type MapParcelV2,
   type MapPosition,
 } from "@eia/field-sync-contract";
 import { sql } from "drizzle-orm";
@@ -52,6 +56,11 @@ import { withFieldContext } from "./context";
 export interface FieldMapScope {
   /** Points on the axis, at most this many after simplification, so a phone can draw it. */
   readonly axisVertexLimit?: number;
+  /**
+   * The highest response version the caller can parse. Defaults to 1, which is what a build that
+   * predates `parts` is holding — and giving it anything else would be a parse error.
+   */
+  readonly acceptsSchemaVersion?: number;
 }
 
 interface ParcelRow {
@@ -60,7 +69,8 @@ interface ParcelRow {
   chainage_m: string | number | null;
   side: string | null;
   /** A `json` column: the driver hands it back already parsed. */
-  ring: unknown;
+  /** The whole parcel as GeoJSON: `Polygon` or `MultiPolygon`, already simplified. */
+  shape: unknown;
   point: unknown;
 }
 
@@ -130,11 +140,97 @@ function positionFrom(value: unknown): MapPosition | null {
   return [lon, lat];
 }
 
+/**
+ * Every piece of a parcel, with its holes, out of a GeoJSON `Polygon` or `MultiPolygon`.
+ *
+ * A ring that does not survive `positionsFrom` — fewer than four usable positions — is dropped,
+ * and a *part* whose outer ring is dropped goes with it. That is the one place a piece can be
+ * lost, and it can only happen to a ring the database could not express as coordinates, which is
+ * not a parcel anybody can be sent to.
+ */
+function partsFrom(shape: unknown): ReadonlyArray<MapParcelPart> {
+  if (typeof shape !== "object" || shape === null) return [];
+  const geometry = shape as { type?: string; coordinates?: unknown };
+  const polygons: unknown[] =
+    geometry.type === "MultiPolygon"
+      ? ((geometry.coordinates as unknown[]) ?? [])
+      : geometry.type === "Polygon"
+        ? [geometry.coordinates]
+        : [];
+
+  const parts: MapParcelPart[] = [];
+  for (const polygon of polygons) {
+    if (!Array.isArray(polygon) || polygon.length === 0) continue;
+    const outer = positionsFrom(polygon[0]);
+    if (outer.length < 4) continue;
+    const holes = polygon
+      .slice(1)
+      .map((ring) => positionsFrom(ring))
+      .filter((ring) => ring.length >= 4)
+      .map((ring) => [...ring]);
+    parts.push({ outer: [...outer], holes });
+  }
+  return parts;
+}
+
+/**
+ * Twice the signed area of a ring. Only its magnitude is used, and only to compare pieces.
+ *
+ * In degrees, which is wrong as an area and right as a comparison: over one parcel the scale
+ * factor between degrees and metres is the same for every piece, so the largest piece in degrees
+ * is the largest piece on the ground. Nothing is reported from this number.
+ */
+function ringMagnitude(ring: ReadonlyArray<MapPosition>): number {
+  let sum = 0;
+  for (let i = 0; i < ring.length - 1; i += 1) {
+    const [x1, y1] = ring[i]!;
+    const [x2, y2] = ring[i + 1]!;
+    sum += x1 * y2 - x2 * y1;
+  }
+  return Math.abs(sum);
+}
+
+/** The version 1 ring: the outer ring of the **largest** piece, not of the first one. */
+function largestOuterRing(parts: ReadonlyArray<MapParcelPart>): ReadonlyArray<MapPosition> | null {
+  let best: ReadonlyArray<MapPosition> | null = null;
+  let bestArea = -1;
+  for (const part of parts) {
+    const area = ringMagnitude(part.outer);
+    if (area > bestArea) {
+      bestArea = area;
+      best = part.outer;
+    }
+  }
+  return best;
+}
+
+/**
+ * Bring a line under a vertex ceiling **without losing either end**.
+ *
+ * The SQL already simplifies by a tolerance derived from the route's length, which is enough for
+ * any road this product has seen. This is the guarantee behind it: a pathologically wiggly line
+ * is decimated at a uniform stride, and the first and last positions are always kept — so the
+ * road is coarser and still runs the whole way, which is the opposite of taking the first N
+ * vertices and dropping the tail.
+ */
+function withinVertexLimit(
+  positions: ReadonlyArray<MapPosition>,
+  limit: number,
+): ReadonlyArray<MapPosition> {
+  if (positions.length <= limit || limit < 2) return positions;
+  const stride = Math.ceil(positions.length / (limit - 1));
+  const kept: MapPosition[] = [];
+  for (let i = 0; i < positions.length; i += stride) kept.push(positions[i]!);
+  const last = positions[positions.length - 1]!;
+  if (kept[kept.length - 1] !== last) kept.push(last);
+  return kept;
+}
+
 export async function loadFieldMap(
   db: Database,
   ctx: RequestContext,
   scope: FieldMapScope = {},
-): Promise<FieldMapResponse> {
+): Promise<FieldMapResponse | FieldMapResponseV2> {
   requireCapability(ctx, "gis.maps");
   requireCapability(ctx, "field.surveys");
   requirePermission(ctx, "field.assignments.read_own");
@@ -142,6 +238,7 @@ export async function loadFieldMap(
   if (projectId === null) throw new NotFound("this action needs a project context");
 
   const axisVertexLimit = scope.axisVertexLimit ?? 1_500;
+  const acceptsVersion = scope.acceptsSchemaVersion ?? FIELD_MAP_SCHEMA_VERSION;
 
   const { parcels, axis, projectName } = await withFieldContext(db, ctx, async (tx) => {
     const named = await tx.execute(sql`
@@ -168,16 +265,29 @@ export async function loadFieldMap(
              p.parcel_code,
              p.chainage_m,
              p.side::text as side,
+             /*
+              * The **whole** parcel, every piece and every hole, simplified in the dataset's
+              * projected CRS so the tolerance is a metre on the ground rather than a degree.
+              *
+              * This used to be ST_ExteriorRing(ST_GeometryN(..., 1)): the outer ring of whichever
+              * piece the cartography happened to store first. Twenty of the study's 141 parcels
+              * are multi-part, so a technician could be shown one piece as though it were the
+              * parcel — and a hole, a right of way or an excluded plot, was drawn as solid
+              * ground. Neither is a rounding error.
+              *
+              * ST_SimplifyPreserveTopology cannot invert a ring or cross it, so a simplified
+              * hole is still inside its outer ring. The rings are handed on as GeoJSON and split
+              * into parts by the caller.
+              */
              case
                when g.geom is null then null
                else ST_AsGeoJSON(
                       ST_Transform(
                         ST_SimplifyPreserveTopology(
-                          ST_ExteriorRing(
-                            ST_GeometryN(ST_Transform(g.geom, v.analysis_srid::integer), 1)),
+                          ST_Transform(g.geom, v.analysis_srid::integer),
                           1.0),
-                        4326))::json -> 'coordinates'
-             end as ring,
+                        4326))::json
+             end as shape,
              case
                when g.geom is null then null
                else ST_AsGeoJSON(ST_PointOnSurface(g.geom))::json -> 'coordinates'
@@ -213,12 +323,26 @@ export async function loadFieldMap(
          where al.tenant_id = ${ctx.tenantId} and al.project_id = ${projectId}
          limit 1
       )
+      /*
+       * The whole road, coarser — never the first N vertices of it.
+       *
+       * The tolerance is derived from the route's own length and the vertex ceiling, so a long
+       * road is simplified harder and a short one is barely touched, and **both arrive complete**.
+       * The previous version simplified at a fixed 5 m and then took slice(0, limit), which cut
+       * the tail off: a parcel at the far end of a 5,9 km corridor had its stretch of road simply
+       * missing, with nothing on the device saying so.
+       *
+       * At least 5 m, because below that the simplification is not worth the vertices.
+       */
       select label, dataset_version_label, origin, condition, dataset_version_id,
              case
                when GeometryType(route) <> 'LINESTRING' then null
                else ST_AsGeoJSON(
-                      ST_Transform(ST_SimplifyPreserveTopology(route, 5.0), 4326))::json
-                      -> 'coordinates'
+                      ST_Transform(
+                        ST_SimplifyPreserveTopology(
+                          route,
+                          greatest(5.0, ST_Length(route) / ${sql.raw(String(axisVertexLimit))})),
+                        4326))::json -> 'coordinates'
              end as coordinates
         from a
     `);
@@ -250,9 +374,10 @@ export async function loadFieldMap(
     }
   }
 
-  const mapParcels: MapParcel[] = [];
+  const mapParcels: MapParcelV2[] = [];
   for (const row of parcels) {
-    const ring = positionsFrom(row.ring);
+    const parts = partsFrom(row.shape);
+    const ring = largestOuterRing(parts);
     const point = positionFrom(row.point);
     /*
      * A boundary when there is one, a reference point when there is not — and nothing at all when
@@ -260,31 +385,27 @@ export async function loadFieldMap(
      * rather than pinned somewhere plausible; the technician still has it in their work list, with
      * its code and its abscissa.
      */
-    if (ring.length >= 4) {
+    const common = {
+      assignmentId: row.assignment_id,
+      parcelCode: row.parcel_code,
+      chainageLabel: row.chainage_m === null ? null : formatChainage(Number(row.chainage_m)),
+      side: (row.side as MapParcel["side"]) ?? null,
+    };
+    if (ring !== null && parts.length > 0) {
       mapParcels.push({
-        assignmentId: row.assignment_id,
-        parcelCode: row.parcel_code,
-        chainageLabel: row.chainage_m === null ? null : formatChainage(Number(row.chainage_m)),
-        side: (row.side as MapParcel["side"]) ?? null,
-        place: { kind: "polygon", ring: [...ring] },
+        ...common,
+        place: { kind: "polygon", ring: [...ring], parts: [...parts] },
       });
       continue;
     }
     if (point !== null) {
-      mapParcels.push({
-        assignmentId: row.assignment_id,
-        parcelCode: row.parcel_code,
-        chainageLabel: row.chainage_m === null ? null : formatChainage(Number(row.chainage_m)),
-        side: (row.side as MapParcel["side"]) ?? null,
-        place: { kind: "reference_point", at: point },
-      });
+      mapParcels.push({ ...common, place: { kind: "reference_point", at: point } });
     }
   }
 
-  const axisCoordinates = positionsFrom(axis?.coordinates);
+  const axisCoordinates = withinVertexLimit(positionsFrom(axis?.coordinates), axisVertexLimit);
 
-  return {
-    schemaVersion: FIELD_MAP_SCHEMA_VERSION,
+  const body = {
     projectName,
     generatedAt: new Date().toISOString(),
     provenance: {
@@ -294,13 +415,31 @@ export async function loadFieldMap(
     },
     axis:
       axis !== null && axisCoordinates.length >= 2
-        ? {
-            label: axis.label,
-            coordinates: [...axisCoordinates].slice(0, axisVertexLimit),
-          }
+        ? { label: axis.label, coordinates: [...axisCoordinates] }
         : null,
     chainageDeclared,
     milestones: [...milestones],
-    parcels: mapParcels,
+  };
+
+  /*
+   * The version the caller can read, and nothing newer.
+   *
+   * A build that predates `parts` holds a `.strict()` schema pinned to `schemaVersion: 1`; giving
+   * it the richer body would be a parse error and no map at all. So the extra field is **removed**
+   * for such a caller, which leaves byte-for-byte what it gets today — and the version 1 `ring` is
+   * now the largest piece rather than the first, which is the one improvement an old build gets
+   * for free.
+   */
+  if (acceptsVersion >= FIELD_MAP_SCHEMA_VERSION_PARTS) {
+    return { ...body, schemaVersion: FIELD_MAP_SCHEMA_VERSION_PARTS, parcels: mapParcels };
+  }
+  return {
+    ...body,
+    schemaVersion: FIELD_MAP_SCHEMA_VERSION,
+    parcels: mapParcels.map(({ place, ...rest }) =>
+      place.kind === "polygon"
+        ? { ...rest, place: { kind: "polygon" as const, ring: place.ring } }
+        : { ...rest, place },
+    ),
   };
 }

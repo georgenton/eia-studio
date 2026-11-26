@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { appSchema } from "@eia/db";
 import { PermissionDenied, type SessionUser } from "@eia/domain";
-import { fieldMapResponseSchema } from "@eia/field-sync-contract";
+import { fieldMapResponseSchema, fieldMapResponseV2Schema } from "@eia/field-sync-contract";
 import {
   createAssignment,
   createCampaign,
@@ -40,6 +40,9 @@ let alignmentVersionId: string;
 let technician: { id: string; email: string };
 let otherTechnician: { id: string; email: string };
 let coordinator: { id: string; email: string };
+/** Shared with the geometry block below, which adds parcels to the same campaign. */
+let sharedCampaignId: string;
+let technicianMembershipId: string;
 
 const session = (user: { id: string; email: string }): SessionUser => ({
   subject: user.id,
@@ -89,6 +92,8 @@ async function assignParcel(input: {
   assigneeMembershipId: string;
   campaignId: string;
   withGeometry: boolean;
+  /** Explicit geometry, for the multi-part and holed cases. */
+  wkt?: string;
 }): Promise<void> {
   const parcelId = randomUUID();
   await db.migrator.execute(sql`
@@ -106,7 +111,7 @@ async function assignParcel(input: {
       [input.lon, -3.79 + d],
       [input.lon, -3.79],
     ];
-    const wkt = `POLYGON((${ring.map(([x, y]) => `${x} ${y}`).join(", ")}))`;
+    const wkt = input.wkt ?? `POLYGON((${ring.map(([x, y]) => `${x} ${y}`).join(", ")}))`;
     await db.migrator.execute(sql`
       insert into app.parcel_geometry (id, tenant_id, project_id, parcel_id, dataset_version_id,
                                        geom, area_m2, is_active, provenance_id)
@@ -182,6 +187,8 @@ beforeAll(async () => {
     captureChannel: "EIA_FIELD_MOBILE",
   });
   const campaignId = campaign.id;
+  sharedCampaignId = campaignId;
+  technicianMembershipId = t1.projectMembershipId;
 
   // Two parcels for this technician, one of them without geometry; one for somebody else.
   await assignParcel({
@@ -322,5 +329,158 @@ describe("who may ask at all", () => {
     await expect(loadFieldMap(db.runtime, await ctxFor(w.memberA))).rejects.toBeInstanceOf(
       PermissionDenied,
     );
+  });
+});
+
+/**
+ * What the device is given of a parcel's shape, and of the road.
+ *
+ * Three limits lived in this read model, and each one lost something without saying so:
+ *
+ *   * `ST_GeometryN(…, 1)` kept **one piece** of a multi-part parcel — whichever the cartography
+ *     stored first — and presented it as the parcel. Twenty of the study's 141 are multi-part;
+ *     a technician sent to the smaller piece would have been looking at the wrong field.
+ *   * `ST_ExteriorRing` dropped **holes**, so a right of way or an excluded plot was drawn as
+ *     solid ground.
+ *   * `slice(0, axisVertexLimit)` kept the **first N vertices** of the road and dropped the tail,
+ *     so a parcel at the far end of a corridor had no road beside it at all.
+ *
+ * None of the three announced itself. These assertions are about the geometry arriving whole.
+ */
+describe("the geometry the device is given", () => {
+  const BASE_LON = -78.6;
+
+  it("keeps every piece of a multi-part parcel, not just the first", async () => {
+    /*
+     * Two squares, the second **larger** and listed second. Under the old query the device got
+     * the first — the smaller one — and nothing said the rest existed.
+     */
+    const small =
+      "((-78.600 -3.790, -78.5996 -3.790, -78.5996 -3.7896, -78.600 -3.7896, -78.600 -3.790))";
+    const large =
+      "((-78.598 -3.790, -78.5968 -3.790, -78.5968 -3.7888, -78.598 -3.7888, -78.598 -3.790))";
+    await assignParcel({
+      code: "MULTI-1",
+      lon: BASE_LON,
+      assigneeUserId: technician.id,
+      assigneeMembershipId: technicianMembershipId,
+      campaignId: sharedCampaignId,
+      withGeometry: true,
+      wkt: `MULTIPOLYGON(${small}, ${large})`,
+    });
+
+    // Parsed with the version 2 schema: it narrows the type *and* asserts the contract.
+    const map = fieldMapResponseV2Schema.parse(
+      await loadFieldMap(db.runtime, await ctxFor(technician), { acceptsSchemaVersion: 2 }),
+    );
+    const parcel = map.parcels.find((p) => p.parcelCode === "MULTI-1")!;
+    if (parcel.place.kind !== "polygon") throw new Error("expected a polygon");
+
+    expect(parcel.place.parts).toHaveLength(2);
+    // And the version 1 ring is the **largest** piece, not the first one — the one improvement an
+    // installed build gets without being updated.
+    const areas = parcel.place.parts.map((part) =>
+      Math.abs(
+        part.outer.reduce((sum, [x1, y1], i) => {
+          const [x2, y2] = part.outer[(i + 1) % part.outer.length]!;
+          return sum + (x1 * y2 - x2 * y1);
+        }, 0),
+      ),
+    );
+    const largestIndex = areas.indexOf(Math.max(...areas));
+    expect(parcel.place.ring).toEqual(parcel.place.parts[largestIndex]!.outer);
+  });
+
+  it("keeps a hole as a hole rather than drawing it as ground", async () => {
+    const outer =
+      "(-78.610 -3.790, -78.6060 -3.790, -78.6060 -3.7860, -78.610 -3.7860, -78.610 -3.790)";
+    const hole =
+      "(-78.6090 -3.7890, -78.6075 -3.7890, -78.6075 -3.7875, -78.6090 -3.7875, -78.6090 -3.7890)";
+    await assignParcel({
+      code: "HOYO-1",
+      lon: -78.61,
+      assigneeUserId: technician.id,
+      assigneeMembershipId: technicianMembershipId,
+      campaignId: sharedCampaignId,
+      withGeometry: true,
+      wkt: `POLYGON(${outer}, ${hole})`,
+    });
+
+    const map = fieldMapResponseV2Schema.parse(
+      await loadFieldMap(db.runtime, await ctxFor(technician), { acceptsSchemaVersion: 2 }),
+    );
+    const parcel = map.parcels.find((p) => p.parcelCode === "HOYO-1")!;
+    if (parcel.place.kind !== "polygon") throw new Error("expected a polygon");
+
+    expect(parcel.place.parts).toHaveLength(1);
+    expect(parcel.place.parts[0]!.holes).toHaveLength(1);
+    // The hole is inside the outer ring, which is the whole point of keeping it.
+    const [hx, hy] = parcel.place.parts[0]!.holes[0]![0]!;
+    const xs = parcel.place.parts[0]!.outer.map(([x]) => x);
+    const ys = parcel.place.parts[0]!.outer.map(([, y]) => y);
+    expect(hx).toBeGreaterThan(Math.min(...xs));
+    expect(hx).toBeLessThan(Math.max(...xs));
+    expect(hy).toBeGreaterThan(Math.min(...ys));
+    expect(hy).toBeLessThan(Math.max(...ys));
+  });
+
+  it("answers a build that cannot read parts in version 1, with no extra field", async () => {
+    await assignParcel({
+      code: "COMPAT-1",
+      lon: -78.62,
+      assigneeUserId: technician.id,
+      assigneeMembershipId: technicianMembershipId,
+      campaignId: sharedCampaignId,
+      withGeometry: true,
+    });
+
+    /*
+     * The compatibility that matters: an installed build holds a `.strict()` schema pinned to
+     * `schemaVersion: 1`. An unknown key or a different version number is a parse error and **no
+     * map at all** on a phone already in somebody's hand.
+     */
+    const map = await loadFieldMap(db.runtime, await ctxFor(technician));
+    expect(map.schemaVersion).toBe(1);
+    expect(() => fieldMapResponseSchema.parse(map)).not.toThrow();
+    for (const parcel of map.parcels) {
+      if (parcel.place.kind === "polygon") expect("parts" in parcel.place).toBe(false);
+    }
+  });
+
+  it("simplifies the whole axis instead of cutting its tail off", async () => {
+    /*
+     * A very low ceiling, so the limit certainly bites. What must survive is the road's **extent**
+     * — both ends — because a parcel at the far end of a corridor needs the road beside it, and
+     * taking the first N vertices is precisely what removed it.
+     */
+    const whole = fieldMapResponseV2Schema.parse(
+      await loadFieldMap(db.runtime, await ctxFor(technician), { acceptsSchemaVersion: 2 }),
+    );
+    const tiny = fieldMapResponseV2Schema.parse(
+      await loadFieldMap(db.runtime, await ctxFor(technician), {
+        axisVertexLimit: 8,
+        acceptsSchemaVersion: 2,
+      }),
+    );
+    expect(whole.axis).not.toBeNull();
+    expect(tiny.axis).not.toBeNull();
+    expect(tiny.axis!.coordinates.length).toBeLessThanOrEqual(8);
+
+    const extent = (coords: ReadonlyArray<readonly [number, number]>) => ({
+      west: Math.min(...coords.map(([x]) => x)),
+      east: Math.max(...coords.map(([x]) => x)),
+      south: Math.min(...coords.map(([, y]) => y)),
+      north: Math.max(...coords.map(([, y]) => y)),
+    });
+    const full = extent(whole.axis!.coordinates);
+    const cut = extent(tiny.axis!.coordinates);
+    // Within a metre or so of the same ground: coarser, not shorter.
+    expect(Math.abs(cut.west - full.west)).toBeLessThan(0.0005);
+    expect(Math.abs(cut.east - full.east)).toBeLessThan(0.0005);
+    expect(Math.abs(cut.south - full.south)).toBeLessThan(0.0005);
+    expect(Math.abs(cut.north - full.north)).toBeLessThan(0.0005);
+    // And both ends are literally the road's own ends.
+    expect(tiny.axis!.coordinates[0]).toEqual(whole.axis!.coordinates[0]);
+    expect(tiny.axis!.coordinates.at(-1)).toEqual(whole.axis!.coordinates.at(-1));
   });
 });
