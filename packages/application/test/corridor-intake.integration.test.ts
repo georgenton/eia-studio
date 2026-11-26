@@ -244,6 +244,121 @@ describe("B · PLAN writes nothing; APPLY preserves counts, codes and provenance
       expect(row.chainage_start_m).toBeNull();
     }
   });
+
+  /**
+   * Block C.4: the measurement a multi-part delivery used to get wrong.
+   *
+   * The axis arrives in two pieces that meet, and the parcels sit along the **second** one. The
+   * previous derivation took `ST_GeometryN(geom, 1)` — the first piece — so a parcel beyond the
+   * join was projected onto a line that does not reach it and landed at that piece's end. Here the
+   * parcels are more than the first piece long from the origin, so a first-piece measurement
+   * cannot produce their abscissa at all.
+   */
+  it("derives an abscissa past the join of a two-piece axis", async () => {
+    const ctx = contextFor(w, "GIS_SPECIALIST", w.projectX, w.tenantA);
+    // One feature, two pieces that meet — which is how a multi-part axis actually arrives. The
+    // importer accepts exactly one alignment feature, so two features would be refused earlier for
+    // a different reason and would prove nothing about the measurement.
+    const twoPieces = {
+      type: "FeatureCollection",
+      features: [
+        {
+          type: "Feature",
+          properties: {},
+          geometry: {
+            type: "MultiLineString" as const,
+            coordinates: [
+              [
+                [-79.582, -0.5005],
+                [-79.578, -0.5005],
+              ],
+              [
+                [-79.578, -0.5005],
+                [-79.56, -0.5005],
+              ],
+            ],
+          },
+        },
+      ],
+    };
+    // Parcels east of the join, so their chainage can only come from the whole route.
+    const beyond = {
+      type: "FeatureCollection",
+      features: ["9001", "9002"].map((code, i) => ({
+        type: "Feature",
+        properties: { ficha_num: code, source_row: i + 1 },
+        geometry: square(-79.5665 + i * 0.001, -0.5),
+      })),
+    };
+    const i = input({
+      alignment: twoPieces,
+      parcels: beyond,
+      sourceSha256: SHA_A.replace(/^.{4}/, "beef"),
+      identityConfirmedForNewPackage: true,
+    });
+    await applyCorridorIntake(db.runtime, ctx, i, await approvedPlan(ctx, i));
+
+    const rows = await asContext(db.runtime, ctx, async (tx) => {
+      const q = await tx.execute<{ parcel_code: string; chainage_m: string | null }>(
+        sql`select parcel_code, chainage_m from app.parcel
+             where parcel_code in ('9001','9002') order by parcel_code`,
+      );
+      return q.rows ?? [];
+    });
+    expect(rows).toHaveLength(2);
+
+    /*
+     * The first piece is about 445 m at this latitude; the whole route is about 2 450 m. These
+     * parcels sit near the far end, so a correct measurement puts them well past the first piece,
+     * and the broken one could not have exceeded it.
+     */
+    const firstPieceLength = 460;
+    for (const row of rows) {
+      const chainage = Number(row.chainage_m);
+      expect(chainage, row.parcel_code).toBeGreaterThan(firstPieceLength);
+      expect(chainage, row.parcel_code).toBeLessThan(2_500);
+    }
+  });
+
+  /**
+   * And a delivery whose pieces do not meet is refused rather than measured. Joining them would
+   * turn the gap into route length and shift every abscissa after it.
+   */
+  it("refuses an axis delivered in pieces that do not meet", async () => {
+    const ctx = contextFor(w, "GIS_SPECIALIST", w.projectX, w.tenantA);
+    const withGap = {
+      type: "FeatureCollection",
+      features: [
+        {
+          type: "Feature",
+          properties: {},
+          geometry: {
+            type: "MultiLineString" as const,
+            coordinates: [
+              [
+                [-79.582, -0.5005],
+                [-79.578, -0.5005],
+              ],
+              // Two kilometres away: merging leaves two pieces, and there is no route to measure.
+              [
+                [-79.56, -0.5005],
+                [-79.55, -0.5005],
+              ],
+            ],
+          },
+        },
+      ],
+    };
+    const i = input({
+      alignment: withGap,
+      parcels: parcelsLayer(["9101"]),
+      sourceSha256: SHA_A.replace(/^.{4}/, "cafe"),
+      identityConfirmedForNewPackage: true,
+    });
+    await expect(
+      applyCorridorIntake(db.runtime, ctx, i, await approvedPlan(ctx, i)),
+    ).rejects.toThrow(/continuous route|pieces|connect/i);
+  });
 });
 
 describe("C · the same package twice is a no-op", () => {

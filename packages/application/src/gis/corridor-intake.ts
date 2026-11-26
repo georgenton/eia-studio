@@ -1,7 +1,12 @@
 import { createHash, randomUUID } from "node:crypto";
 
 import { gisSchema, withDbContext, type Database, type DbTx } from "@eia/db";
-import { requireCapability, requirePermission, type RequestContext } from "@eia/domain";
+import {
+  InvalidInput,
+  requireCapability,
+  requirePermission,
+  type RequestContext,
+} from "@eia/domain";
 import { and, eq, inArray, sql } from "drizzle-orm";
 
 import { activateDatasetVersionInTx, type DatasetActivation } from "./activate-dataset-version";
@@ -782,20 +787,80 @@ export async function applyCorridorIntake(
        * `chainage_method = 'centroid_projection'` is the value the product already uses for exactly
        * this — a derived point, never a declared abscissa, which stays null.
        */
-      const derived = await tx.execute<{ side: string; chainage: string }>(sql`
-        with a as (select geom from app.alignment where tenant_id = ${tenantId} and dataset_version_id = ${alignmentVersionId} limit 1),
-             g as (select ST_Centroid(ST_SetSRID(ST_GeomFromGeoJSON(${geomJson}), 4326)) as c),
-             l as (select ST_GeometryN(a.geom, 1) as ln, g.c from a, g),
-             f as (select ln, c, ST_LineLocatePoint(ln, c) as t from l),
-             s as (select c, ST_LineInterpolatePoint(ln, greatest(t - 0.0005, 0)) as p0,
-                          ST_LineInterpolatePoint(ln, least(t + 0.0005, 1)) as p1,
-                          t, ST_Length(ST_Transform(ln, ${parsed.analysisSrid}::integer)) as len from f)
+      /*
+       * Measured on the **whole** route, in metres, in one space.
+       *
+       * What this replaced had three compounding errors: `ST_GeometryN(geom, 1)` — the first part
+       * of a `MultiLineString`, so every parcel past a join was projected onto a line that does
+       * not reach it; `ST_LineLocatePoint` on geographic geometry, which returns a fraction of the
+       * line's length *in degrees*; and that fraction multiplied by the **projected** length of
+       * that same first part. On one short, straight, near-equatorial segment the three cancel out
+       * to something plausible, which is exactly why it survived (TD-132).
+       *
+       * Now: one transform into the dataset's own `analysis_srid` up front, `ST_LineMerge` over the
+       * whole delivery, and both the fraction and the length taken on that single projected route.
+       * The side is computed on the same projected geometry, so the cross product is a sign in
+       * metres rather than a sign in mixed units.
+       *
+       * `route_parts` comes back so the caller can refuse a delivery that cannot be walked: when
+       * merging leaves more than one piece there is no single distance *along* anything, and a
+       * chainage derived from one of the pieces would be a number with no referent.
+       */
+      const derived = await tx.execute<{
+        side: string;
+        chainage: string;
+        route_parts: number;
+      }>(sql`
+        with a as (
+          select ST_LineMerge(ST_Transform(geom, ${parsed.analysisSrid}::integer)) as route
+            from app.alignment
+           where tenant_id = ${tenantId} and dataset_version_id = ${alignmentVersionId}
+           limit 1
+        ),
+        g as (
+          select ST_Transform(
+                   ST_Centroid(ST_SetSRID(ST_GeomFromGeoJSON(${geomJson}), 4326)),
+                   ${parsed.analysisSrid}::integer) as c
+        ),
+        f as (
+          select a.route, g.c,
+                 ST_LineLocatePoint(a.route, g.c) as t,
+                 ST_Length(a.route) as len,
+                 coalesce(ST_NumGeometries(a.route), 1) as parts
+            from a, g
+           where GeometryType(a.route) = 'LINESTRING'
+        ),
+        s as (
+          select c, t, len, parts,
+                 ST_LineInterpolatePoint(route, greatest(t - 0.0005, 0)) as p0,
+                 ST_LineInterpolatePoint(route, least(t + 0.0005, 1)) as p1
+            from f
+        )
         select case when (ST_X(p1) - ST_X(p0)) * (ST_Y(c) - ST_Y(p0))
                        - (ST_Y(p1) - ST_Y(p0)) * (ST_X(c) - ST_X(p0)) > 0
                     then 'left' else 'right' end as side,
-               round((t * len)::numeric, 1)::text as chainage
+               round((t * len)::numeric, 1)::text as chainage,
+               parts::int as route_parts
           from s`);
-      const d = (derived.rows ?? (derived as unknown as { side: string; chainage: string }[]))[0]!;
+      const rows = (derived.rows ??
+        (derived as unknown as {
+          side: string;
+          chainage: string;
+          route_parts: number;
+        }[])) as ReadonlyArray<{ side: string; chainage: string; route_parts: number }>;
+      /*
+       * No row means `GeometryType(route) <> 'LINESTRING'`: the delivery is in pieces that do not
+       * meet. Joining them would turn the gap into route length and shift every abscissa after it,
+       * so the import stops and names what arrived rather than writing numbers nobody can place.
+       */
+      const d = rows[0];
+      if (d === undefined) {
+        throw new InvalidInput(
+          "the delivered alignment is not a single continuous route: merging the parts leaves " +
+            "more than one, so there is no distance along it to derive an abscissa from. Deliver " +
+            "a continuous axis, or state how the pieces connect.",
+        );
+      }
       sideDerived += 1;
       chainageDerived += 1;
 
