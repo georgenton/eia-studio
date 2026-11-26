@@ -1,183 +1,405 @@
 <!doctype html>
 <html lang="es-EC">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>EIA Field · descargar para Android</title>
-<meta name="robots" content="noindex, nofollow">
-<meta name="description" content="Descarga e instalación de EIA Field para Android: demostración, pruebas y producción.">
-<style>
-  :root {
-    --ink: #0c0f12; --text: #1d2328; --grey: #5c686f; --line: #e3e6e8;
-    --paper: #faf9f6; --green: #12503f; --soft: #dceae4; --terracotta: #7a2b22;
-  }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0; background: var(--paper); color: var(--text);
-    font: 16px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  }
-  .wrap { max-width: 920px; margin: 0 auto; padding: 28px 16px 64px; }
-  header.page { border-bottom: 2px solid var(--ink); padding-bottom: 14px; margin-bottom: 22px; }
-  h1 { font-size: 26px; line-height: 1.2; margin: 0 0 6px; color: var(--ink); }
-  .lede { color: var(--grey); margin: 0; }
-  .warn {
-    background: #f7eceb; border-left: 3px solid var(--terracotta);
-    padding: 12px 14px; margin: 18px 0; font-size: 14.5px;
-  }
-  .note {
-    background: var(--soft); border-left: 3px solid var(--green);
-    padding: 12px 14px; margin: 18px 0; font-size: 14.5px;
-  }
-  .cards { display: grid; gap: 18px; grid-template-columns: 1fr; }
-  @media (min-width: 760px) { .cards { grid-template-columns: repeat(3, 1fr); } }
-  .card { background: #fff; border: 1px solid var(--line); border-radius: 6px; padding: 16px; }
-  .env {
-    margin: 0 0 2px; font-size: 11px; letter-spacing: .09em; text-transform: uppercase;
-    color: var(--green); font-weight: 700;
-  }
-  .card h2 { font-size: 18px; margin: 0 0 4px; color: var(--ink); }
-  .sub { margin: 0 0 14px; font-size: 13.5px; color: var(--grey); }
-  a.download {
-    display: block; text-align: center; background: var(--green); color: #fff;
-    text-decoration: none; padding: 12px 14px; border-radius: 4px; font-weight: 600;
-  }
-  a.download:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
-  .qr { margin: 14px auto 4px; width: 142px; }
-  .qr svg { width: 142px; height: 142px; display: block; }
-  .qrnote { font-size: 11.5px; color: var(--grey); text-align: center; margin: 0 0 12px; }
-  dl { margin: 0; font-size: 12.5px; }
-  dt { color: var(--grey); margin-top: 8px; }
-  dd { margin: 0; }
-  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-  .break { word-break: break-all; font-size: 10.5px; }
-  .cardnote {
-    margin: 14px 0 0; font-size: 12.5px; color: var(--text);
-    border-top: 1px solid var(--line); padding-top: 10px;
-  }
-  h2.section { font-size: 19px; color: var(--ink); margin: 34px 0 10px; }
-  ol { padding-left: 20px; }
-  li { margin-bottom: 9px; }
-  footer { margin-top: 40px; border-top: 1px solid var(--line); padding-top: 14px;
-           font-size: 12px; color: var(--grey); }
-</style>
-</head>
-<body>
-<div class="wrap">
-  <header class="page">
-    <h1>EIA Field para Android</h1>
-    <p class="lede">Tres aplicaciones distintas. Instalar una no reemplaza a las otras.</p>
-  </header>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>EIA Field · descargar para Android</title>
+    <meta name="robots" content="noindex, nofollow" />
+    <meta
+      name="description"
+      content="Descarga e instalación de EIA Field para Android: demostración, pruebas y producción."
+    />
+    <style>
+      :root {
+        --ink: #0c0f12;
+        --text: #1d2328;
+        --grey: #5c686f;
+        --line: #e3e6e8;
+        --paper: #faf9f6;
+        --green: #12503f;
+        --soft: #dceae4;
+        --terracotta: #7a2b22;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--paper);
+        color: var(--text);
+        font:
+          16px/1.55 -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          Roboto,
+          sans-serif;
+      }
+      .wrap {
+        max-width: 920px;
+        margin: 0 auto;
+        padding: 28px 16px 64px;
+      }
+      header.page {
+        border-bottom: 2px solid var(--ink);
+        padding-bottom: 14px;
+        margin-bottom: 22px;
+      }
+      h1 {
+        font-size: 26px;
+        line-height: 1.2;
+        margin: 0 0 6px;
+        color: var(--ink);
+      }
+      .lede {
+        color: var(--grey);
+        margin: 0;
+      }
+      .warn {
+        background: #f7eceb;
+        border-left: 3px solid var(--terracotta);
+        padding: 12px 14px;
+        margin: 18px 0;
+        font-size: 14.5px;
+      }
+      .note {
+        background: var(--soft);
+        border-left: 3px solid var(--green);
+        padding: 12px 14px;
+        margin: 18px 0;
+        font-size: 14.5px;
+      }
+      .cards {
+        display: grid;
+        gap: 18px;
+        grid-template-columns: 1fr;
+      }
+      @media (min-width: 760px) {
+        .cards {
+          grid-template-columns: repeat(3, 1fr);
+        }
+      }
+      .card {
+        background: #fff;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 16px;
+      }
+      .env {
+        margin: 0 0 2px;
+        font-size: 11px;
+        letter-spacing: 0.09em;
+        text-transform: uppercase;
+        color: var(--green);
+        font-weight: 700;
+      }
+      .card h2 {
+        font-size: 18px;
+        margin: 0 0 4px;
+        color: var(--ink);
+      }
+      .sub {
+        margin: 0 0 14px;
+        font-size: 13.5px;
+        color: var(--grey);
+      }
+      a.download {
+        display: block;
+        text-align: center;
+        background: var(--green);
+        color: #fff;
+        text-decoration: none;
+        padding: 12px 14px;
+        border-radius: 4px;
+        font-weight: 600;
+      }
+      a.download:focus-visible {
+        outline: 3px solid var(--ink);
+        outline-offset: 2px;
+      }
+      .qr {
+        margin: 14px auto 4px;
+        width: 142px;
+      }
+      .qr svg {
+        width: 142px;
+        height: 142px;
+        display: block;
+      }
+      .qrnote {
+        font-size: 11.5px;
+        color: var(--grey);
+        text-align: center;
+        margin: 0 0 12px;
+      }
+      dl {
+        margin: 0;
+        font-size: 12.5px;
+      }
+      dt {
+        color: var(--grey);
+        margin-top: 8px;
+      }
+      dd {
+        margin: 0;
+      }
+      .mono {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
+      .break {
+        word-break: break-all;
+        font-size: 10.5px;
+      }
+      .cardnote {
+        margin: 14px 0 0;
+        font-size: 12.5px;
+        color: var(--text);
+        border-top: 1px solid var(--line);
+        padding-top: 10px;
+      }
+      h2.section {
+        font-size: 19px;
+        color: var(--ink);
+        margin: 34px 0 10px;
+      }
+      ol {
+        padding-left: 20px;
+      }
+      li {
+        margin-bottom: 9px;
+      }
+      footer {
+        margin-top: 40px;
+        border-top: 1px solid var(--line);
+        padding-top: 14px;
+        font-size: 12px;
+        color: var(--grey);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="page">
+        <h1>EIA Field para Android</h1>
+        <p class="lede">Tres aplicaciones distintas. Instalar una no reemplaza a las otras.</p>
+      </header>
 
-  <div class="warn">
-    <strong>Elija la que le corresponde.</strong> Cada aplicación habla con un servidor distinto y
-    guarda sus datos aparte. La de <strong>pruebas</strong> es para capacitación y ensayos; la de
-    <strong>producción</strong> es para el trabajo real. Si no sabe cuál usar, pregunte antes de
-    instalar: una ficha levantada en el ambiente equivocado no se traslada.
-  </div>
+      <div class="warn">
+        <strong>Elija la que le corresponde.</strong> Cada aplicación habla con un servidor distinto
+        y guarda sus datos aparte. La de <strong>pruebas</strong> es para capacitación y ensayos; la
+        de <strong>producción</strong> es para el trabajo real. Si no sabe cuál usar, pregunte antes
+        de instalar: una ficha levantada en el ambiente equivocado no se traslada.
+      </div>
 
-  <section class="cards">
-      <article class="card" id="staging">
-        <header>
-          <p class="env">Pruebas</p>
-          <h2>EIA Field Pruebas</h2>
-          <p class="sub">Para la capacitación y los ensayos. Es la aplicación que ya está instalada.</p>
-        </header>
-        <a class="download" href="https://expo.dev/artifacts/eas/GR_mp7qXSImL0fK9pwufdOWCSfCHVfdXWnol_Xi4Qxw.apk" rel="noreferrer">Descargar el APK</a>
-        <div class="qr"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 45 45" shape-rendering="crispEdges"><path fill="#ffffff" d="M0 0h45v45H0z"/><path stroke="#000000" d="M4 4.5h7m1 0h2m1 0h1m1 0h1m1 0h3m1 0h4m4 0h2m1 0h7M4 5.5h1m5 0h1m1 0h4m1 0h1m1 0h1m2 0h1m3 0h2m1 0h1m2 0h1m1 0h1m5 0h1M4 6.5h1m1 0h3m1 0h1m3 0h1m1 0h2m1 0h2m1 0h2m2 0h1m1 0h2m1 0h2m1 0h1m1 0h3m1 0h1M4 7.5h1m1 0h3m1 0h1m1 0h2m2 0h1m1 0h4m2 0h1m1 0h2m1 0h1m1 0h2m1 0h1m1 0h3m1 0h1M4 8.5h1m1 0h3m1 0h1m2 0h2m1 0h6m3 0h2m1 0h5m1 0h1m1 0h3m1 0h1M4 9.5h1m5 0h1m2 0h4m1 0h1m4 0h1m1 0h1m2 0h2m4 0h1m5 0h1M4 10.5h7m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h7M12 11.5h3m1 0h1m2 0h1m1 0h1m1 0h2m1 0h1m3 0h1m1 0h1M4 12.5h1m1 0h2m1 0h3m1 0h1m2 0h1m1 0h2m1 0h3m5 0h2m1 0h1m1 0h1m2 0h1m1 0h2M5 13.5h2m2 0h1m3 0h3m1 0h3m1 0h7m1 0h4m2 0h1m3 0h1M5 14.5h1m2 0h3m1 0h1m3 0h1m1 0h1m1 0h3m1 0h2m1 0h3m8 0h1M4 15.5h1m1 0h1m1 0h2m1 0h1m2 0h5m1 0h1m1 0h1m1 0h1m2 0h5m1 0h1m3 0h2M4 16.5h2m4 0h1m1 0h2m1 0h1m1 0h3m1 0h1m1 0h2m2 0h5m1 0h2m1 0h2m1 0h2M5 17.5h3m5 0h2m1 0h1m1 0h3m1 0h1m2 0h1m2 0h1m1 0h3m1 0h4m1 0h2M4 18.5h1m1 0h3m1 0h3m1 0h4m3 0h1m1 0h2m1 0h1m1 0h1m1 0h1m1 0h2m2 0h1m1 0h2M12 19.5h1m1 0h4m1 0h1m3 0h3m2 0h1m2 0h2m1 0h3m3 0h1M4 20.5h1m1 0h2m1 0h3m4 0h1m1 0h2m1 0h1m2 0h4m1 0h1m7 0h3M4 21.5h2m2 0h2m3 0h1m3 0h1m7 0h5m1 0h1m7 0h2M5 22.5h1m2 0h1m1 0h1m1 0h2m3 0h2m3 0h1m1 0h1m1 0h1m1 0h1m2 0h2m2 0h1m2 0h3M6 23.5h2m1 0h1m3 0h2m3 0h4m1 0h1m2 0h1m1 0h1m2 0h1m1 0h1m1 0h2m2 0h1M5 24.5h1m2 0h1m1 0h2m5 0h5m1 0h1m1 0h1m1 0h1m2 0h1m1 0h2m1 0h3m2 0h1M7 25.5h1m4 0h4m3 0h3m2 0h1m2 0h1m2 0h1m1 0h2m3 0h1m1 0h1M4 26.5h1m1 0h1m3 0h1m7 0h1m1 0h1m1 0h1m4 0h1m1 0h1m4 0h2m3 0h1M4 27.5h1m1 0h3m2 0h3m2 0h1m1 0h4m2 0h1m2 0h3m1 0h1m1 0h2m1 0h3M4 28.5h1m2 0h5m4 0h2m1 0h2m2 0h2m3 0h3m1 0h5m1 0h2M5 29.5h1m2 0h2m1 0h3m7 0h1m1 0h1m2 0h1m1 0h1m1 0h1m1 0h1m2 0h2m1 0h3M5 30.5h2m1 0h1m1 0h2m2 0h4m3 0h3m4 0h1m7 0h4M4 31.5h1m1 0h2m3 0h1m1 0h1m1 0h2m2 0h1m5 0h3m6 0h2M6 32.5h1m3 0h3m1 0h1m3 0h1m1 0h1m1 0h6m1 0h1m2 0h7m1 0h1M12 33.5h1m4 0h2m3 0h1m3 0h5m1 0h1m3 0h1m1 0h1M4 34.5h7m1 0h1m1 0h1m4 0h1m2 0h1m1 0h3m3 0h1m1 0h1m1 0h1m1 0h1m1 0h3M4 35.5h1m5 0h1m1 0h3m2 0h1m3 0h4m2 0h1m2 0h1m1 0h1m3 0h1M4 36.5h1m1 0h3m1 0h1m2 0h1m4 0h3m2 0h2m2 0h4m1 0h6m1 0h2M4 37.5h1m1 0h3m1 0h1m1 0h1m1 0h3m1 0h3m2 0h4m3 0h1m1 0h3m1 0h2m2 0h1M4 38.5h1m1 0h3m1 0h1m1 0h2m3 0h3m1 0h1m5 0h1m3 0h4m1 0h1M4 39.5h1m5 0h1m3 0h1m2 0h3m2 0h2m5 0h1m2 0h2m1 0h4M4 40.5h7m1 0h3m2 0h1m2 0h1m3 0h1m1 0h5m2 0h1m2 0h1m1 0h3"/></svg>
-</div>
-        <p class="qrnote">Enfoque este código con la cámara del teléfono para descargarlo.</p>
-        <dl>
-          <dt>Servidor</dt><dd class="mono">eia-staging.syntavera.dev</dd>
-          <dt>Paquete</dt><dd class="mono">ec.eiastudio.field</dd>
-          <dt>Versión</dt><dd class="mono">1.1.0 · código 9</dd>
-          <dt>Tamaño</dt><dd class="mono">92 MB</dd>
-          <dt>Publicado</dt><dd class="mono">26 nov 2026</dd>
-          <dt>SHA-256 del archivo</dt><dd class="mono break">367ef0432cbef2756b95c75c3062e4060e1339ccd9c93e92090cc3bada5d1a1c</dd>
-          <dt>Huella del certificado de firma</dt><dd class="mono break">8d307589ccd07f4a93cef7353272ec2224ff2ab482a95df68abaad4fe398f4c5</dd>
-        </dl>
-        <p class="cardnote">Misma firma que la versión instalada, así que se actualiza encima y conserva la base, la sesión y lo que esté sin entregar.</p>
-      </article>
-      <article class="card" id="demo">
-        <header>
-          <p class="env">Demostración</p>
-          <h2>EIA Field Demo</h2>
-          <p class="sub">Para enseñar el producto. Datos sintéticos.</p>
-        </header>
-        <a class="download" href="https://expo.dev/artifacts/eas/Xw7SE4dM2WcxmNPML-m5CBxH2EJyvtL92GdDOAmgF64.apk" rel="noreferrer">Descargar el APK</a>
-        <div class="qr"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 45 45" shape-rendering="crispEdges"><path fill="#ffffff" d="M0 0h45v45H0z"/><path stroke="#000000" d="M4 4.5h7m1 0h1m1 0h1m1 0h4m1 0h1m3 0h3m1 0h1m4 0h7M4 5.5h1m5 0h1m1 0h2m2 0h1m2 0h1m1 0h1m1 0h1m2 0h1m1 0h1m5 0h1m5 0h1M4 6.5h1m1 0h3m1 0h1m1 0h1m1 0h3m3 0h1m2 0h1m1 0h2m2 0h1m2 0h1m1 0h1m1 0h3m1 0h1M4 7.5h1m1 0h3m1 0h1m4 0h1m2 0h2m5 0h1m3 0h3m2 0h1m1 0h3m1 0h1M4 8.5h1m1 0h3m1 0h1m1 0h1m2 0h1m1 0h3m1 0h1m1 0h2m1 0h1m2 0h2m1 0h1m1 0h1m1 0h3m1 0h1M4 9.5h1m5 0h1m2 0h1m1 0h2m2 0h4m1 0h2m1 0h1m6 0h1m5 0h1M4 10.5h7m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h7M13 11.5h7m2 0h1m3 0h4m2 0h1M4 12.5h1m2 0h6m3 0h2m3 0h1m1 0h1m1 0h1m2 0h1m1 0h4m2 0h1m1 0h3M4 13.5h1m6 0h5m1 0h1m2 0h1m1 0h2m2 0h1m2 0h1m4 0h4m1 0h1M4 14.5h1m1 0h1m1 0h4m3 0h2m1 0h3m1 0h1m1 0h1m2 0h3m1 0h2m1 0h5m1 0h1M6 15.5h2m4 0h2m6 0h2m1 0h2m2 0h1m2 0h1m3 0h2m1 0h4M8 16.5h1m1 0h2m1 0h1m1 0h7m4 0h3m2 0h2m1 0h2m2 0h1m1 0h1M5 17.5h1m2 0h2m1 0h1m1 0h4m1 0h5m4 0h1m1 0h5m2 0h2m2 0h1M7 18.5h2m1 0h1m4 0h3m1 0h1m1 0h3m1 0h2m3 0h3m1 0h1m1 0h5M4 19.5h4m8 0h1m2 0h1m4 0h1m3 0h1m1 0h1m2 0h1m1 0h1m1 0h4M5 20.5h7m4 0h4m1 0h4m1 0h4m1 0h1m2 0h2m2 0h1M4 21.5h1m1 0h2m1 0h1m4 0h1m1 0h2m3 0h3m1 0h2m3 0h1m2 0h2m3 0h1M4 22.5h1m3 0h1m1 0h2m2 0h2m1 0h1m2 0h2m1 0h2m2 0h1m1 0h5m2 0h3m1 0h1M4 23.5h1m2 0h3m1 0h2m1 0h1m1 0h5m2 0h1m2 0h2m1 0h1m1 0h1m2 0h1m2 0h1m2 0h1M4 24.5h1m1 0h3m1 0h2m3 0h1m1 0h1m3 0h4m3 0h1m1 0h9M4 25.5h1m2 0h1m1 0h1m2 0h4m2 0h1m2 0h1m3 0h3m3 0h1m1 0h1m2 0h1m1 0h1M4 26.5h3m1 0h5m3 0h4m5 0h4m2 0h1m1 0h3m1 0h1m2 0h1M4 27.5h1m2 0h1m7 0h2m1 0h3m1 0h3m6 0h1m1 0h1m1 0h6M4 28.5h4m1 0h3m2 0h2m3 0h1m1 0h1m5 0h3m4 0h2m3 0h1M4 29.5h1m1 0h1m2 0h1m2 0h2m3 0h2m3 0h1m1 0h1m4 0h3m1 0h1m2 0h3M4 30.5h2m1 0h1m2 0h1m1 0h1m2 0h1m2 0h2m3 0h1m1 0h1m2 0h1m2 0h2m1 0h1m3 0h3M4 31.5h1m4 0h1m2 0h1m1 0h1m5 0h1m1 0h2m3 0h2m1 0h1m1 0h1m1 0h2m1 0h2M4 32.5h1m3 0h3m2 0h3m2 0h3m3 0h1m1 0h4m2 0h6M12 33.5h1m2 0h1m3 0h5m2 0h1m2 0h2m1 0h1m3 0h1m1 0h1M4 34.5h7m1 0h1m1 0h4m1 0h1m1 0h3m3 0h1m1 0h1m2 0h1m1 0h1m1 0h1m3 0h1M4 35.5h1m5 0h1m1 0h1m3 0h1m1 0h1m1 0h1m3 0h1m1 0h1m1 0h3m1 0h1m3 0h1m2 0h1M4 36.5h1m1 0h3m1 0h1m1 0h2m2 0h2m2 0h1m1 0h4m1 0h1m3 0h6m3 0h1M4 37.5h1m1 0h3m1 0h1m1 0h3m2 0h2m4 0h2m1 0h3m2 0h1m1 0h2m2 0h1m2 0h1M4 38.5h1m1 0h3m1 0h1m2 0h1m1 0h3m3 0h1m2 0h2m1 0h1m4 0h2m2 0h2m2 0h1M4 39.5h1m5 0h1m2 0h2m1 0h4m1 0h4m2 0h2m3 0h2m2 0h1m1 0h3M4 40.5h7m1 0h2m1 0h4m1 0h2m1 0h1m4 0h1m3 0h4m1 0h1m2 0h1"/></svg>
-</div>
-        <p class="qrnote">Enfoque este código con la cámara del teléfono para descargarlo.</p>
-        <dl>
-          <dt>Servidor</dt><dd class="mono">eia-demo.syntavera.dev</dd>
-          <dt>Paquete</dt><dd class="mono">ec.eiastudio.field.demo</dd>
-          <dt>Versión</dt><dd class="mono">1.1.0 · código 1</dd>
-          <dt>Tamaño</dt><dd class="mono">92 MB</dd>
-          <dt>Publicado</dt><dd class="mono">26 nov 2026</dd>
-          <dt>SHA-256 del archivo</dt><dd class="mono break">2830d8bf46c1df5a0c566cdcccfb275de37b85e32ff270d77b6f22d109791cdb</dd>
-          <dt>Huella del certificado de firma</dt><dd class="mono break">19b12ce5d742868b7d33a7fdfe52f88aa2885c9aa45e14a24703b2c9f2ade85d</dd>
-        </dl>
-        <p class="cardnote">Aplicación aparte: se instala junto a las otras dos sin reemplazar ninguna.</p>
-      </article>
-      <article class="card" id="production">
-        <header>
-          <p class="env">Producción</p>
-          <h2>EIA Field</h2>
-          <p class="sub">Para el trabajo real de los ocho proyectos.</p>
-        </header>
-        <a class="download" href="https://expo.dev/artifacts/eas/-cNEwvu0et-vqouWdvUZZuTklnjaKmyixh80868J-ws.apk" rel="noreferrer">Descargar el APK</a>
-        <div class="qr"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 45 45" shape-rendering="crispEdges"><path fill="#ffffff" d="M0 0h45v45H0z"/><path stroke="#000000" d="M4 4.5h7m4 0h2m1 0h4m1 0h6m3 0h1m1 0h7M4 5.5h1m5 0h1m4 0h1m1 0h2m2 0h1m2 0h3m1 0h4m2 0h1m5 0h1M4 6.5h1m1 0h3m1 0h1m1 0h4m1 0h1m1 0h1m2 0h1m2 0h1m2 0h1m5 0h1m1 0h3m1 0h1M4 7.5h1m1 0h3m1 0h1m1 0h1m1 0h3m2 0h2m5 0h1m2 0h1m2 0h1m1 0h1m1 0h3m1 0h1M4 8.5h1m1 0h3m1 0h1m1 0h1m1 0h1m1 0h1m1 0h3m1 0h1m1 0h1m1 0h2m4 0h1m1 0h1m1 0h3m1 0h1M4 9.5h1m5 0h1m1 0h1m1 0h1m1 0h2m2 0h1m1 0h1m1 0h2m5 0h2m1 0h1m5 0h1M4 10.5h7m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h7M12 11.5h2m1 0h1m4 0h1m1 0h2m1 0h1m1 0h2m1 0h3M4 12.5h1m1 0h5m2 0h1m4 0h4m8 0h2m2 0h5M4 13.5h4m1 0h1m5 0h3m1 0h1m2 0h8m2 0h4m2 0h2M6 14.5h2m1 0h2m5 0h5m7 0h4m1 0h2m1 0h1m1 0h3M4 15.5h2m1 0h3m1 0h2m2 0h3m1 0h1m3 0h4m1 0h1m1 0h1m1 0h3m1 0h1m3 0h1M4 16.5h1m2 0h1m1 0h2m2 0h4m1 0h2m1 0h1m1 0h1m3 0h4m2 0h2m1 0h1m1 0h3M6 17.5h2m1 0h1m2 0h1m1 0h2m1 0h1m3 0h1m1 0h3m1 0h1m1 0h1m2 0h2m1 0h1M4 18.5h2m1 0h1m2 0h2m2 0h2m3 0h1m1 0h2m1 0h1m1 0h1m2 0h1m1 0h1m3 0h3m1 0h2M5 19.5h2m5 0h2m2 0h1m2 0h2m3 0h2m2 0h1m1 0h3m2 0h2m2 0h2M4 20.5h2m2 0h5m3 0h2m1 0h1m2 0h2m5 0h3m1 0h3m2 0h1m1 0h1M4 21.5h2m2 0h1m5 0h7m1 0h2m2 0h3m3 0h2m1 0h1m3 0h1M4 22.5h2m2 0h1m1 0h2m1 0h3m1 0h2m2 0h1m2 0h1m1 0h1m1 0h1m2 0h1m3 0h1m3 0h2M4 23.5h4m3 0h1m2 0h4m2 0h1m2 0h1m1 0h2m1 0h1m1 0h3m1 0h2m4 0h1M4 24.5h2m1 0h6m2 0h4m1 0h2m4 0h5m2 0h2m1 0h1M4 25.5h3m4 0h2m1 0h2m4 0h2m1 0h1m3 0h1m1 0h2m1 0h2m3 0h1m1 0h1M4 26.5h2m2 0h1m1 0h2m1 0h2m1 0h1m1 0h4m2 0h2m2 0h1m1 0h2m1 0h5m1 0h2M4 27.5h2m1 0h3m3 0h1m1 0h11m1 0h1m2 0h1m1 0h5M6 28.5h1m2 0h3m1 0h1m1 0h3m1 0h2m2 0h4m1 0h3m2 0h3m2 0h3M4 29.5h5m2 0h4m2 0h1m1 0h1m2 0h4m1 0h1m2 0h1m1 0h4M4 30.5h1m1 0h1m2 0h2m1 0h1m1 0h1m2 0h1m1 0h3m2 0h3m1 0h2m1 0h2m1 0h1m1 0h1m1 0h3M4 31.5h1m2 0h1m1 0h1m1 0h1m1 0h1m2 0h2m1 0h1m2 0h5m1 0h1m5 0h2M4 32.5h1m3 0h4m1 0h3m1 0h3m1 0h1m4 0h5m1 0h8M12 33.5h2m1 0h2m3 0h1m2 0h1m3 0h1m1 0h4m3 0h2m1 0h1M4 34.5h7m2 0h1m1 0h1m3 0h1m2 0h1m1 0h1m7 0h1m1 0h1m1 0h1m1 0h3M4 35.5h1m5 0h1m1 0h1m1 0h1m1 0h1m1 0h2m3 0h1m1 0h1m2 0h1m1 0h3m3 0h2m1 0h2M4 36.5h1m1 0h3m1 0h1m1 0h1m3 0h1m1 0h2m2 0h1m1 0h1m2 0h1m1 0h8m1 0h2M4 37.5h1m1 0h3m1 0h1m1 0h1m1 0h2m1 0h1m1 0h2m2 0h3m1 0h1m4 0h3m1 0h1m3 0h1M4 38.5h1m1 0h3m1 0h1m1 0h1m2 0h1m2 0h1m5 0h2m4 0h1m1 0h1m4 0h1m1 0h2M4 39.5h1m5 0h1m2 0h2m1 0h1m3 0h1m3 0h3m1 0h1m2 0h4m1 0h1m3 0h1M4 40.5h7m1 0h1m1 0h4m2 0h5m1 0h5m3 0h1m1 0h1m1 0h3"/></svg>
-</div>
-        <p class="qrnote">Enfoque este código con la cámara del teléfono para descargarlo.</p>
-        <dl>
-          <dt>Servidor</dt><dd class="mono">eia.syntavera.dev</dd>
-          <dt>Paquete</dt><dd class="mono">ec.eiastudio.field.prod</dd>
-          <dt>Versión</dt><dd class="mono">1.1.0 · código 1</dd>
-          <dt>Tamaño</dt><dd class="mono">92 MB</dd>
-          <dt>Publicado</dt><dd class="mono">26 nov 2026</dd>
-          <dt>SHA-256 del archivo</dt><dd class="mono break">6311ca768d5dde2b7615262af130919b7fe03bce873830d9f3a88113d2cb4d10</dd>
-          <dt>Huella del certificado de firma</dt><dd class="mono break">635d20f2000e23a4f36b761ea78fc88b73c0f6e7327defc7e85cf41e3ef8ccd5</dd>
-        </dl>
-        <p class="cardnote">Aplicación aparte. Instalarla no toca la de pruebas ni lo que esa tenga guardado.</p>
-      </article>
-  </section>
+      <section class="cards">
+        <article class="card" id="staging">
+          <header>
+            <p class="env">Pruebas</p>
+            <h2>EIA Field Pruebas</h2>
+            <p class="sub">
+              Para la capacitación y los ensayos. Es la aplicación que ya está instalada.
+            </p>
+          </header>
+          <a
+            class="download"
+            href="https://expo.dev/artifacts/eas/GR_mp7qXSImL0fK9pwufdOWCSfCHVfdXWnol_Xi4Qxw.apk"
+            rel="noreferrer"
+            >Descargar el APK</a
+          >
+          <div class="qr">
+            <svg
+              aria-hidden="true"
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 45 45"
+              shape-rendering="crispEdges"
+            >
+              <path fill="#ffffff" d="M0 0h45v45H0z" />
+              <path
+                stroke="#000000"
+                d="M4 4.5h7m1 0h2m1 0h1m1 0h1m1 0h3m1 0h4m4 0h2m1 0h7M4 5.5h1m5 0h1m1 0h4m1 0h1m1 0h1m2 0h1m3 0h2m1 0h1m2 0h1m1 0h1m5 0h1M4 6.5h1m1 0h3m1 0h1m3 0h1m1 0h2m1 0h2m1 0h2m2 0h1m1 0h2m1 0h2m1 0h1m1 0h3m1 0h1M4 7.5h1m1 0h3m1 0h1m1 0h2m2 0h1m1 0h4m2 0h1m1 0h2m1 0h1m1 0h2m1 0h1m1 0h3m1 0h1M4 8.5h1m1 0h3m1 0h1m2 0h2m1 0h6m3 0h2m1 0h5m1 0h1m1 0h3m1 0h1M4 9.5h1m5 0h1m2 0h4m1 0h1m4 0h1m1 0h1m2 0h2m4 0h1m5 0h1M4 10.5h7m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h7M12 11.5h3m1 0h1m2 0h1m1 0h1m1 0h2m1 0h1m3 0h1m1 0h1M4 12.5h1m1 0h2m1 0h3m1 0h1m2 0h1m1 0h2m1 0h3m5 0h2m1 0h1m1 0h1m2 0h1m1 0h2M5 13.5h2m2 0h1m3 0h3m1 0h3m1 0h7m1 0h4m2 0h1m3 0h1M5 14.5h1m2 0h3m1 0h1m3 0h1m1 0h1m1 0h3m1 0h2m1 0h3m8 0h1M4 15.5h1m1 0h1m1 0h2m1 0h1m2 0h5m1 0h1m1 0h1m1 0h1m2 0h5m1 0h1m3 0h2M4 16.5h2m4 0h1m1 0h2m1 0h1m1 0h3m1 0h1m1 0h2m2 0h5m1 0h2m1 0h2m1 0h2M5 17.5h3m5 0h2m1 0h1m1 0h3m1 0h1m2 0h1m2 0h1m1 0h3m1 0h4m1 0h2M4 18.5h1m1 0h3m1 0h3m1 0h4m3 0h1m1 0h2m1 0h1m1 0h1m1 0h1m1 0h2m2 0h1m1 0h2M12 19.5h1m1 0h4m1 0h1m3 0h3m2 0h1m2 0h2m1 0h3m3 0h1M4 20.5h1m1 0h2m1 0h3m4 0h1m1 0h2m1 0h1m2 0h4m1 0h1m7 0h3M4 21.5h2m2 0h2m3 0h1m3 0h1m7 0h5m1 0h1m7 0h2M5 22.5h1m2 0h1m1 0h1m1 0h2m3 0h2m3 0h1m1 0h1m1 0h1m1 0h1m2 0h2m2 0h1m2 0h3M6 23.5h2m1 0h1m3 0h2m3 0h4m1 0h1m2 0h1m1 0h1m2 0h1m1 0h1m1 0h2m2 0h1M5 24.5h1m2 0h1m1 0h2m5 0h5m1 0h1m1 0h1m1 0h1m2 0h1m1 0h2m1 0h3m2 0h1M7 25.5h1m4 0h4m3 0h3m2 0h1m2 0h1m2 0h1m1 0h2m3 0h1m1 0h1M4 26.5h1m1 0h1m3 0h1m7 0h1m1 0h1m1 0h1m4 0h1m1 0h1m4 0h2m3 0h1M4 27.5h1m1 0h3m2 0h3m2 0h1m1 0h4m2 0h1m2 0h3m1 0h1m1 0h2m1 0h3M4 28.5h1m2 0h5m4 0h2m1 0h2m2 0h2m3 0h3m1 0h5m1 0h2M5 29.5h1m2 0h2m1 0h3m7 0h1m1 0h1m2 0h1m1 0h1m1 0h1m1 0h1m2 0h2m1 0h3M5 30.5h2m1 0h1m1 0h2m2 0h4m3 0h3m4 0h1m7 0h4M4 31.5h1m1 0h2m3 0h1m1 0h1m1 0h2m2 0h1m5 0h3m6 0h2M6 32.5h1m3 0h3m1 0h1m3 0h1m1 0h1m1 0h6m1 0h1m2 0h7m1 0h1M12 33.5h1m4 0h2m3 0h1m3 0h5m1 0h1m3 0h1m1 0h1M4 34.5h7m1 0h1m1 0h1m4 0h1m2 0h1m1 0h3m3 0h1m1 0h1m1 0h1m1 0h1m1 0h3M4 35.5h1m5 0h1m1 0h3m2 0h1m3 0h4m2 0h1m2 0h1m1 0h1m3 0h1M4 36.5h1m1 0h3m1 0h1m2 0h1m4 0h3m2 0h2m2 0h4m1 0h6m1 0h2M4 37.5h1m1 0h3m1 0h1m1 0h1m1 0h3m1 0h3m2 0h4m3 0h1m1 0h3m1 0h2m2 0h1M4 38.5h1m1 0h3m1 0h1m1 0h2m3 0h3m1 0h1m5 0h1m3 0h4m1 0h1M4 39.5h1m5 0h1m3 0h1m2 0h3m2 0h2m5 0h1m2 0h2m1 0h4M4 40.5h7m1 0h3m2 0h1m2 0h1m3 0h1m1 0h5m2 0h1m2 0h1m1 0h3"
+              />
+            </svg>
+          </div>
+          <p class="qrnote">Enfoque este código con la cámara del teléfono para descargarlo.</p>
+          <dl>
+            <dt>Servidor</dt>
+            <dd class="mono">eia-staging.syntavera.dev</dd>
+            <dt>Paquete</dt>
+            <dd class="mono">ec.eiastudio.field</dd>
+            <dt>Versión</dt>
+            <dd class="mono">1.1.0 · código 9</dd>
+            <dt>Tamaño</dt>
+            <dd class="mono">92 MB</dd>
+            <dt>Publicado</dt>
+            <dd class="mono">26 nov 2026</dd>
+            <dt>SHA-256 del archivo</dt>
+            <dd class="mono break">
+              367ef0432cbef2756b95c75c3062e4060e1339ccd9c93e92090cc3bada5d1a1c
+            </dd>
+            <dt>Huella del certificado de firma</dt>
+            <dd class="mono break">
+              8d307589ccd07f4a93cef7353272ec2224ff2ab482a95df68abaad4fe398f4c5
+            </dd>
+          </dl>
+          <p class="cardnote">
+            Misma firma que la versión instalada, así que se actualiza encima y conserva la base, la
+            sesión y lo que esté sin entregar.
+          </p>
+        </article>
+        <article class="card" id="demo">
+          <header>
+            <p class="env">Demostración</p>
+            <h2>EIA Field Demo</h2>
+            <p class="sub">Para enseñar el producto. Datos sintéticos.</p>
+          </header>
+          <a
+            class="download"
+            href="https://expo.dev/artifacts/eas/Xw7SE4dM2WcxmNPML-m5CBxH2EJyvtL92GdDOAmgF64.apk"
+            rel="noreferrer"
+            >Descargar el APK</a
+          >
+          <div class="qr">
+            <svg
+              aria-hidden="true"
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 45 45"
+              shape-rendering="crispEdges"
+            >
+              <path fill="#ffffff" d="M0 0h45v45H0z" />
+              <path
+                stroke="#000000"
+                d="M4 4.5h7m1 0h1m1 0h1m1 0h4m1 0h1m3 0h3m1 0h1m4 0h7M4 5.5h1m5 0h1m1 0h2m2 0h1m2 0h1m1 0h1m1 0h1m2 0h1m1 0h1m5 0h1m5 0h1M4 6.5h1m1 0h3m1 0h1m1 0h1m1 0h3m3 0h1m2 0h1m1 0h2m2 0h1m2 0h1m1 0h1m1 0h3m1 0h1M4 7.5h1m1 0h3m1 0h1m4 0h1m2 0h2m5 0h1m3 0h3m2 0h1m1 0h3m1 0h1M4 8.5h1m1 0h3m1 0h1m1 0h1m2 0h1m1 0h3m1 0h1m1 0h2m1 0h1m2 0h2m1 0h1m1 0h1m1 0h3m1 0h1M4 9.5h1m5 0h1m2 0h1m1 0h2m2 0h4m1 0h2m1 0h1m6 0h1m5 0h1M4 10.5h7m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h7M13 11.5h7m2 0h1m3 0h4m2 0h1M4 12.5h1m2 0h6m3 0h2m3 0h1m1 0h1m1 0h1m2 0h1m1 0h4m2 0h1m1 0h3M4 13.5h1m6 0h5m1 0h1m2 0h1m1 0h2m2 0h1m2 0h1m4 0h4m1 0h1M4 14.5h1m1 0h1m1 0h4m3 0h2m1 0h3m1 0h1m1 0h1m2 0h3m1 0h2m1 0h5m1 0h1M6 15.5h2m4 0h2m6 0h2m1 0h2m2 0h1m2 0h1m3 0h2m1 0h4M8 16.5h1m1 0h2m1 0h1m1 0h7m4 0h3m2 0h2m1 0h2m2 0h1m1 0h1M5 17.5h1m2 0h2m1 0h1m1 0h4m1 0h5m4 0h1m1 0h5m2 0h2m2 0h1M7 18.5h2m1 0h1m4 0h3m1 0h1m1 0h3m1 0h2m3 0h3m1 0h1m1 0h5M4 19.5h4m8 0h1m2 0h1m4 0h1m3 0h1m1 0h1m2 0h1m1 0h1m1 0h4M5 20.5h7m4 0h4m1 0h4m1 0h4m1 0h1m2 0h2m2 0h1M4 21.5h1m1 0h2m1 0h1m4 0h1m1 0h2m3 0h3m1 0h2m3 0h1m2 0h2m3 0h1M4 22.5h1m3 0h1m1 0h2m2 0h2m1 0h1m2 0h2m1 0h2m2 0h1m1 0h5m2 0h3m1 0h1M4 23.5h1m2 0h3m1 0h2m1 0h1m1 0h5m2 0h1m2 0h2m1 0h1m1 0h1m2 0h1m2 0h1m2 0h1M4 24.5h1m1 0h3m1 0h2m3 0h1m1 0h1m3 0h4m3 0h1m1 0h9M4 25.5h1m2 0h1m1 0h1m2 0h4m2 0h1m2 0h1m3 0h3m3 0h1m1 0h1m2 0h1m1 0h1M4 26.5h3m1 0h5m3 0h4m5 0h4m2 0h1m1 0h3m1 0h1m2 0h1M4 27.5h1m2 0h1m7 0h2m1 0h3m1 0h3m6 0h1m1 0h1m1 0h6M4 28.5h4m1 0h3m2 0h2m3 0h1m1 0h1m5 0h3m4 0h2m3 0h1M4 29.5h1m1 0h1m2 0h1m2 0h2m3 0h2m3 0h1m1 0h1m4 0h3m1 0h1m2 0h3M4 30.5h2m1 0h1m2 0h1m1 0h1m2 0h1m2 0h2m3 0h1m1 0h1m2 0h1m2 0h2m1 0h1m3 0h3M4 31.5h1m4 0h1m2 0h1m1 0h1m5 0h1m1 0h2m3 0h2m1 0h1m1 0h1m1 0h2m1 0h2M4 32.5h1m3 0h3m2 0h3m2 0h3m3 0h1m1 0h4m2 0h6M12 33.5h1m2 0h1m3 0h5m2 0h1m2 0h2m1 0h1m3 0h1m1 0h1M4 34.5h7m1 0h1m1 0h4m1 0h1m1 0h3m3 0h1m1 0h1m2 0h1m1 0h1m1 0h1m3 0h1M4 35.5h1m5 0h1m1 0h1m3 0h1m1 0h1m1 0h1m3 0h1m1 0h1m1 0h3m1 0h1m3 0h1m2 0h1M4 36.5h1m1 0h3m1 0h1m1 0h2m2 0h2m2 0h1m1 0h4m1 0h1m3 0h6m3 0h1M4 37.5h1m1 0h3m1 0h1m1 0h3m2 0h2m4 0h2m1 0h3m2 0h1m1 0h2m2 0h1m2 0h1M4 38.5h1m1 0h3m1 0h1m2 0h1m1 0h3m3 0h1m2 0h2m1 0h1m4 0h2m2 0h2m2 0h1M4 39.5h1m5 0h1m2 0h2m1 0h4m1 0h4m2 0h2m3 0h2m2 0h1m1 0h3M4 40.5h7m1 0h2m1 0h4m1 0h2m1 0h1m4 0h1m3 0h4m1 0h1m2 0h1"
+              />
+            </svg>
+          </div>
+          <p class="qrnote">Enfoque este código con la cámara del teléfono para descargarlo.</p>
+          <dl>
+            <dt>Servidor</dt>
+            <dd class="mono">eia-demo.syntavera.dev</dd>
+            <dt>Paquete</dt>
+            <dd class="mono">ec.eiastudio.field.demo</dd>
+            <dt>Versión</dt>
+            <dd class="mono">1.1.0 · código 1</dd>
+            <dt>Tamaño</dt>
+            <dd class="mono">92 MB</dd>
+            <dt>Publicado</dt>
+            <dd class="mono">26 nov 2026</dd>
+            <dt>SHA-256 del archivo</dt>
+            <dd class="mono break">
+              2830d8bf46c1df5a0c566cdcccfb275de37b85e32ff270d77b6f22d109791cdb
+            </dd>
+            <dt>Huella del certificado de firma</dt>
+            <dd class="mono break">
+              19b12ce5d742868b7d33a7fdfe52f88aa2885c9aa45e14a24703b2c9f2ade85d
+            </dd>
+          </dl>
+          <p class="cardnote">
+            Aplicación aparte: se instala junto a las otras dos sin reemplazar ninguna.
+          </p>
+        </article>
+        <article class="card" id="production">
+          <header>
+            <p class="env">Producción</p>
+            <h2>EIA Field</h2>
+            <p class="sub">Para el trabajo real de los ocho proyectos.</p>
+          </header>
+          <a
+            class="download"
+            href="https://expo.dev/artifacts/eas/-cNEwvu0et-vqouWdvUZZuTklnjaKmyixh80868J-ws.apk"
+            rel="noreferrer"
+            >Descargar el APK</a
+          >
+          <div class="qr">
+            <svg
+              aria-hidden="true"
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 45 45"
+              shape-rendering="crispEdges"
+            >
+              <path fill="#ffffff" d="M0 0h45v45H0z" />
+              <path
+                stroke="#000000"
+                d="M4 4.5h7m4 0h2m1 0h4m1 0h6m3 0h1m1 0h7M4 5.5h1m5 0h1m4 0h1m1 0h2m2 0h1m2 0h3m1 0h4m2 0h1m5 0h1M4 6.5h1m1 0h3m1 0h1m1 0h4m1 0h1m1 0h1m2 0h1m2 0h1m2 0h1m5 0h1m1 0h3m1 0h1M4 7.5h1m1 0h3m1 0h1m1 0h1m1 0h3m2 0h2m5 0h1m2 0h1m2 0h1m1 0h1m1 0h3m1 0h1M4 8.5h1m1 0h3m1 0h1m1 0h1m1 0h1m1 0h1m1 0h3m1 0h1m1 0h1m1 0h2m4 0h1m1 0h1m1 0h3m1 0h1M4 9.5h1m5 0h1m1 0h1m1 0h1m1 0h2m2 0h1m1 0h1m1 0h2m5 0h2m1 0h1m5 0h1M4 10.5h7m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h7M12 11.5h2m1 0h1m4 0h1m1 0h2m1 0h1m1 0h2m1 0h3M4 12.5h1m1 0h5m2 0h1m4 0h4m8 0h2m2 0h5M4 13.5h4m1 0h1m5 0h3m1 0h1m2 0h8m2 0h4m2 0h2M6 14.5h2m1 0h2m5 0h5m7 0h4m1 0h2m1 0h1m1 0h3M4 15.5h2m1 0h3m1 0h2m2 0h3m1 0h1m3 0h4m1 0h1m1 0h1m1 0h3m1 0h1m3 0h1M4 16.5h1m2 0h1m1 0h2m2 0h4m1 0h2m1 0h1m1 0h1m3 0h4m2 0h2m1 0h1m1 0h3M6 17.5h2m1 0h1m2 0h1m1 0h2m1 0h1m3 0h1m1 0h3m1 0h1m1 0h1m2 0h2m1 0h1M4 18.5h2m1 0h1m2 0h2m2 0h2m3 0h1m1 0h2m1 0h1m1 0h1m2 0h1m1 0h1m3 0h3m1 0h2M5 19.5h2m5 0h2m2 0h1m2 0h2m3 0h2m2 0h1m1 0h3m2 0h2m2 0h2M4 20.5h2m2 0h5m3 0h2m1 0h1m2 0h2m5 0h3m1 0h3m2 0h1m1 0h1M4 21.5h2m2 0h1m5 0h7m1 0h2m2 0h3m3 0h2m1 0h1m3 0h1M4 22.5h2m2 0h1m1 0h2m1 0h3m1 0h2m2 0h1m2 0h1m1 0h1m1 0h1m2 0h1m3 0h1m3 0h2M4 23.5h4m3 0h1m2 0h4m2 0h1m2 0h1m1 0h2m1 0h1m1 0h3m1 0h2m4 0h1M4 24.5h2m1 0h6m2 0h4m1 0h2m4 0h5m2 0h2m1 0h1M4 25.5h3m4 0h2m1 0h2m4 0h2m1 0h1m3 0h1m1 0h2m1 0h2m3 0h1m1 0h1M4 26.5h2m2 0h1m1 0h2m1 0h2m1 0h1m1 0h4m2 0h2m2 0h1m1 0h2m1 0h5m1 0h2M4 27.5h2m1 0h3m3 0h1m1 0h11m1 0h1m2 0h1m1 0h5M6 28.5h1m2 0h3m1 0h1m1 0h3m1 0h2m2 0h4m1 0h3m2 0h3m2 0h3M4 29.5h5m2 0h4m2 0h1m1 0h1m2 0h4m1 0h1m2 0h1m1 0h4M4 30.5h1m1 0h1m2 0h2m1 0h1m1 0h1m2 0h1m1 0h3m2 0h3m1 0h2m1 0h2m1 0h1m1 0h1m1 0h3M4 31.5h1m2 0h1m1 0h1m1 0h1m1 0h1m2 0h2m1 0h1m2 0h5m1 0h1m5 0h2M4 32.5h1m3 0h4m1 0h3m1 0h3m1 0h1m4 0h5m1 0h8M12 33.5h2m1 0h2m3 0h1m2 0h1m3 0h1m1 0h4m3 0h2m1 0h1M4 34.5h7m2 0h1m1 0h1m3 0h1m2 0h1m1 0h1m7 0h1m1 0h1m1 0h1m1 0h3M4 35.5h1m5 0h1m1 0h1m1 0h1m1 0h1m1 0h2m3 0h1m1 0h1m2 0h1m1 0h3m3 0h2m1 0h2M4 36.5h1m1 0h3m1 0h1m1 0h1m3 0h1m1 0h2m2 0h1m1 0h1m2 0h1m1 0h8m1 0h2M4 37.5h1m1 0h3m1 0h1m1 0h1m1 0h2m1 0h1m1 0h2m2 0h3m1 0h1m4 0h3m1 0h1m3 0h1M4 38.5h1m1 0h3m1 0h1m1 0h1m2 0h1m2 0h1m5 0h2m4 0h1m1 0h1m4 0h1m1 0h2M4 39.5h1m5 0h1m2 0h2m1 0h1m3 0h1m3 0h3m1 0h1m2 0h4m1 0h1m3 0h1M4 40.5h7m1 0h1m1 0h4m2 0h5m1 0h5m3 0h1m1 0h1m1 0h3"
+              />
+            </svg>
+          </div>
+          <p class="qrnote">Enfoque este código con la cámara del teléfono para descargarlo.</p>
+          <dl>
+            <dt>Servidor</dt>
+            <dd class="mono">eia.syntavera.dev</dd>
+            <dt>Paquete</dt>
+            <dd class="mono">ec.eiastudio.field.prod</dd>
+            <dt>Versión</dt>
+            <dd class="mono">1.1.0 · código 1</dd>
+            <dt>Tamaño</dt>
+            <dd class="mono">92 MB</dd>
+            <dt>Publicado</dt>
+            <dd class="mono">26 nov 2026</dd>
+            <dt>SHA-256 del archivo</dt>
+            <dd class="mono break">
+              6311ca768d5dde2b7615262af130919b7fe03bce873830d9f3a88113d2cb4d10
+            </dd>
+            <dt>Huella del certificado de firma</dt>
+            <dd class="mono break">
+              635d20f2000e23a4f36b761ea78fc88b73c0f6e7327defc7e85cf41e3ef8ccd5
+            </dd>
+          </dl>
+          <p class="cardnote">
+            Aplicación aparte. Instalarla no toca la de pruebas ni lo que esa tenga guardado.
+          </p>
+        </article>
+      </section>
 
-  <h2 class="section">Cómo instalarla, en cinco pasos</h2>
-  <ol>
-    <li>Abra esta página <strong>en el teléfono</strong> y pulse <em>Descargar el APK</em> de la
-      aplicación que le corresponde. También puede enfocar el código QR con la cámara.</li>
-    <li>Cuando termine la descarga, abra el archivo desde el aviso de descargas del navegador.</li>
-    <li>Android le dirá que ese navegador no tiene permiso para instalar aplicaciones. Pulse
-      <em>Configuración</em> en ese mismo aviso y active <strong>Permitir desde esta fuente</strong>
-      <em>para el navegador</em>. Es un permiso por aplicación: no desactiva ninguna protección del
-      teléfono y se puede volver a quitar después.</li>
-    <li>Vuelva atrás y pulse <strong>Instalar</strong>. Si Play Protect avisa de que la aplicación
-      no es de la tienda, elija <em>Instalar de todas formas</em>: la revisión de tienda no se hizo
-      porque esta aplicación se distribuye por enlace y no por Google Play.</li>
-    <li>Abra la aplicación y entre con su correo y su contraseña. En <strong>Ajustes</strong> verá
-      el ambiente al que está conectada; compruebe que es el que esperaba antes de levantar nada.</li>
-  </ol>
+      <h2 class="section">Cómo instalarla, en cinco pasos</h2>
+      <ol>
+        <li>
+          Abra esta página <strong>en el teléfono</strong> y pulse <em>Descargar el APK</em> de la
+          aplicación que le corresponde. También puede enfocar el código QR con la cámara.
+        </li>
+        <li>
+          Cuando termine la descarga, abra el archivo desde el aviso de descargas del navegador.
+        </li>
+        <li>
+          Android le dirá que ese navegador no tiene permiso para instalar aplicaciones. Pulse
+          <em>Configuración</em> en ese mismo aviso y active
+          <strong>Permitir desde esta fuente</strong> <em>para el navegador</em>. Es un permiso por
+          aplicación: no desactiva ninguna protección del teléfono y se puede volver a quitar
+          después.
+        </li>
+        <li>
+          Vuelva atrás y pulse <strong>Instalar</strong>. Si Play Protect avisa de que la aplicación
+          no es de la tienda, elija <em>Instalar de todas formas</em>: la revisión de tienda no se
+          hizo porque esta aplicación se distribuye por enlace y no por Google Play.
+        </li>
+        <li>
+          Abra la aplicación y entre con su correo y su contraseña. En <strong>Ajustes</strong> verá
+          el ambiente al que está conectada; compruebe que es el que esperaba antes de levantar
+          nada.
+        </li>
+      </ol>
 
-  <div class="note">
-    <strong>Actualizar la de pruebas no borra nada.</strong> Está firmada con el mismo certificado
-    que la versión instalada, así que Android la trata como una actualización y conserva la base de
-    datos cifrada, la sesión y cualquier ficha o fotografía que todavía no se haya entregado.
-    <strong>No desinstale</strong> una aplicación que tenga trabajo sin sincronizar: desinstalar sí
-    borra sus datos.
-  </div>
+      <div class="note">
+        <strong>Actualizar la de pruebas no borra nada.</strong> Está firmada con el mismo
+        certificado que la versión instalada, así que Android la trata como una actualización y
+        conserva la base de datos cifrada, la sesión y cualquier ficha o fotografía que todavía no
+        se haya entregado. <strong>No desinstale</strong> una aplicación que tenga trabajo sin
+        sincronizar: desinstalar sí borra sus datos.
+      </div>
 
-  <div class="warn">
-    <strong>Lo que esta página no contiene.</strong> Ninguna contraseña, ninguna credencial de base
-    de datos, ninguna clave de firma y ningún token. Los accesos se entregan aparte. Las
-    aplicaciones tampoco los llevan dentro: lo único que el archivo sabe es a qué servidor
-    conectarse.
-  </div>
+      <div class="warn">
+        <strong>Lo que esta página no contiene.</strong> Ninguna contraseña, ninguna credencial de
+        base de datos, ninguna clave de firma y ningún token. Los accesos se entregan aparte. Las
+        aplicaciones tampoco los llevan dentro: lo único que el archivo sabe es a qué servidor
+        conectarse.
+      </div>
 
-  <footer>
-    <p>Las huellas SHA-256 permiten comprobar que el archivo descargado es exactamente el publicado:
-      <span class="mono">shasum -a 256 archivo.apk</span>. La huella del certificado es la de la
-      firma con la que se construyó, y es distinta en cada ambiente a propósito.</p>
-    <p>EIA Studio · SyntaVera · publicado el 26 de noviembre de 2026.</p>
-  </footer>
-</div>
-</body>
+      <footer>
+        <p>
+          Las huellas SHA-256 permiten comprobar que el archivo descargado es exactamente el
+          publicado: <span class="mono">shasum -a 256 archivo.apk</span>. La huella del certificado
+          es la de la firma con la que se construyó, y es distinta en cada ambiente a propósito.
+        </p>
+        <p>EIA Studio · SyntaVera · publicado el 26 de noviembre de 2026.</p>
+      </footer>
+    </div>
+  </body>
 </html>
