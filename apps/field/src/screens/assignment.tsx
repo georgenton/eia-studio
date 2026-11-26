@@ -6,7 +6,13 @@ import { ScrollView, StyleSheet, View } from "react-native";
 
 import { visitStartCommand } from "../core/commands";
 import { mediaStateFor } from "../core/media-upload";
-import { enqueue, insertVisit, listMediaForAssignment, upsertSurvey } from "../db/repo";
+import {
+  attachMediaLocation,
+  enqueue,
+  insertVisit,
+  listMediaForAssignment,
+  upsertSurvey,
+} from "../db/repo";
 import type { LocalMediaRecord } from "../db/repo";
 import { captureMedia } from "../sync/media";
 import { fieldConfig } from "../config";
@@ -159,8 +165,23 @@ export function AssignmentScreen({
       });
       if (shot.canceled || !shot.assets[0]) return;
       const asset = shot.assets[0];
-      const where = await readLocation();
-      await captureMedia(db, {
+      /*
+       * **The photograph is kept before anything that can block is attempted.**
+       *
+       * This used to `await readLocation()` first and pass the result into `captureMedia`, which
+       * meant the file was still in the picker's cache — a directory the operating system clears
+       * on its own schedule — for as long as the platform took to answer. `getCurrentPositionAsync`
+       * has no timeout of its own, so indoors, with the aerial blocked, that wait is unbounded:
+       * a technician who backgrounded the app, or an Android that reclaimed it, lost the
+       * photograph entirely and the row that would have described it was never written.
+       *
+       * Now the order is the one every other durable thing in this application uses: persist,
+       * then enrich. `captureMedia` copies the file into the application's own documents directory
+       * and writes the row marked `pending`, and the position is attached to that row afterwards.
+       * A process that dies in between leaves a photograph with its location recorded as
+       * unavailable, which is a true statement and a deliverable file.
+       */
+      const localId = await captureMedia(db, {
         assignmentId,
         visitServerId: assignment.openVisitId ?? null,
         sourceUri: asset.uri,
@@ -168,15 +189,17 @@ export function AssignmentScreen({
         sizeBytes: asset.fileSize ?? 0,
         kind,
         note: null,
-        location: where.coords
-          ? {
-              latitude: where.coords.latitude,
-              longitude: where.coords.longitude,
-              accuracyM: where.coords.accuracy,
-            }
-          : null,
+        locationIntent: "will_ask",
       });
       setMediaVersion((version) => version + 1);
+      /*
+       * Bounded, and its outcome is always written. The photograph is already safe, so the only
+       * thing at stake here is whether the study learns where it was taken — never the evidence
+       * itself. A refusal, a timeout and a platform error are three different recorded facts, and
+       * none of them is a coordinate.
+       */
+      const where = await readPhotographLocation();
+      await attachMediaLocation(db, localId, where);
       /*
        * **And the shared summary.** `mediaVersion` only re-reads this parcel's own list; the store
        * holds the number every other surface shows — the chip, the badge, Ajustes and the Centro
@@ -335,6 +358,72 @@ async function readLocation(): Promise<{
     };
   } catch {
     return { coords: null, outcome: "unavailable" };
+  }
+}
+
+/** How long a photograph's position request may take before it is recorded as timed out. */
+const LOCATION_TIMEOUT_MS = 12_000;
+
+/**
+ * The position of a photograph: bounded, and reported exactly as the platform reported it.
+ *
+ * `getCurrentPositionAsync` resolves when it has a fix and otherwise waits — there is no timeout
+ * parameter — so the bound is ours. Twelve seconds is long enough for a warm fix outdoors and
+ * short enough that a technician under a tin roof is not left holding the screen; the photograph
+ * is already saved, so the only consequence of giving up is a recorded absence.
+ *
+ * Nothing stands in for a position that was not obtained. No `0,0`, no centroid of the parcel, no
+ * last known fix: those are three ways of writing a coordinate nobody measured into a study's
+ * evidence (ADR-032).
+ *
+ * `mocked` is read from the platform and never inferred. Android sets it on a position produced by
+ * a mock provider, which is every position an emulator reports, and a simulated point presented as
+ * a measurement is the one thing this metadata exists to prevent.
+ */
+async function readPhotographLocation(): Promise<{
+  outcome: "captured" | "denied" | "unavailable" | "timed_out";
+  latitude: number | null;
+  longitude: number | null;
+  accuracyM: number | null;
+  locatedAt: string | null;
+  mocked: boolean | null;
+  source: string | null;
+}> {
+  const absent = {
+    latitude: null,
+    longitude: null,
+    accuracyM: null,
+    locatedAt: null,
+    mocked: null,
+    source: null,
+  } as const;
+
+  const permission = await Location.requestForegroundPermissionsAsync();
+  if (!permission.granted) return { outcome: "denied", ...absent };
+
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const position = await Promise.race([
+      Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
+      new Promise<"timeout">((resolve) => {
+        timer = setTimeout(() => resolve("timeout"), LOCATION_TIMEOUT_MS);
+      }),
+    ]);
+    if (position === "timeout") return { outcome: "timed_out", ...absent };
+    return {
+      outcome: "captured",
+      latitude: position.coords.latitude,
+      longitude: position.coords.longitude,
+      accuracyM: position.coords.accuracy ?? null,
+      // The platform's own timestamp for the fix, not the clock at the moment we read it.
+      locatedAt: new Date(position.timestamp).toISOString(),
+      mocked: typeof position.mocked === "boolean" ? position.mocked : null,
+      source: permission.android?.accuracy === "coarse" ? "coarse" : null,
+    };
+  } catch {
+    return { outcome: "unavailable", ...absent };
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
   }
 }
 

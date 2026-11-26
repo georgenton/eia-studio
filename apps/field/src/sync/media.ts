@@ -9,6 +9,7 @@ import {
   forgetLocalMedia,
   insertLocalMedia,
   listAllMedia,
+  settleAbandonedMediaLocations,
   pendingCommandExists,
   setMediaState,
   type LocalMediaRecord,
@@ -47,7 +48,15 @@ export interface CaptureInput {
   readonly sizeBytes: number;
   readonly kind: "parcel" | "affectation" | "access" | "other";
   readonly note: string | null;
-  readonly location: { latitude: number; longitude: number; accuracyM: number | null } | null;
+  /**
+   * Whether the caller is going to ask the platform where the device is.
+   *
+   * The location is **not** an input any more. It arrives afterwards through
+   * `attachMediaLocation`, because the file has to be out of the camera's cache before anything
+   * that can block is attempted — see the ordering note on `capture` in
+   * `screens/assignment.tsx`.
+   */
+  readonly locationIntent: "will_ask" | "will_not_ask";
 }
 
 const MEDIA_DIRECTORY_NAME = "media";
@@ -68,9 +77,7 @@ export async function captureMedia(
     sizeBytes: input.sizeBytes,
     kind: input.kind,
     note: input.note,
-    latitude: input.location?.latitude ?? null,
-    longitude: input.location?.longitude ?? null,
-    accuracyM: input.location?.accuracyM ?? null,
+    locationOutcome: input.locationIntent === "will_ask" ? "pending" : "not_attempted",
   });
   return localId;
 }
@@ -110,6 +117,16 @@ export async function uploadPendingMedia(
   scope: { tenantSlug: string; projectSlug: string },
   appVersion: string,
 ): Promise<MediaSyncOutcome> {
+  /*
+   * Settle anything still waiting for a position before reading the list.
+   *
+   * A photograph is persisted at the shutter and its location is attached a moment later, so a
+   * process killed in between leaves a row marked `pending`. The device cannot afterwards learn
+   * where it was, and the alternative to settling it is holding the photograph back for ever —
+   * which is the failure this whole ordering exists to prevent.
+   */
+  await settleAbandonedMediaLocations(db);
+
   const rows = await listAllMedia(db);
   let uploaded = 0;
   let queued = 0;
@@ -117,6 +134,13 @@ export async function uploadPendingMedia(
 
   for (const record of rows) {
     if (record.serverMediaId !== null) continue;
+    /*
+     * A capture happening *right now*, elsewhere in the application, between its insert and its
+     * location. Delivering it here would declare the photograph without the coordinates the device
+     * is about to write, and those coordinates would then exist only on the phone. The next
+     * synchronisation, seconds later, picks it up.
+     */
+    if (record.locationOutcome === "pending") continue;
     const row = toRow(record);
 
     const step = await uploadOneMedia(row, {
@@ -180,6 +204,13 @@ export async function uploadPendingMedia(
         storedObjectId: step.storedObjectId,
         kind: record.kind as CaptureInput["kind"],
         note: record.note,
+        /*
+         * `wireLocationSchema.capturedAt` is the moment the **position** was obtained, which is
+         * not the moment the shutter fired. It used to be sent as `record.capturedAt` — the
+         * photograph's own timestamp — which quietly asserted the fix was simultaneous with the
+         * photograph. It is not: the device persists the file first and asks the platform
+         * afterwards, so the two are seconds apart by design. `locatedAt` is the measured one.
+         */
         location:
           record.latitude === null || record.longitude === null
             ? null
@@ -187,7 +218,7 @@ export async function uploadPendingMedia(
                 latitude: record.latitude,
                 longitude: record.longitude,
                 accuracyM: record.accuracyM,
-                capturedAt: record.capturedAt,
+                capturedAt: record.locatedAt ?? record.capturedAt,
               },
       },
     );

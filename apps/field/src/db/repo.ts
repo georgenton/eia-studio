@@ -633,6 +633,10 @@ interface MediaRow {
   latitude: number | null;
   longitude: number | null;
   accuracy_m: number | null;
+  location_outcome: string;
+  located_at: string | null;
+  location_mocked: number | null;
+  location_source: string | null;
   state: string;
   stored_object_id: string | null;
   server_media_id: string | null;
@@ -658,16 +662,18 @@ export async function insertLocalMedia(
     sizeBytes: number;
     kind: string;
     note: string | null;
-    latitude: number | null;
-    longitude: number | null;
-    accuracyM: number | null;
+    /**
+     * `pending` when the caller is about to ask the platform where the device is, so the row can
+     * be written first; `not_attempted` when it will not ask at all.
+     */
+    locationOutcome: "pending" | "not_attempted";
   },
 ): Promise<void> {
   await db.runAsync(
     `insert into local_media
        (local_id, assignment_local_id, visit_server_id, file_uri, mime_type, size_bytes, kind,
-        note, captured_at, latitude, longitude, accuracy_m, state)
-     values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING_UPLOAD')`,
+        note, captured_at, location_outcome, state)
+     values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING_UPLOAD')`,
     input.localId,
     input.assignmentLocalId,
     input.visitServerId,
@@ -677,10 +683,72 @@ export async function insertLocalMedia(
     input.kind,
     input.note,
     nowIso(),
-    input.latitude,
-    input.longitude,
-    input.accuracyM,
+    input.locationOutcome,
   );
+}
+
+/**
+ * Write where the photograph was taken, once the platform has answered.
+ *
+ * Separate from the insert because the file is persisted first: a location request can hang, and
+ * a photograph that exists only in the camera's cache while we wait for a satellite is a
+ * photograph one task-kill away from being lost (`screens/assignment.tsx`).
+ *
+ * It only ever moves a row **out of** `pending`, and never overwrites a settled outcome: a late
+ * answer to a request we already gave up on is not evidence of where the technician was when the
+ * shutter fired.
+ */
+export async function attachMediaLocation(
+  db: SQLite.SQLiteDatabase,
+  localId: string,
+  result: {
+    outcome: "captured" | "denied" | "unavailable" | "timed_out";
+    latitude: number | null;
+    longitude: number | null;
+    accuracyM: number | null;
+    locatedAt: string | null;
+    mocked: boolean | null;
+    source: string | null;
+  },
+): Promise<void> {
+  await db.runAsync(
+    `update local_media
+        set latitude = ?, longitude = ?, accuracy_m = ?, location_outcome = ?,
+            located_at = ?, location_mocked = ?, location_source = ?
+      where local_id = ? and location_outcome = 'pending'`,
+    result.latitude,
+    result.longitude,
+    result.accuracyM,
+    result.outcome,
+    result.locatedAt,
+    result.mocked === null ? null : result.mocked ? 1 : 0,
+    result.source,
+    localId,
+  );
+}
+
+/**
+ * Settle every photograph still waiting for a position it is never going to get.
+ *
+ * The only way a row stays `pending` is a process that died between the shutter and the platform's
+ * answer. The device cannot afterwards know where it was, and holding the photograph back for ever
+ * would be worse than delivering it with its absence stated. Returns how many it settled.
+ */
+export async function settleAbandonedMediaLocations(db: SQLite.SQLiteDatabase): Promise<number> {
+  /*
+   * Counted before the update rather than read from the driver's row count: the database handle
+   * this application is written against types `runAsync` as returning nothing, and a number the
+   * synchronisation reports to a technician should not depend on which driver is underneath.
+   */
+  const waiting = await db.getAllAsync<{ local_id: string }>(
+    `select local_id from local_media where location_outcome = 'pending'`,
+  );
+  if (waiting.length === 0) return 0;
+  await db.runAsync(
+    `update local_media set location_outcome = 'unavailable'
+      where location_outcome = 'pending'`,
+  );
+  return waiting.length;
 }
 
 export interface LocalMediaRecord {
@@ -696,6 +764,14 @@ export interface LocalMediaRecord {
   readonly latitude: number | null;
   readonly longitude: number | null;
   readonly accuracyM: number | null;
+  /** `pending` only between the shutter and the platform's answer; never a delivered state. */
+  readonly locationOutcome:
+    "pending" | "captured" | "denied" | "unavailable" | "timed_out" | "not_attempted";
+  /** When the *position* was obtained. `capturedAt` stays the shutter. */
+  readonly locatedAt: string | null;
+  /** What the platform reported, not what we concluded. Null when it reported nothing. */
+  readonly locationMocked: boolean | null;
+  readonly locationSource: string | null;
   readonly state: "PENDING_UPLOAD" | "UPLOADING" | "UPLOADED" | "FAILED";
   readonly storedObjectId: string | null;
   readonly serverMediaId: string | null;
@@ -717,6 +793,14 @@ function toMediaRecord(row: MediaRow): LocalMediaRecord {
     latitude: row.latitude,
     longitude: row.longitude,
     accuracyM: row.accuracy_m,
+    locationOutcome: (row.location_outcome ??
+      "not_attempted") as LocalMediaRecord["locationOutcome"],
+    locatedAt: row.located_at ?? null,
+    locationMocked:
+      row.location_mocked === null || row.location_mocked === undefined
+        ? null
+        : row.location_mocked === 1,
+    locationSource: row.location_source ?? null,
     state: row.state as LocalMediaRecord["state"],
     storedObjectId: row.stored_object_id,
     serverMediaId: row.server_media_id,
