@@ -1,5 +1,5 @@
 import type { ParcelVisitEntry, ParcelWorkspaceView, VisitMedia } from "@eia/application";
-import { formatChainage, PARCEL_STATUS_PRESENTATION } from "@eia/domain";
+import { formatChainage, PARCEL_STATUS_PRESENTATION, type BasemapCatalogue } from "@eia/domain";
 import type { MessageKey } from "@eia/i18n";
 import { Chip, Panel, PanelBody, PanelHeader, ProvenanceBadge, SystemState } from "@eia/ui";
 
@@ -53,6 +53,7 @@ export function ParcelWorkspace({
   visits,
   media,
   canReadResponses,
+  basemap,
   i18n,
 }: {
   view: ParcelWorkspaceView;
@@ -67,6 +68,8 @@ export function ParcelWorkspace({
   /** Null when the caller may not read individual responses; empty when there are none. */
   media: ReadonlyArray<VisitMedia> | null;
   canReadResponses: boolean;
+  /** What this deployment may draw *underneath* the study's layers, exactly as in the Explorer. */
+  basemap: BasemapCatalogue;
   i18n: I18n;
 }) {
   const { t } = i18n;
@@ -112,7 +115,9 @@ export function ParcelWorkspace({
         </ul>
       </nav>
 
-      {tab === "resumen" ? <SummaryTab basePath={basePath} i18n={i18n} view={view} /> : null}
+      {tab === "resumen" ? (
+        <SummaryTab basemap={basemap} basePath={basePath} i18n={i18n} view={view} />
+      ) : null}
       {tab === "afectaciones" ? (
         <AffectationsTab basePath={basePath} i18n={i18n} view={view} />
       ) : null}
@@ -145,10 +150,12 @@ export function ParcelWorkspace({
 function SummaryTab({
   view,
   basePath,
+  basemap,
   i18n: { t, fmt },
 }: {
   view: ParcelWorkspaceView;
   basePath: string;
+  basemap: BasemapCatalogue;
   i18n: I18n;
 }) {
   const { parcel } = view;
@@ -169,9 +176,12 @@ function SummaryTab({
           ) : (
             <div className={styles.mapBox}>
               <ParcelGeometryMap
+                basemap={basemap}
                 bounds={view.bounds}
                 geometry={view.geometry}
                 label={parcel.parcelCode}
+                referencePoint={parcel.referencePoint}
+                surroundings={view.surroundings}
               />
             </div>
           )}

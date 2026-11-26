@@ -633,6 +633,20 @@ export const messages = {
       "Al pasar el cursor por un predio aparece su código. Con el teclado o en una pantalla táctil, la misma información está en la tabla y en la ficha de la derecha: seleccionar una fila resalta el predio en el mapa.",
   },
   parcel: {
+    zoomIn: "Acercar",
+    zoomOut: "Alejar",
+    centreParcel: "Centrar predio",
+    seeSurroundings: "Ver el entorno",
+    mapIsVisual:
+      "Mapa del predio {code} sobre cartografía de referencia. Es una representación visual: los datos del predio figuran en la ficha, que es navegable con el teclado.",
+    mapShowsSegment:
+      "Se dibuja el tramo del eje vial que pasa por este entorno, no la vía completa.",
+    mapShowsNoSegment: "El eje vial del proyecto no pasa por el entorno de este predio.",
+    mapShowsNeighbours:
+      "Se muestran {count} predio(s) vecino(s) de la misma capa, sólo su contorno.",
+    mapNeighboursPartial: "Hay más vecinos de los que se dibujan.",
+    mapNoBasemapHere:
+      "No hay fondo cartográfico disponible. El contorno, el eje y los vecinos se siguen dibujando.",
     tabSummary: "Resumen",
     tabAffectations: "Afectaciones",
     tabVisits: "Visitas",

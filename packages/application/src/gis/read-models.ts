@@ -2,6 +2,7 @@ import { gisSchema, withDbContext, type Database, type DbTx } from "@eia/db";
 import {
   CANONICAL_SRID,
   affectationRatio,
+  collectPositions,
   deriveLayerLegend,
   extendBounds,
   geometryBounds,
@@ -492,13 +493,118 @@ export interface ParcelAffectation {
   readonly provenance: ProvenanceFacets;
 }
 
+/**
+ * What is around the parcel, so a reader can tell *where* it is and not only *what shape* it is.
+ *
+ * ## Why the detail map needs anything beyond the parcel
+ *
+ * A polygon on an empty ground tells you its shape and nothing else. The question somebody opens
+ * a parcel to answer — is this the one by the river, which side of the road, who is next to it —
+ * needs the surroundings. The reference background supplies the terrain; these two supply the
+ * *study's own* context, which no provider has: the road this corridor is about, and the
+ * neighbouring parcels of the same delivery.
+ *
+ * ## Clipped, not whole
+ *
+ * The centreline is intersected with the context box rather than sent entire. A 5,9 km road
+ * delivered to a 300 m view is 99 % coordinates nobody will see, and the clip happens in PostGIS
+ * where the geometry already is. It is a **segment**, and the surface says so rather than
+ * implying the parcel sits at the end of a road that stops there.
+ *
+ * Neighbours are the same layer, the same dataset version and the same permission as the parcel
+ * itself — `parcels.read` — so showing them discloses nothing the Explorer does not already show
+ * the same caller. They carry a code and an outline and deliberately nothing else: no area, no
+ * status, no owner. They are context, not a second table.
+ */
+export interface ParcelNeighbour {
+  readonly parcelCode: string;
+  readonly geometry: unknown;
+}
+
+export interface ParcelSurroundings {
+  /**
+   * What the map opens on: the parcel's extent widened so its surroundings are visible.
+   *
+   * Computed in the dataset's **analysis CRS**, so the margin is metres on the ground rather than
+   * degrees — a degree of longitude is not a degree of latitude, and a box padded in degrees is a
+   * different margin on each axis at every latitude but the equator.
+   */
+  readonly contextBounds: readonly [number, number, number, number];
+  /** The centreline inside that box. Null when the project has none, or none reaches here. */
+  readonly alignmentSegment: unknown | null;
+  readonly neighbours: ReadonlyArray<ParcelNeighbour>;
+  /** True when the neighbour query hit its ceiling, so the surface can say the context is partial. */
+  readonly neighboursTruncated: boolean;
+}
+
 export interface ParcelWorkspaceView {
   readonly parcel: ParcelRow;
   readonly geometry: unknown | null;
+  /** The parcel's own extent — what «Centrar predio» returns to. */
   readonly bounds: readonly [number, number, number, number] | null;
+  /** Null exactly when `geometry` is: there is nothing to be around. */
+  readonly surroundings: ParcelSurroundings | null;
   readonly affectations: ReadonlyArray<ParcelAffectation>;
   readonly datasetVersion: LayerProvenance | null;
   readonly alignmentLabel: string | null;
+}
+
+/**
+ * How much ground around the parcel the map opens on.
+ *
+ * At least 120 m, and more for a large parcel: three quarters of its own longest side. A fixed
+ * margin would bury a 20 m town plot and barely register around a 6 ha farm, and the point of the
+ * margin is the same in both cases — enough neighbourhood to recognise the place.
+ */
+const PARCEL_CONTEXT_MIN_MARGIN_M = 120;
+const PARCEL_CONTEXT_MARGIN_RATIO = 0.75;
+/** Enough neighbours to read a block; far short of a second copy of the Explorer. */
+const PARCEL_NEIGHBOUR_LIMIT = 60;
+
+/**
+ * The surroundings row, turned into the view's shape — or nothing.
+ *
+ * A clip can legitimately produce an empty geometry (`GEOMETRYCOLLECTION EMPTY` when the
+ * centreline grazes the box without entering it), and an empty geometry drawn as a layer is a
+ * layer with nothing in it. It is reported as **absent** instead, so the surface can say "no road
+ * segment here" rather than showing an empty one.
+ */
+function surroundingsOf(raw: unknown): ParcelSurroundings | null {
+  if (raw === undefined || raw === null) return null;
+  const row = raw as {
+    west: number | null;
+    south: number | null;
+    east: number | null;
+    north: number | null;
+    alignment: string | null;
+    neighbours: ReadonlyArray<{ code: string; geojson: string }> | null;
+  };
+  const box = [row.west, row.south, row.east, row.north].map(Number);
+  if (box.some((v) => !Number.isFinite(v))) return null;
+  const [west, south, east, north] = box as [number, number, number, number];
+
+  const alignment = nonEmptyGeometry(row.alignment);
+  const all = (row.neighbours ?? [])
+    .map((n) => ({ parcelCode: n.code, geometry: nonEmptyGeometry(n.geojson) }))
+    .filter((n): n is ParcelNeighbour => n.geometry !== null);
+  const truncated = all.length > PARCEL_NEIGHBOUR_LIMIT;
+
+  return {
+    contextBounds: [west, south, east, north],
+    alignmentSegment: alignment,
+    neighbours: truncated ? all.slice(0, PARCEL_NEIGHBOUR_LIMIT) : all,
+    neighboursTruncated: truncated,
+  };
+}
+
+/** Parsed GeoJSON, unless it is an empty geometry — which is not something to draw. */
+function nonEmptyGeometry(geojson: string | null): unknown | null {
+  if (!geojson) return null;
+  const parsed = JSON.parse(geojson) as { type?: string; coordinates?: unknown; geometries?: [] };
+  if (parsed.type === "GeometryCollection") {
+    return (parsed.geometries ?? []).length > 0 ? parsed : null;
+  }
+  return collectPositions(parsed.coordinates).length > 0 ? parsed : null;
 }
 
 /** The Parcel Workspace, addressed by the business code as the design does. */
@@ -582,6 +688,79 @@ export async function loadParcelWorkspace(
       | undefined;
     if (!row) throw new NotFound("parcel");
 
+    /*
+     * The surroundings, in one query, in the dataset's own analysis CRS.
+     *
+     * The box is built in metres and transformed back: `ST_Expand` on a geography in degrees would
+     * pad the two axes by different distances everywhere but the equator. The centreline is
+     * **clipped** to that box rather than sent whole, and the neighbours are the same layer under
+     * the same policy — `app.parcel`'s RLS has already decided which rows exist for this caller,
+     * so a parcel of another tenant cannot appear here however the box is drawn.
+     */
+    const surroundingRows = row.geojson
+      ? await tx.execute(sql`
+          with target as (
+            select g.geom,
+                   gv.analysis_srid as srid,
+                   ST_Transform(g.geom, gv.analysis_srid) as metric
+              from app.parcel_geometry g
+              join app.spatial_dataset_version gv
+                on gv.tenant_id = g.tenant_id and gv.id = g.dataset_version_id
+             where g.tenant_id = ${ctx.tenantId} and g.parcel_id = ${row.id} and g.is_active
+             limit 1
+          ),
+          box as (
+            select ST_Transform(
+                     ST_Envelope(
+                       ST_Expand(
+                         ST_Envelope(metric),
+                         greatest(
+                           ${sql.raw(String(PARCEL_CONTEXT_MIN_MARGIN_M))},
+                           ${sql.raw(String(PARCEL_CONTEXT_MARGIN_RATIO))} * greatest(
+                             ST_XMax(ST_Envelope(metric)) - ST_XMin(ST_Envelope(metric)),
+                             ST_YMax(ST_Envelope(metric)) - ST_YMin(ST_Envelope(metric))
+                           )
+                         )
+                       )
+                     ),
+                     ${sql.raw(String(CANONICAL_SRID))}
+                   ) as g
+              from target
+          )
+          select ST_XMin(box.g) as west,
+                 ST_YMin(box.g) as south,
+                 ST_XMax(box.g) as east,
+                 ST_YMax(box.g) as north,
+                 (
+                   select ST_AsGeoJSON(ST_Intersection(al.geom, box.g), 6)
+                     from app.alignment al
+                     join app.spatial_dataset_version v
+                       on v.tenant_id = al.tenant_id and v.id = al.dataset_version_id and v.is_active
+                    where al.tenant_id = ${ctx.tenantId}
+                      and al.project_id = ${projectId}
+                      and ST_Intersects(al.geom, box.g)
+                    limit 1
+                 ) as alignment,
+                 (
+                   select json_agg(json_build_object('code', n.parcel_code, 'geojson', n.geojson))
+                     from (
+                       select p2.parcel_code,
+                              ST_AsGeoJSON(ST_Intersection(g2.geom, box.g), 6) as geojson
+                         from app.parcel p2
+                         join app.parcel_geometry g2
+                           on g2.tenant_id = p2.tenant_id and g2.parcel_id = p2.id and g2.is_active
+                        where p2.tenant_id = ${ctx.tenantId}
+                          and p2.project_id = ${projectId}
+                          and p2.id <> ${row.id}
+                          and ST_Intersects(g2.geom, box.g)
+                        order by p2.parcel_code
+                        limit ${PARCEL_NEIGHBOUR_LIMIT + 1}
+                     ) n
+                 ) as neighbours
+            from box
+        `)
+      : null;
+
     const affectationRows = await tx
       .select({
         id: gisSchema.affectation.id,
@@ -649,6 +828,7 @@ export async function loadParcelWorkspace(
         row.west !== null && row.south !== null && row.east !== null && row.north !== null
           ? [row.west, row.south, row.east, row.north]
           : null,
+      surroundings: surroundingsOf(surroundingRows?.rows[0]),
       affectations: affectationRows.map((a) => ({
         id: a.id,
         category: a.category,

@@ -294,8 +294,10 @@ export type {
   ParcelAffectation,
   ParcelExplorerView,
   ParcelFeature,
+  ParcelNeighbour,
   ParcelReferencePoint,
   ParcelRow,
+  ParcelSurroundings,
   ParcelWorkspaceView,
   TerritorialSummary,
 } from "./gis/read-models";
