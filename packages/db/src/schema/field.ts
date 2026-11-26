@@ -890,6 +890,14 @@ export const fieldMedia = app.table(
     note: text("note"),
     location: pointColumn("location"),
     locationAccuracyM: numeric("location_accuracy_m", { precision: 10, scale: 1 }),
+    /**
+     * When the *position* was obtained, which is not when the shutter fired (migration 0060).
+     *
+     * The device persists the photograph first and asks the platform afterwards, so these two
+     * instants are seconds apart by design. Null means the device reported no moment, or got no
+     * fix; nothing is derived from `captured_at` to fill it.
+     */
+    locatedAt: timestamp("located_at", { withTimezone: true, mode: "date" }),
     provenanceId: uuid("provenance_id").notNull(),
     createdAt: createdAt(),
   },

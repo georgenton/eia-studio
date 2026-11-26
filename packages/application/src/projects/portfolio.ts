@@ -1,6 +1,5 @@
 import { appSchema, withDbContext, type Database } from "@eia/db";
 import {
-  can,
   METRIC_DEFINITIONS,
   requirePermission,
   type ActivityEvent,
@@ -277,8 +276,23 @@ export async function loadPortfolio(db: Database, ctx: RequestContext): Promise<
           provenanceId: row.provenanceId,
           provenance: facets(row.provenanceId),
         })),
-        metricsRestricted:
-          projectRows.length > 0 && metricRows.length === 0 && !can(ctx, "provenance.read"),
+        /*
+         * Restricted means *refused*, not *empty*.
+         *
+         * This used to be "there are projects, no metric rows came back, and the caller holds no
+         * `provenance.read`" — three proxies for a question none of them asks. A project with no
+         * figures yet returns no metric rows, and `provenance.read` is a project permission that
+         * nobody holds at tenant scope, so every member of a tenant whose projects had not
+         * produced a figure was shown a `permission denied` panel telling them their role
+         * administers the organisation and has no access to the data. Nothing had been denied.
+         *
+         * `accessible` is `app.has_project_access` per row — membership, or tenant ownership —
+         * and it is the whole question. A caller who may open none of the projects they can list
+         * is the tenant ADMIN of D-015, which is exactly who the copy addresses; anyone else
+         * either has access, or does not see the row at all, because `app.project`'s own policy
+         * already decided that.
+         */
+        metricsRestricted: projectRows.length > 0 && projectRows.every((p) => !p.accessible),
       };
     },
   );

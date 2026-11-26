@@ -617,6 +617,20 @@ export const messages: Messages = {
     mediaOpen: "Open",
     mediaHasLocation: "With the technician's location",
     mediaNoLocation: "No location",
+    /*
+     * *View location*: one photograph at a time, and the reading is recorded. The list says
+     * whether there is a point and never the point — it is a person's position at a moment.
+     */
+    mediaViewLocation: "View location",
+    mediaLocationReading: "Reading…",
+    mediaLocationCoordinates: "{lat}, {lon}",
+    mediaLocationAccuracy: "accuracy ±{m} m",
+    mediaLocationMeasuredAt: "position obtained {when}",
+    mediaLocationCapturedAt: "photograph {when}",
+    mediaLocationNone: "The device obtained no position for this photograph.",
+    mediaLocationCaveat:
+      "This is the position the technician's device computed, not a dwelling's, and it does not " +
+      "certify the exact place or moment of the shot.",
     tabQuality: "Quality",
     sections: "Parcel sections",
     backToExplorer: "Back to the explorer",

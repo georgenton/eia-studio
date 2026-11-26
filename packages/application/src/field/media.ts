@@ -135,6 +135,12 @@ export async function declareFieldMedia(
           : sql`ST_SetSRID(ST_MakePoint(${input.location.longitude}, ${input.location.latitude}), 4326)`,
       locationAccuracyM:
         input.location?.accuracyM == null ? null : String(input.location.accuracyM),
+      /*
+       * The fix's own moment, which `wireLocationSchema` has always carried and this use-case used
+       * to drop. It is not `capturedAt`: the device keeps the photograph first and asks for a
+       * position afterwards, so the gap between them is real and a reader is entitled to see it.
+       */
+      locatedAt: input.location === null ? null : new Date(input.location.locatedAt),
       provenanceId,
     });
 

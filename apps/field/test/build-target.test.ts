@@ -2,7 +2,8 @@ import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { describe, expect, it } from "vitest";
+import type { ExpoConfig } from "expo/config";
+import { beforeAll, describe, expect, it } from "vitest";
 
 /**
  * Which backend a build talks to, and what it tells the technician it is.
@@ -19,13 +20,38 @@ import { describe, expect, it } from "vitest";
  */
 const here = dirname(fileURLToPath(import.meta.url));
 const eas = JSON.parse(readFileSync(resolve(here, "../eas.json"), "utf8")) as {
-  build: Record<string, { env?: Record<string, string>; channel?: string }>;
+  build: Record<
+    string,
+    {
+      env?: Record<string, string>;
+      channel?: string;
+      distribution?: string;
+      android?: { buildType?: string };
+    }
+  >;
 };
-const app = JSON.parse(readFileSync(resolve(here, "../app.json"), "utf8")) as {
-  expo: { android: { versionCode: number; permissions: string[] }; plugins: unknown[] };
-};
-
 const STAGING_HOST = "https://eia-staging.syntavera.dev";
+const PRODUCTION_HOST = "https://eia.syntavera.dev";
+const DEMO_HOST = "https://eia-demo.syntavera.dev";
+
+/**
+ * The resolved manifest for one environment.
+ *
+ * `app.json` is gone: a static manifest describes one Android package and this application is now
+ * three installable builds. `app.config.ts` is a function of `EXPO_PUBLIC_APP_ENV`, so the gate
+ * resolves it the same way a build does rather than asserting against a copy of its contents.
+ */
+async function manifestFor(environment: string) {
+  const previous = process.env.EXPO_PUBLIC_APP_ENV;
+  process.env.EXPO_PUBLIC_APP_ENV = environment;
+  try {
+    const module = (await import("../app.config")) as { default: () => ExpoConfig };
+    return module.default();
+  } finally {
+    if (previous === undefined) delete process.env.EXPO_PUBLIC_APP_ENV;
+    else process.env.EXPO_PUBLIC_APP_ENV = previous;
+  }
+}
 
 describe("the staging build points at the accepted staging backend", () => {
   it("targets the Coolify host, not the retired Vercel UAT one", () => {
@@ -45,56 +71,146 @@ describe("the staging build points at the accepted staging backend", () => {
 
   it("declares its environment beside its URL, in every profile", () => {
     expect(eas.build.development?.env?.["EXPO_PUBLIC_APP_ENV"]).toBe("local");
+    expect(eas.build.demo?.env?.["EXPO_PUBLIC_APP_ENV"]).toBe("demo");
     expect(eas.build.staging?.env?.["EXPO_PUBLIC_APP_ENV"]).toBe("staging");
     expect(eas.build.production?.env?.["EXPO_PUBLIC_APP_ENV"]).toBe("production");
   });
 
-  /* The production profile is a separate thing and this gate does not touch it. */
-  it("leaves production on its own host and channel", () => {
-    expect(eas.build.production?.env?.["EXPO_PUBLIC_API_URL"]).not.toBe(STAGING_HOST);
-    expect(eas.build.production?.channel).toBe("production");
+  /*
+   * The placeholder this replaced. `https://REPLACE-WITH-PRODUCTION-HOST` was in the production
+   * profile for two months: a build made from it would have failed at the first request, which is
+   * the good outcome, but it also meant nobody could produce a production build at all.
+   */
+  it("points production at the verified production host, not a placeholder", () => {
+    expect(eas.build.production?.env?.["EXPO_PUBLIC_API_URL"]).toBe(PRODUCTION_HOST);
+    expect(eas.build.demo?.env?.["EXPO_PUBLIC_API_URL"]).toBe(DEMO_HOST);
+    for (const [name, profile] of Object.entries(eas.build)) {
+      expect(profile.env?.["EXPO_PUBLIC_API_URL"] ?? "", name).not.toContain("REPLACE-WITH");
+    }
+  });
+
+  it("gives every environment its own backend and its own channel", () => {
+    const urls = ["demo", "staging", "production"].map(
+      (p) => eas.build[p]?.env?.["EXPO_PUBLIC_API_URL"],
+    );
+    expect(new Set(urls).size).toBe(3);
+    expect(eas.build.demo?.channel).toBe("demo");
     expect(eas.build.staging?.channel).toBe("staging");
+    expect(eas.build.production?.channel).toBe("production");
+  });
+
+  /*
+   * An `.aab` is a store upload and cannot be installed from a browser. This pilot distributes by
+   * link, so every distributable profile builds an APK.
+   */
+  it("builds an installable APK for each distributed environment", () => {
+    for (const name of ["demo", "staging", "production"]) {
+      expect(eas.build[name]?.android?.buildType, name).toBe("apk");
+      expect(eas.build[name]?.distribution, name).toBe("internal");
+    }
   });
 });
 
 describe("the native build identity", () => {
-  /*
-   * Four codes are already spent: EAS staging builds with **2** (24 September 2026) and **3**
-   * (12 October), and five local builds installed on the training emulator — **3** to **7** —
-   * on 19 November. Android refuses an install that goes backwards, and a reused code is the kind of
-   * thing that looks like "the APK did not update" on somebody's phone.
-   */
-  it("uses an Android versionCode above every one already built", () => {
-    expect(app.expo.android.versionCode).toBeGreaterThanOrEqual(8);
+  let demo: ExpoConfig;
+  let staging: ExpoConfig;
+  let production: ExpoConfig;
+
+  beforeAll(async () => {
+    demo = await manifestFor("demo");
+    staging = await manifestFor("staging");
+    production = await manifestFor("production");
   });
 
-  it("asks for the camera and location, and for nothing else", () => {
-    expect([...app.expo.android.permissions].sort()).toEqual([
-      "ACCESS_COARSE_LOCATION",
-      "ACCESS_FINE_LOCATION",
-      "CAMERA",
-    ]);
+  /*
+   * The decision this gate exists for (ADR-042). Android identifies an application by its package,
+   * and installing the same package is an *update* that inherits the previous app's data
+   * directory — its SQLCipher database, its session, and any capture it has not delivered. Two
+   * environments sharing a package is therefore a route by which installing production adopts
+   * staging's unsynchronised field work and points it at another server.
+   */
+  it("gives each environment its own package, so one install never replaces another", () => {
+    const packages = [demo, staging, production].map((c) => c.android?.package);
+    expect(new Set(packages).size).toBe(3);
+    expect(packages.every((p) => typeof p === "string" && p.length > 0)).toBe(true);
   });
+
+  /*
+   * Staging keeps the original identifier because staging is the build that is *installed*. Giving
+   * production the clean id would mean renaming staging, and a rename is a reinstall, and a
+   * reinstall is the operation that discards whatever the handset is holding.
+   */
+  it("leaves the installed staging application exactly where it is", () => {
+    expect(staging.android?.package).toBe("ec.eiastudio.field");
+    expect(staging.scheme).toBe("eiafield");
+  });
+
+  it("gives each environment its own deep-link scheme", () => {
+    const schemes = [demo, staging, production].map((c) => c.scheme);
+    expect(new Set(schemes).size).toBe(3);
+  });
+
+  /* A technician with two icons must be able to tell them apart before opening either. */
+  it("says which build it is in the launcher name", () => {
+    const names = [demo, staging, production].map((c) => c.name);
+    expect(new Set(names).size).toBe(3);
+    expect(staging.name).toContain("Pruebas");
+    expect(demo.name).toContain("Demo");
+  });
+
+  /*
+   * Four codes are already spent on `ec.eiastudio.field`: EAS staging builds with **2** (24
+   * September 2026) and **3** (12 October), and local builds up to **7** on the training emulator
+   * on 19 November. Android refuses an install that goes backwards, and a reused code looks like
+   * "the APK did not update" on somebody's phone. The two new packages start their own count.
+   */
+  it("uses an Android versionCode above every one already built for that package", () => {
+    expect(staging.android?.versionCode).toBeGreaterThanOrEqual(8);
+    expect(demo.android?.versionCode).toBeGreaterThanOrEqual(1);
+    expect(production.android?.versionCode).toBeGreaterThanOrEqual(1);
+  });
+
+  /* Three builds of one application, not three applications. Everything below is identical. */
+  it.each(["demo", "staging", "production"])(
+    "asks for the camera and location in %s, and for nothing else",
+    async (environment) => {
+      const config = await manifestFor(environment);
+      expect([...(config.android?.permissions ?? [])].sort()).toEqual([
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "CAMERA",
+      ]);
+    },
+  );
 
   /*
    * Without SQLCipher `PRAGMA key` silently does nothing and the answers sit in the clear while
    * the application believes otherwise (ADR-028). The runtime check exists too; this one fails
-   * before a build is ever made.
+   * before a build is ever made — and now for each of the three.
    */
-  it("keeps the encrypted database switched on", () => {
-    const sqlite = app.expo.plugins.find(
-      (p): p is [string, { useSQLCipher?: boolean }] => Array.isArray(p) && p[0] === "expo-sqlite",
-    );
-    expect(sqlite?.[1]?.useSQLCipher).toBe(true);
-  });
+  it.each(["demo", "staging", "production"])(
+    "keeps the encrypted database switched on in %s",
+    async (environment) => {
+      const config = await manifestFor(environment);
+      const sqlite = config.plugins?.find(
+        (p): p is [string, { useSQLCipher?: boolean }] =>
+          Array.isArray(p) && p[0] === "expo-sqlite",
+      );
+      expect(sqlite?.[1]?.useSQLCipher).toBe(true);
+    },
+  );
 
-  it("never reintroduces the microphone", () => {
-    const picker = app.expo.plugins.find(
-      (p): p is [string, { microphonePermission?: unknown; photosPermission?: unknown }] =>
-        Array.isArray(p) && p[0] === "expo-image-picker",
-    );
-    expect(picker?.[1]?.microphonePermission).toBe(false);
-    // The camera, never the photo library (ADR-032).
-    expect(picker?.[1]?.photosPermission).toBe(false);
-  });
+  it.each(["demo", "staging", "production"])(
+    "never reintroduces the microphone or the photo library in %s",
+    async (environment) => {
+      const config = await manifestFor(environment);
+      const picker = config.plugins?.find(
+        (p): p is [string, { microphonePermission?: unknown; photosPermission?: unknown }] =>
+          Array.isArray(p) && p[0] === "expo-image-picker",
+      );
+      expect(picker?.[1]?.microphonePermission).toBe(false);
+      // The camera, never the photo library (ADR-032).
+      expect(picker?.[1]?.photosPermission).toBe(false);
+    },
+  );
 });

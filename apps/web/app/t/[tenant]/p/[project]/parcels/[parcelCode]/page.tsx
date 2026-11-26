@@ -121,6 +121,8 @@ export default async function ParcelWorkspacePage({
     >
       <ParcelWorkspace
         basePath={basePath}
+        tenant={tenant}
+        project={project}
         canReadResponses={can(ctx, "field.responses.read")}
         explorerPath={explorerPath}
         i18n={i18n}

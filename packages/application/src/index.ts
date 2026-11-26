@@ -82,7 +82,11 @@ export { resolveFinalizedUpload } from "./storage/upload";
 export type { FinalizedUpload, IssuedUploadIntent } from "./storage/upload";
 export { declareFieldMedia, loadParcelMedia, loadVisitMedia } from "./field/media";
 export type { DeclaredFieldMedia, VisitMedia } from "./field/media";
-export { issueFieldMediaDownload } from "./field/media-download";
+export {
+  issueFieldMediaDownload,
+  loadFieldMediaLocation,
+  type FieldMediaLocation,
+} from "./field/media-download";
 export type { FieldMediaDownloadLink } from "./field/media-download";
 export {
   activateProject,
@@ -279,6 +283,8 @@ export {
   loadTerritorialSummary,
   PARCEL_PAYLOAD_LIMIT,
 } from "./gis/read-models";
+export { loadCorridorMilestones, measureRoute } from "./gis/route-measure";
+export type { CorridorMilestones, RouteMeasurement } from "./gis/route-measure";
 export type {
   LayerProvenance,
   ParcelAffectation,
