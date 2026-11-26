@@ -180,22 +180,49 @@ function statusExpression(map: Record<ParcelStatus, string>, fallback: string) {
   ] as unknown as ExpressionSpecification;
 }
 
+/** What the cursor is over, for the tooltip. Positions are in the container's own pixels. */
+interface HoveredParcel {
+  readonly x: number;
+  readonly y: number;
+  readonly parcelCode: string;
+  readonly status: ParcelStatus;
+}
+
 export function ParcelMap({
   view,
   selectedParcelId,
   onSelect,
   showInfluenceAreas = true,
+  showAlignment = true,
+  showParcels = true,
   basemap,
+  onCentreChange,
 }: {
   view: ParcelExplorerView;
   selectedParcelId: string | null;
   onSelect: (parcelId: string | null) => void;
   /** Whether the delimited areas are drawn. The toggle lives with the legend that names them. */
   showInfluenceAreas?: boolean;
+  /** Whether the centreline is drawn. Same kind of switch, same kind of promise: data is unchanged. */
+  showAlignment?: boolean;
+  showParcels?: boolean;
   /** What this deployment may draw *underneath* the study's layers, if anything. */
   basemap: BasemapCatalogue;
+  /**
+   * Where the camera is, in the presentation CRS, so the surface can print it.
+   *
+   * The map reports it rather than the readout asking: the camera lives inside an effect that owns
+   * the MapLibre instance, and a component reaching into that instance on a render would be
+   * reading a value that is only defined between two frames.
+   */
+  onCentreChange?: (centre: { lon: number; lat: number }) => void;
 }) {
   const { t } = useI18n();
+  const [hovered, setHovered] = useState<HoveredParcel | null>(null);
+  const onCentreChangeRef = useRef(onCentreChange);
+  useEffect(() => {
+    onCentreChangeRef.current = onCentreChange;
+  }, [onCentreChange]);
   const container = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<InstanceType<typeof MapLibreMap> | null>(null);
   const boundsRef = useRef(view.bounds);
@@ -249,6 +276,40 @@ export function ParcelMap({
     }
   }, [showInfluenceAreas]);
 
+  /*
+   * The other two layers, switched the same way.
+   *
+   * A hidden layer is a *drawing* decision and nothing else: the features stay in the payload, the
+   * table keeps every row, the selection keeps working, and a reader who hides the parcels and
+   * clicks where one was selects nothing rather than something invisible. Hiding the parcels also
+   * stops showing the tooltip, because a tooltip for a polygon nobody can see is a fact with no
+   * source on screen — and that is a *render* condition rather than an effect that clears state,
+   * so there is no moment where the two disagree.
+   */
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map?.isStyleLoaded()) return;
+    const visibility = showParcels ? "visible" : "none";
+    for (const id of [
+      "parcels-fill",
+      "parcels-line",
+      "parcels-selected",
+      "parcels-selected-halo",
+    ]) {
+      if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", visibility);
+    }
+  }, [showParcels]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map?.isStyleLoaded()) return;
+    for (const id of ["alignment-halo", "alignment-line"]) {
+      if (map.getLayer(id)) {
+        map.setLayoutProperty(id, "visibility", showAlignment ? "visible" : "none");
+      }
+    }
+  }, [showAlignment]);
+
   useEffect(() => {
     const node = container.current;
     if (!node) return;
@@ -270,7 +331,22 @@ export function ParcelMap({
         : { center: [0, 0] as [number, number], zoom: 1 }),
       fitBoundsOptions: { padding: 48 },
       attributionControl: false,
+      /*
+       * The map does not rotate, and that is what makes the north arrow honest.
+       *
+       * MapLibre lets a reader rotate with a right-button drag, with ctrl-drag, or with two
+       * fingers — usually by accident. A fixed arrow on a map that can turn is a lie waiting for
+       * somebody to trigger it, and an arrow that tracks the bearing is a control inside an
+       * `aria-hidden` canvas (IG2-005). Taking rotation away is the third option, and it costs a
+       * reader nothing here: a corridor is read north-up, and the field application draws its map
+       * north-up for the same reason.
+       */
+      dragRotate: false,
+      pitchWithRotate: false,
+      touchPitch: false,
     });
+    // The constructor option covers the mouse; touch rotation is a separate handler.
+    map.touchZoomRotate.disableRotation();
     mapRef.current = map;
     const stopSizing = keepMapSized(map, node);
     // No NavigationControl (IG2-005). It renders real buttons, and inside an `aria-hidden`
@@ -292,6 +368,8 @@ export function ParcelMap({
      */
     const publishCamera = (): void => {
       const bounds = map.getBounds();
+      const centre = map.getCenter();
+      onCentreChangeRef.current?.({ lon: centre.lng, lat: centre.lat });
       node.dataset["mapView"] =
         `${bounds.getWest()},${bounds.getSouth()},${bounds.getEast()},${bounds.getNorth()}`;
       node.dataset["parcelsInView"] = map.getLayer("parcels-fill")
@@ -460,6 +538,32 @@ export function ParcelMap({
     });
     map.on("mouseleave", "parcels-fill", () => {
       map.getCanvas().style.cursor = "";
+      setHovered(null);
+    });
+    /*
+     * The tooltip, and why it is an addition rather than a feature.
+     *
+     * Hovering is a mouse gesture: it does not exist on a touch screen and a keyboard cannot
+     * perform it. So this carries **nothing a reader can only get here** — the code and the state
+     * it shows are in the table row and in the panel, both of which a tap and a keyboard reach,
+     * and the surface says so in `gis.tooltipHint` rather than leaving a reader to discover that
+     * the map is not the way in.
+     *
+     * It is `aria-hidden` for the same reason the canvas is (§26): announcing a tooltip that
+     * follows a pointer would interrupt a screen-reader user with the position of a device they
+     * are not using.
+     */
+    map.on("mousemove", "parcels-fill", (event: MapLayerMouseEvent) => {
+      const feature = event.features?.[0];
+      const parcelCode = feature?.properties?.["parcelCode"];
+      const status = feature?.properties?.["status"];
+      if (typeof parcelCode !== "string" || typeof status !== "string") return;
+      setHovered({
+        x: event.point.x,
+        y: event.point.y,
+        parcelCode,
+        status: status as ParcelStatus,
+      });
     });
 
     return () => {
@@ -586,6 +690,33 @@ export function ParcelMap({
   return (
     <div className={styles.wrap}>
       <div className={styles.canvas} data-testid="parcel-map" ref={container} />
+      {/*
+        North, drawn once and never turned. The map's rotation handlers are disabled at
+        construction, so this is a statement about the map rather than a widget that tracks it —
+        and the note beside the legend says as much, because a reader who expects to be able to
+        rotate should be told they cannot rather than discover it.
+      */}
+      <div aria-hidden="true" className={styles.north} data-testid="map-north">
+        <svg viewBox="0 0 24 44" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 4 L17 15 L12 12 L7 15 Z" fill="currentColor" />
+          <line stroke="currentColor" strokeWidth="1.5" x1="12" x2="12" y1="12" y2="30" />
+        </svg>
+        <span className={styles.northLabel}>N</span>
+      </div>
+      {hovered && showParcels ? (
+        <div
+          aria-hidden="true"
+          className={styles.tooltip}
+          data-testid="parcel-tooltip"
+          style={{ left: hovered.x, top: hovered.y }}
+        >
+          <span className={styles.tooltipCode}>{hovered.parcelCode}</span>
+          <span className={styles.tooltipStatus}>
+            <span aria-hidden="true">{PARCEL_STATUS_PRESENTATION[hovered.status].glyph}</span>{" "}
+            {parcelStatusLabel(t, hovered.status)}
+          </span>
+        </div>
+      ) : null}
       <div className={styles.controls}>
         {view.bounds ? (
           <button

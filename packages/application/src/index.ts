@@ -291,6 +291,7 @@ export type {
   ParcelAffectation,
   ParcelExplorerView,
   ParcelFeature,
+  ParcelReferencePoint,
   ParcelRow,
   ParcelWorkspaceView,
   TerritorialSummary,

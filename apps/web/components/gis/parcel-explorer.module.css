@@ -69,9 +69,43 @@
 }
 .split {
   display: grid;
+  /* The map column holds the map and the tools under it; the panel column is the selection. */
   grid-template-columns: minmax(0, 1fr) 302px;
+  grid-template-rows: auto auto;
   gap: 12px;
   min-height: 0;
+}
+.split > .mapArea {
+  grid-column: 1;
+  grid-row: 1;
+}
+.split > .mapTools {
+  grid-column: 1;
+  grid-row: 2;
+}
+.split > .panel {
+  grid-column: 2;
+  grid-row: 1 / -1;
+}
+
+/*
+ * What is drawn and where it is: two cards under the map rather than two more overlays on it.
+ *
+ * They were overlays at first, and the map disappeared under them — a legend, a provenance list,
+ * a set of switches and a coordinate readout stacked in one corner left a strip of cartography
+ * about as wide as the panel beside it. The map is the subject; the apparatus belongs beside it.
+ */
+.mapTools {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  gap: 12px;
+  align-items: start;
+}
+.toolCard {
+  border: 1px solid var(--eia-border);
+  border-radius: var(--eia-radius-panel);
+  background: var(--eia-surface);
+  padding: 10px 12px;
 }
 .mapArea {
   position: relative;
@@ -91,6 +125,12 @@
   box-shadow: var(--eia-shadow-card);
   padding: 10px 12px;
   max-width: 300px;
+  /* It starts below the north indicator rather than merely being allowed to be shorter than the
+     map: the legend is bottom-anchored and grows upwards, so a `max-height` left it free to reach
+     the corner the indicator occupies — which is exactly what it did, hiding the N. A top edge is
+     the constraint that holds whatever the content is. */
+  top: 68px;
+  overflow-y: auto;
 }
 .layerTitle {
   font-size: var(--eia-size-label);
@@ -237,4 +277,113 @@
   font-size: 10px;
   line-height: 1.45;
   color: var(--eia-text-muted);
+}
+
+/* ------------------------------------------------------------------------------------------- */
+/* What is drawn: one switch per layer, beside the legend that names where each one came from.  */
+/* ------------------------------------------------------------------------------------------- */
+.drawList {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.drawRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.drawToggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  color: var(--eia-text-secondary);
+  cursor: pointer;
+}
+/* A layer the project does not have is shown and disabled rather than hidden: "this project has
+   no centreline" is a fact about the data, and a row that simply vanished would read as a product
+   that cannot draw one. */
+.drawToggle:has(input:disabled) {
+  cursor: default;
+  color: var(--eia-text-muted);
+}
+.drawCount {
+  font-size: 10.5px;
+  color: var(--eia-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.layerHint {
+  margin: 0 0 8px;
+  font-size: 10.5px;
+  line-height: 1.35;
+  color: var(--eia-text-muted);
+}
+
+/* ------------------------------------------------------------------------------------------- */
+/* Coordinates, under the map rather than on it: the canvas is aria-hidden (§26).               */
+/* ------------------------------------------------------------------------------------------- */
+.coords {
+  border: 1px solid var(--eia-border);
+  border-radius: var(--eia-radius-panel);
+  background: var(--eia-surface);
+  padding: 10px 12px;
+}
+.coordsCrs {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.coordsCrs div {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.coordsCrs dt {
+  font-size: 11px;
+  color: var(--eia-text-muted);
+}
+.coordsCrs dd {
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--eia-text-secondary);
+}
+.coordsBlock {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--eia-hairline);
+}
+.coordsLabel {
+  font-size: 10.5px;
+  letter-spacing: var(--eia-tracking-label);
+  text-transform: uppercase;
+  color: var(--eia-text-muted);
+  margin-bottom: 3px;
+}
+.coordsKind {
+  display: inline-block;
+  min-width: 78px;
+  color: var(--eia-text-muted);
+  font-size: 10.5px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.coordsNote {
+  margin: 4px 0 0;
+  font-size: 10.5px;
+  line-height: 1.35;
+  color: var(--eia-text-muted);
+}
+.mono {
+  margin: 2px 0 0;
+  font-family: var(--eia-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--eia-text-secondary);
 }

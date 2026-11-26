@@ -60,6 +60,36 @@ export interface LayerProvenance {
   readonly provenance: ProvenanceFacets;
 }
 
+/**
+ * A point inside the parcel, in both coordinate systems, for a reader who has to go there.
+ *
+ * ## Why `ST_PointOnSurface` and not a centroid
+ *
+ * A centroid of a concave or multi-part parcel can fall outside every one of its rings — 20 of the
+ * study's 141 parcels are multi-part — and a reference point that is not in the parcel is worse
+ * than none at all. `ST_PointOnSurface` is guaranteed to be inside the geometry.
+ *
+ * ## Why both CRS, and why the projected one comes from the database
+ *
+ * The geographic pair is what the map draws and what a phone's GPS speaks. The projected pair is
+ * what a total station, a field GPS and the study's own drawings speak, and it is the one a
+ * cartographer can check against the delivered cartography. The transform is PostGIS's, into the
+ * **dataset version's own** `analysis_srid`: the browser does not reproject anything, so there is
+ * no second implementation of a coordinate transform to disagree with the first.
+ *
+ * It is a point *in* the parcel, not the parcel's location in any surveyed sense, and the surface
+ * that shows it says so. It is also not anybody's house: the parcel polygon is cartography, and a
+ * household's position is `pii` and is not in this read model at all.
+ */
+export interface ParcelReferencePoint {
+  readonly lon: number;
+  readonly lat: number;
+  readonly easting: number;
+  readonly northing: number;
+  /** The CRS the easting and northing are in — the dataset version's, never a constant. */
+  readonly analysisSrid: number;
+}
+
 export interface ParcelRow {
   readonly id: string;
   readonly parcelCode: string;
@@ -72,6 +102,8 @@ export interface ParcelRow {
   readonly areaM2: number | null;
   readonly affectedAreaM2: number | null;
   readonly affectationRatio: number | null;
+  /** Null when the parcel has no active geometry: a parcel the cartography cannot place. */
+  readonly referencePoint: ParcelReferencePoint | null;
   readonly provenanceId: string;
   readonly provenance: ProvenanceFacets;
 }
@@ -201,6 +233,32 @@ async function loadLayers(
 }
 
 /**
+ * The five columns that make a reference point, or nothing.
+ *
+ * All or none: a parcel with no active geometry has no point, and a row whose transform produced
+ * a non-finite value — which is what a CRS mismatch looks like coming out of PostGIS — is reported
+ * as *absent* rather than as a coordinate nobody can stand on. Absence is a state this product
+ * already renders honestly; a NaN in a field a technician would navigate to is not.
+ */
+function referencePointOf(row: {
+  analysis_srid: number | null;
+  ref_lon: number | null;
+  ref_lat: number | null;
+  ref_easting: number | null;
+  ref_northing: number | null;
+}): ParcelReferencePoint | null {
+  const { analysis_srid: srid, ref_lon: lon, ref_lat: lat } = row;
+  const { ref_easting: easting, ref_northing: northing } = row;
+  if (srid === null || lon === null || lat === null || easting === null || northing === null) {
+    return null;
+  }
+  const values = [lon, lat, easting, northing].map(Number);
+  if (values.some((v) => !Number.isFinite(v))) return null;
+  const [lonN, latN, eastingN, northingN] = values as [number, number, number, number];
+  return { lon: lonN, lat: latN, easting: eastingN, northing: northingN, analysisSrid: srid };
+}
+
+/**
  * Everything the GIS / Parcel Explorer needs, in one project-scoped payload: the table rows, the
  * map features and the layer provenance the legend is derived from.
  */
@@ -273,10 +331,22 @@ export async function loadParcelExplorer(
              p.provenance_id,
              g.area_m2,
              agg.affected_area_m2,
-             ST_AsGeoJSON(g.geom, 6) as geojson
+             ST_AsGeoJSON(g.geom, 6) as geojson,
+             /*
+              * A point inside the parcel, in the storage CRS and in the dataset's analysis CRS.
+              * Both transforms happen here so the browser never reprojects: a second
+              * implementation of a coordinate transform is a second thing that can be wrong.
+              */
+             gv.analysis_srid,
+             ST_X(ST_PointOnSurface(g.geom)) as ref_lon,
+             ST_Y(ST_PointOnSurface(g.geom)) as ref_lat,
+             ST_X(ST_Transform(ST_PointOnSurface(g.geom), gv.analysis_srid)) as ref_easting,
+             ST_Y(ST_Transform(ST_PointOnSurface(g.geom), gv.analysis_srid)) as ref_northing
       from app.parcel p
       left join app.parcel_geometry g
         on g.tenant_id = p.tenant_id and g.parcel_id = p.id and g.is_active
+      left join app.spatial_dataset_version gv
+        on gv.tenant_id = g.tenant_id and gv.id = g.dataset_version_id
       left join lateral (
         select sum(a.affected_area_m2) as affected_area_m2
         from app.affectation a
@@ -302,6 +372,11 @@ export async function loadParcelExplorer(
       area_m2: string | null;
       affected_area_m2: string | null;
       geojson: string | null;
+      analysis_srid: number | null;
+      ref_lon: number | null;
+      ref_lat: number | null;
+      ref_easting: number | null;
+      ref_northing: number | null;
     }>;
     const truncated = raw.length > PARCEL_PAYLOAD_LIMIT;
     const bounded = truncated ? raw.slice(0, PARCEL_PAYLOAD_LIMIT) : raw;
@@ -333,6 +408,7 @@ export async function loadParcelExplorer(
         affectedAreaM2: affected,
         affectationRatio:
           areaM2 !== null && affected !== null ? affectationRatio(affected, areaM2) : null,
+        referencePoint: referencePointOf(row),
         provenanceId: row.provenance_id,
         provenance: facets(row.provenance_id),
       };
@@ -454,10 +530,18 @@ export async function loadParcelWorkspace(
              ST_XMin(ST_Envelope(g.geom)) as west,
              ST_YMin(ST_Envelope(g.geom)) as south,
              ST_XMax(ST_Envelope(g.geom)) as east,
-             ST_YMax(ST_Envelope(g.geom)) as north
+             ST_YMax(ST_Envelope(g.geom)) as north,
+             -- The same reference point the Explorer shows, from the same transform.
+             gv.analysis_srid,
+             ST_X(ST_PointOnSurface(g.geom)) as ref_lon,
+             ST_Y(ST_PointOnSurface(g.geom)) as ref_lat,
+             ST_X(ST_Transform(ST_PointOnSurface(g.geom), gv.analysis_srid)) as ref_easting,
+             ST_Y(ST_Transform(ST_PointOnSurface(g.geom), gv.analysis_srid)) as ref_northing
       from app.parcel p
       left join app.parcel_geometry g
         on g.tenant_id = p.tenant_id and g.parcel_id = p.id and g.is_active
+      left join app.spatial_dataset_version gv
+        on gv.tenant_id = g.tenant_id and gv.id = g.dataset_version_id
       left join lateral (
         select sum(a.affected_area_m2) as affected_area_m2
         from app.affectation a
@@ -489,6 +573,11 @@ export async function loadParcelWorkspace(
           south: number | null;
           east: number | null;
           north: number | null;
+          analysis_srid: number | null;
+          ref_lon: number | null;
+          ref_lat: number | null;
+          ref_easting: number | null;
+          ref_northing: number | null;
         }
       | undefined;
     if (!row) throw new NotFound("parcel");
@@ -551,6 +640,7 @@ export async function loadParcelWorkspace(
         affectedAreaM2: affected,
         affectationRatio:
           areaM2 !== null && affected !== null ? affectationRatio(affected, areaM2) : null,
+        referencePoint: referencePointOf(row),
         provenanceId: row.provenance_id,
         provenance: facets(row.provenance_id),
       },

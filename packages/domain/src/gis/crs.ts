@@ -57,6 +57,60 @@ export function epsgLabel(srid: number): string {
 }
 
 /**
+ * What can be said about a CRS **from its number alone**, and nothing more.
+ *
+ * ## Why this is not the table the module refuses to have
+ *
+ * The rule above still holds: there is no registry here mapping codes to names, because a code
+ * says nothing about a CRS in general — `EPSG:4087` is projected and `EPSG:6318` is geographic,
+ * and no arithmetic over the number would tell you.
+ *
+ * Two blocks are the exception, and they are an exception of a different kind: in `326nn` and
+ * `327nn` the **code is the definition**. EPSG assigns them by construction — `32600 + zone` is
+ * WGS 84 / UTM northern hemisphere, `32700 + zone` the southern — so reading the zone out of the
+ * number is arithmetic on a published rule, not a lookup somebody has to keep in step with
+ * reality. `4326` is one further literal, and the only one.
+ *
+ * Everything else returns the bare code with `utm` and `datum` null, which is the honest answer:
+ * *this product knows the number and did not invent a description for it.* A surface that shows
+ * this must say that the description is derived from the code rather than read from a CRS
+ * registry — because PostGIS's `spatial_ref_sys` is the authority and this function has not
+ * consulted it.
+ *
+ * ## Why a surface needs it at all
+ *
+ * A consultant reading coordinates off a map asks three questions — which datum, which zone,
+ * which units — and *EPSG:32717* answers all three only to somebody who already knows the
+ * blocks. A cartographer reading *UTM zona 17 S · WGS 84* can check it against the study's own
+ * declaration in a second.
+ */
+export interface DerivedCrsDescription {
+  /** `EPSG:32717`. Always present: it is the one fact that was given. */
+  readonly code: string;
+  /** Only for the two WGS 84 UTM blocks, where the code is the definition. */
+  readonly utm: { readonly zone: number; readonly hemisphere: "N" | "S" } | null;
+  /** Only where the block or the literal code guarantees it. Never guessed. */
+  readonly datum: string | null;
+}
+
+const UTM_NORTH_BASE = 32_600;
+const UTM_SOUTH_BASE = 32_700;
+const UTM_ZONES = 60;
+
+export function describeEpsg(srid: number): DerivedCrsDescription {
+  const code = epsgLabel(srid);
+  if (srid === CANONICAL_SRID) return { code, utm: null, datum: "WGS 84" };
+  for (const [base, hemisphere] of [
+    [UTM_NORTH_BASE, "N"],
+    [UTM_SOUTH_BASE, "S"],
+  ] as const) {
+    const zone = srid - base;
+    if (zone >= 1 && zone <= UTM_ZONES) return { code, utm: { zone, hemisphere }, datum: "WGS 84" };
+  }
+  return { code, utm: null, datum: null };
+}
+
+/**
  * The **shape** of an SRID: a positive integer. That is the whole of what can be known about a
  * coordinate system from its number.
  *
