@@ -141,6 +141,15 @@ export async function declareFieldMedia(
        * position afterwards, so the gap between them is real and a reader is entitled to see it.
        */
       locatedAt: input.location === null ? null : new Date(input.location.locatedAt),
+      /*
+       * Null means **unknown**, which is why these are written straight through rather than
+       * defaulted. A declaration from a build that predates migration 0061 says nothing about how
+       * the attempt ended, and inferring `captured` from the presence of a point would turn a
+       * silence into a measurement's provenance.
+       */
+      locationOutcome: input.locationOutcome ?? null,
+      locationMocked: input.locationMocked ?? null,
+      locationSource: input.locationSource ?? null,
       provenanceId,
     });
 

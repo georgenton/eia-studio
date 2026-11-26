@@ -89,6 +89,9 @@ export type MediaLocationResult =
       readonly accuracyM: number | null;
       readonly locatedAt: string | null;
       readonly capturedAt: string;
+      readonly locationOutcome: string | null;
+      readonly locationMocked: boolean | null;
+      readonly locationSource: string | null;
     }
   | { readonly ok: false; readonly error: string };
 
@@ -114,6 +117,9 @@ export async function readMediaLocationAction(raw: unknown): Promise<MediaLocati
       accuracyM: location.accuracyM,
       locatedAt: location.locatedAt,
       capturedAt: location.capturedAt,
+      locationOutcome: location.locationOutcome,
+      locationMocked: location.locationMocked,
+      locationSource: location.locationSource,
     };
   } catch {
     /*

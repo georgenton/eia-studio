@@ -631,6 +631,19 @@ export const messages: Messages = {
     mediaLocationCaveat:
       "This is the position the technician's device computed, not a dwelling's, and it does not " +
       "certify the exact place or moment of the shot.",
+    /* Absence means **unknown**, which is not the same as saying there was no position. */
+    mediaLocationSimulated: "SIMULATED POSITION",
+    mediaLocationSimulatedBody:
+      "The platform reported that a mock provider produced this position. Every position an " +
+      "emulator reports is one. It is not a measurement of the ground.",
+    mediaLocationOutcomeCaptured: "the platform returned a position",
+    mediaLocationOutcomeDenied: "the technician did not allow location",
+    mediaLocationOutcomeTimedOut: "the bounded wait expired without an answer",
+    mediaLocationOutcomeUnavailable: "the platform could not return a position",
+    mediaLocationOutcomeNotAttempted: "location was not requested",
+    mediaLocationOutcomeUnknown:
+      "The build that took it did not report how the attempt ended. Unknown is not \u201creal\u201d.",
+    mediaLocationSource: "provider: {source}",
     tabQuality: "Quality",
     sections: "Parcel sections",
     backToExplorer: "Back to the explorer",

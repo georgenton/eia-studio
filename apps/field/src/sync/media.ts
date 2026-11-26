@@ -218,6 +218,19 @@ export async function uploadPendingMedia(
         kind: record.kind as CaptureInput["kind"],
         note: record.note,
         /*
+         * The provenance of the attempt, straight from the row.
+         *
+         * `pending` cannot reach here — the loop above skips those rows, and the compiler has
+         * narrowed the type accordingly — so there is no case to map. The three travel as
+         * **optional** fields, which is why an installed build that predates them keeps working
+         * unchanged: a `.strict()` payload refuses unknown fields, not absent ones. They are
+         * omitted rather than sent as `undefined` because `exactOptionalPropertyTypes` draws that
+         * distinction, and so does the server: absent means unknown.
+         */
+        locationOutcome: record.locationOutcome,
+        ...(record.locationMocked === null ? {} : { locationMocked: record.locationMocked }),
+        ...(record.locationSource === null ? {} : { locationSource: record.locationSource }),
+        /*
          * `wireLocationSchema.capturedAt` is the moment the **position** was obtained, which is
          * not the moment the shutter fired. It used to be sent as `record.capturedAt` — the
          * photograph's own timestamp — which quietly asserted the fix was simultaneous with the

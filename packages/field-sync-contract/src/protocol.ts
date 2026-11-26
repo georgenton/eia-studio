@@ -386,6 +386,46 @@ const visitFinishPayload = z.object({ assignmentId: uuid, visitId: uuid }).stric
  * photograph rather than two, independently of `commandId`: a device that lost its outbox but kept
  * its gallery still cannot produce a second row.
  */
+/**
+ * What is known about a photograph's position, beyond the point itself.
+ *
+ * ## Why these are optional rather than a v4 payload of their own
+ *
+ * `.strict()` refuses **unknown** fields, not absent ones, and this payload travels
+ * *device → server*. An older build simply does not send them; the server parses it exactly as
+ * before and records them as unknown. Nothing installed breaks, and there is no second definition
+ * of one command to keep in step.
+ *
+ * That is the opposite of the *server → device* direction, where the device holds the `.strict()`
+ * schema and a field it has never heard of is a parse error — which is why `packParcelContextSchema`
+ * cannot grow and why `v4CommandResultSchema` exists as a separate object. The asymmetry is the
+ * whole reason one of these is cheap and the other is a version bump.
+ *
+ * ## What absence means
+ *
+ * Unknown. Not "no position", and never a real one: a photograph whose device did not report an
+ * outcome is a photograph nobody can say anything about beyond whether a point arrived. Nothing
+ * downstream derives these from `capturedAt`, from the point, or from each other.
+ */
+const mediaLocationProvenance = {
+  /**
+   * How the attempt ended. `timed_out` is the one the photograph can carry and the visit cannot:
+   * `visit.start`'s own vocabulary predates it and adding a value there would be a parse error on
+   * every installed build, so a visit reports a timeout as `unavailable`.
+   */
+  locationOutcome: z
+    .enum(["captured", "denied", "unavailable", "timed_out", "not_attempted"])
+    .optional(),
+  /**
+   * What the **platform** reported, never a conclusion of ours. Android marks a position produced
+   * by a mock provider, and every position an emulator reports is one. Absent means the platform
+   * said nothing, which is not the same as "real".
+   */
+  locationMocked: z.boolean().nullable().optional(),
+  /** Which provider answered, where the platform says. Bounded, and never free text from a person. */
+  locationSource: z.string().min(1).max(40).nullable().optional(),
+} as const;
+
 const mediaDeclarePayload = z
   .object({
     assignmentId: uuid,
@@ -396,6 +436,7 @@ const mediaDeclarePayload = z
     capturedAt: deviceInstant,
     note: z.string().max(300).nullable(),
     location: wireLocationSchema.nullable(),
+    ...mediaLocationProvenance,
   })
   .strict();
 

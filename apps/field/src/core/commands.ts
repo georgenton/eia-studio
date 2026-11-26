@@ -115,6 +115,16 @@ export function mediaDeclareCommand(
     readonly kind: "parcel" | "affectation" | "access" | "other";
     readonly note: string | null;
     readonly location: WireLocation | null;
+    /**
+     * What is known about the position attempt, beyond whether a point arrived.
+     *
+     * Sent as `undefined` rather than as a guess when the row has nothing to say, because the
+     * server reads absence as **unknown** and would read `not_attempted` as a statement.
+     */
+    readonly locationOutcome?:
+      "captured" | "denied" | "unavailable" | "timed_out" | "not_attempted";
+    readonly locationMocked?: boolean | null;
+    readonly locationSource?: string | null;
   },
 ): SyncCommand {
   return syncCommandSchema.parse({
@@ -126,6 +136,9 @@ export function mediaDeclareCommand(
       localId: input.localId,
       storedObjectId: input.storedObjectId,
       kind: input.kind,
+      ...(input.locationOutcome === undefined ? {} : { locationOutcome: input.locationOutcome }),
+      ...(input.locationMocked === undefined ? {} : { locationMocked: input.locationMocked }),
+      ...(input.locationSource === undefined ? {} : { locationSource: input.locationSource }),
       // The device's clock at the shutter is the caller's to supply; here it is the moment the
       // intent was formed, which for a photograph is the same instant.
       capturedAt: ctx.occurredAt.toISOString(),

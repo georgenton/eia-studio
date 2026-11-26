@@ -38,6 +38,14 @@ export interface MediaLocationLabels {
   readonly capturedAt: string;
   readonly none: string;
   readonly caveat: string;
+  /** The one that changes what a reader may conclude: the platform called this simulated. */
+  readonly simulated: string;
+  readonly simulatedBody: string;
+  /** How the attempt ended, keyed by the device's own vocabulary. */
+  readonly outcome: Readonly<Record<string, string>>;
+  /** Shown when the build that took it reported nothing. Unknown is not "real". */
+  readonly outcomeUnknown: string;
+  readonly source: string;
 }
 
 type State =
@@ -50,6 +58,9 @@ type State =
       readonly accuracyM: number | null;
       readonly locatedAt: string | null;
       readonly capturedAt: string;
+      readonly locationOutcome: string | null;
+      readonly locationMocked: boolean | null;
+      readonly locationSource: string | null;
     }
   | { readonly kind: "refused"; readonly error: string };
 
@@ -80,6 +91,9 @@ export function MediaLocation({
       accuracyM: result.accuracyM,
       locatedAt: result.locatedAt,
       capturedAt: result.capturedAt,
+      locationOutcome: result.locationOutcome,
+      locationMocked: result.locationMocked,
+      locationSource: result.locationSource,
     });
   };
 
@@ -93,8 +107,32 @@ export function MediaLocation({
   if (state.kind === "reading") return <span className={styles.visitNote}>{labels.reading}</span>;
   if (state.kind === "refused") return <span className={styles.visitNote}>{state.error}</span>;
 
+  /*
+   * The simulation warning comes **before** the coordinates and before the empty state, because it
+   * changes what the rest means. An emulator reports every position as mocked, and a simulated
+   * point read as a measurement is the one mistake this metadata exists to prevent.
+   */
+  const simulated =
+    state.locationMocked === true ? (
+      <strong className={styles.simulatedBadge}>{labels.simulated}</strong>
+    ) : null;
+  const simulatedNote = state.locationMocked === true ? <em>{labels.simulatedBody}</em> : null;
+
+  const outcomeLine =
+    state.locationOutcome === null ? (
+      <em>{labels.outcomeUnknown}</em>
+    ) : (
+      (labels.outcome[state.locationOutcome] ?? state.locationOutcome)
+    );
+
   if (state.latitude === null || state.longitude === null) {
-    return <span className={styles.visitNote}>{labels.none}</span>;
+    return (
+      <span className={styles.visitNote}>
+        {labels.none}
+        <br />
+        {outcomeLine}
+      </span>
+    );
   }
 
   /*
@@ -120,6 +158,17 @@ export function MediaLocation({
         : null}
       {state.locatedAt !== null ? " · " : null}
       {labels.capturedAt.replace("{when}", new Date(state.capturedAt).toLocaleString("es-EC"))}
+      <br />
+      {outcomeLine}
+      {state.locationSource !== null ? (
+        <> · {labels.source.replace("{source}", state.locationSource)}</>
+      ) : null}
+      {simulated !== null ? (
+        <>
+          <br />
+          {simulated} {simulatedNote}
+        </>
+      ) : null}
       <br />
       <em>{labels.caveat}</em>
     </span>
