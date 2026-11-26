@@ -30,6 +30,7 @@ import {
   declareFieldMedia,
   finalizeUpload,
   issueFieldMediaDownload,
+  loadFieldMediaLocation,
   loadParcelMedia,
   loadVisitMedia,
   resolveFinalizedUpload,
@@ -960,5 +961,121 @@ describe("a parcel captured entirely offline", () => {
       "applied",
     );
     expect(await loadVisitMedia(db.runtime, ctxTech, visitaId)).toHaveLength(2);
+  });
+});
+
+/**
+ * Where a photograph was taken, read one photograph at a time.
+ *
+ * The list returns `hasLocation` and never the point — *«a coordinate on a list is a coordinate in
+ * a screenshot, and this one is a person's position at a moment»* — so the point is a separate,
+ * audited read behind the same door that opens the image. These assertions are about that door and
+ * about what the answer is careful to keep apart.
+ */
+describe("reading where a photograph was taken", () => {
+  const shutter = new Date("2026-11-26T18:40:00.000Z");
+  const fix = new Date("2026-11-26T18:40:07.000Z");
+
+  async function photographWithPoint() {
+    const { ctx, stored } = await storePhotograph(technician);
+    const result = await declareFieldMedia(
+      db.runtime,
+      ctx,
+      declaration({
+        storedObjectId: stored.storedObjectId,
+        capturedAt: shutter.toISOString(),
+        location: {
+          latitude: -4.0761,
+          longitude: -78.9412,
+          accuracyM: 8,
+          locatedAt: fix.toISOString(),
+        },
+      }),
+    );
+    return result.mediaId;
+  }
+
+  it("returns the point, its accuracy and both instants to the technician who took it", async () => {
+    const mediaId = await photographWithPoint();
+    const location = await loadFieldMediaLocation(
+      db.runtime,
+      await contextFor(technician),
+      mediaId,
+    );
+
+    expect(location.latitude).toBeCloseTo(-4.0761, 4);
+    expect(location.longitude).toBeCloseTo(-78.9412, 4);
+    expect(location.accuracyM).toBeCloseTo(8, 1);
+    // The two instants are returned separately so a reader sees the gap instead of assuming none.
+    expect(location.capturedAt).toBe(shutter.toISOString());
+    expect(location.locatedAt).toBe(fix.toISOString());
+  });
+
+  it("returns it to a coordinator, who holds field.responses.read", async () => {
+    const mediaId = await photographWithPoint();
+    const location = await loadFieldMediaLocation(
+      db.runtime,
+      await contextFor(coordinator),
+      mediaId,
+    );
+    expect(location.latitude).toBeCloseTo(-4.0761, 4);
+  });
+
+  /*
+   * The whole point of putting it behind the row-level policy rather than behind a permission
+   * check of its own: a GIS specialist may see *that* a parcel was visited and may not see what was
+   * photographed there, so they may not see where either. And the refusal is a not-found, because
+   * saying "denied" would confirm the row exists (ADR-016).
+   */
+  it("refuses a reader who cannot open the photograph, as a not-found", async () => {
+    const mediaId = await photographWithPoint();
+    const error = await attempt(
+      loadFieldMediaLocation(db.runtime, await contextFor(gisSpecialist), mediaId),
+    );
+    expect(error).toMatch(/not.?found|field media/i);
+  });
+
+  it("gives the same not-found for a photograph that does not exist", async () => {
+    const error = await attempt(
+      loadFieldMediaLocation(db.runtime, await contextFor(coordinator), randomUUID()),
+    );
+    expect(error).toMatch(/not.?found|field media/i);
+  });
+
+  /* A photograph the device had no fix for answers with nulls, never with a nearby point. */
+  it("answers with nothing at all when the device had no fix", async () => {
+    const { ctx, stored } = await storePhotograph(technician);
+    const result = await declareFieldMedia(
+      db.runtime,
+      ctx,
+      declaration({ storedObjectId: stored.storedObjectId, location: null }),
+    );
+    const location = await loadFieldMediaLocation(
+      db.runtime,
+      await contextFor(technician),
+      result.mediaId,
+    );
+    expect(location.latitude).toBeNull();
+    expect(location.longitude).toBeNull();
+    expect(location.accuracyM).toBeNull();
+    expect(location.locatedAt).toBeNull();
+    // And the shutter's own moment is still there: the photograph exists, its position does not.
+    expect(location.capturedAt).not.toBeNull();
+  });
+
+  it("records the reading in the audit log, without the coordinate", async () => {
+    const mediaId = await photographWithPoint();
+    await loadFieldMediaLocation(db.runtime, await contextFor(coordinator), mediaId);
+
+    const rows = await db.migrator.execute(sql`
+      select action::text as action, details::text as details
+        from audit.log
+       where object_id = ${mediaId} and action = 'field.media.location_read'
+       order by occurred_at desc limit 1
+    `);
+    const row = rows.rows[0] as unknown as { action: string; details: string } | undefined;
+    expect(row?.action).toBe("field.media.location_read");
+    // The visit and the kind. Never a coordinate: an audit line is read by more people than the row.
+    expect(row?.details).not.toMatch(/-4\.07|-78\.94|latitude|longitude/);
   });
 });
