@@ -133,8 +133,14 @@ export function ParcelMapScreen({
       setMap(response);
       setFetchedAt(stored?.fetchedAt ?? null);
       setStatus("ready");
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : t("mobile.mapDownloadFailed"));
+    } catch {
+      /*
+       * One sentence, never the error. A failed download here is either no signal or a payload
+       * this build cannot read, and in both cases a technician's next action is the same; a zod
+       * report on the screen of a phone in the sun is noise that looks like a defect in the data.
+       * The detail belongs in the diagnostics screen, which is what support asks for.
+       */
+      setMessage(t("mobile.mapDownloadFailed"));
     } finally {
       setBusy(false);
     }

@@ -219,6 +219,37 @@ describe("what a technician's device may download", () => {
     expect(map.projectName).toBe("Project project-x");
   });
 
+  /**
+   * The field that broke the whole map, caught on a handset and not on the server.
+   *
+   * `spatial_dataset_version.note` is not a sentence: the corridor importer writes a JSON record of
+   * the contract into it — source hashes, feature count, condition. Sending it whole put three
+   * hundred characters into a forty-character field and the device's `.strict()` schema rejected
+   * the **entire** map. The server was perfectly happy producing it.
+   */
+  it("sends the delivery's declared condition, not the importer's whole record", async () => {
+    await db.migrator.execute(sql`
+      update app.spatial_dataset_version
+         set note = ${'{"contract":"corridor-intake@2","kind":"alignment","sourceSha256":"' + "a".repeat(64) + '","condition":"PRELIMINARY_DRAFT","featureCount":1}'}
+       where tenant_id = ${w.tenantA.id} and id = ${alignmentVersionId}
+    `);
+    const map = await loadFieldMap(db.runtime, await ctxFor(technician));
+    expect(map.provenance.condition).toBe("PRELIMINARY_DRAFT");
+    // And it parses, which is the assertion that actually failed on the device.
+    expect(() => fieldMapResponseSchema.parse(map)).not.toThrow();
+  });
+
+  it("says nothing rather than truncating a note it cannot read", async () => {
+    await db.migrator.execute(sql`
+      update app.spatial_dataset_version
+         set note = ${"una nota que alguien escribió a mano, larguísima, " + "x".repeat(300)}
+       where tenant_id = ${w.tenantA.id} and id = ${alignmentVersionId}
+    `);
+    const map = await loadFieldMap(db.runtime, await ctxFor(technician));
+    expect(map.provenance.condition).toBeNull();
+    expect(() => fieldMapResponseSchema.parse(map)).not.toThrow();
+  });
+
   it("carries the axis as one continuous line, with its provenance", async () => {
     const map = await loadFieldMap(db.runtime, await ctxFor(technician));
     expect(map.axis).not.toBeNull();

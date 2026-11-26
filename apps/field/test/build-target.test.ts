@@ -174,9 +174,16 @@ describe("the native build identity", () => {
    * "the APK did not update" on somebody's phone. The two new packages start their own count.
    */
   it("uses an Android versionCode above every one already built for that package", () => {
-    expect(staging.android?.versionCode).toBeGreaterThanOrEqual(8);
-    expect(demo.android?.versionCode).toBeGreaterThanOrEqual(1);
-    expect(production.android?.versionCode).toBeGreaterThanOrEqual(1);
+    /*
+     * Staging has spent 9: EAS builds 2, 3 and 4, local builds up to 7 on the training emulator,
+     * and **9 twice** — once on 26 November morning and once that evening, because
+     * `EIA_FIELD_VERSION_CODE` was passed on the command line to an EAS build, which never sees
+     * it. Two different artefacts carrying one code is what this assertion exists to stop, so the
+     * committed number is the authority and the floor moves with it.
+     */
+    expect(staging.android?.versionCode).toBeGreaterThanOrEqual(10);
+    expect(demo.android?.versionCode).toBeGreaterThanOrEqual(2);
+    expect(production.android?.versionCode).toBeGreaterThanOrEqual(2);
   });
 
   /* Three builds of one application, not three applications. Everything below is identical. */
