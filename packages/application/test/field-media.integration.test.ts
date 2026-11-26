@@ -146,7 +146,17 @@ function declaration(over: Record<string, unknown> = {}) {
     kind: "parcel" as const,
     capturedAt: new Date().toISOString(),
     note: "Frente del predio desde la vía",
-    location: { latitude: -4.0761, longitude: -78.9412, accuracyM: 8 },
+    /*
+     * `locatedAt` is the fix's own moment and is deliberately **not** `capturedAt`: the device
+     * persists the photograph at the shutter and asks the platform for a position afterwards, with
+     * a bounded wait, so the two instants are seconds apart by design (migration 0060).
+     */
+    location: {
+      latitude: -4.0761,
+      longitude: -78.9412,
+      accuracyM: 8,
+      locatedAt: new Date(Date.now() + 4_000).toISOString(),
+    },
     ...over,
   };
 }
@@ -287,6 +297,46 @@ describe("declaring a photograph a device already uploaded", () => {
       .where(eq(fieldSchema.fieldMedia.id, result.mediaId));
     expect(row?.location).toBeNull();
     expect(row?.locationAccuracyM).toBeNull();
+    // And no moment either: a fix that does not exist was not obtained at any time.
+    expect(row?.locatedAt).toBeNull();
+  });
+
+  /*
+   * The two instants, kept apart (migration 0060).
+   *
+   * The device has always sent the fix's own moment and this boundary used to drop it, so the
+   * server could say *where* a photograph was taken and not *how long after the shutter* that was
+   * measured. It matters because the order is now persist-then-locate: the photograph is kept
+   * first and the platform is asked afterwards, with a bounded wait, so the gap is the normal case
+   * rather than an anomaly.
+   */
+  it("keeps the moment of the fix apart from the moment of the shutter", async () => {
+    const { ctx, stored } = await storePhotograph(technician);
+    const shutter = new Date("2026-11-26T18:40:00.000Z");
+    const fix = new Date("2026-11-26T18:40:07.000Z");
+    const result = await declareFieldMedia(
+      db.runtime,
+      ctx,
+      declaration({
+        storedObjectId: stored.storedObjectId,
+        capturedAt: shutter.toISOString(),
+        location: {
+          latitude: -4.0761,
+          longitude: -78.9412,
+          accuracyM: 8,
+          locatedAt: fix.toISOString(),
+        },
+      }),
+    );
+
+    const [row] = await db.migrator
+      .select()
+      .from(fieldSchema.fieldMedia)
+      .where(eq(fieldSchema.fieldMedia.id, result.mediaId));
+    expect(row?.capturedAt?.toISOString()).toBe(shutter.toISOString());
+    expect(row?.locatedAt?.toISOString()).toBe(fix.toISOString());
+    // Not derived from one another, and not equal.
+    expect(row?.locatedAt?.toISOString()).not.toBe(row?.capturedAt?.toISOString());
   });
 
   /*

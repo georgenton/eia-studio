@@ -144,6 +144,119 @@ export async function issueFieldMediaDownload(
   };
 }
 
+/**
+ * Where a photograph was taken, for the one reader who may already open it.
+ *
+ * ## Why this is a separate read and not a column on the list
+ *
+ * `loadParcelMedia` returns `hasLocation` and deliberately not the point: *«a coordinate on a list
+ * is a coordinate in a screenshot, and this one is a person's position at a moment»*. That
+ * judgement stands. A technician's position is evidence of a visit, and it is read one photograph
+ * at a time, by somebody who asked for that photograph — not scattered across a table anybody with
+ * the tab open can photograph.
+ *
+ * ## The door, which is the same door
+ *
+ * Capability, then the row-level policy, exactly as `issueFieldMediaDownload`: no
+ * `requirePermission`, because the policy on `field_media` already decides and decides correctly
+ * for both readers — a technician reaches their own through its first branch, a coordinator the
+ * project's through `field.responses.read`. A GIS specialist or a reader with `quality.read` and
+ * no `field.responses.read` gets the same 404 the photograph itself gives them.
+ *
+ * It is never a map layer. ADR-032 §3 keeps field media off the general map, and a point is the
+ * part of a photograph that would be easiest to put there by accident.
+ *
+ * ## What it answers, and what it refuses to imply
+ *
+ * The point is where the **technician's device** was, with the accuracy the platform reported and
+ * the moment the fix was obtained — which is not the moment the shutter fired. The two instants
+ * are returned separately so a reader can see the gap rather than assume there is none; the device
+ * persists the photograph first and asks for a position afterwards, so a gap is the normal case.
+ * Neither is a certification of where or when the photograph was taken, and the surface says so.
+ */
+export interface FieldMediaLocation {
+  readonly mediaId: string;
+  /** Null when the device reported no fix: refused, timed out, or the platform failed. */
+  readonly latitude: number | null;
+  readonly longitude: number | null;
+  readonly accuracyM: number | null;
+  /** When the position was obtained. Null when there is none, or when the device sent none. */
+  readonly locatedAt: string | null;
+  /** The device's clock at the shutter. A different fact. */
+  readonly capturedAt: string;
+}
+
+interface LocationRow {
+  id: string;
+  visit_id: string;
+  kind: string;
+  namespace: string;
+  latitude: number | string | null;
+  longitude: number | string | null;
+  location_accuracy_m: number | string | null;
+  located_at: Date | string | null;
+  captured_at: Date | string;
+}
+
+export async function loadFieldMediaLocation(
+  db: Database,
+  ctx: RequestContext,
+  mediaId: string,
+): Promise<FieldMediaLocation> {
+  requireCapability(ctx, "field.surveys");
+  const projectId = requireProject(ctx);
+
+  const row = await withFieldContext(db, ctx, async (tx) => {
+    const rows = await tx.execute(sql`
+      select m.id, m.visit_id, m.kind::text as kind, o.namespace::text as namespace,
+             ST_Y(m.location) as latitude, ST_X(m.location) as longitude,
+             m.location_accuracy_m, m.located_at, m.captured_at
+        from app.field_media m
+        join app.stored_object o on o.tenant_id = m.tenant_id and o.id = m.stored_object_id
+       where m.tenant_id = ${ctx.tenantId} and m.project_id = ${projectId}
+         and m.id = ${mediaId}
+       limit 1
+    `);
+    return (rows.rows[0] as unknown as LocationRow | undefined) ?? null;
+  });
+
+  // One 404 for every reason, as above.
+  if (!row) throw new NotFound("field media");
+  if (row.namespace !== "field-media") throw new NotFound("field media");
+
+  await withDbContext(db, ctx, async (tx) => {
+    await recordAudit(
+      tx,
+      { tenantId: ctx.tenantId, projectId },
+      { userId: ctx.userId, kind: "user", requestId: ctx.requestId },
+      {
+        action: "field.media.location_read",
+        objectKind: "field_media",
+        objectId: row.id,
+        // The visit and the kind. Never the coordinate: an audit line is read by more people than
+        // the row is (ADR-032 §10e.1).
+        details: { visitId: row.visit_id, kind: row.kind },
+      },
+    );
+  });
+
+  const asIso = (value: Date | string | null): string | null =>
+    value === null
+      ? null
+      : value instanceof Date
+        ? value.toISOString()
+        : new Date(value).toISOString();
+
+  return {
+    mediaId: row.id,
+    latitude: row.latitude === null ? null : Number(row.latitude),
+    longitude: row.longitude === null ? null : Number(row.longitude),
+    accuracyM: row.location_accuracy_m === null ? null : Number(row.location_accuracy_m),
+    locatedAt: asIso(row.located_at),
+    capturedAt: asIso(row.captured_at)!,
+  };
+}
+
 function requireProject(ctx: RequestContext): string {
   if (ctx.projectId === null) throw new NotFound("this action needs a project context");
   return ctx.projectId;

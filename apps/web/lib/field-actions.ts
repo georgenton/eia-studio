@@ -2,6 +2,7 @@
 
 import {
   completeVisit as completeVisitUseCase,
+  loadFieldMediaLocation,
   saveSurveyDraft,
   startVisit as startVisitUseCase,
   submitSurveyInstance,
@@ -69,6 +70,58 @@ function failureFor(error: unknown): FieldActionResult {
   }
   // Anything else is a bug, not a user error; the reference id is what a log search needs.
   throw error;
+}
+
+/**
+ * Where a photograph was taken, revealed one photograph at a time.
+ *
+ * It is an action rather than a column because `loadParcelMedia` deliberately returns *whether*
+ * there is a point and never the point: a coordinate in a table is a coordinate in a screenshot,
+ * and this one is a person's position at a moment. A reader who wants it asks for it, the reading
+ * is audited, and the door is the one that already opens the photograph itself — the row-level
+ * policy on `field_media`, which answers 404 for every reason it would refuse.
+ */
+export type MediaLocationResult =
+  | {
+      readonly ok: true;
+      readonly latitude: number | null;
+      readonly longitude: number | null;
+      readonly accuracyM: number | null;
+      readonly locatedAt: string | null;
+      readonly capturedAt: string;
+    }
+  | { readonly ok: false; readonly error: string };
+
+export async function readMediaLocationAction(raw: unknown): Promise<MediaLocationResult> {
+  const input = z
+    .object({
+      tenant: z.string(),
+      project: z.string(),
+      mediaId: z.string().uuid(),
+    })
+    .strict()
+    .parse(raw);
+
+  const { access } = await resolveFieldContext(input);
+  if (access.kind !== "ok") return { ok: false, error: await noAccess() };
+
+  try {
+    const location = await loadFieldMediaLocation(getDb(), access.ctx, input.mediaId);
+    return {
+      ok: true,
+      latitude: location.latitude,
+      longitude: location.longitude,
+      accuracyM: location.accuracyM,
+      locatedAt: location.locatedAt,
+      capturedAt: location.capturedAt,
+    };
+  } catch {
+    /*
+     * Every refusal is the same sentence. A caller editing identifiers must not be able to tell a
+     * photograph of another project from one the policy excluded from one that does not exist.
+     */
+    return { ok: false, error: await noAccess() };
+  }
 }
 
 export async function startVisitAction(raw: unknown): Promise<FieldActionResult> {
