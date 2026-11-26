@@ -269,6 +269,9 @@ async function execute(
               latitude: command.payload.location.latitude,
               longitude: command.payload.location.longitude,
               accuracyM: command.payload.location.accuracyM,
+              // The fix's own moment. `wireLocationSchema` calls it `capturedAt`; on this side of
+              // the boundary it is `locatedAt`, because `capturedAt` already means the shutter.
+              locatedAt: command.payload.location.capturedAt,
             }
           : null,
       });

@@ -92,6 +92,13 @@ export const AUDIT_ACTIONS = [
    * link, the technician's note or the coordinate.
    */
   "field.media.download_issued",
+  /*
+   * Somebody read *where* one photograph was taken. The point is the technician's own position at
+   * a moment, which is the same class of datum as the image and is read one photograph at a time,
+   * so the reading is recorded for the same reason the issuance is. The row carries the visit and
+   * the kind; never the coordinate itself — an audit line is read by more people than the row is.
+   */
+  "field.media.location_read",
   // Social Intelligence (Slice 4). Two events, for the two moments that matter: text left this
   // system for a model, and a human settled what a response means. Neither row carries a word of
   // what was said — counts, codes and configuration only.

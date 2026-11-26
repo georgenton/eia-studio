@@ -20,7 +20,14 @@ const VALID = {
   kind: "parcel" as const,
   capturedAt: "2026-09-17T14:05:00.000Z",
   note: "Frente del predio desde la vía",
-  location: { latitude: -4.0761, longitude: -78.9412, accuracyM: 8 },
+  location: {
+    latitude: -4.0761,
+    longitude: -78.9412,
+    accuracyM: 8,
+    // The fix's own moment, which is not the shutter's: the device persists the photograph
+    // first and asks the platform afterwards (migration 0060).
+    locatedAt: "2026-11-26T18:40:11.000Z",
+  },
 };
 
 describe("what a technician may say about a photograph", () => {
@@ -28,6 +35,7 @@ describe("what a technician may say about a photograph", () => {
     const parsed = parseFieldMediaDeclaration(VALID);
     expect(parsed.kind).toBe("parcel");
     expect(parsed.location?.accuracyM).toBe(8);
+    expect(parsed.location?.locatedAt).toBe("2026-11-26T18:40:11.000Z");
   });
 
   it("accepts one with no note and no location, and never invents either", () => {

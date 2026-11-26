@@ -13,6 +13,16 @@
         "EXPO_PUBLIC_APP_ENV": "local"
       }
     },
+    "demo": {
+      "distribution": "internal",
+      "channel": "demo",
+      "android": { "buildType": "apk" },
+      "ios": { "simulator": false },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://eia-demo.syntavera.dev",
+        "EXPO_PUBLIC_APP_ENV": "demo"
+      }
+    },
     "staging": {
       "distribution": "internal",
       "channel": "staging",
@@ -24,12 +34,12 @@
       }
     },
     "production": {
-      "distribution": "store",
+      "distribution": "internal",
       "channel": "production",
-      "autoIncrement": true,
-      "android": { "buildType": "app-bundle" },
+      "android": { "buildType": "apk" },
+      "ios": { "simulator": false },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://REPLACE-WITH-PRODUCTION-HOST",
+        "EXPO_PUBLIC_API_URL": "https://eia.syntavera.dev",
         "EXPO_PUBLIC_APP_ENV": "production"
       }
     }

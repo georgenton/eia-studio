@@ -101,6 +101,16 @@ export const fieldMediaDeclarationSchema = z
         latitude: z.number().min(-90).max(90),
         longitude: z.number().min(-180).max(180),
         accuracyM: z.number().positive().max(100_000).nullable(),
+        /**
+         * When the **position** was obtained, which is not when the shutter fired.
+         *
+         * The device has always sent it (`wireLocationSchema.capturedAt`) and this boundary used
+         * to drop it, so the two instants collapsed into one on the server. They are genuinely
+         * different: a photograph is persisted at the shutter and the platform is asked for a fix
+         * afterwards, with a bounded wait. Required whenever there is a position at all — a
+         * coordinate whose moment is unknown is a coordinate nobody can place in the visit.
+         */
+        locatedAt: z.iso.datetime(),
       })
       .strict()
       .nullable(),

@@ -140,3 +140,33 @@
   color: var(--eia-text-secondary);
   margin-top: 2px;
 }
+
+/*
+ * *Ver ubicación*: a disclosure, styled as the link it behaves like rather than as a button.
+ *
+ * It is a `<button>` because it performs an action — an audited read of a person's position — and
+ * not a navigation, and keyboard users get the button semantics that go with that. The appearance
+ * borrows the link treatment so it sits in the table beside *Abrir* without inventing a third kind
+ * of control for one row.
+ */
+.linkButton {
+  appearance: none;
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: var(--eia-accent-ink, var(--eia-text-primary));
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.linkButton:hover {
+  text-decoration-thickness: 2px;
+}
+
+.linkButton:focus-visible {
+  outline: 2px solid var(--eia-focus, currentColor);
+  outline-offset: 2px;
+  border-radius: 2px;
+}

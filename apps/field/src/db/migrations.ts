@@ -313,6 +313,43 @@ export const LOCAL_MIGRATIONS: ReadonlyArray<LocalMigration> = [
          on local_delivery_attempt (state, occurred_at)`,
     ],
   },
+  {
+    version: 5,
+    name: "photograph_location_metadata",
+    statements: [
+      /*
+       * What is known about *where* a photograph was taken, kept apart from the photograph.
+       *
+       * Until now a row carried `latitude`, `longitude` and `accuracy_m`, and nothing else — so a
+       * photograph with no coordinates was indistinguishable from one whose location had not been
+       * asked for, had been refused, or had timed out. Those are four different facts about a
+       * study's evidence and a reviewer is entitled to tell them apart.
+       *
+       * - `location_outcome` is the state machine, and `PENDING` exists because the file is now
+       *   persisted *before* the location is sought (the opposite order lost photographs when the
+       *   request hung). A row that is still `PENDING` when a synchronisation starts is resolved
+       *   to `unavailable`: the device can no longer know where it was.
+       * - `located_at` is when the *position* was obtained, which is not when the shutter fired.
+       *   `captured_at` keeps meaning the shutter.
+       * - `location_mocked` is what the platform reported, not what we concluded. Android marks a
+       *   position produced by a mock provider, and an emulator's position is always one. A
+       *   simulated point presented as a measurement is the worst thing this column could allow.
+       * - `location_source` records which provider answered, where the platform says.
+       *
+       * No default coordinates, ever: a missing position stays null. There is no centre of the
+       * parcel and no last known point standing in for one.
+       */
+      `alter table local_media add column location_outcome text not null default 'not_attempted'`,
+      `alter table local_media add column located_at text`,
+      `alter table local_media add column location_mocked integer`,
+      `alter table local_media add column location_source text`,
+      /*
+       * Rows written before this migration did record coordinates when they had them, so their
+       * outcome is knowable from the data itself and is backfilled rather than guessed.
+       */
+      `update local_media set location_outcome = 'captured' where latitude is not null`,
+    ],
+  },
 ];
 
 export const LOCAL_SCHEMA_VERSION = LOCAL_MIGRATIONS[LOCAL_MIGRATIONS.length - 1]!.version;

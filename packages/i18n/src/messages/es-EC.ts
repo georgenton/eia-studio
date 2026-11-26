@@ -623,6 +623,20 @@ export const messages = {
     mediaOpen: "Abrir",
     mediaHasLocation: "Con ubicación del técnico",
     mediaNoLocation: "Sin ubicación",
+    /*
+     * *Ver ubicación*: se consulta una fotografía a la vez y queda registrado. La lista dice si
+     * hay un punto y nunca el punto, porque es la posición de una persona en un momento.
+     */
+    mediaViewLocation: "Ver ubicación",
+    mediaLocationReading: "Consultando…",
+    mediaLocationCoordinates: "{lat}, {lon}",
+    mediaLocationAccuracy: "precisión ±{m} m",
+    mediaLocationMeasuredAt: "posición obtenida {when}",
+    mediaLocationCapturedAt: "fotografía {when}",
+    mediaLocationNone: "El dispositivo no obtuvo posición para esta fotografía.",
+    mediaLocationCaveat:
+      "Es la posición que el dispositivo del técnico calculó, no la de una vivienda, y no " +
+      "certifica el lugar ni el momento exactos del disparo.",
     tabQuality: "Calidad",
     sections: "Secciones del predio",
     backToExplorer: "Volver al explorador",

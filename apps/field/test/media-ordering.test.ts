@@ -179,9 +179,7 @@ describe("against the device's own database", () => {
       sizeBytes: 1_800_000,
       kind: "parcel",
       note: null,
-      latitude: null,
-      longitude: null,
-      accuracyM: null,
+      locationOutcome: "not_attempted",
     });
 
   /**

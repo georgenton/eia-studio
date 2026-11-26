@@ -235,22 +235,26 @@ describe("a device that was in the field when the application was updated", () =
 });
 
 describe("the local database upgrades forward", () => {
-  it("adds migration 4 and drops nothing a handset is holding", () => {
-    expect(LOCAL_SCHEMA_VERSION).toBe(4);
+  it("adds migrations 4 and 5, and drops nothing a handset is holding", () => {
+    expect(LOCAL_SCHEMA_VERSION).toBe(5);
     const upgrade = pendingMigrations(3);
-    expect(upgrade.map((m) => m.version)).toEqual([4]);
+    expect(upgrade.map((m) => m.version)).toEqual([4, 5]);
     const sql = upgrade
       .flatMap((m) => m.statements)
       .join("\n")
       .toLowerCase();
     // A device in the field is holding drafts, an outbox and photographs. Nothing here may
-    // remove any of it — the one rule this migration had to satisfy.
+    // remove any of it — the one rule every one of these migrations has to satisfy.
     for (const destructive of ["drop table", "drop column", "delete from", "truncate"]) {
       expect(sql, destructive).not.toContain(destructive);
     }
     expect(sql).toContain("create table if not exists work_pack");
     expect(sql).toContain("create table if not exists local_invitation");
     expect(sql).toContain("create table if not exists local_delivery_attempt");
+    // 5 adds what is known about a photograph's position, and only adds.
+    expect(sql).toContain("alter table local_media add column location_outcome");
+    expect(sql).toContain("alter table local_media add column located_at");
+    expect(sql).toContain("alter table local_media add column location_mocked");
   });
 
   it("and every migration is still forward-only, from 1", () => {

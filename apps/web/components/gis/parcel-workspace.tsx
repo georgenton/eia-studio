@@ -17,6 +17,7 @@ import {
 } from "@/lib/labels";
 import type { I18n } from "@/lib/locale";
 
+import { MediaLocation } from "./media-location";
 import { ParcelGeometryMap } from "./parcel-geometry-map";
 import styles from "./parcel-workspace.module.css";
 
@@ -46,6 +47,8 @@ export function ParcelWorkspace({
   view,
   tab,
   basePath,
+  tenant,
+  project,
   explorerPath,
   visits,
   media,
@@ -55,6 +58,9 @@ export function ParcelWorkspace({
   view: ParcelWorkspaceView;
   tab: ParcelTab;
   basePath: string;
+  /** The slugs the location disclosure sends back; the action re-resolves them, never trusts them. */
+  tenant: string;
+  project: string;
   explorerPath: string;
   /** Null when the caller cannot see field data at all; empty when the parcel has no visits. */
   visits: ReadonlyArray<ParcelVisitEntry> | null;
@@ -121,7 +127,9 @@ export function ParcelWorkspace({
           t={t}
         />
       ) : null}
-      {tab === "media" ? <MediaTab basePath={basePath} i18n={i18n} media={media} /> : null}
+      {tab === "media" ? (
+        <MediaTab basePath={basePath} i18n={i18n} media={media} project={project} tenant={tenant} />
+      ) : null}
       {tab === "calidad" ? (
         <PendingModule
           capability="quality.document_gate"
@@ -401,10 +409,14 @@ function VisitsTab({
 function MediaTab({
   basePath,
   media,
+  tenant,
+  project,
   i18n: { t, fmt },
 }: {
   basePath: string;
   media: ReadonlyArray<VisitMedia> | null;
+  tenant: string;
+  project: string;
   i18n: I18n;
 }) {
   if (media === null) {
@@ -449,6 +461,27 @@ function MediaTab({
                   <span className={styles.visitNote}>
                     {item.hasLocation ? t("parcel.mediaHasLocation") : t("parcel.mediaNoLocation")}
                   </span>
+                  {/*
+                    And the point itself, on request. One photograph at a time, audited, behind the
+                    row-level policy that already decides who may open the image.
+                  */}
+                  {item.hasLocation ? (
+                    <MediaLocation
+                      labels={{
+                        reveal: t("parcel.mediaViewLocation"),
+                        reading: t("parcel.mediaLocationReading"),
+                        coordinates: t("parcel.mediaLocationCoordinates"),
+                        accuracy: t("parcel.mediaLocationAccuracy"),
+                        measuredAt: t("parcel.mediaLocationMeasuredAt"),
+                        capturedAt: t("parcel.mediaLocationCapturedAt"),
+                        none: t("parcel.mediaLocationNone"),
+                        caveat: t("parcel.mediaLocationCaveat"),
+                      }}
+                      mediaId={item.id}
+                      project={project}
+                      tenant={tenant}
+                    />
+                  ) : null}
                 </td>
                 <td>{item.note ?? t("common.missing")}</td>
                 <td>{fmt.bytes(item.sizeBytes)}</td>

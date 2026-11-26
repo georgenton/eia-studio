@@ -1,0 +1,24 @@
+-- When the *position* of a photograph was obtained, which is not when the shutter fired.
+--
+-- The device has always sent it — `wireLocationSchema.capturedAt` is the fix's own moment — and the
+-- synchronisation layer discarded it, keeping only the point and its accuracy. So a reviewer could
+-- see *where* a photograph was taken and not how far apart in time the photograph and the
+-- measurement were, which is the difference between "the technician was there" and "the technician
+-- was there eleven minutes earlier, before walking to the parcel".
+--
+-- It matters more than it did: the device now persists the photograph first and asks the platform
+-- for a position afterwards, with a bounded wait (a location request has no timeout of its own, and
+-- waiting for one while the file sat in the camera's cache lost photographs). The two instants are
+-- seconds apart by design and can be minutes apart on a cold start, so a product that shows one and
+-- implies the other is making a claim the data does not support.
+--
+-- Nullable, and null means exactly what it says: this row's device did not report when it got the
+-- fix, or it got no fix at all. No value is derived from `captured_at` to fill it in — that would
+-- manufacture the very simultaneity this column exists to stop asserting.
+--
+-- Additive and reversible: `ALTER TABLE app.field_media DROP COLUMN located_at;`. No backfill, no
+-- policy change, no grant change. `field_media` keeps its FORCE RLS and its existing policies,
+-- which name the table and not its columns.
+--
+-- Written by `drizzle-kit generate` so the schema snapshot in `meta/` matches; the comment is ours.
+ALTER TABLE "app"."field_media" ADD COLUMN "located_at" timestamp with time zone;
