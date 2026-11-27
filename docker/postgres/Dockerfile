@@ -30,7 +30,15 @@ FROM imresamu/postgis:17-3.5@sha256:35fe7dceda62bfe7d2965b0ba78d915ff9f901b5e046
 # so a pin eventually stops resolving and the build fails **loudly**. That is the failure we want.
 # Silently installing a different pgvector into a database that already holds vector columns is
 # the failure we do not.
-ARG PGVECTOR_VERSION=0.8.6-1.pgdg12+2
+#
+# **It happened on 27 November 2026**, which is the point. `0.8.6-1.pgdg12+2` disappeared from the
+# PGDG index and every job that builds this image — the integration suite and the e2e suite, on a
+# branch that had touched neither — stopped with `Version '0.8.6-1.pgdg12+2' ... was not found`.
+# The index then offered `0.8.7-1.pgdg12+1`, `0.8.7-1.pgdg12+2` and `0.8.7-2.pgdg12+1` on **both**
+# architectures this image publishes for, and the newest is taken. Moving the pin is a deliberate
+# act with a diff; the alternative — dropping the version and letting apt choose — is the silent
+# failure the pin exists to prevent, and it would reopen TD-001.
+ARG PGVECTOR_VERSION=0.8.7-2.pgdg12+1
 ARG PGBACKREST_VERSION=2.60.1-1.pgdg12+1
 
 # pgvector: required by migration 0000 (`CREATE EXTENSION vector`), which is not conditional.

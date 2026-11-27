@@ -45,7 +45,7 @@ deployment. It is published to `ghcr.io/georgenton/eia-studio-postgres` by
 It is pinned at two levels, because they fail differently:
 
 - the **base** by the immutable digest of its manifest list (IG0-M01, unchanged);
-- the **apt packages** by exact version — `postgresql-17-pgvector=0.8.6-1.pgdg12+2` and
+- the **apt packages** by exact version — `postgresql-17-pgvector=0.8.7-2.pgdg12+1` (this pin was `0.8.6-1.pgdg12+2` until 27 November 2026, when PGDG pruned it and the build stopped, exactly as this decision said it would) and
   `pgbackrest=2.59.1-1.pgdg12+1`.
 
 That closes TD-001, which observed that `postgresql-17-pgvector` resolved at build time and the

@@ -145,7 +145,9 @@ database artefact, published to `ghcr.io/georgenton/eia-studio-postgres` and dep
 digest**. It builds on `imresamu/postgis:17-3.5` (multi-arch amd64/arm64 build of the official
 PostGIS image recipe, Debian bookworm + PGDG) and adds `postgresql-17-pgvector` and `pgbackrest`,
 both **pinned by exact version**. Contents: PostgreSQL 17.6, PostGIS 3.5.3, pgvector 0.8.6,
-pg_trgm 1.6, pgBackRest 2.59.1. No maintained upstream image ships both extensions
+pg_trgm 1.6, pgBackRest 2.59.1 — measured in the image built on 30 September 2026. The pgvector
+pin moved to `0.8.7-2.pgdg12+1` on 27 November 2026, when PGDG pruned the previous version and the
+build failed loudly, so the next build reads 0.8.7. No maintained upstream image ships both extensions
 (`postgis/postgis` lacks pgvector, `pgvector/pgvector` lacks PostGIS).
 
 TLS, the internal CA, the per-environment resources, backup and point-in-time recovery, and the

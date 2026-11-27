@@ -115,7 +115,9 @@ the official image publishes amd64 only and `pgvector/pgvector` ships no PostGIS
 upstream alone satisfies this project.
 
 Verified in the running image: PostgreSQL 17.6, PostGIS 3.5.3, pgvector 0.8.6, pg_trgm 1.6, and
-the extension test in `packages/testing` re-asserts availability on every CI run.
+the extension test in `packages/testing` re-asserts availability on every CI run. Those figures
+were measured in the image built on 30 September 2026; the pgvector pin moved to
+`0.8.7-2.pgdg12+1` on 27 November 2026, so the next build reads 0.8.7.
 
 **Digest review procedure** (run when a PostgreSQL/PostGIS upgrade is wanted, or on a security
 advisory):
@@ -127,7 +129,7 @@ advisory):
 4. CI's `db` job rebuilds and re-runs the extension and RLS suites against it, and
    `postgres-image.yml` starts the built image and asserts the versions it actually contains.
 
-**Closed (ADR-040).** The apt layer is pinned too — `postgresql-17-pgvector=0.8.6-1.pgdg12+2`
+**Closed (ADR-040).** The apt layer is pinned too — `postgresql-17-pgvector=0.8.7-2.pgdg12+1` (moved from `0.8.6-1.pgdg12+2` on 27 November 2026, when PGDG pruned that version and the build failed loudly, which is what the pin is for)
 and `pgbackrest=2.60.1-1.pgdg12+1`, both from the PGDG repository the base image already trusts —
 and the image is published to `ghcr.io/georgenton/eia-studio-postgres` and deployed **by digest**.
 An apt pin is reproducible while PGDG keeps the version in its index and fails the build loudly
