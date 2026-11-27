@@ -1,6 +1,8 @@
 import type * as SQLite from "expo-sqlite";
 import { randomUUID } from "expo-crypto";
 
+import { mediaHoldReason } from "@eia/domain/mobile";
+
 import { mediaDeclareCommand } from "../core/commands";
 import { deletableFiles, uploadOneMedia, type LocalMediaRow } from "../core/media-upload";
 import {
@@ -115,6 +117,14 @@ export interface MediaSyncOutcome {
   readonly uploaded: number;
   readonly queued: number;
   readonly pendingAfter: number;
+  /**
+   * Photographs that cannot move until somebody starts the visit they belong to.
+   *
+   * Counted rather than skipped in silence: this is the state predio 100's photograph sat in for
+   * three synchronisations on 26 November 2026 with nothing on any screen saying so
+   * (`@eia/domain/mobile`'s `mediaHoldReason`).
+   */
+  readonly heldForVisit: number;
   readonly error: string | null;
 }
 
@@ -143,17 +153,35 @@ export async function uploadPendingMedia(
   const rows = await listAllMedia(db);
   let uploaded = 0;
   let queued = 0;
+  let heldForVisit = 0;
   let error: string | null = null;
 
   for (const record of rows) {
-    if (record.serverMediaId !== null) continue;
     /*
-     * A capture happening *right now*, elsewhere in the application, between its insert and its
-     * location. Delivering it here would declare the photograph without the coordinates the device
-     * is about to write, and those coordinates would then exist only on the phone. The next
-     * synchronisation, seconds later, picks it up.
+     * One rule decides, and the screen reads the same one (ADR-032).
+     *
+     * `delivered` is nothing to do. `awaiting_location` is a capture happening *right now*,
+     * elsewhere in the application, between its insert and its position: delivering it here would
+     * declare the photograph without coordinates the device is about to write, and those would
+     * then exist only on the phone — the next synchronisation, seconds later, picks it up, and the
+     * sweep above has already written off any wait that is not coming back.
+     *
+     * `awaiting_visit` is the one a person has to resolve, so it is **counted** rather than
+     * skipped in silence.
+     */
+    const reason = mediaHoldReason(record);
+    if (reason === "delivered") continue;
+    /*
+     * The same condition `mediaHoldReason` just used, restated where it **narrows**. The
+     * declaration's three optional location fields are typed without `pending` on purpose —
+     * absent means unknown and `pending` is not a thing to tell a server — and a compiler cannot
+     * see that through a function call. `media-hold.test.ts` asserts the two agree.
      */
     if (record.locationOutcome === "pending") continue;
+    if (reason === "awaiting_visit") {
+      heldForVisit += 1;
+      continue;
+    }
     const row = toRow(record);
 
     const step = await uploadOneMedia(row, {
@@ -253,7 +281,7 @@ export async function uploadPendingMedia(
   }
 
   const pending = (await listAllMedia(db)).filter((row) => row.serverMediaId === null).length;
-  return { uploaded, queued, pendingAfter: pending, error };
+  return { uploaded, queued, pendingAfter: pending, heldForVisit, error };
 }
 
 /**

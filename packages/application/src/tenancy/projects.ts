@@ -13,7 +13,7 @@ import {
   type CapabilityKey,
   type RequestContext,
 } from "@eia/domain";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { recordAudit } from "../audit/record";
@@ -67,6 +67,58 @@ export async function createProject(
         details: { slug: input.slug, profile: profile.key, profileVersion: profile.version },
       },
     );
+
+    /*
+     * The person who created it is its coordinator, written here and audited as the membership
+     * change it is.
+     *
+     * Until this existed, *Nuevo proyecto* produced a project **nobody could open**. A tenant
+     * ADMIN has no implicit access to project data — that is D-015 and it is right — so the
+     * product created the project, redirected the creator to *Preparar proyecto*, and refused
+     * them at the door: *Tu rol Administración no incluye Preparar proyecto*. Observed on
+     * staging on 27 November 2026. With no surface anywhere that writes a `ProjectMembership`,
+     * the only way out was an operator script.
+     *
+     * This is not an escalation. `projects.create` is held by OWNER and ADMIN only, both of which
+     * already hold `project.members.manage`, so the creator could grant themselves this role the
+     * moment a surface for it existed — and TENANCY §6's requirement is precisely that such a
+     * grant be an **audited membership change** rather than an implicit one. It is both.
+     *
+     * An OWNER already reaches every project by computed access; the row is written for them too,
+     * so "who is on this project" answers the same way however the project began.
+     */
+    const creatorMembership = await tx
+      .select({ id: appSchema.tenantMembership.id })
+      .from(appSchema.tenantMembership)
+      .where(
+        and(
+          eq(appSchema.tenantMembership.tenantId, ctx.tenantId),
+          eq(appSchema.tenantMembership.userId, ctx.userId),
+        ),
+      )
+      .limit(1);
+    if (creatorMembership[0]) {
+      const membershipId = randomUUID();
+      await tx.insert(appSchema.projectMembership).values({
+        id: membershipId,
+        tenantId: ctx.tenantId,
+        projectId,
+        tenantMembershipId: creatorMembership[0].id,
+        role: "COORDINATOR",
+        status: "active",
+      });
+      await recordAudit(
+        tx,
+        { tenantId: ctx.tenantId, projectId },
+        { userId: ctx.userId, kind: "user", requestId: ctx.requestId },
+        {
+          action: "project.membership.added",
+          objectKind: "project_membership",
+          objectId: membershipId,
+          details: { role: "COORDINATOR", reason: "project.created" },
+        },
+      );
+    }
   });
   return { projectId };
 }

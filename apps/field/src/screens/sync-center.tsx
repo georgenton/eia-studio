@@ -116,6 +116,21 @@ export function SyncCenterScreen({ onBack }: { onBack: () => void }) {
               {t("mobile.syncWithheldForMedia", { count: lastOutcome.withheldForMedia })}
             </Body>
           ) : null}
+          {/*
+            A photograph taken before its visit was started. The synchronisation has always
+            skipped these — correctly, since there is no visit for the server to attach them to —
+            and until now it skipped them in silence, which is how predio 100's photograph spent
+            three synchronisations looking like an ordinary pending upload (ADR-032).
+
+            A warning rather than a muted line, because it is the only pending item on this screen
+            that waiting will not clear.
+          */}
+          {lastOutcome && lastOutcome.mediaHeldForVisit > 0 ? (
+            <Notice
+              text={t("mobile.syncHeldForVisit", { count: lastOutcome.mediaHeldForVisit })}
+              tone="warn"
+            />
+          ) : null}
           {pendingWork.outboxFailed > 0 ? (
             <Notice
               text={t("mobile.syncNeedsAttention", { count: pendingWork.outboxFailed })}

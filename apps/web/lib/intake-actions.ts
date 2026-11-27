@@ -1,6 +1,6 @@
 "use server";
 
-import { activateProject, updateProjectIntake } from "@eia/application";
+import { activateProject, addProjectMembership, updateProjectIntake } from "@eia/application";
 import { DomainError } from "@eia/domain";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
@@ -79,6 +79,41 @@ export async function activateProjectAction(raw: unknown): Promise<IntakeActionR
     };
   } catch (error) {
     if (error instanceof DomainError) return { ok: false, error: error.message };
+    throw error;
+  }
+}
+
+/**
+ * Put somebody on this project, with a role.
+ *
+ * The one write this surface makes that is not about the project's own data, and the reason it
+ * exists at all: until it did, a project created in *Nuevo proyecto* could not be staffed anywhere
+ * in the product. `addProjectMembership` has always been there, permission-checked and tested —
+ * it simply had no caller (TD-111).
+ *
+ * Thin, like the others: validate, resolve the context, call the use-case. The check that matters
+ * is the use-case's `project.members.manage`, which a `PROJECT_DATA_MANAGER` does not hold.
+ */
+export async function assignProjectMemberAction(raw: unknown): Promise<IntakeActionResult> {
+  const input = scope
+    .extend({ tenantMembershipId: z.uuid(), role: z.string() })
+    .strict()
+    .parse(raw);
+
+  const t = await getTranslator();
+  const access = await resolveSurfaceAccess(input.tenant, input.project, "intake");
+  if (access.kind !== "ok") return { ok: false, error: t("actions.noSurfaceAccess") };
+
+  try {
+    await addProjectMembership(getDb(), access.ctx, {
+      tenantMembershipId: input.tenantMembershipId,
+      role: input.role,
+    });
+    revalidatePath(`/t/${input.tenant}/p/${input.project}`, "layout");
+    return { ok: true, message: t("intake.teamAdded") };
+  } catch (error) {
+    if (error instanceof DomainError) return { ok: false, error: error.message };
+    if (error instanceof z.ZodError) return { ok: false, error: t("actions.checkPayload") };
     throw error;
   }
 }

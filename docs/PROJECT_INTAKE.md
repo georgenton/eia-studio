@@ -18,7 +18,7 @@ It is reached at `/t/:tenant/p/:project/intake`, governed by the `core.projects`
 | Act | Who | Key |
 |---|---|---|
 | Create the project shell | tenant OWNER / ADMIN | `projects.create` (tenant-scoped) |
-| Assign people to it | COORDINATOR, OWNER / ADMIN | `project.members.manage` |
+| Assign people to it | COORDINATOR, OWNER / ADMIN | `project.members.manage` — in *Preparar proyecto* › **Equipo** since 27 Nov 2026 (§3a) |
 | Turn a module on or off | COORDINATOR, OWNER / ADMIN | `project.configure`, `modules.manage` |
 | **Prepare the project** | COORDINATOR, **PROJECT_DATA_MANAGER** | `project.intake.write` |
 | Read how far preparation has got | + REVIEWER, VIEWER | `project.intake.read` |
@@ -58,7 +58,7 @@ a part of the project they have not filled in, and *Preparación* is the one pla
 | # | Stage | What it shows | Editable |
 |---|---|---|---|
 | 1 | Proyecto / Project | short name, official title, programme reference, location, offline-capture policy; profile and lifecycle read-only | yes |
-| 2 | Equipo / Team | who is on the project and in what role, active and suspended | no — assigning is the coordinator's act |
+| 2 | Equipo / Team | who is on the project and in what role, active and suspended, **and the one control that puts somebody on it** | yes — `project.members.manage` only; see §3a |
 | 3 | Cartografía / Cartography | active layer versions and parcels with geometry | no — importing uses the product's import contract |
 | 4 | Documentos / Documents | the corpus by code, its current version and how many versions exist | no in this wave |
 | 5 | Formularios / Questionnaires | every version, published or draft, the languages it carries (ADR-029), **and where a questionnaire is written** (ADR-037) | yes — `field.instruments.author`, and `field.instruments.publish` to publish |
@@ -69,6 +69,39 @@ a part of the project they have not filled in, and *Preparación* is the one pla
 The *Documentos* stage states the distinction the brief asks for in as many words: **uploaded is
 not processed**. A document that exists in the corpus is not yet a document whose passages can be
 cited.
+
+### 3a. Putting somebody on the project (27 November 2026)
+
+Until this date a project created in the product could not be **staffed** in the product. The
+rehearsal that found it is worth repeating because the failure was silent in the way this
+documentation set tries hardest to avoid: *Nuevo proyecto* created the project, redirected the
+creator to *Preparar proyecto*, and refused them at the door — *Tu rol Administración no incluye
+Preparar proyecto*. Every part of that was working as designed. A tenant ADMIN has no implicit
+access to project data (D-015); the team stage read and did not write; `addProjectMembership`
+existed, permission-checked and tested, and **had no caller**; and the only remaining path was an
+operator script that also rewrites an identity's credential.
+
+Two changes close it.
+
+**The creator is the project's coordinator.** `createProject` writes the membership in the same
+transaction as the project and audits it as `project.membership.added`. This widens nothing:
+`projects.create` is held by OWNER and ADMIN alone, both of which already hold
+`project.members.manage`, and TENANCY §6 asks exactly that an ADMIN's project access be an audited
+membership change rather than an implicit one. An OWNER already reaches every project by computed
+access; the row is written for them too, so *who is on this project* answers the same way however
+the project began.
+
+**The Equipo stage gained one control**: a person, a role, a button. It appears only for a reader
+holding `project.members.manage` — the read model's `teamCandidates` is **null** for everyone else,
+which the surface says differently from *there is nobody left to add*. A `PROJECT_DATA_MANAGER`
+therefore sees the team and no form, which is the role's own boundary (§2) rather than a new one. A
+candidate carries a display name and a tenant role and **no email address**, for the reason the
+team list already gives: this page is read by people preparing a project, and an address is contact
+data they have no reason to be handed here.
+
+What is still **not** built: invitations, bulk import, custom roles, and taking somebody off a
+project — the last because what happens to the assignments and captures already attributed to them
+is a decision nobody has made (TD-136).
 
 ## 4. Readiness
 

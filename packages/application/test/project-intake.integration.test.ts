@@ -25,7 +25,9 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
   activateProject,
+  addProjectMembership,
   buildRequestContext,
+  createProject,
   loadProjectIntake,
   updateProjectIntake,
 } from "../src/index";
@@ -362,5 +364,159 @@ describe("the offline gate, in the database (D-020, ADR-018)", () => {
        where action = 'project.activated' and object_id = ${w.projectX.id}
     `);
     expect((rows.rows[0] as { n: number }).n).toBe(1);
+  });
+});
+
+/**
+ * Staffing a project, which until 27 November 2026 could not be done in this product at all.
+ *
+ * `addProjectMembership` was written, permission-checked and tested, and had **no caller**: there
+ * is no tenant-settings route, the intake's team stage read and did not write, and *Nuevo
+ * proyecto* therefore produced a project whose creator was refused at its own door —
+ * *Tu rol Administración no incluye Preparar proyecto* — with no way back in except an operator
+ * script that rewrites an identity's password (TD-111, observed on staging).
+ */
+describe("putting somebody on a project", () => {
+  it("makes the creator its coordinator, so the project it just made can be opened", async () => {
+    const admin = await createUser(db.migrator, "intake-creator-admin");
+    await createTenantMembership(db.migrator, {
+      tenantId: w.tenantA.id,
+      userId: admin.id,
+      role: "ADMIN",
+    });
+    const ctx = await buildRequestContext(db.runtime, {
+      sessionUser: { subject: admin.id, email: admin.email, name: null, emailVerified: true },
+      tenantSlug: w.tenantA.slug,
+      projectSlug: null,
+    });
+    const slug = `creada-en-el-producto-${randomUUID().slice(0, 8)}`;
+    await createProject(db.runtime, ctx, {
+      name: "Creada en el producto",
+      slug,
+      profileKey: "road_eia_social",
+    });
+
+    // The point: the surface the product redirects to, opened by the person it redirected.
+    const projectCtx = await buildRequestContext(db.runtime, {
+      sessionUser: { subject: admin.id, email: admin.email, name: null, emailVerified: true },
+      tenantSlug: w.tenantA.slug,
+      projectSlug: slug,
+    });
+    expect(projectCtx.projectRole).toBe("COORDINATOR");
+    const view = await loadProjectIntake(db.runtime, projectCtx);
+    expect(view.team.map((m) => m.role)).toEqual(["COORDINATOR"]);
+
+    // And it is an audited membership change, which is what TENANCY §6 asks of an ADMIN who
+    // gains project data access — never an implicit one.
+    const audited = await withDbContext(
+      db.migrator,
+      { userId: admin.id, tenantId: w.tenantA.id, projectId: view.project.id },
+      (tx) =>
+        tx.execute<{ action: string }>(sql`
+          select action from audit.log
+           where project_id = ${view.project.id} and action = 'project.membership.added'
+        `),
+    );
+    expect(audited.rows).toHaveLength(1);
+  });
+
+  it("offers candidates to a coordinator and nothing at all to a data manager", async () => {
+    const asCoordinator = await loadProjectIntake(db.runtime, await contextFor(coordinator));
+    expect(asCoordinator.teamCandidates).not.toBeNull();
+    // Everyone already on the project is excluded, by tenant membership.
+    const onProject = new Set(asCoordinator.team.map((m) => m.membershipId));
+    expect(asCoordinator.teamCandidates!.some((c) => onProject.has(c.tenantMembershipId))).toBe(
+      false,
+    );
+    // No address: this page hands out a name and a role (ADR-030).
+    for (const candidate of asCoordinator.teamCandidates!) {
+      expect(Object.keys(candidate).sort()).toEqual([
+        "displayName",
+        "tenantMembershipId",
+        "tenantRole",
+      ]);
+    }
+
+    // Null, not empty: *this is not yours to decide* is a different statement from *there is
+    // nobody left to add*, and the surface says each one differently.
+    const asDataManager = await loadProjectIntake(db.runtime, await contextFor(dataManager));
+    expect(asDataManager.teamCandidates).toBeNull();
+  });
+
+  it("refuses a data manager who calls the use-case anyway", async () => {
+    const candidates = (await loadProjectIntake(db.runtime, await contextFor(coordinator)))
+      .teamCandidates!;
+    const ctx = await contextFor(dataManager);
+    const refusal = await attempt(
+      addProjectMembership(db.runtime, ctx, {
+        tenantMembershipId: candidates[0]!.tenantMembershipId,
+        role: "VIEWER",
+      }),
+    );
+    expect(refusal).not.toBeNull();
+    expect(refusal).toMatch(/permission/i);
+  });
+
+  it("lets a coordinator add somebody, who can then open the project", async () => {
+    const newcomer = await createUser(db.migrator, "intake-newcomer");
+    const tenantMembership = await createTenantMembership(db.migrator, {
+      tenantId: w.tenantA.id,
+      userId: newcomer.id,
+      role: "MEMBER",
+    });
+
+    // Before: the project does not exist as far as this person is concerned. Resolving the
+    // context refuses rather than returning a context with no role, which is the non-enumeration
+    // rule the workspace routes follow (ADR-016).
+    const session = {
+      subject: newcomer.id,
+      email: newcomer.email,
+      name: null,
+      emailVerified: true,
+    };
+    const before = await attempt(
+      buildRequestContext(db.runtime, {
+        sessionUser: session,
+        tenantSlug: w.tenantA.slug,
+        projectSlug: w.projectX.slug,
+      }),
+    );
+    expect(before).not.toBeNull();
+
+    await addProjectMembership(db.runtime, await contextFor(coordinator), {
+      tenantMembershipId: tenantMembership.id,
+      role: "GIS_SPECIALIST",
+    });
+
+    const after = await buildRequestContext(db.runtime, {
+      sessionUser: session,
+      tenantSlug: w.tenantA.slug,
+      projectSlug: w.projectX.slug,
+    });
+    expect(after.projectRole).toBe("GIS_SPECIALIST");
+  });
+
+  it("never offers, and never accepts, a membership of another tenant", async () => {
+    const stranger = await createUser(db.migrator, "intake-stranger");
+    const foreign = await createTenantMembership(db.migrator, {
+      tenantId: w.tenantB.id,
+      userId: stranger.id,
+      role: "MEMBER",
+    });
+
+    const view = await loadProjectIntake(db.runtime, await contextFor(coordinator));
+    expect(view.teamCandidates!.some((c) => c.tenantMembershipId === foreign.id)).toBe(false);
+
+    // And naming it directly is refused by the database's composite key, not only by the list.
+    const coordinatorCtx = await contextFor(coordinator);
+    const refusal = await attempt(
+      addProjectMembership(db.runtime, coordinatorCtx, {
+        tenantMembershipId: foreign.id,
+        role: "VIEWER",
+      }),
+    );
+    // The composite foreign key `(tenant_id, tenant_membership_id)` is what refuses it: a row of
+    // this tenant cannot point at another tenant's membership even when the application asks.
+    expect(refusal).not.toBeNull();
   });
 });

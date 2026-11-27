@@ -4,6 +4,8 @@ import * as Location from "expo-location";
 import { useEffect, useState } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 
+import { mediaHoldNeedsAction, mediaHoldReason } from "@eia/domain/mobile";
+
 import { visitStartCommand } from "../core/commands";
 import { mediaStateFor } from "../core/media-upload";
 import {
@@ -45,7 +47,7 @@ export function AssignmentScreen({
   onBack: () => void;
 }) {
   const t = useT();
-  const { db, pack, assignments, refresh, offlineState } = useField();
+  const { db, pack, assignments, refresh, offlineState, lastSyncAt } = useField();
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [media, setMedia] = useState<ReadonlyArray<LocalMediaRecord>>([]);
@@ -55,6 +57,16 @@ export function AssignmentScreen({
   const [mediaVersion, setMediaVersion] = useState(0);
   const assignment = assignments.find((row) => row.id === assignmentId);
 
+  /*
+   * Re-read on a capture **and on a synchronisation**.
+   *
+   * `mediaVersion` bumps at the shutter, which is the only moment this screen used to know
+   * about. A ficha left open while the technician pressed *Sincronizar* therefore went on
+   * showing *Pendiente de subida* for a photograph the server had already acknowledged — the
+   * row and the file were by then gone from the database and the chip was a picture of the past.
+   * `lastSyncAt` moves exactly once per synchronisation, so this is a re-read and not a poll:
+   * no interval, no subscription, nothing that runs while the screen is idle.
+   */
   useEffect(() => {
     if (!db) return;
     let cancelled = false;
@@ -65,7 +77,7 @@ export function AssignmentScreen({
     return () => {
       cancelled = true;
     };
-  }, [assignmentId, db, mediaVersion]);
+  }, [assignmentId, db, mediaVersion, lastSyncAt]);
 
   if (!assignment || !pack) {
     return (
@@ -222,9 +234,30 @@ export function AssignmentScreen({
        * thing at stake here is whether the study learns where it was taken — never the evidence
        * itself. A refusal, a timeout and a platform error are three different recorded facts, and
        * none of them is a coordinate.
+       *
+       * **Its own `try`**, because the row is left marked `pending` until something settles it and
+       * the synchronisation skips a `pending` row belonging to this very run. A throw from the
+       * platform here — `requestForegroundPermissionsAsync` is outside the bounded block below —
+       * used to land in the outer `catch`, leaving the row waiting for an answer that would never
+       * come, for the lifetime of the process. `settleAbandonedMediaLocations` now also writes off
+       * a wait older than two minutes, so this is the first of two independent guards rather than
+       * the only one.
        */
-      const where = await readPhotographLocation();
-      await attachMediaLocation(db, localId, where);
+      try {
+        const where = await readPhotographLocation();
+        await attachMediaLocation(db, localId, where);
+      } catch {
+        await attachMediaLocation(db, localId, {
+          outcome: "unavailable",
+          latitude: null,
+          longitude: null,
+          accuracyM: null,
+          locatedAt: null,
+          mocked: null,
+          source: null,
+        });
+      }
+      setMediaVersion((version) => version + 1);
       /*
        * **And the shared summary.** `mediaVersion` only re-reads this parcel's own list; the store
        * holds the number every other surface shows — the chip, the badge, Ajustes and the Centro
@@ -309,19 +342,44 @@ export function AssignmentScreen({
             <Body muted>{t("mobile.noPhotographs")}</Body>
           ) : (
             <View style={styles.mediaList}>
-              {media.map((item) => (
-                <Chip
-                  key={item.localId}
-                  text={`${t(`vocabulary.mediaKind.${item.kind}` as "vocabulary.mediaKind.parcel")} · ${t(
-                    `vocabulary.mediaState.${mediaStateFor({
-                      ...item,
-                      attempts: item.attempts,
-                    })}` as "vocabulary.mediaState.PENDING_UPLOAD",
-                  )}`}
-                />
-              ))}
+              {media.map((item) => {
+                const hold = mediaHoldReason(item);
+                /*
+                 * The state, and — only when it adds something — why it is not moving. A chip
+                 * that repeated *Pendiente de subida · lista para enviarse* on every photograph
+                 * would bury the one that is actually stuck.
+                 */
+                const needsAction = mediaHoldNeedsAction(hold);
+                return (
+                  <Chip
+                    key={item.localId}
+                    text={`${t(`vocabulary.mediaKind.${item.kind}` as "vocabulary.mediaKind.parcel")} · ${t(
+                      `vocabulary.mediaState.${mediaStateFor({
+                        ...item,
+                        attempts: item.attempts,
+                      })}` as "vocabulary.mediaState.PENDING_UPLOAD",
+                    )}${
+                      needsAction
+                        ? ` · ${t(`vocabulary.mediaHold.${hold}` as "vocabulary.mediaHold.ready")}`
+                        : ""
+                    }`}
+                    tone={needsAction ? "warn" : "neutral"}
+                  />
+                );
+              })}
             </View>
           )}
+          {/*
+            The one hold a technician has to resolve, said in the place where they would resolve
+            it (ADR-032). A photograph taken before the visit was started has no visit to belong
+            to; it is safe on the device and it will never leave until there is one. Before this
+            notice existed the screen said only *Pendiente de subida*, which was true and told
+            nobody anything: predio 100's photograph sat there across three synchronisations on
+            26 November 2026 while the server had neither the visit nor the photograph.
+          */}
+          {media.some((item) => mediaHoldNeedsAction(mediaHoldReason(item))) ? (
+            <Notice text={t("mobile.photographsNeedVisit")} tone="warn" />
+          ) : null}
           <View style={styles.mediaActions}>
             {(["parcel", "affectation", "access"] as const).map((kind) => (
               <Button

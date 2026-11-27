@@ -12,7 +12,7 @@ configured, and no environment has been migrated to the new image. What is true 
 |---|---|
 | Source | `docker/postgres/Dockerfile` + `docker/postgres/ssl-entrypoint.sh` |
 | Base | `imresamu/postgis:17-3.5`, pinned by manifest-list digest |
-| Contents | PostgreSQL 17.6 · PostGIS 3.5.3 · pgvector 0.8.6 · pg_trgm 1.6 · pgBackRest 2.60.1 |
+| Contents | PostgreSQL 17.6 · PostGIS 3.5.3 · pgvector 0.8.7 (0.8.6 in the images built before 27 nov 2026) · pg_trgm 1.6 · pgBackRest 2.60.1 |
 | Published | `ghcr.io/georgenton/eia-studio-postgres` by `.github/workflows/postgres-image.yml` |
 | Architectures | `linux/amd64` + `linux/arm64` |
 | **Deployed by** | **digest, never a tag** |

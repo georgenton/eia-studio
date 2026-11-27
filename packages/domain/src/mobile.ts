@@ -86,8 +86,14 @@ export {
   FIELD_MEDIA_KINDS,
   LOCAL_MEDIA_STATES,
   MAX_MEDIA_PER_VISIT,
+  locationWaitExpired,
   mayDeleteLocalFile,
+  MEDIA_HOLD_NEEDS_ACTION,
+  MEDIA_HOLD_REASONS,
+  MEDIA_LOCATION_WAIT_LIMIT_MS,
+  mediaHoldNeedsAction,
+  mediaHoldReason,
 } from "./field/media";
-export type { FieldMediaKind, LocalMediaState } from "./field/media";
+export type { FieldMediaKind, LocalMediaState, MediaHoldReason } from "./field/media";
 
 export { InvalidInput } from "./core/errors";
