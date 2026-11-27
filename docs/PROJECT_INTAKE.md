@@ -18,7 +18,7 @@ It is reached at `/t/:tenant/p/:project/intake`, governed by the `core.projects`
 | Act | Who | Key |
 |---|---|---|
 | Create the project shell | tenant OWNER / ADMIN | `projects.create` (tenant-scoped) |
-| Assign people to it | COORDINATOR, OWNER / ADMIN | `project.members.manage` |
+| Assign people to it | COORDINATOR, OWNER / ADMIN | `project.members.manage` — in *Preparar proyecto* › **Equipo** since 27 Nov 2026 (§3a) |
 | Turn a module on or off | COORDINATOR, OWNER / ADMIN | `project.configure`, `modules.manage` |
 | **Prepare the project** | COORDINATOR, **PROJECT_DATA_MANAGER** | `project.intake.write` |
 | Read how far preparation has got | + REVIEWER, VIEWER | `project.intake.read` |

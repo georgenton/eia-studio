@@ -765,7 +765,7 @@ export const messages = {
     offlineMode: "Captura offline",
     teamEmpty: "Todavía no hay nadie asignado a este proyecto.",
     teamNote:
-      "Quién está en el proyecto y con qué rol. Asignar personas es una acción de la coordinación; aquí se lee.",
+      "Quién está en el proyecto y con qué rol. Añadir a alguien es una acción de la coordinación: si tu rol no la tiene, esta etapa se lee.",
     teamAdd: "Añadir al proyecto",
     teamAdded: "Persona añadida al proyecto.",
     teamAllAssigned: "Toda la organización ya está en este proyecto.",

@@ -753,7 +753,7 @@ export const messages: Messages = {
     offlineMode: "Offline capture",
     teamEmpty: "Nobody is assigned to this project yet.",
     teamNote:
-      "Who is on the project and in what role. Assigning people is the coordinator's action; this reads it.",
+      "Who is on the project and in what role. Adding somebody is the coordinator's action: if your role does not have it, this stage reads.",
     teamAdd: "Add to the project",
     teamAdded: "Person added to the project.",
     teamAllAssigned: "Everyone in the organisation is already on this project.",
