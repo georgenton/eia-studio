@@ -326,7 +326,7 @@ failure. What is missing is one key, and the only way to have one is a plan chan
 | | What it costs | What it gives | Judgement |
 |---|---|---|---|
 | **Flex**, $30/month USD + VAT | a new recurring charge | 1000 keys, so a separate key per environment; **and commercial use**, which Free does not permit and which the eight production road projects require anyway | the honest option, and it settles a question this document already had open rather than adding one |
-| **ODbL cartography we host** | no licence fee; engineering and a server | a background on web and phone, and the only route that also answers §10's offline question | real, but it is a provider decision and a build, not a configuration |
+| **ODbL cartography we host** | no licence fee; engineering and a server | a background on web and phone **with no second key at all** — `BASEMAP_PROVIDER=custom` is one template both clients read (`resolveBasemap` and `resolveMobileBasemap` accept it today), and it is the only route that also answers §10's offline question | real, but it replaces the provider for the web as well, and it is a build plus a hosting decision rather than a configuration |
 | A second **Free** account for the mobile key | nothing | one more key | **rejected**: it is circumventing a plan limit, and the second account is still non-commercial |
 | Put the **web** key in the Android binary with a forged `Referer` | nothing | tiles on the phone | **rejected**: the origin list is the web key's only protection, and a binary anyone can unzip would make it work from anywhere. Weakening a control to avoid a charge |
 
