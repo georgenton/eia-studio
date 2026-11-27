@@ -234,9 +234,23 @@ export async function fetchFieldMap(input: {
    * would ignore the unknown field; that was wrong, and it mattered: it is the difference
    * between "safe in any order" and "the server must be deployed first".
    *
-   * So: deploy the server, then distribute the application. Every environment this repository
-   * controls already serves the field (it went out with #95), which is what makes this build
-   * safe to distribute now — checked, not assumed.
+   * So: deploy the server, then distribute the application.
+   *
+   * An earlier version of this comment then said that every environment this repository controls
+   * already served the field, "checked, not assumed". It was neither: #95 reached **staging
+   * only**, and the three environments answered an unauthenticated probe like this on
+   * 27 November 2026 —
+   *
+   *   | environment | body without the field | body with `acceptsSchemaVersion: 3` |
+   *   |---|---|---|
+   *   | `eia-demo.syntavera.dev`    | 401 | **400** |
+   *   | `eia.syntavera.dev`         | 401 | **400** |
+   *   | `eia-staging.syntavera.dev` | 401 | 401 |
+   *
+   * — so the demo and production builds of that day would have failed to download a map. Both
+   * were deployed before this build was published. The rule stands and the claim does not: an
+   * environment is safe for this build when its own `/api/field/v4/map` answers 401 rather than
+   * 400 to that probe, which is one command and not a memory.
    */
   return fieldMapResponseV3Schema.parse(
     await post("/api/field/v4/map", {
