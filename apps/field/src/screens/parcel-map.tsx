@@ -1,6 +1,9 @@
 import {
   fieldMapResponseSchema,
+  fieldMapResponseV2Schema,
   type FieldMapResponse,
+  type FieldMapResponseV2,
+  type MapParcelPart,
   type MapPosition,
 } from "@eia/field-sync-contract";
 import * as Location from "expo-location";
@@ -54,6 +57,22 @@ import { Body, Button, Card, Chip, Label, Notice, Screen, Title } from "../ui";
  * the study delivered, the posts are computed, and the blue dot is this handset's guess about
  * itself.
  */
+/**
+ * The pieces of a parcel, from either version of the payload.
+ *
+ * A version 2 payload carries every piece and its holes. A version 1 payload — one downloaded by
+ * an older build and still sitting in this device's database — carries a single outer ring, so it
+ * becomes one piece with no holes. The screen draws whatever it was given and does not pretend
+ * the older payload is richer than it is.
+ */
+function partsOf(place: {
+  kind: "polygon";
+  ring: ReadonlyArray<MapPosition>;
+  parts?: ReadonlyArray<MapParcelPart>;
+}): ReadonlyArray<MapParcelPart> {
+  return place.parts ?? [{ outer: [...place.ring], holes: [] }];
+}
+
 export function ParcelMapScreen({
   assignmentId,
   onBack,
@@ -74,7 +93,7 @@ export function ParcelMapScreen({
         : { tenantSlug: workPack.project.tenantSlug, projectSlug: workPack.project.projectSlug },
     [workPack],
   );
-  const [map, setMap] = useState<FieldMapResponse | null>(null);
+  const [map, setMap] = useState<FieldMapResponse | FieldMapResponseV2 | null>(null);
   const [fetchedAt, setFetchedAt] = useState<string | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "absent" | "unreadable">("loading");
   const [busy, setBusy] = useState(false);
@@ -100,12 +119,22 @@ export function ParcelMapScreen({
        * this one cannot be sure it understands, and drawing a corridor from a payload we half
        * recognise is worse than saying the map needs downloading again.
        */
-      const parsed = fieldMapResponseSchema.safeParse(JSON.parse(stored.payload));
-      if (!parsed.success) {
+      /*
+       * Either version. A map downloaded before this build existed is a version 1 payload sitting
+       * in the local database, and refusing it would make an update look like a lost map — the
+       * one thing an offline application must not do. Version 2 first, because a version 2 payload
+       * would also satisfy the version 1 schema minus its `parts`, and the richer reading is the
+       * one to prefer.
+       */
+      const raw = JSON.parse(stored.payload) as unknown;
+      const v2 = fieldMapResponseV2Schema.safeParse(raw);
+      const v1 = v2.success ? null : fieldMapResponseSchema.safeParse(raw);
+      const understood = v2.success ? v2.data : v1?.success ? v1.data : null;
+      if (understood === null) {
         setStatus("unreadable");
         return;
       }
-      setMap(parsed.data);
+      setMap(understood);
       setFetchedAt(stored.fetchedAt);
       setStatus("ready");
     })();
@@ -188,7 +217,9 @@ export function ParcelMapScreen({
       parcel === null
         ? []
         : parcel.place.kind === "polygon"
-          ? [...parcel.place.ring]
+          ? // Every piece, so a multi-part parcel is framed whole rather than around one of its
+            // pieces with the rest off screen.
+            partsOf(parcel.place).flatMap((part) => [...part.outer])
           : [parcel.place.at];
     if (parcelPositions.length === 0) return null;
 
@@ -275,15 +306,26 @@ export function ParcelMapScreen({
                   );
                 })}
 
-                {/* The parcel: the subject of the screen. */}
+                {/*
+                  The parcel: the subject of the screen. One path per piece, with its holes as
+                  further subpaths of the same path — `fillRule="evenodd"` is what makes a hole a
+                  hole rather than a second filled ring on top of the first.
+                */}
                 {parcel.place.kind === "polygon" ? (
-                  <Path
-                    d={`${drawing.toPath(parcel.place.ring)} Z`}
-                    fill={theme.accentSoft}
-                    fillOpacity={0.45}
-                    stroke={theme.accent}
-                    strokeWidth={2}
-                  />
+                  partsOf(parcel.place).map((part, index) => (
+                    <Path
+                      d={[
+                        `${drawing.toPath(part.outer)} Z`,
+                        ...part.holes.map((hole) => `${drawing.toPath(hole)} Z`),
+                      ].join(" ")}
+                      fill={theme.accentSoft}
+                      fillOpacity={0.45}
+                      fillRule="evenodd"
+                      key={`part-${index}`}
+                      stroke={theme.accent}
+                      strokeWidth={2}
+                    />
+                  ))
                 ) : (
                   <Circle
                     cx={drawing.projection.toScreen(parcel.place.at).x}

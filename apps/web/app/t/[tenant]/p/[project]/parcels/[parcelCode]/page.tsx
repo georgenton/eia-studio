@@ -12,6 +12,7 @@ import { ProvenancePanel } from "@/components/provenance-panel";
 import { projectBreadcrumb, projectLabel, WorkspaceShell } from "@/components/workspace-shell";
 import { getSessionUser } from "@/lib/context";
 import { getDb } from "@/lib/db";
+import { getEnv } from "@/lib/env";
 import { surfaceLabel } from "@/lib/labels";
 import { getI18n } from "@/lib/locale";
 import { projectPath } from "@/lib/navigation";
@@ -120,6 +121,7 @@ export default async function ParcelWorkspacePage({
       }
     >
       <ParcelWorkspace
+        basemap={getEnv().basemap}
         basePath={basePath}
         tenant={tenant}
         project={project}

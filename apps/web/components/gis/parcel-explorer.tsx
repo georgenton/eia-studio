@@ -7,7 +7,6 @@ import type {
 } from "@eia/application";
 import {
   CANONICAL_SRID,
-  describeEpsg,
   parcelFieldStateOf,
   formatChainage,
   orderLayersForLegend,
@@ -17,7 +16,6 @@ import {
   type ParcelStatus,
 } from "@eia/domain";
 import { Chip, Panel, PanelBody, PanelHeader, ProvenanceBadge } from "@eia/ui";
-import type { Translator } from "@eia/i18n";
 import { useMemo, useState } from "react";
 
 import { useI18n } from "@/components/i18n/locale-provider";
@@ -30,6 +28,7 @@ import {
 } from "@/lib/labels";
 
 import styles from "./parcel-explorer.module.css";
+import { crsLine, formatDegrees, formatMetres } from "./crs-line";
 import { ParcelMap } from "./parcel-map";
 import { ParcelTable } from "./parcel-table";
 import { useParcelSelection } from "./selection";
@@ -42,49 +41,6 @@ import { useParcelSelection } from "./selection";
  * drift apart; the table is also the accessible representation of the map.
  */
 const ALL_STATUSES = Object.keys(PARCEL_STATUS_PRESENTATION) as ParcelStatus[];
-
-/**
- * Six decimal places of a degree is about 0,1 m at this latitude — finer than any handset, and
- * finer than the cartography this is read off. More digits would suggest a precision the number
- * does not have; fewer would round away the parcel.
- */
-const DEGREE_DIGITS = 6;
-
-/** A metre, in a projected CRS whose unit is the metre. Nothing is gained by printing millimetres
- * of a reference point that was computed rather than surveyed. */
-const METRE_DIGITS = 0;
-
-function formatDegrees(value: number): string {
-  return value.toFixed(DEGREE_DIGITS).replace(".", ",");
-}
-
-function formatMetres(value: number): string {
-  return value.toFixed(METRE_DIGITS).replace(".", ",");
-}
-
-/**
- * The one line that names a coordinate system, assembled from what the code actually implies.
- *
- * `describeEpsg` says what the EPSG number guarantees and nothing else, so a code outside the two
- * WGS 84 UTM blocks prints as the bare code with an explicit *no description derivable* — never a
- * plausible zone. The surface carries a note saying the description is derived rather than read
- * from a registry, because that is the difference between this and a cartographic authority.
- */
-function crsLine(srid: number, t: Translator): string {
-  const described = describeEpsg(srid);
-  const parts: string[] = [described.code];
-  if (described.datum) parts.push(described.datum);
-  if (described.utm) {
-    parts.push(
-      t("gis.crsUtm", { zone: String(described.utm.zone), hemisphere: described.utm.hemisphere }),
-    );
-  } else if (srid === CANONICAL_SRID) {
-    parts.push(t("gis.crsGeographic"));
-  } else if (!described.datum) {
-    parts.push(t("gis.crsUnknownName"));
-  }
-  return parts.join(" · ");
-}
 
 export function ParcelExplorer({
   view,

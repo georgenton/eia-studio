@@ -41,7 +41,16 @@ export async function POST(request: Request) {
   if (auth.kind === "denied") return DENIED;
 
   try {
-    const result = await loadFieldMap(getDb(), auth.ctx);
+    /*
+     * The device says what it can parse; the server answers in that version and never newer.
+     * A build that predates `parts` sends nothing and is answered in version 1, which is what its
+     * own `.strict()` schema is pinned to.
+     */
+    const result = await loadFieldMap(getDb(), auth.ctx, {
+      ...(parsed.data.acceptsSchemaVersion === undefined
+        ? {}
+        : { acceptsSchemaVersion: parsed.data.acceptsSchemaVersion }),
+    });
     /*
      * `no-store`: the device persists this itself, with the moment it was downloaded, and shows
      * that moment. A cached copy in between would be a map of unknown age pretending to be fresh —

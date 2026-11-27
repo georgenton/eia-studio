@@ -2,13 +2,10 @@
 
 import type { ParcelExplorerView } from "@eia/application";
 import {
-  BASEMAP_MODES,
   collectPositions,
   PARCEL_FIELD_STATE_PRESENTATION,
   PARCEL_FIELD_STATES,
   PARCEL_STATUS_PRESENTATION,
-  basemapSourceFor,
-  resolveInitialBasemapMode,
   type BasemapCatalogue,
   type BasemapMode,
   type ParcelFieldState,
@@ -25,9 +22,16 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useI18n } from "@/components/i18n/locale-provider";
-import { basemapModeLabel, parcelFieldStateLabel, parcelStatusLabel } from "@/lib/labels";
+import { parcelFieldStateLabel, parcelStatusLabel } from "@/lib/labels";
 
-import { attachBasemap, detachBasemap, probeBasemap } from "./basemap-layer";
+import {
+  BasemapCredits,
+  BasemapSwitcher,
+  lockNorthUp,
+  NorthIndicator,
+  SHARED_MAP_OPTIONS,
+  useBasemap,
+} from "./basemap-chrome";
 import { ensureMapWorker, keepMapSized, removeMapFromTabOrder } from "./inert-map";
 
 import "maplibre-gl/dist/maplibre-gl.css";
@@ -146,33 +150,6 @@ const OVER_IMAGERY: LayerPresentation = {
 
 function presentationFor(mode: BasemapMode): LayerPresentation {
   return mode === "satellite" ? OVER_IMAGERY : OVER_PALE_GROUND;
-}
-
-/**
- * Remembering the chosen background, in this browser and nowhere else.
- *
- * `localStorage` because that is exactly what this is: one reader's preference about how they like
- * to look at a map. It is not project data, so it gets no column, no migration and no provenance
- * record — and it is read defensively, because a private window, cleared site data or a browser
- * that refuses storage must all mean "use the default", never an error.
- */
-const BASEMAP_PREFERENCE_KEY = "eia.gis.basemap";
-
-function readRememberedMode(): string | null {
-  try {
-    return window.localStorage.getItem(BASEMAP_PREFERENCE_KEY);
-  } catch {
-    return null;
-  }
-}
-
-function rememberMode(mode: BasemapMode): void {
-  try {
-    window.localStorage.setItem(BASEMAP_PREFERENCE_KEY, mode);
-  } catch {
-    // A reader who blocks storage still gets to change the background; they just get the default
-    // again next time. Losing a preference is not worth an error.
-  }
 }
 
 /** Apply it to whichever of the layers exist; called on load and on every background change. */
@@ -320,16 +297,12 @@ export function ParcelMap({
   const boundsRef = useRef(view.bounds);
   /*
    * The background is a *view preference*, not project data: no column, no migration, no
-   * provenance record, and nothing about it reaches a report. It is remembered in this browser
-   * only, and a remembered choice this deployment no longer offers quietly becomes the default
-   * rather than an empty map.
+   * provenance record, and nothing about it reaches a report. The hook is shared with the parcel
+   * detail map (`basemap-chrome.tsx`), so both surfaces remember the same choice and decide "the
+   * provider is not answering" the same way, in one place.
    */
-  const [mode, setMode] = useState<BasemapMode>(() =>
-    resolveInitialBasemapMode(basemap, readRememberedMode()),
-  );
-  /** Set when the provider's tiles will not load: the ground goes neutral and says so. */
-  const [basemapFailed, setBasemapFailed] = useState(false);
-  const modeRef = useRef(mode);
+  const basemapState = useBasemap(basemap);
+  const modeRef = useRef(basemapState.effectiveMode);
   /*
    * Whether the map has finished building, and what to do with the background once it has.
    *
@@ -352,10 +325,6 @@ export function ParcelMap({
   useEffect(() => {
     boundsRef.current = view.bounds;
   }, [view.bounds]);
-  useEffect(() => {
-    modeRef.current = mode;
-  }, [mode]);
-
   // The map is built once, so a later toggle changes the layer rather than rebuilding anything.
   useEffect(() => {
     showInfluenceRef.current = showInfluenceAreas;
@@ -454,7 +423,6 @@ export function ParcelMap({
         ? { bounds: [...view.bounds] as [number, number, number, number] }
         : { center: [0, 0] as [number, number], zoom: 1 }),
       fitBoundsOptions: { padding: 48 },
-      attributionControl: false,
       /*
        * The map does not rotate, and that is what makes the north arrow honest.
        *
@@ -463,14 +431,11 @@ export function ParcelMap({
        * somebody to trigger it, and an arrow that tracks the bearing is a control inside an
        * `aria-hidden` canvas (IG2-005). Taking rotation away is the third option, and it costs a
        * reader nothing here: a corridor is read north-up, and the field application draws its map
-       * north-up for the same reason.
+       * north-up for the same reason. Both maps share these options.
        */
-      dragRotate: false,
-      pitchWithRotate: false,
-      touchPitch: false,
+      ...SHARED_MAP_OPTIONS,
     });
-    // The constructor option covers the mouse; touch rotation is a separate handler.
-    map.touchZoomRotate.disableRotation();
+    lockNorthUp(map);
     mapRef.current = map;
     const stopSizing = keepMapSized(map, node);
     // No NavigationControl (IG2-005). It renders real buttons, and inside an `aria-hidden`
@@ -717,33 +682,29 @@ export function ParcelMap({
     const map = mapRef.current;
     const node = container.current;
     if (!map || !node) return;
-    const controller = new AbortController();
-    const apply = async () => {
-      const wanted = basemapFailed ? "none" : mode;
-      /*
-       * Ask before drawing. A tile that will not load is invisible to MapLibre — no error event,
-       * no failed state, just a background that never appears — so the one request that settles
-       * it is made here, and a provider that cannot answer becomes "no background" rather than an
-       * unexplained empty ground.
-       */
-      const available =
-        wanted === "none" ? false : await probeBasemap(map, basemap, wanted, controller.signal);
-      if (controller.signal.aborted) return;
-      if (wanted !== "none" && !available) {
-        detachBasemap(map);
-        applyPresentation(map, "none");
-        node.dataset["basemapMode"] = "none";
-        setBasemapFailed(true);
-        return;
-      }
-      const attached = attachBasemap(map, basemap, wanted);
-      applyPresentation(map, attached ? wanted : "none");
-      node.dataset["basemapMode"] = attached ? wanted : "none";
+    applyBasemapRef.current = () => {
+      if (!mapRef.current || !container.current) return;
+      basemapState.apply(mapRef.current, container.current);
     };
-    applyBasemapRef.current = () => void apply();
     if (mapBuiltRef.current) applyBasemapRef.current();
-    return () => controller.abort();
-  }, [basemap, mode, basemapFailed, view]);
+    return () => {
+      applyBasemapRef.current = null;
+    };
+  }, [basemapState, view]);
+
+  /*
+   * How the study's layers are drawn against whatever ended up underneath.
+   *
+   * Separate from attaching the background, and keyed on the **effective** mode: when a probe
+   * fails the ground is neutral, so the palette must go back to its pale-ground values even
+   * though the reader chose imagery.
+   */
+  useEffect(() => {
+    modeRef.current = basemapState.effectiveMode;
+    const map = mapRef.current;
+    if (!map?.isStyleLoaded()) return;
+    applyPresentation(map, basemapState.effectiveMode);
+  }, [basemapState.effectiveMode]);
 
   // Selection is applied as a filter rather than a re-render: the map follows the one canonical
   // selection, and moving the viewport is deliberately restrained — it eases to the parcel only
@@ -814,19 +775,7 @@ export function ParcelMap({
   return (
     <div className={styles.wrap}>
       <div className={styles.canvas} data-testid="parcel-map" ref={container} />
-      {/*
-        North, drawn once and never turned. The map's rotation handlers are disabled at
-        construction, so this is a statement about the map rather than a widget that tracks it —
-        and the note beside the legend says as much, because a reader who expects to be able to
-        rotate should be told they cannot rather than discover it.
-      */}
-      <div aria-hidden="true" className={styles.north} data-testid="map-north">
-        <svg viewBox="0 0 24 44" xmlns="http://www.w3.org/2000/svg">
-          <path d="M12 4 L17 15 L12 12 L7 15 Z" fill="currentColor" />
-          <line stroke="currentColor" strokeWidth="1.5" x1="12" x2="12" y1="12" y2="30" />
-        </svg>
-        <span className={styles.northLabel}>N</span>
-      </div>
+      <NorthIndicator />
       {hovered && showParcels ? (
         <div
           aria-hidden="true"
@@ -854,16 +803,12 @@ export function ParcelMap({
         ) : null}
         <BasemapSwitcher
           catalogue={basemap}
-          failed={basemapFailed}
-          mode={mode}
-          onChange={(next) => {
-            setBasemapFailed(false);
-            setMode(next);
-            rememberMode(next);
-          }}
+          id="basemap-mode"
+          noticeTestId="basemap-unavailable"
+          state={basemapState}
         />
       </div>
-      <BasemapCredits catalogue={basemap} failed={basemapFailed} mode={mode} />
+      <BasemapCredits catalogue={basemap} state={basemapState} />
       <div aria-live="polite" className={styles.srOnly} role="status">
         {selectedParcelId
           ? t("gis.parcelSelected", {
@@ -877,118 +822,6 @@ export function ParcelMap({
   );
 }
 
-/**
- * Choosing the background.
- *
- * A real `<select>` in the document, **outside** the `aria-hidden` canvas — the same reason the
- * map carries no MapLibre navigation control (IG2-005): a control inside that subtree is one a
- * keyboard can reach and a screen reader cannot announce.
- *
- * When nothing is configured the control still appears, with the unavailable backgrounds disabled
- * and one line saying what they need. That is a deliberate choice over hiding them: a consultancy
- * asking "can it show satellite?" should be able to see that the answer is yes and that this
- * deployment simply has no reference map switched on — which is a fact about configuration, not
- * an error, and is not dressed as one.
- */
-function BasemapSwitcher({
-  catalogue,
-  failed,
-  mode,
-  onChange,
-}: {
-  catalogue: BasemapCatalogue;
-  failed: boolean;
-  mode: BasemapMode;
-  onChange: (mode: BasemapMode) => void;
-}) {
-  const { t } = useI18n();
-  const configured = catalogue.provider !== "none";
-  return (
-    <div className={styles.basemap}>
-      <label className={styles.basemapLabel} htmlFor="basemap-mode">
-        {t("gis.basemapLabel")}
-      </label>
-      <select
-        className={styles.basemapSelect}
-        data-testid="basemap-mode"
-        id="basemap-mode"
-        onChange={(event) => onChange(event.target.value as BasemapMode)}
-        value={failed ? "none" : mode}
-      >
-        {BASEMAP_MODES.map((option) => (
-          <option disabled={!catalogue.modes.includes(option)} key={option} value={option}>
-            {basemapModeLabel(t, option)}
-          </option>
-        ))}
-      </select>
-      {configured ? null : <p className={styles.basemapHint}>{t("gis.basemapNotConfigured")}</p>}
-      {failed ? (
-        // Deliberately not a live region. The canvas is `aria-hidden` and a background is purely
-        // visual, so announcing its absence would interrupt a screen-reader user with news about
-        // something they were never shown — and it would compete with the selection announcement,
-        // which is the one thing on this surface worth interrupting for.
-        <p className={styles.basemapHint} data-testid="basemap-unavailable">
-          {t("gis.basemapUnavailable")}
-        </p>
-      ) : null}
-    </div>
-  );
-}
-
-/**
- * The provider's attribution, and the line that keeps the two kinds of layer apart.
- *
- * Rendered by us rather than by MapLibre's own attribution control, for the same accessibility
- * reason as everything else here: the control lives inside the `aria-hidden` canvas, where its
- * links are unreachable. This is ordinary document text with ordinary links.
- *
- * It is never suppressed while a background is drawn — attribution is a condition of using the
- * tiles, not a decoration — and it names the background as *reference*, so that nothing on screen
- * invites a reader to mistake somebody else's cartography for the study's own.
- */
-function BasemapCredits({
-  catalogue,
-  failed,
-  mode,
-}: {
-  catalogue: BasemapCatalogue;
-  failed: boolean;
-  mode: BasemapMode;
-}) {
-  const { t } = useI18n();
-  const source = failed ? null : basemapSourceFor(catalogue, mode);
-  if (!source) return null;
-  return (
-    <p className={styles.credits} data-testid="basemap-credits">
-      <span className={styles.creditsKind}>{t("gis.basemapCredits")}</span>
-      {source.credits.map((credit) => (
-        <span key={credit.label}>
-          {" · "}
-          {credit.href ? (
-            <a href={credit.href} rel="noreferrer noopener" target="_blank">
-              {credit.label}
-            </a>
-          ) : (
-            credit.label
-          )}
-        </span>
-      ))}
-    </p>
-  );
-}
-
-/**
- * The legend of **what is drawn**, which is not always the same question.
- *
- * The rule that every map carries a state legend is only worth anything if the legend describes
- * the colours actually on screen. Leaving the cartographic legend up while the parcels are
- * coloured by field progress would put *Confirmado 121* beside a map where green means nothing of
- * the kind — a legend that disagrees with its map is worse than no legend, because a reader
- * trusts it.
- *
- * So the legend follows `colourBy`, and the counts are recomputed from whichever classification
- * is in force. Both halves keep the glyph: a state is never carried by colour alone.
- */
 function MapLegends({
   view,
   colourBy,

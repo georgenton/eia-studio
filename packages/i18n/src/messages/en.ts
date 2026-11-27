@@ -627,6 +627,19 @@ export const messages: Messages = {
       "Hovering a parcel shows its code. With a keyboard or on a touch screen the same information is in the table and in the panel on the right: selecting a row highlights the parcel on the map.",
   },
   parcel: {
+    zoomIn: "Zoom in",
+    zoomOut: "Zoom out",
+    centreParcel: "Centre on parcel",
+    seeSurroundings: "See the surroundings",
+    mapIsVisual:
+      "Map of parcel {code} over reference cartography. It is a visual representation: the parcel's data is in the record, which is keyboard navigable.",
+    mapShowsSegment:
+      "The stretch of centreline that passes through these surroundings is drawn, not the whole road.",
+    mapShowsNoSegment: "The project's centreline does not pass through this parcel's surroundings.",
+    mapShowsNeighbours: "{count} neighbouring parcel(s) of the same layer are shown, outline only.",
+    mapNeighboursPartial: "There are more neighbours than are drawn.",
+    mapNoBasemapHere:
+      "No reference background is available. The outline, the centreline and the neighbours are still drawn.",
     tabSummary: "Summary",
     tabAffectations: "Affectations",
     tabVisits: "Visits",

@@ -4,7 +4,15 @@
   position: relative;
   height: 100%;
 }
-.canvas {
+/*
+ * Two classes, not one, because MapLibre's own `.maplibregl-map { position: relative }` has the
+ * same specificity and wins the cascade — which left this element `position: relative` with no
+ * height of its own. The map still drew, because MapLibre sizes its inner canvas from the
+ * observer in `inert-map.ts`, but the element carrying `data-testid="parcel-map"` measured
+ * **zero pixels tall**: a pointer aimed at "the centre of the map" landed on its top edge, and a
+ * wheel event there reached the document instead of the map.
+ */
+.wrap > .canvas {
   position: absolute;
   inset: 0;
 }
@@ -229,4 +237,77 @@
 .tooltipStatus {
   font-size: 10.5px;
   opacity: 0.85;
+}
+
+/* ----------------------------------------------------------------------------------------------
+   The parcel detail map: its own controls, because the Explorer's live beside a 460px map and
+   these sit in a panel about half that.
+   ------------------------------------------------------------------------------------------- */
+.detailControls {
+  position: absolute;
+  left: 10px;
+  top: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  z-index: 2;
+}
+.zoomButton {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  font-size: 16px;
+  line-height: 1;
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid var(--eia-border);
+  border-radius: var(--eia-radius-panel);
+  color: var(--eia-ink);
+  cursor: pointer;
+}
+.zoomButton:hover {
+  background: #fff;
+}
+/* The two zoom buttons side by side; everything else in the column stacks. */
+.zoomPair {
+  display: flex;
+  gap: 6px;
+}
+.detailFooter {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.92);
+  border-top: 1px solid var(--eia-hairline);
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.detailNote {
+  margin: 0;
+  font-size: 10.5px;
+  line-height: 1.35;
+  color: var(--eia-text-muted);
+  max-width: 62%;
+}
+.detailCoords {
+  margin: 0;
+  font-family: var(--eia-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--eia-text-muted);
+}
+
+/* The coordinate block of the detail footer: one line per fact, right-aligned beside the note. */
+.detailCoordsBlock {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+  text-align: right;
 }

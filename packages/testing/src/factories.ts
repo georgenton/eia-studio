@@ -350,6 +350,14 @@ export async function createParcelWithGeometry(
     parcelId?: string;
     /** Where this parcel's area is measured. Defaults to UTM 17S, like the pilot. */
     analysisSrid?: number;
+    /**
+     * The geometry, as WKT, when the default square will not do.
+     *
+     * Twenty of the study's 141 parcels are multi-part and rings can enclose holes, so the map
+     * read models have to be tested against both. A factory that could only make squares meant
+     * those paths were only ever exercised by hand.
+     */
+    wkt?: string;
   },
 ): Promise<{ parcelId: string; geometryId: string }> {
   const parcelId = input.parcelId ?? randomUUID();
@@ -368,7 +376,7 @@ export async function createParcelWithGeometry(
       provenanceId: input.provenanceId,
     });
   }
-  const wkt = squareAround(input.lon ?? -78.93, input.lat ?? -4.07);
+  const wkt = input.wkt ?? squareAround(input.lon ?? -78.93, input.lat ?? -4.07);
   const analysisSrid = input.analysisSrid ?? 32717;
   const geometryId = randomUUID();
   // Canonical geometry goes in as 4326; the area is measured by transforming into the analysis
