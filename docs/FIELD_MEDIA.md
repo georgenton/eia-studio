@@ -89,12 +89,54 @@ broken an older device's parse.
 
 | Surface | Shows |
 |---|---|
-| EIA Field, assignment screen | three capture buttons, and each photograph's local state — *pendiente de subida* / *subiendo* / *subida* |
+| EIA Field, assignment screen | three capture buttons, each photograph's local state — *pendiente de subida* / *subiendo* / *subida* — and, when something is holding it, **what** |
 | Parcel Workspace › *Fotografías* | kind, capture time, the technician's note, size, and **whether** there is a position — never the position |
 | Parcel Workspace, without `field.responses.read` | a `permission denied` state saying why a photograph sits behind that grant |
 
 A coordinate on a list is a coordinate in a screenshot, and this one is a person's position at a
 moment; the read models return `hasLocation`, a boolean.
+
+### 6a. Why a photograph is still on the phone (27 November 2026)
+
+A synchronisation **skips** a photograph it cannot move, and for three of the four reasons it did
+so without a word. On 26 November 2026 predio 100's photograph sat on a device across three
+synchronisations showing *Pendiente de subida* — true, and uninformative. The server had neither a
+visit for that parcel nor a `field_media` row; the device had the file and the row; the technician
+had photographed the parcel before starting its visit, and nothing anywhere said so.
+
+`mediaHoldReason` (`@eia/domain/mobile`) is now **one rule**, read by `uploadPendingMedia` to
+decide and by the screen to speak, so the two cannot disagree about why a photograph is waiting.
+
+| Reason | What it means | Who resolves it |
+|---|---|---|
+| `delivered` | the server acknowledged the row; the file may be released | — |
+| `awaiting_location` | the position request for this capture is still outstanding | itself, in seconds |
+| `awaiting_visit` | taken before `visit.start` was acknowledged, so there is no visit to attach it to | **the technician**: start the visit |
+| `upload_failed` | an attempt was refused or the connection failed | itself, on the next connection |
+| `ready` | nothing is holding it | — |
+
+`awaiting_visit` is the only one a person has to act on, so it is the only one the chip spells out,
+the only one that raises a notice on the parcel screen, and the only one the Centro de
+sincronización counts. The recovery is the product's own path and nothing else: start the visit,
+the server answers `visit.start` with its id, `applyResult` writes that id onto every photograph of
+that assignment still waiting for one, and the declaration goes out in the same synchronisation.
+No row is edited by hand and no visit is invented.
+
+Two further silences were closed at the same time, both of which could strand a photograph with
+**no** reason visible at all:
+
+- a row left `pending` for a position that nothing will settle — the platform threw outside the
+  bounded block, or the application was killed between the shutter and the answer — used to be
+  skipped for the lifetime of the process, because the abandonment sweep deliberately spares the
+  run that is still waiting. A wait older than `MEDIA_LOCATION_WAIT_LIMIT_MS` (two minutes, against
+  a bounded request of twelve seconds) is now written off as `unavailable`, which is what happened;
+- the capture's location step has its own `try`, so the row is settled even when asking for the
+  permission throws.
+
+And the parcel screen re-reads its photographs when a synchronisation finishes, not only when one
+is taken. An `Image`-free list of chips was otherwise a picture of the past: a ficha left open while
+the technician pressed *Sincronizar* went on saying *pendiente* about a photograph the server had
+already acknowledged and whose row and file were by then gone.
 
 ## 7. Audit
 

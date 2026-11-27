@@ -18,6 +18,7 @@ import {
   LAYER_PROVENANCE_LEGENDS,
   LOCAL_MEDIA_STATES,
   LOCATION_OUTCOMES,
+  MEDIA_HOLD_REASONS,
   PARCEL_SIDES,
   QUESTION_SENSITIVITY,
   SURVEY_LOCALES,
@@ -253,6 +254,9 @@ const RENDERED_VALUES: ReadonlyArray<[string, ReadonlyArray<string>]> = [
   ["questionSensitivity", QUESTION_SENSITIVITY],
   ["mediaKind", FIELD_MEDIA_KINDS],
   ["mediaState", LOCAL_MEDIA_STATES],
+  // Why a photograph is still on the phone (ADR-032). A reason with no word would be a chip
+  // reading `awaiting_visit` on a technician's screen, which is invariant 13's failure exactly.
+  ["mediaHold", MEDIA_HOLD_REASONS],
 ];
 
 describe("the words for stored values", () => {

@@ -5,6 +5,7 @@ import type {
   SyncCommand,
   WireAnswer,
 } from "@eia/field-sync-contract";
+import { MEDIA_LOCATION_WAIT_LIMIT_MS } from "@eia/domain/mobile";
 import type * as SQLite from "expo-sqlite";
 
 import { stateForOutcome } from "../core/survey-state";
@@ -756,24 +757,42 @@ export async function attachMediaLocation(
 export async function settleAbandonedMediaLocations(
   db: SQLite.SQLiteDatabase,
   currentSession: string,
+  now: Date = new Date(),
 ): Promise<number> {
+  /*
+   * Two ways a wait is over, and the second one was missing.
+   *
+   * **Another run of the application** was waiting and is gone: its request died with it.
+   *
+   * **This run** has been waiting longer than any bounded request can take. The capture's own
+   * request is twelve seconds plus the permission dialog, so a row still `pending` two minutes
+   * later is one whose settlement never ran — a platform call that threw outside the bounded
+   * block, or an application killed between the shutter and the answer and relaunched into the
+   * same process id space. Without this clause such a row was skipped by **every** synchronisation
+   * for the lifetime of the process, because the sweep deliberately spares the run still waiting.
+   *
+   * Both write `unavailable`, which is what happened: no position was obtained. Neither invents
+   * one, and neither touches the photograph.
+   */
+  const deadline = new Date(now.getTime() - MEDIA_LOCATION_WAIT_LIMIT_MS).toISOString();
+  const predicate = `location_outcome = 'pending'
+        and (location_session is null or location_session <> ? or captured_at <= ?)`;
   /*
    * Counted before the update rather than read from the driver's row count: the database handle
    * this application is written against types `runAsync` as returning nothing, and a number the
    * synchronisation reports to a technician should not depend on which driver is underneath.
    */
   const waiting = await db.getAllAsync<{ local_id: string }>(
-    `select local_id from local_media
-      where location_outcome = 'pending'
-        and (location_session is null or location_session <> ?)`,
+    `select local_id from local_media where ${predicate}`,
     currentSession,
+    deadline,
   );
   if (waiting.length === 0) return 0;
   await db.runAsync(
     `update local_media set location_outcome = 'unavailable', location_session = null
-      where location_outcome = 'pending'
-        and (location_session is null or location_session <> ?)`,
+      where ${predicate}`,
     currentSession,
+    deadline,
   );
   return waiting.length;
 }

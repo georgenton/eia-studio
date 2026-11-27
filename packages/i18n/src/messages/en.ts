@@ -1942,6 +1942,17 @@ export const messages: Messages = {
       UPLOADED: "Uploaded",
       FAILED: "Upload failed",
     },
+    /*
+     * Why a photograph is still on the phone. None of these words says anything was lost: the
+     * file is kept in all five cases.
+     */
+    mediaHold: {
+      delivered: "Recorded on the server",
+      awaiting_location: "Waiting for the location",
+      awaiting_visit: "The visit has not been started",
+      upload_failed: "Could not be sent; will retry",
+      ready: "Ready to send",
+    },
   },
   mobile: {
     /* ---- Socializations (block 3.1, ADR-041) ---- */
@@ -2069,6 +2080,9 @@ export const messages: Messages = {
     photographsNote:
       "They are saved on the phone the moment you take them and sent when there is signal. The local file is not deleted until the server confirms the photograph was recorded.",
     noPhotographs: "You have not taken any photographs on this visit yet.",
+    photographsNeedVisit:
+      "Some photographs cannot be sent because this parcel's visit has not been started. They " +
+      "are kept on the phone. Tap “Start visit” and they go out on the next synchronisation.",
     cameraDenied:
       "Camera permission was not granted. You can continue the visit without photographs.",
     captureFailed: "The photograph could not be saved. Try again.",
@@ -2106,6 +2120,7 @@ export const messages: Messages = {
     syncUnsentSurveys: "{count} unsent response(s).",
     syncWithheldForMedia:
       "{count} response(s) are waiting for their visit's photograph to be delivered.",
+    syncHeldForVisit: "{count} photograph(s) cannot be sent until their parcel's visit is started.",
     syncNeedsAttention:
       "{count} order(s) the server refused. Tell the coordinator: waiting will not clear them.",
     offlineWindowValid: "valid",

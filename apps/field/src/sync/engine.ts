@@ -102,6 +102,14 @@ export interface SyncOutcome {
    * (`core/outbox-policy.ts`). They keep their place in the queue and go out once it is delivered.
    */
   readonly withheldForMedia: number;
+  /**
+   * Photographs that cannot be delivered until the visit they belong to is started.
+   *
+   * A technician may photograph a parcel before starting its visit, and the photograph then has
+   * no visit to belong to. It waits with its file — correctly — and until this count existed it
+   * waited **without saying so** (ADR-032, `mediaHoldReason`).
+   */
+  readonly mediaHeldForVisit: number;
 }
 
 /**
@@ -140,6 +148,7 @@ export async function synchronise(db: SQLite.SQLiteDatabase): Promise<SyncOutcom
       deliveriesQueued: 0,
       evidenceReleased: 0,
       withheldForMedia: 0,
+      mediaHeldForVisit: 0,
     };
   }
   const scope = {
@@ -157,6 +166,7 @@ export async function synchronise(db: SQLite.SQLiteDatabase): Promise<SyncOutcom
   let evidenceUploaded = 0;
   let deliveriesQueued = 0;
   let withheldForMedia = 0;
+  let mediaHeldForVisit = 0;
 
   /*
    * ## Why the push is a loop
@@ -184,6 +194,7 @@ export async function synchronise(db: SQLite.SQLiteDatabase): Promise<SyncOutcom
     if (media.error) await recordSyncError(db, "media", media.error);
     mediaUploaded += media.uploaded;
     mediaPendingAfter = media.pendingAfter;
+    mediaHeldForVisit = media.heldForVisit;
 
     /*
      * Then the delivery half, in the same window and in the same order for the same reason: the
@@ -324,6 +335,7 @@ export async function synchronise(db: SQLite.SQLiteDatabase): Promise<SyncOutcom
         deliveriesQueued,
         evidenceReleased: 0,
         withheldForMedia,
+        mediaHeldForVisit,
       };
     }
   }
@@ -399,6 +411,7 @@ export async function synchronise(db: SQLite.SQLiteDatabase): Promise<SyncOutcom
     deliveriesQueued,
     evidenceReleased: swept.released,
     withheldForMedia,
+    mediaHeldForVisit,
   };
 }
 

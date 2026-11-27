@@ -1956,6 +1956,17 @@ export const messages = {
       UPLOADED: "Subida",
       FAILED: "Falló la subida",
     },
+    /*
+     * Por qué una fotografía sigue en el teléfono. Ninguna de estas palabras afirma que algo
+     * se haya perdido: el archivo está guardado en los cinco casos.
+     */
+    mediaHold: {
+      delivered: "Registrada en el servidor",
+      awaiting_location: "Esperando la ubicación",
+      awaiting_visit: "Falta iniciar la visita",
+      upload_failed: "No se pudo enviar; se reintenta",
+      ready: "Lista para enviarse",
+    },
   },
   mobile: {
     appName: "EIA Field",
@@ -2083,6 +2094,10 @@ export const messages = {
     photographsNote:
       "Se guardan en el teléfono al momento de tomarlas y se envían cuando hay señal. El archivo local no se borra hasta que el servidor confirma que la fotografía quedó registrada.",
     noPhotographs: "Todavía no has tomado fotografías en esta visita.",
+    photographsNeedVisit:
+      "Hay fotografías que no pueden enviarse porque todavía no se inicia la visita de este " +
+      "predio. Están guardadas en el teléfono. Pulsa «Iniciar visita» y se entregarán en la " +
+      "siguiente sincronización.",
     cameraDenied:
       "No se concedió el permiso de cámara. Puedes continuar la visita sin fotografías.",
     captureFailed: "No se pudo guardar la fotografía. Inténtalo otra vez.",
@@ -2120,6 +2135,8 @@ export const messages = {
     syncPendingMedia: "{count} fotografía(s) todavía en el teléfono.",
     syncUnsentSurveys: "{count} ficha(s) sin enviar.",
     syncWithheldForMedia: "{count} ficha(s) esperan a que se entregue la fotografía de su visita.",
+    syncHeldForVisit:
+      "{count} fotografía(s) no pueden enviarse hasta que se inicie la visita de su predio.",
     syncNeedsAttention:
       "{count} orden(es) que el servidor rechazó. Avisa a la coordinación: no se resuelven esperando.",
     offlineWindowValid: "vigente",

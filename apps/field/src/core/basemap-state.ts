@@ -52,3 +52,86 @@ export function basemapLoadState(input: {
 export function showsProviderImagery(state: BasemapLoadState): boolean {
   return state === "available" || state === "partial";
 }
+
+/* ---------------------------------------------------------------------------------------------
+ * Which tiles answered, for the set of tiles that is on screen *now*
+ * ------------------------------------------------------------------------------------------ */
+
+export type TileResult = "ok" | "fail";
+
+/**
+ * What the background tiles did, kept per request rather than in one running tally.
+ *
+ * ## The two ways a tally lies
+ *
+ * An `Image` answers whenever the platform gets round to it, which can be after the technician
+ * has already panned. A single `Record<tileKey, result>` therefore mixes two frames together,
+ * and both directions are wrong on screen:
+ *
+ * - **A late failure from a tile that is no longer visible** turns the current frame's notice
+ *   into *some tiles did not load*, naming tiles that are not being asked for.
+ * - **A tile that is still mounted between two frames** — pan a little and most of them are —
+ *   has already loaded, so it will never fire `onLoad` again. Clearing the whole record on every
+ *   frame therefore loses its verdict and under-counts what actually painted, which reads as a
+ *   partial background over a map that is completely drawn.
+ *
+ * So the record carries the set it belongs to and the attempt it belongs to. A report for another
+ * set is **ignored**, and a frame change **keeps** the verdicts of tiles that are still on screen.
+ * A retry changes the attempt, every `Image` remounts, and everything is discarded — which is what
+ * makes the retry a real retry rather than a re-render.
+ */
+export interface TileOutcomes {
+  /** The retry generation. Every `Image` is keyed by it, so a change remounts all of them. */
+  readonly attempt: number;
+  /** The exact set of tiles these verdicts are about. */
+  readonly forSet: string;
+  readonly byTile: Readonly<Record<string, TileResult>>;
+}
+
+export function tileSetKeyOf(attempt: number, tileKeys: ReadonlyArray<string>): string {
+  return `${attempt}:${tileKeys.join("|")}`;
+}
+
+/**
+ * The verdicts that still apply to the set now on screen.
+ *
+ * Carried over only when the attempt is unchanged — a retry remounts every image, so nothing an
+ * earlier attempt said is about anything that is still loading — and only for tiles the new set
+ * actually contains.
+ */
+export function carryOverOutcomes(
+  current: TileOutcomes,
+  next: { readonly attempt: number; readonly tileKeys: ReadonlyArray<string> },
+): Readonly<Record<string, TileResult>> {
+  if (current.attempt !== next.attempt) return {};
+  const kept: Record<string, TileResult> = {};
+  for (const key of next.tileKeys) {
+    const result = current.byTile[key];
+    if (result !== undefined) kept[key] = result;
+  }
+  return kept;
+}
+
+/** Record one `Image`'s answer, or ignore it because the view has moved on. */
+export function recordTileResult(
+  current: TileOutcomes,
+  report: { readonly forSet: string; readonly tileKey: string; readonly result: TileResult },
+): TileOutcomes {
+  if (current.forSet !== report.forSet) return current;
+  if (current.byTile[report.tileKey] === report.result) return current;
+  return { ...current, byTile: { ...current.byTile, [report.tileKey]: report.result } };
+}
+
+/** Count only the tiles being asked for right now; a verdict about any other is not evidence. */
+export function countVisible(
+  tileKeys: ReadonlyArray<string>,
+  byTile: Readonly<Record<string, TileResult>>,
+): { readonly loaded: number; readonly failed: number } {
+  let loaded = 0;
+  let failed = 0;
+  for (const key of tileKeys) {
+    if (byTile[key] === "ok") loaded += 1;
+    else if (byTile[key] === "fail") failed += 1;
+  }
+  return { loaded, failed };
+}

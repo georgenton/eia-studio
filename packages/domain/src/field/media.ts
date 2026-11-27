@@ -155,3 +155,86 @@ export function assertVisitMediaWithinLimit(existingCount: number): void {
     );
   }
 }
+
+/**
+ * Why a photograph is still on the phone — and therefore what, if anything, somebody must do.
+ *
+ * ## The failure this exists to end
+ *
+ * The device's synchronisation *skips* a photograph it cannot move yet, which is correct, and
+ * until now it skipped it **silently**. On 26 November 2026 a photograph of predio 100 sat on an
+ * emulator across three synchronisations while the screen said only *Pendiente de subida* — true,
+ * and useless: the technician had taken it before starting the visit, so it had no visit to belong
+ * to, and nothing anywhere said so. The server had no `field_media` row and no visit for that
+ * parcel; the device had the file and the row. Neither end was wrong and nobody could tell.
+ *
+ * So the reason a photograph is held is now a value rather than an unstated branch, and the same
+ * value drives the synchronisation's decision and the words on the screen. They cannot disagree.
+ *
+ * ## The order is the synchronisation's order
+ *
+ * Delivered first, because nothing else matters once the server has it. Then the position, which
+ * the device may still be waiting for in this very second. Then the visit. Then a refused upload.
+ * `ready` means nothing is holding it: the next connection sends it.
+ */
+export const MEDIA_HOLD_REASONS = [
+  "delivered",
+  "awaiting_location",
+  "awaiting_visit",
+  "upload_failed",
+  "ready",
+] as const;
+export type MediaHoldReason = (typeof MEDIA_HOLD_REASONS)[number];
+
+/**
+ * The reasons a **person** has to act on, as opposed to the ones that resolve by themselves.
+ *
+ * `awaiting_visit` is the only one in this product today: a position settles on its own and a
+ * refused upload is retried. Starting the visit is a decision nobody but the technician can take,
+ * because it is what says they are at the parcel.
+ */
+export const MEDIA_HOLD_NEEDS_ACTION: ReadonlyArray<MediaHoldReason> = ["awaiting_visit"];
+
+export function mediaHoldNeedsAction(reason: MediaHoldReason): boolean {
+  return MEDIA_HOLD_NEEDS_ACTION.includes(reason);
+}
+
+export function mediaHoldReason(media: {
+  readonly state: LocalMediaState;
+  readonly serverMediaId: string | null;
+  /** The **server's** visit id. Null until `visit.start` has been acknowledged. */
+  readonly visitId: string | null;
+  readonly locationOutcome:
+    "pending" | "captured" | "denied" | "unavailable" | "timed_out" | "not_attempted";
+  readonly attempts: number;
+}): MediaHoldReason {
+  if (media.serverMediaId !== null) return "delivered";
+  if (media.locationOutcome === "pending") return "awaiting_location";
+  if (media.visitId === null) return "awaiting_visit";
+  if (media.state === "FAILED" || media.attempts > 0) return "upload_failed";
+  return "ready";
+}
+
+/**
+ * How long a photograph may wait for a position before the wait is written off.
+ *
+ * The capture's own request is bounded at twelve seconds plus whatever the permission dialog
+ * takes, so anything still `pending` after two minutes is a request that is never coming back —
+ * an application killed between the shutter and the answer, or a platform call that threw where
+ * nothing settled the row. Before this bound existed such a row was skipped by every
+ * synchronisation **for the lifetime of the process**, because the abandonment sweep deliberately
+ * spares the run that is still waiting.
+ *
+ * Writing it off means recording `unavailable`, which is the truth: no position was obtained. It
+ * never invents one.
+ */
+export const MEDIA_LOCATION_WAIT_LIMIT_MS = 120_000;
+
+export function locationWaitExpired(input: {
+  readonly capturedAt: string;
+  readonly now: Date;
+}): boolean {
+  const captured = Date.parse(input.capturedAt);
+  if (Number.isNaN(captured)) return true;
+  return input.now.getTime() - captured >= MEDIA_LOCATION_WAIT_LIMIT_MS;
+}

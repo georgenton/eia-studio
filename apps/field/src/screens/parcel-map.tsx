@@ -33,8 +33,13 @@ import {
 } from "../core/map-gesture";
 import {
   basemapLoadState,
+  carryOverOutcomes,
+  countVisible,
+  recordTileResult,
   showsProviderImagery,
+  tileSetKeyOf,
   type BasemapLoadState,
+  type TileOutcomes,
 } from "../core/basemap-state";
 import { fitBounds, tilesFor, tileUrl, viewOf, type MercatorView } from "../core/mercator";
 import { tileUserAgent } from "../core/tile-agent";
@@ -436,34 +441,45 @@ export function ParcelMapScreen({
    * key, which both clears the outcomes and makes the device ask again.
    */
   const [attempt, setAttempt] = useState(0);
-  const tileSetKey = useMemo(
-    () => `${attempt}:${tiles.map((tile) => tile.key).join("|")}`,
-    [attempt, tiles],
-  );
-  const [outcomes, setOutcomes] = useState<{
-    forSet: string;
-    byTile: Record<string, "ok" | "fail">;
-  }>({ forSet: tileSetKey, byTile: {} });
-  // Reset during render rather than in an effect: an effect would let one frame claim the
-  // previous view's verdict about a set of tiles that is no longer on screen.
-  if (outcomes.forSet !== tileSetKey) setOutcomes({ forSet: tileSetKey, byTile: {} });
-  const settled = outcomes.forSet === tileSetKey ? outcomes.byTile : {};
+  const tileKeys = useMemo(() => tiles.map((tile) => tile.key), [tiles]);
+  const tileSetKey = useMemo(() => tileSetKeyOf(attempt, tileKeys), [attempt, tileKeys]);
+  const [outcomes, setOutcomes] = useState<TileOutcomes>({
+    attempt,
+    forSet: tileSetKey,
+    byTile: {},
+  });
+  /*
+   * Move to the new set during render rather than in an effect: an effect would let one frame
+   * count the previous view's verdicts about tiles that are no longer on screen.
+   *
+   * What is **carried over** is the point. Pan a little and most tiles are the same `Image`,
+   * still mounted, already loaded — and an `Image` that has loaded never fires `onLoad` again.
+   * Discarding the whole record each frame therefore under-counted what had actually painted,
+   * and the caption read *parte del fondo no se pudo cargar* over a background that was complete.
+   * A retry (`attempt`) discards everything, because then every image really does start again.
+   */
+  const settled =
+    outcomes.forSet === tileSetKey
+      ? outcomes.byTile
+      : carryOverOutcomes(outcomes, { attempt, tileKeys });
+  if (outcomes.forSet !== tileSetKey) {
+    setOutcomes({ attempt, forSet: tileSetKey, byTile: settled });
+  }
 
   const reportTile = useCallback(
-    (key: string, result: "ok" | "fail") =>
-      setOutcomes((current) =>
-        current.byTile[key] === result
-          ? current
-          : { ...current, byTile: { ...current.byTile, [key]: result } },
-      ),
+    (forSet: string, tileKey: string, result: "ok" | "fail") =>
+      setOutcomes((current) => recordTileResult(current, { forSet, tileKey, result })),
     [],
   );
 
+  // Only the tiles being asked for right now. A verdict about one that has scrolled away is not
+  // evidence about this frame, however recently it arrived.
+  const visible = countVisible(tileKeys, settled);
   const loadState: BasemapLoadState = basemapLoadState({
     configured: basemap !== null,
     requested: tiles.length,
-    loaded: Object.values(settled).filter((v) => v === "ok").length,
-    failed: Object.values(settled).filter((v) => v === "fail").length,
+    loaded: visible.loaded,
+    failed: visible.failed,
   });
   const userAgent = useMemo(() => {
     const config = fieldConfig();
@@ -517,8 +533,8 @@ export function ParcelMapScreen({
               {tiles.map((tile) => (
                 <Image
                   key={`${attempt}:${tile.key}`}
-                  onError={() => reportTile(tile.key, "fail")}
-                  onLoad={() => reportTile(tile.key, "ok")}
+                  onError={() => reportTile(tileSetKey, tile.key, "fail")}
+                  onLoad={() => reportTile(tileSetKey, tile.key, "ok")}
                   source={{
                     uri: tileUrl(basemap!.tileUrl, tile),
                     headers: { "User-Agent": userAgent },

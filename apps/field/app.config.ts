@@ -82,20 +82,20 @@ const IDENTITIES: Record<FieldEnvironment, EnvironmentIdentity> = {
     applicationId: "ec.eiastudio.field.demo",
     name: "EIA Field Demo",
     scheme: "eiafielddemo",
-    versionCode: 3,
+    versionCode: 4,
   },
   // The installed application. Its identity does not change (see above).
   staging: {
     applicationId: "ec.eiastudio.field",
     name: "EIA Field Pruebas",
     scheme: "eiafield",
-    versionCode: 11,
+    versionCode: 12,
   },
   production: {
     applicationId: "ec.eiastudio.field.prod",
     name: "EIA Field",
     scheme: "eiafieldprod",
-    versionCode: 3,
+    versionCode: 4,
   },
 };
 
