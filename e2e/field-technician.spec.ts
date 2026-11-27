@@ -1,6 +1,13 @@
 import type { Page } from "@playwright/test";
 
-import { PARCEL_CODE_PATTERN, expect, PROJECT, TENANT, test } from "./fixtures";
+import {
+  PARCEL_CODE_PATTERN,
+  expect,
+  PROJECT,
+  TECHNICIAN_CONCERN_TEXT,
+  TENANT,
+  test,
+} from "./fixtures";
 
 /**
  * The technician journey, on a phone, with a synthetic location.
@@ -100,7 +107,9 @@ test.describe("FieldFlow · technician", () => {
     // 4 · answer a closed choice, a boolean and the open text.
     await choose(page, "Arrendatario/a");
     await choose(page, "Comercio o servicios");
-    const concernText = "Consulta por el acceso al predio durante la obra.";
+    // Shared with `social.spec.ts`, which asserts that this text reaches the coding queue once
+    // this capture — or a correction revisit captured the same way — is the effective response.
+    const concernText = TECHNICIAN_CONCERN_TEXT;
     // Named by its own label, so it can be addressed the way a reader hears it.
     await page
       .getByRole("textbox", { name: /descríbalo en sus propias palabras/ })
