@@ -180,10 +180,16 @@ describe("the native build identity", () => {
      * `EIA_FIELD_VERSION_CODE` was passed on the command line to an EAS build, which never sees
      * it. Two different artefacts carrying one code is what this assertion exists to stop, so the
      * committed number is the authority and the floor moves with it.
+     *
+     * The floors below are **read from the distributed artefacts**, not remembered: on 26 November
+     * 2026 `aapt2 dump badging` over the three APKs on the download page answered
+     * `ec.eiastudio.field.demo` **2**, `ec.eiastudio.field` **10** and `ec.eiastudio.field.prod`
+     * **2**, all `versionName` 1.1.0. The reference background makes each of those a new artefact,
+     * so each code moves by one and the floor moves with it.
      */
-    expect(staging.android?.versionCode).toBeGreaterThanOrEqual(10);
-    expect(demo.android?.versionCode).toBeGreaterThanOrEqual(2);
-    expect(production.android?.versionCode).toBeGreaterThanOrEqual(2);
+    expect(staging.android?.versionCode).toBeGreaterThanOrEqual(11);
+    expect(demo.android?.versionCode).toBeGreaterThanOrEqual(3);
+    expect(production.android?.versionCode).toBeGreaterThanOrEqual(3);
   });
 
   /* Three builds of one application, not three applications. Everything below is identical. */
