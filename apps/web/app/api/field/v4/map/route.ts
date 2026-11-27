@@ -4,6 +4,7 @@ import { fieldMapRequestSchema } from "@eia/field-sync-contract";
 import { NextResponse } from "next/server";
 
 import { getDb } from "@/lib/db";
+import { getEnv } from "@/lib/env";
 import { authorizeMobileRequest, DENIED, UNAUTHENTICATED } from "@/lib/field-api";
 
 export const dynamic = "force-dynamic";
@@ -50,6 +51,12 @@ export async function POST(request: Request) {
       ...(parsed.data.acceptsSchemaVersion === undefined
         ? {}
         : { acceptsSchemaVersion: parsed.data.acceptsSchemaVersion }),
+      /*
+       * The reference background, handed to a device that has signed in. Null when this
+       * deployment has no User-Agent-restricted key, which the device renders as a croquis
+       * without a background rather than as an empty square.
+       */
+      referenceBasemap: getEnv().mobileBasemap,
     });
     /*
      * `no-store`: the device persists this itself, with the moment it was downloaded, and shows

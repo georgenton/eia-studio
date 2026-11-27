@@ -2019,6 +2019,13 @@ export const messages: Messages = {
     syncing: "Syncing…",
     refreshWork: "Refresh assigned work",
     /* The offline map: drawn from the project's own geometry, with no tile provider. */
+    mapZoomIn: "Zoom in",
+    mapZoomOut: "Zoom out",
+    mapCentreParcel: "Centre on parcel",
+    mapCentreMe: "Centre on my position",
+    mapWithBasemap: "Provider reference map, with the parcel and the centreline over it.",
+    mapNoBasemap:
+      "Parcel sketch with no reference cartography: the centreline, the parcel and the posts are drawn on a plain ground. This is what works with no signal.",
     mapTitle: "Locate parcel",
     mapLoading: "Opening the stored map\u2026",
     mapAbsent:

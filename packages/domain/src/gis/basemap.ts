@@ -65,6 +65,8 @@ export interface BasemapCatalogue {
 export interface BasemapEnvironment {
   readonly provider?: string | undefined;
   readonly maptilerKey?: string | undefined;
+  /** The **second** key, restricted by User-Agent, for the field application. See below. */
+  readonly maptilerMobileKey?: string | undefined;
   /** A `{z}/{x}/{y}` XYZ template, for a self-hosted or national reference service. */
   readonly customTileUrl?: string | undefined;
   readonly customAttribution?: string | undefined;
@@ -267,4 +269,66 @@ export function basemapTileUrl(
     .replace("{z}", String(tile.z))
     .replace("{x}", String(tile.x))
     .replace("{y}", String(tile.y));
+}
+
+/**
+ * The one background a phone may be given, and why it is not the browser's.
+ *
+ * ## Why a separate key at all
+ *
+ * The browser key is restricted at the provider by **allowed HTTP origin**, which is right: a key
+ * in a web page is readable, and the origin is what stops anyone else spending it. A native
+ * application sends no `Referer`, so that key answers **403** from a phone. Verified against the
+ * provider on 26 November 2026 — a tile with no `Referer` 403s, the same tile with the staging
+ * origin 200s — rather than assumed from the documentation.
+ *
+ * MapTiler's documented mechanism for a native application is a key restricted by **Allowed
+ * User-Agent header**, matched as a substring. So there are two keys, restricted two ways, and
+ * neither is usable in the other's place. `MAPTILER_MOBILE_KEY` unset means the device is offered
+ * no background and says so; the browser key is **never** substituted, because it would fail and
+ * a background that silently never paints is exactly the failure this module exists to prevent.
+ *
+ * ## One mode, not four
+ *
+ * Imagery, and nothing else. The switcher on the web exists because a reader at a desk is
+ * comparing things; a technician holding a phone in a field is answering one question — *is this
+ * the parcel in front of me* — and the answer is on imagery. A second control on a 320-point
+ * screen would cost more than it gives.
+ *
+ * ## What this is not
+ *
+ * It is not offline. These are tiles fetched over the network, and when there is none the device
+ * falls back to the croquis it already draws — the study's own geometry on a plain ground — and
+ * says which of the two it is showing. A downloaded background is a separate, open question: the
+ * provider's Offline Pack API is a native Kotlin SDK this application does not embed, and their
+ * terms §6.3 prohibit bulk download without a written agreement.
+ */
+export interface MobileBasemap {
+  /** An XYZ template with `{z}`, `{x}` and `{y}`. Carries the key; never reaches a build. */
+  readonly tileUrl: string;
+  readonly attribution: string;
+  readonly maxZoom: number;
+}
+
+export function resolveMobileBasemap(env: BasemapEnvironment): MobileBasemap | null {
+  const provider = (env.provider ?? "none").trim().toLowerCase();
+  if (provider === "maptiler") {
+    const key = env.maptilerMobileKey?.trim();
+    if (!key) return null;
+    return {
+      tileUrl: `https://api.maptiler.com/maps/hybrid/256/{z}/{x}/{y}.jpg?key=${key}`,
+      attribution: "© MapTiler · © OpenStreetMap contributors",
+      maxZoom: 20,
+    };
+  }
+  if (provider === "custom") {
+    const template = env.customTileUrl?.trim();
+    if (!template || !template.includes("{z}")) return null;
+    return {
+      tileUrl: template,
+      attribution: env.customAttribution?.trim() ?? "",
+      maxZoom: 20,
+    };
+  }
+  return null;
 }

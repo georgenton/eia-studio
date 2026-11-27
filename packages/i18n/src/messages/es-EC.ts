@@ -2033,6 +2033,13 @@ export const messages = {
     syncing: "Sincronizando…",
     refreshWork: "Actualizar trabajo asignado",
     /* El mapa sin conexión: dibujado con la geometría del proyecto, sin proveedor de mosaicos. */
+    mapZoomIn: "Acercar",
+    mapZoomOut: "Alejar",
+    mapCentreParcel: "Centrar predio",
+    mapCentreMe: "Centrar mi ubicación",
+    mapWithBasemap: "Mapa de referencia del proveedor, con el predio y el eje encima.",
+    mapNoBasemap:
+      "Croquis del predio sin fondo cartográfico: se dibujan el eje, el predio y los hitos sobre fondo liso. Es lo que funciona sin señal.",
     mapTitle: "Ubicar predio",
     mapLoading: "Abriendo el mapa guardado…",
     mapAbsent:

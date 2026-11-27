@@ -219,6 +219,27 @@ export const fieldMapResponseV2Schema = fieldMapResponseSchema
   .extend({
     schemaVersion: z.literal(FIELD_MAP_SCHEMA_VERSION_PARTS),
     parcels: z.array(mapParcelV2Schema).max(200),
+    /**
+     * Where the device may fetch reference imagery, when this deployment has a key for it.
+     *
+     * **Handed to a signed-in device rather than built into the application.** An APK is readable
+     * by whoever holds the phone, and ADR-028's rule is that a distributable binary carries no
+     * credential; this arrives over an authenticated request and lives in the device's encrypted
+     * database beside the session it was fetched with.
+     *
+     * Null is the ordinary state, not an error: the device then draws the study's own geometry on
+     * a plain ground — the croquis it has always drawn — and says that is what it is showing.
+     * **It is not an offline background**: these are tiles fetched over the network.
+     */
+    referenceBasemap: z
+      .object({
+        /** An XYZ template with `{z}`, `{x}` and `{y}`. */
+        tileUrl: z.string().min(1).max(500),
+        attribution: z.string().max(200),
+        maxZoom: z.number().int().min(1).max(24),
+      })
+      .strict()
+      .nullable(),
   })
   .strict();
 export type FieldMapResponseV2 = z.infer<typeof fieldMapResponseV2Schema>;

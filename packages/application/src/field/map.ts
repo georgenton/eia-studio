@@ -61,6 +61,17 @@ export interface FieldMapScope {
    * predates `parts` is holding — and giving it anything else would be a parse error.
    */
   readonly acceptsSchemaVersion?: number;
+  /**
+   * Where the device may fetch reference imagery, when the deployment has a key for it.
+   *
+   * Passed in by the route rather than read here: this module knows about the study's geometry,
+   * and which third-party service a deployment happens to have configured is not its business.
+   */
+  readonly referenceBasemap?: {
+    readonly tileUrl: string;
+    readonly attribution: string;
+    readonly maxZoom: number;
+  } | null;
 }
 
 interface ParcelRow {
@@ -431,7 +442,12 @@ export async function loadFieldMap(
    * for free.
    */
   if (acceptsVersion >= FIELD_MAP_SCHEMA_VERSION_PARTS) {
-    return { ...body, schemaVersion: FIELD_MAP_SCHEMA_VERSION_PARTS, parcels: mapParcels };
+    return {
+      ...body,
+      schemaVersion: FIELD_MAP_SCHEMA_VERSION_PARTS,
+      parcels: mapParcels,
+      referenceBasemap: scope.referenceBasemap ?? null,
+    };
   }
   return {
     ...body,
