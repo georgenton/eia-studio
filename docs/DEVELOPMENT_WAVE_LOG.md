@@ -1472,3 +1472,76 @@ rather than using a feature.
 **No build was produced**, because nobody is signed in to Expo — the single step Wave B identified,
 unchanged and still the owner's. Storage is still absent, verified again by name on both services.
 No managed database was supplied. No handset. The physical UAT stays **PREPARED**.
+
+---
+
+## 27 November 2026 — the photograph that said nothing, and the project nobody could open
+
+Two defects found by **running the product rather than reading it**, and both of a kind this
+programme keeps meeting: nothing was broken, nothing was lost, every component behaved as designed,
+and a person looking at the screen could not tell what was wrong.
+
+### The photograph of predio 100
+
+It had sat on a device across three synchronisations saying *Pendiente de subida* — true, and
+useless. The morning's report left it as "an open observation, not a regression, not explained".
+It is explained.
+
+The evidence came from both ends before any code moved. **Server**: the assignment list showed no
+visit for predio 100, and the parcel's *Fotografías* tab said there were none. **Device**: the file
+and the row were there, and the screen offered *Iniciar visita*. So the photograph had been taken
+**before the visit was started** — which the application permits on purpose, because a technician
+often photographs on arrival — and a photograph with no visit has nothing to be attached to.
+`uploadPendingMedia` skipped it, correctly, and **in silence**.
+
+`mediaHoldReason` is now one rule in `@eia/domain/mobile` that the synchronisation reads to decide
+and the screen reads to speak, so they cannot disagree. Five reasons, and `awaiting_visit` is the
+only one a person must resolve, so it is the only one the chip spells out and the only one that
+raises a notice.
+
+Two further silences of the same shape were closed: a wait for a position that nothing would ever
+settle used to be skipped for the lifetime of the process, and an open ficha went on saying
+*pendiente* about a photograph the server had already acknowledged.
+
+**Verified on the photograph itself**, not on a new one: build 12 installed over 11 on the emulator
+that held it, the notice appeared, *Iniciar visita*, synchronise — and Coordination opened it on
+predio 100: 303 to a signed URL, `image/jpeg`, 27 229 bytes. The device then said there were no
+photographs, which is correct: the local file is released only by the server's acknowledgement.
+
+### The project nobody could open
+
+The new-project rehearsal got two steps. *Nuevo proyecto* created the project, the product
+redirected the creator to *Preparar proyecto*, and refused them: *Tu rol Administración no incluye
+Preparar proyecto*. Every part of that was working as designed — and together they meant **a
+project created in this product could not be staffed in this product**. There is no tenant-settings
+route, the intake's team stage read and did not write, and `addProjectMembership` had been written,
+permission-checked and tested with **no caller**. The only path left was an operator script that
+also rewrites an identity's credential.
+
+`createProject` now writes the creator a `COORDINATOR` membership in the same transaction and
+audits it — which widens nothing, because `projects.create` is held only by OWNER and ADMIN, both
+of which already hold `project.members.manage`, and TENANCY §6 asks precisely that such access be an
+**audited membership change** rather than an implicit one. And the Equipo stage gained one control:
+a person, a role, a button. TD-111 closed; TD-136 opened, because taking somebody *off* a project is
+a different question with a real decision behind it.
+
+### Three claims of this programme's own, corrected
+
+- **«17 comprobaciones»** on each APK: the command prints `OK · 8 checked`, and the script has not
+  changed since it was written. The number was never true.
+- The morning's report said a session with project access was the owner's to supply. **The training
+  credentials were on this machine all along**, in `~/.config/syntavera/secrets/`. What was missing
+  was not an access; it was looking for the file.
+- The spending limit on MapTiler Flex **is not an alert**. The provider's guide: the API is
+  deactivated until the next billing period; its own announcement: every key is invalidated. It
+  protects the invoice and takes the maps down.
+
+### And one failure that was nobody's change
+
+`postgresql-17-pgvector=0.8.6-1.pgdg12+2` left the PGDG index, and every job that builds the
+database image stopped — on a branch that had touched neither the image nor the database. That is
+exactly the failure the exact pin exists to produce, said in the Dockerfile's own comment before it
+happened. The pin moved to `0.8.7-2.pgdg12+1`, deliberately and with a diff.
+
+**No model was called.** `SOCIAL_CLASSIFIER`, `ASSISTANT_GENERATOR` and `DOCUMENT_REVIEWER` remain
+unset everywhere. Storage is unchanged. No migration. `FIELD_SYNC_PROTOCOL_VERSION` stays 3.
