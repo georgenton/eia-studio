@@ -4,9 +4,11 @@
 > `docs/FIELD_MOBILE_ARCHITECTURE.md` (ADR-028), `docs/FIELD_MOBILE_OFFLINE_UAT.md` (what a build
 > is for), `docs/PRODUCTION_V1_GO_LIVE.md` blocker 3.
 >
-> **Nothing here submits anything to a store.** No build has been produced, and no Apple or Google
-> account has been created or paid for — both are owner actions with lead times this product does
-> not control.
+> **Nothing here submits anything to a store**, and no Apple or Google account has been created or
+> paid for — both are owner actions with lead times this product does not control. This note also
+> said *no build has been produced*; that stopped being true on 21 September 2026 (§10) and is
+> corrected here on 27 November 2026, by which date three Android APKs are published and
+> downloadable (codes 12 · 4 · 4). What has never happened is a **store submission**.
 
 ## 1. What the application declares about itself
 
