@@ -213,3 +213,93 @@ Not a basemap architecture. There is one provider implementation, one raster lay
 Vector styles, 3D terrain, hillshade from a DEM, offline tile caching, per-project basemap
 configuration and a national cartographic service are all *possible* from here and none of them is
 built, because none of them is needed to give a rural road study its territorial context.
+
+## 8. The parcel detail, and why it had no background for so long
+
+The Explorer had a reference background from Slice 2 onward. The **parcel detail** — where somebody
+actually looks at one parcel — drew the outline on a flat grey square until 26 November 2026. It
+was not a decision; the component simply predated the catalogue and nobody connected them.
+
+It now uses the same catalogue, the same `attachBasemap`/`probeBasemap` helpers and the same
+remembered preference, out of one shared module (`apps/web/components/gis/basemap-chrome.tsx`).
+Opening a parcel from a satellite Explorer no longer drops a reader onto grey.
+
+Two things are drawn there that the Explorer does not draw, both from the study's own layers:
+
+| | What | Why |
+|---|---|---|
+| Road segment | the centreline `ST_Intersection`ed with the context box | a 5,9 km road in a 300 m view is 99 % coordinates nobody sees. The caption says **segment**, so nothing implies the road ends where the box does |
+| Neighbouring parcels | same layer, same permission, outline and code only | the context a provider cannot supply. No area, no status, no owner: they are context, not a second table |
+
+The parcel's fill is **0,35**, not the Explorer's 0,85: on a detail map the ground underneath is
+the reason the map exists. The frame opens on the surroundings rather than on the parcel, because
+a parcel zoomed to fill its frame is the grey square again with a photograph behind it.
+
+## 9. A phone is not a browser, and the key proves it
+
+**Verified against the provider on 26 November 2026**, not inferred:
+
+| Request | Answer |
+|---|---|
+| tile with no `Referer` — what a native application sends | **403** |
+| tile with `Referer: https://eia-staging.syntavera.dev/` | 200 |
+| tile with `Referer: https://eia.syntavera.dev/` | 200 |
+| tile with an unrelated `Referer` | **403** |
+
+The browser key is restricted by **allowed HTTP origin**, which is correct and must not be
+weakened: a key in a web page is readable, and the origin is what stops anyone else spending it.
+The consequence is that **it cannot serve a native application at all**.
+
+MapTiler documents, for native applications, a key restricted by **Allowed User-Agent header**,
+matched as a substring. So there are two keys:
+
+| | Browser | Field application |
+|---|---|---|
+| Variable | `MAPTILER_KEY` | `MAPTILER_MOBILE_KEY` |
+| Restriction | allowed HTTP origin | allowed User-Agent substring |
+| Substring | n/a | `EIAFieldAndroid` (`apps/field/src/core/tile-agent.ts`) |
+| Reaches the client how | inlined in the page, as it must be | handed to a **signed-in device** in the map response (ADR-028: a distributable binary carries no credential) |
+| Unset means | no background on the web | no background on the phone, and the device says so |
+
+The browser key is **never** substituted for the mobile one. It would 403 on every tile, and a
+background that silently never paints is the failure §5 exists to prevent.
+
+The User-Agent is not a secret and protects nothing by itself — anyone can send any header. It
+raises the cost of casually reusing a key lifted out of an APK, which together with a spend cap is
+what the provider's model actually offers.
+
+## 10. Offline background: open, and named
+
+**Not delivered, and the croquis is not offered as evidence that it was.**
+
+What the device draws with no signal is the study's own geometry on a plain ground — the axis, the
+parcel, the posts, north and a scale bar. It is useful and it is what works in a ravine. It is
+**not** a cartographic background and the screen says so in those words: *Croquis del predio sin
+fondo cartográfico*.
+
+Two findings stand between here and a downloaded background:
+
+1. **MapTiler's Offline Pack API is part of their Kotlin SDK** (`com.maptiler.sdk:maptiler-sdk-kotlin`),
+   a native Android dependency this Expo application does not embed. Adding it is a native module,
+   not a screen.
+2. **Their terms §6.3 prohibit "batch or excessive bulk download … unless otherwise agreed in
+   writing"**, and define no threshold. §5.7 permits "a temporary personal cache … for use by a
+   single end-user only" without defining *temporary*. The Offline Pack documentation shows exactly
+   the bounded-area pattern, and does not say the terms are relaxed for it.
+
+So the two honest routes are a **written agreement with MapTiler** for a bounded field download, or
+**cartography whose licence already permits it** — tiles generated from OpenStreetMap data (ODbL,
+redistribution permitted with attribution), served and packaged by us.
+
+Neither is started. Owner decision of 26 November 2026: leave it open and documented.
+
+## 11. Plan, restated
+
+Still **MapTiler Free**, whose terms are "non-commercial use and research & development for
+commercial products applications". The pilot is a consultancy demonstration under the owner
+authorisation of 7 September 2026, and a second key for the field application on the same account
+is the same authorisation and the same cost: none.
+
+**The eight production road projects are commercial use and this plan does not cover them.** The
+lowest paid tier is Flex at **30 USD/month**; whether Flex alone suffices for the intended use was
+not confirmable from the pricing page's text and is the owner's to settle with the provider.
