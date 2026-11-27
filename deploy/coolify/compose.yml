@@ -44,6 +44,14 @@ services:
       BASEMAP_TILE_URL: ${BASEMAP_TILE_URL:-}
       BASEMAP_ATTRIBUTION: ${BASEMAP_ATTRIBUTION:-}
       MAPTILER_KEY: ${MAPTILER_KEY:-}
+      # A second, separate MapTiler key, for the Android application's reference background
+      # only. It cannot be the one above: MapTiler applies a key's allowed origins and its
+      # allowed user-agent **together**, and a native application sends no Referer, so a key
+      # restricted to this product's web origins rejects the phone, and a key restricted to
+      # the phone's user-agent rejects every browser. Unset is a state, not a fault: the
+      # field map resource then carries `referenceBasemap: null` and the application draws
+      # the offline croquis and says the background is not configured (ADR-028 §map).
+      MAPTILER_MOBILE_KEY: ${MAPTILER_MOBILE_KEY:-}
       EMAIL_ADAPTER: ${EMAIL_ADAPTER:-}
       EMAIL_FROM: ${EMAIL_FROM:-}
       # AI stays unset unless a compliance decision says otherwise (IG4-001). Unset means the

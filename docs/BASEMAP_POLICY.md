@@ -291,15 +291,48 @@ So the two honest routes are a **written agreement with MapTiler** for a bounded
 **cartography whose licence already permits it** — tiles generated from OpenStreetMap data (ODbL,
 redistribution permitted with attribution), served and packaged by us.
 
-Neither is started. Owner decision of 26 November 2026: leave it open and documented.
+Neither is started, and **the requirement is not withdrawn**. Writing a pending item down is
+a record of what is missing, not consent to ship without it: a technician in a ravine still
+has no cartographic background, and this document says so rather than settling for the
+croquis. What was decided on 26 November 2026 is narrower — that neither route is attempted
+in this wave, because each one is a decision the owner takes with a third party (a written
+agreement with MapTiler, or adopting and hosting ODbL cartography) and neither is an
+implementation choice. The item stays open in `docs/TECH_DEBT.md` with its removal trigger.
 
-## 11. Plan, restated
+## 11. Plan, and the limit that decides this
 
 Still **MapTiler Free**, whose terms are "non-commercial use and research & development for
 commercial products applications". The pilot is a consultancy demonstration under the owner
-authorisation of 7 September 2026, and a second key for the field application on the same account
-is the same authorisation and the same cost: none.
+authorisation of 7 September 2026.
 
-**The eight production road projects are commercial use and this plan does not cover them.** The
-lowest paid tier is Flex at **30 USD/month**; whether Flex alone suffices for the intended use was
-not confirmable from the pricing page's text and is the owner's to settle with the provider.
+**Correction of 26 November 2026.** This document previously said that a second key on the same
+account "is the same authorisation and the same cost: none". That was wrong, and the provider says
+so plainly:
+
+| Observed | Where |
+|---|---|
+| `You are not allowed to have more than 1 active keys.` | the refusal when creating the key |
+| Plan **Free**, the account's *Keys* quota 100 % used with one key | `cloud.maptiler.com/account/` |
+| **API keys — Free: 1 · Flex: 1000 · Custom: 1000+** | the published pricing comparison |
+
+So `MAPTILER_MOBILE_KEY` **cannot be created on this account as it stands**. Everything around it
+is built and wired — the contract, the server, the application, and the variable now reaches the
+web service in the versioned Compose and in all three deployments — and the phone therefore shows
+the croquis and says the background is not configured, which is the designed state and not a
+failure. What is missing is one key, and the only way to have one is a plan change.
+
+### The decision, stated concretely
+
+| | What it costs | What it gives | Judgement |
+|---|---|---|---|
+| **Flex**, $30/month USD + VAT | a new recurring charge | 1000 keys, so a separate key per environment; **and commercial use**, which Free does not permit and which the eight production road projects require anyway | the honest option, and it settles a question this document already had open rather than adding one |
+| **ODbL cartography we host** | no licence fee; engineering and a server | a background on web and phone, and the only route that also answers §10's offline question | real, but it is a provider decision and a build, not a configuration |
+| A second **Free** account for the mobile key | nothing | one more key | **rejected**: it is circumventing a plan limit, and the second account is still non-commercial |
+| Put the **web** key in the Android binary with a forged `Referer` | nothing | tiles on the phone | **rejected**: the origin list is the web key's only protection, and a binary anyone can unzip would make it work from anywhere. Weakening a control to avoid a charge |
+
+**Not acted on.** No plan was changed, no account created, no request sent to the provider, and
+the web key's restrictions are exactly as they were.
+
+**The eight production road projects are commercial use and Free does not cover them**, so the
+Flex question exists with or without the Android background; whether Flex alone suffices for that
+volume is the owner's to settle with the provider.

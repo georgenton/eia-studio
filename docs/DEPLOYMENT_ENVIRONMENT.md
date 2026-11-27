@@ -42,6 +42,7 @@ unavailable (ADR-031). A worker with neither starts, logs why, and simply never 
 | `BASEMAP_TILE_URL` | CONFIG | ✓ | — | — | ✓ | ✓ | ✓ |
 | `BASEMAP_ATTRIBUTION` | PUBLIC | ✓ | — | — | ✓ | ✓ | ✓ |
 | `MAPTILER_KEY` | SECRET / OPTIONAL | ✓ | — | — | licence | licence | **licence required** |
+| `MAPTILER_MOBILE_KEY` | SECRET / OPTIONAL | ✓ | — | — | licence | licence | **licence required** |
 | `EMAIL_ADAPTER` | CONFIG | ✓ | — | — | ✓ | ✓ | ✓ |
 | `EMAIL_FROM` | CONFIG | ✓ | — | — | ✓ | ✓ | ✓ |
 | `WORKER_DB_CHECK` | CONFIG | — | ✓ | — | true | true | true |
