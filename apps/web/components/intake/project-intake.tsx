@@ -1,13 +1,22 @@
 "use client";
 
 import type { ProjectIntakeView, SurveyAuthoringView } from "@eia/application";
-import { FIELD_OFFLINE_MODES, type ReadinessCheck, type ReadinessRuleKey } from "@eia/domain";
+import {
+  FIELD_OFFLINE_MODES,
+  PROJECT_ROLES,
+  type ReadinessCheck,
+  type ReadinessRuleKey,
+} from "@eia/domain";
 import type { MessageKey } from "@eia/i18n";
 import { Chip, Panel, PanelBody, PanelHeader, StatusChip } from "@eia/ui";
 import { useState, useTransition } from "react";
 
 import { useI18n } from "@/components/i18n/locale-provider";
-import { activateProjectAction, saveProjectIntakeAction } from "@/lib/intake-actions";
+import {
+  activateProjectAction,
+  assignProjectMemberAction,
+  saveProjectIntakeAction,
+} from "@/lib/intake-actions";
 import {
   captureChannelLabel,
   documentKindLabel,
@@ -80,7 +89,9 @@ export function ProjectIntake({
       </nav>
 
       {stage === "project" ? <ProjectStage project={project} tenant={tenant} view={view} /> : null}
-      {stage === "team" ? <TeamStage view={view} /> : null}
+      {stage === "team" ? (
+        <TeamStage basePath={basePath} project={project} tenant={tenant} view={view} />
+      ) : null}
       {stage === "gis" ? <GisStage view={view} /> : null}
       {stage === "documents" ? <DocumentsStage view={view} /> : null}
       {stage === "surveys" ? (
@@ -229,7 +240,17 @@ function ProjectStage({
   );
 }
 
-function TeamStage({ view }: { view: ProjectIntakeView }) {
+function TeamStage({
+  view,
+  basePath,
+  tenant,
+  project,
+}: {
+  view: ProjectIntakeView;
+  basePath: string;
+  tenant: string;
+  project: string;
+}) {
   const { t } = useI18n();
   return (
     <Panel>
@@ -258,8 +279,122 @@ function TeamStage({ view }: { view: ProjectIntakeView }) {
             </tbody>
           </table>
         )}
+        {/*
+          Adding somebody is a **coordination** act, so the form appears only for a reader who
+          holds `project.members.manage` — `teamCandidates` is null for everyone else, which is a
+          different thing from nobody being left to add, and the copy says which.
+
+          It exists because without it a project created in this product could not be staffed in
+          this product at all: the use-case was written and tested and had no caller (TD-111).
+        */}
+        {view.teamCandidates === null ? null : view.teamCandidates.length === 0 ? (
+          <p className={styles.note}>{t("intake.teamAllAssigned")}</p>
+        ) : (
+          <AssignMemberForm
+            basePath={basePath}
+            candidates={view.teamCandidates}
+            project={project}
+            tenant={tenant}
+          />
+        )}
       </PanelBody>
     </Panel>
+  );
+}
+
+/**
+ * One person, one role, one button.
+ *
+ * No invitations, no bulk import and no custom roles: this is the gap between *a project exists*
+ * and *somebody can open it*, and nothing more. The role list is the domain's, so a role the
+ * product does not have cannot be typed into it.
+ */
+function AssignMemberForm({
+  basePath,
+  candidates,
+  project,
+  tenant,
+}: {
+  basePath: string;
+  candidates: NonNullable<ProjectIntakeView["teamCandidates"]>;
+  project: string;
+  tenant: string;
+}) {
+  const { t } = useI18n();
+  const [pending, start] = useTransition();
+  const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null);
+  const [member, setMember] = useState(candidates[0]?.tenantMembershipId ?? "");
+  const [role, setRole] = useState<string>("FIELD_TECHNICIAN");
+  const fieldId = `${basePath}-assign`;
+
+  return (
+    <form
+      onSubmit={(event) => {
+        event.preventDefault();
+        start(async () => {
+          const outcome = await assignProjectMemberAction({
+            tenant,
+            project,
+            tenantMembershipId: member,
+            role,
+          });
+          setResult(
+            outcome.ok ? { ok: true, text: outcome.message } : { ok: false, text: outcome.error },
+          );
+        });
+      }}
+    >
+      <div className={styles.fields}>
+        <div className={styles.field}>
+          <label className={styles.label} htmlFor={`${fieldId}-member`}>
+            {t("intake.teamMember")}
+          </label>
+          <select
+            className={styles.select}
+            id={`${fieldId}-member`}
+            onChange={(event) => setMember(event.target.value)}
+            value={member}
+          >
+            {candidates.map((candidate) => (
+              <option key={candidate.tenantMembershipId} value={candidate.tenantMembershipId}>
+                {candidate.displayName ?? t("common.missing")}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className={styles.field}>
+          <label className={styles.label} htmlFor={`${fieldId}-role`}>
+            {t("intake.teamRole")}
+          </label>
+          <select
+            className={styles.select}
+            id={`${fieldId}-role`}
+            onChange={(event) => setRole(event.target.value)}
+            value={role}
+          >
+            {PROJECT_ROLES.map((key) => (
+              <option key={key} value={key}>
+                {projectRoleLabel(t, key)}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+      <div className={styles.actions}>
+        <button className={styles.primary} disabled={pending || member === ""} type="submit">
+          {pending ? t("intake.saving") : t("intake.teamAdd")}
+        </button>
+        {result ? (
+          <span
+            aria-live="polite"
+            className={`${styles.feedback} ${result.ok ? styles.ok : styles.bad}`}
+            role="status"
+          >
+            {result.text}
+          </span>
+        ) : null}
+      </div>
+    </form>
   );
 }
 

@@ -766,6 +766,9 @@ export const messages = {
     teamEmpty: "Todavía no hay nadie asignado a este proyecto.",
     teamNote:
       "Quién está en el proyecto y con qué rol. Asignar personas es una acción de la coordinación; aquí se lee.",
+    teamAdd: "Añadir al proyecto",
+    teamAdded: "Persona añadida al proyecto.",
+    teamAllAssigned: "Toda la organización ya está en este proyecto.",
     teamRole: "Rol",
     teamMember: "Persona",
     gisNote: "Las capas activas del proyecto, tal como las dejó la importación.",

@@ -754,6 +754,9 @@ export const messages: Messages = {
     teamEmpty: "Nobody is assigned to this project yet.",
     teamNote:
       "Who is on the project and in what role. Assigning people is the coordinator's action; this reads it.",
+    teamAdd: "Add to the project",
+    teamAdded: "Person added to the project.",
+    teamAllAssigned: "Everyone in the organisation is already on this project.",
     teamRole: "Role",
     teamMember: "Person",
     gisNote: "The project's active layers, as the import left them.",

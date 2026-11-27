@@ -1,5 +1,6 @@
 import { appSchema, fieldSchema, withDbContext, type Database } from "@eia/db";
 import {
+  can,
   CAPABILITY_KEYS,
   evaluateReadiness,
   FIELD_OFFLINE_MODE_KEY,
@@ -46,6 +47,23 @@ export interface IntakeTeamMember {
   readonly status: string;
 }
 
+/**
+ * Somebody in the organisation who could be put on this project, and is not on it yet.
+ *
+ * Read **only** for a caller who holds `project.members.manage`. The list is the firm's own staff,
+ * and a `PROJECT_DATA_MANAGER` preparing a project's files has no business reading it — they do
+ * not decide who works on the study (ADR-030).
+ */
+export interface IntakeTeamCandidate {
+  readonly tenantMembershipId: string;
+  /**
+   * A display name and no address, for the reason the team list already gives: this page is read
+   * by people preparing a project, and an email is contact data they have no reason to be handed.
+   */
+  readonly displayName: string | null;
+  readonly tenantRole: string;
+}
+
 export interface IntakeSurvey {
   readonly templateName: string;
   readonly versionLabel: string;
@@ -79,6 +97,13 @@ export interface ProjectIntakeView {
     readonly lifecycle: string;
   };
   readonly team: ReadonlyArray<IntakeTeamMember>;
+  /**
+   * Who could be added, or **null** when the reader may not add anyone.
+   *
+   * Null and empty mean different things and the surface says both: null is *this is not yours to
+   * decide*, empty is *everyone in the organisation is already on this project*.
+   */
+  readonly teamCandidates: ReadonlyArray<IntakeTeamCandidate> | null;
   readonly cartography: {
     readonly activeDatasets: number;
     readonly parcelsWithGeometry: number;
@@ -159,6 +184,43 @@ export async function loadProjectIntake(
       .innerJoin(appSchema.user, eq(appSchema.tenantMembership.userId, appSchema.user.id))
       .where(eq(appSchema.projectMembership.projectId, projectId))
       .orderBy(asc(appSchema.projectMembership.role));
+
+    /*
+     * Who could be added — read only for somebody who may add them.
+     *
+     * Until this existed a project created in the product could not be **staffed** in the product:
+     * `addProjectMembership` had no caller, there is no tenant-settings surface, and the only
+     * remaining path was an operator script that rewrites an identity's password. A project with
+     * no members is a project nobody can open, which is where *Nuevo proyecto* left every project
+     * it created (TD-111).
+     *
+     * The exclusion is by **tenant membership**, not by person: a suspended project membership is
+     * still a row, and offering to insert a second one for the same person would hit the unique
+     * index rather than say anything useful.
+     */
+    const teamCandidates = can(ctx, "project.members.manage")
+      ? await tx
+          .select({
+            tenantMembershipId: appSchema.tenantMembership.id,
+            displayName: appSchema.user.name,
+            tenantRole: appSchema.tenantMembership.role,
+          })
+          .from(appSchema.tenantMembership)
+          .innerJoin(appSchema.user, eq(appSchema.tenantMembership.userId, appSchema.user.id))
+          .where(
+            and(
+              eq(appSchema.tenantMembership.tenantId, ctx.tenantId),
+              eq(appSchema.tenantMembership.status, "active"),
+              sql`not exists (
+                select 1 from app.project_membership pm
+                 where pm.tenant_id = ${ctx.tenantId}
+                   and pm.project_id = ${projectId}
+                   and pm.tenant_membership_id = ${appSchema.tenantMembership.id}
+              )`,
+            ),
+          )
+          .orderBy(asc(appSchema.user.name))
+      : null;
 
     const [cartography] = await tx
       .execute<{ datasets: number; parcels: number }>(
@@ -280,6 +342,7 @@ export async function loadProjectIntake(
         // address is contact data they have no reason to be handed here.
         displayName: m.displayName,
       })),
+      teamCandidates,
       cartography: {
         activeDatasets: cartography?.datasets ?? 0,
         parcelsWithGeometry: cartography?.parcels ?? 0,
