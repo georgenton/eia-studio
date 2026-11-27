@@ -46,14 +46,23 @@ test.describe("the coordinator prepares a project", () => {
     await expect(main.getByLabel(/Título oficial/)).not.toHaveValue("");
   });
 
-  test("the team stage reads the project's roles and does not offer to change them", async ({
+  test("the team stage lists the project's roles and lets a coordinator add somebody", async ({
     page,
   }) => {
     await page.goto(`${INTAKE}?stage=team`);
     const main = page.getByRole("main");
     await expect(main).toContainText("Coordinación de proyecto");
-    // Assigning people is the coordinator's act on a different surface; this stage reads.
-    await expect(main.getByRole("button", { name: /Añadir|Asignar/ })).toHaveCount(0);
+    /*
+     * This test used to assert the opposite — that the stage reads and offers nothing — and that
+     * was true until 27 November 2026, when it turned out a project created in *Nuevo proyecto*
+     * could not be staffed anywhere in the product at all (TD-111). Adding somebody is still a
+     * coordinator's act; what changed is that it now has a place to happen.
+     */
+    await expect(
+      main.getByRole("button", { name: /Añadir al proyecto|Add to the project/ }),
+    ).toBeVisible();
+    // The role list is the domain's, so a role the product does not have cannot be chosen.
+    await expect(main.getByLabel(/^Rol$|^Role$/)).toBeVisible();
   });
 
   test("the questionnaire stage names the languages a version actually carries", async ({
@@ -104,6 +113,22 @@ test.describe("the coordinator prepares a project", () => {
     const main = page.getByRole("main");
     await expect(main).toContainText("EIA Studio puede operar este proyecto");
     await expect(main).toContainText("ya salió de planificación");
+  });
+});
+
+test.describe("a reviewer reads the preparation and decides nothing in it", () => {
+  test.use({ storageState: "e2e/.auth/reviewer.json" });
+
+  test("sees the team and is not offered the control that changes it", async ({ page }) => {
+    await page.goto(`${INTAKE}?stage=team`);
+    const main = page.getByRole("main");
+    // The stage is readable: `project.intake.read` is a reviewer's grant (ADR-030 §2).
+    await expect(main).toContainText("Coordinación de proyecto");
+    // `project.members.manage` is not, so the read model offers no candidates and the surface
+    // renders no form. Null is not empty: *this is not yours to decide*.
+    await expect(
+      main.getByRole("button", { name: /Añadir al proyecto|Add to the project/ }),
+    ).toHaveCount(0);
   });
 });
 
