@@ -12,7 +12,8 @@
  * **zero pixels tall**: a pointer aimed at "the centre of the map" landed on its top edge, and a
  * wheel event there reached the document instead of the map.
  */
-.wrap > .canvas {
+.wrap > .canvas,
+.detailCanvasBox > .canvas {
   position: absolute;
   inset: 0;
 }
@@ -274,13 +275,20 @@
   display: flex;
   gap: 6px;
 }
+/* The detail map is a column: the map itself, then what is true about it. */
+.detailWrap {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+.detailCanvasBox {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+}
 .detailFooter {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  padding: 6px 10px;
-  background: rgba(255, 255, 255, 0.92);
+  flex: 0 0 auto;
+  padding: 7px 2px 0;
   border-top: 1px solid var(--eia-hairline);
   display: flex;
   justify-content: space-between;

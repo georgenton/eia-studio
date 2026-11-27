@@ -260,70 +260,77 @@ export function ParcelGeometryMap({
   }, []);
 
   return (
-    <div className={styles.wrap}>
-      <div
-        aria-hidden="true"
-        className={styles.canvas}
-        data-testid="parcel-detail-map"
-        ref={container}
-      />
-      <NorthIndicator testId="parcel-detail-north" />
-      {/*
-        Real buttons, in the document, outside the `aria-hidden` canvas (IG2-005). A control
-        inside that subtree is one a keyboard can reach and a screen reader cannot announce.
-      */}
-      <div className={styles.detailControls}>
-        <div className={styles.zoomPair}>
-          <button
-            className={styles.zoomButton}
-            data-testid="parcel-detail-zoom-in"
-            onClick={() => zoomBy(1)}
-            type="button"
-          >
-            <span aria-hidden="true">+</span>
-            <span className={styles.srOnly}>{t("parcel.zoomIn")}</span>
-          </button>
-          <button
-            className={styles.zoomButton}
-            data-testid="parcel-detail-zoom-out"
-            onClick={() => zoomBy(-1)}
-            type="button"
-          >
-            <span aria-hidden="true">−</span>
-            <span className={styles.srOnly}>{t("parcel.zoomOut")}</span>
-          </button>
-        </div>
-        <button
-          className={styles.recentre}
-          data-testid="parcel-detail-centre"
-          onClick={() => frame(bounds)}
-          type="button"
-        >
-          {t("parcel.centreParcel")}
-        </button>
-        {surroundings ? (
+    <div className={styles.detailWrap}>
+      <div className={styles.detailCanvasBox}>
+        <div
+          aria-hidden="true"
+          className={styles.canvas}
+          data-testid="parcel-detail-map"
+          ref={container}
+        />
+        <NorthIndicator testId="parcel-detail-north" />
+        {/*
+          Real buttons, in the document, outside the `aria-hidden` canvas (IG2-005). A control
+          inside that subtree is one a keyboard can reach and a screen reader cannot announce.
+        */}
+        <div className={styles.detailControls}>
+          <div className={styles.zoomPair}>
+            <button
+              className={styles.zoomButton}
+              data-testid="parcel-detail-zoom-in"
+              onClick={() => zoomBy(1)}
+              type="button"
+            >
+              <span aria-hidden="true">+</span>
+              <span className={styles.srOnly}>{t("parcel.zoomIn")}</span>
+            </button>
+            <button
+              className={styles.zoomButton}
+              data-testid="parcel-detail-zoom-out"
+              onClick={() => zoomBy(-1)}
+              type="button"
+            >
+              <span aria-hidden="true">−</span>
+              <span className={styles.srOnly}>{t("parcel.zoomOut")}</span>
+            </button>
+          </div>
           <button
             className={styles.recentre}
-            data-testid="parcel-detail-surroundings"
-            onClick={() => frame(surroundings.contextBounds)}
+            data-testid="parcel-detail-centre"
+            onClick={() => frame(bounds)}
             type="button"
           >
-            {t("parcel.seeSurroundings")}
+            {t("parcel.centreParcel")}
           </button>
-        ) : null}
-        <BasemapSwitcher
+          {surroundings ? (
+            <button
+              className={styles.recentre}
+              data-testid="parcel-detail-surroundings"
+              onClick={() => frame(surroundings.contextBounds)}
+              type="button"
+            >
+              {t("parcel.seeSurroundings")}
+            </button>
+          ) : null}
+          <BasemapSwitcher
+            catalogue={basemap}
+            id="parcel-detail-basemap"
+            noticeTestId="parcel-detail-basemap-unavailable"
+            state={basemapState}
+          />
+        </div>
+        <BasemapCredits
           catalogue={basemap}
-          id="parcel-detail-basemap"
-          noticeTestId="parcel-detail-basemap-unavailable"
           state={basemapState}
+          testId="parcel-detail-basemap-credits"
         />
       </div>
-      <BasemapCredits
-        catalogue={basemap}
-        state={basemapState}
-        testId="parcel-detail-basemap-credits"
-      />
       <p className={styles.srOnly}>{t("parcel.mapIsVisual", { code: label })}</p>
+      {/*
+        Under the map rather than over it. As an overlay this ran across the scale bar and the
+        provider's attribution — and attribution is a condition of using the tiles, not a
+        decoration that may be covered.
+      */}
       <div className={styles.detailFooter}>
         <p className={styles.detailNote}>
           {surroundings?.alignmentSegment
