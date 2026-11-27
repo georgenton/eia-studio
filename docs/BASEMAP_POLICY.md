@@ -330,8 +330,38 @@ failure. What is missing is one key, and the only way to have one is a plan chan
 | A second **Free** account for the mobile key | nothing | one more key | **rejected**: it is circumventing a plan limit, and the second account is still non-commercial |
 | Put the **web** key in the Android binary with a forged `Referer` | nothing | tiles on the phone | **rejected**: the origin list is the web key's only protection, and a binary anyone can unzip would make it work from anywhere. Weakening a control to avoid a charge |
 
-**Not acted on.** No plan was changed, no account created, no request sent to the provider, and
-the web key's restrictions are exactly as they were.
+### What the checkout and the provider's own documentation say (27 November 2026)
+
+Read rather than recalled, from the account and from MapTiler's pages. **Nothing was bought**: the
+checkout was opened to read the figure it states and closed without paying.
+
+| Question | What was observed |
+|---|---|
+| The amount the account states before confirming | the FastSpring overlay on `cloud.maptiler.com/account/`, country **Ecuador**, reads **MapTiler Cloud: Flex subscription · Total: $30.00**, and its details tooltip adds **"Renews automatically by the seller"**. The button says *Pay $30.00* |
+| Periodicity | monthly, renewing automatically. The seller of record is **FastSpring**, which is who would invoice |
+| Tax | the published prices "do not include VAT"; the Ecuador checkout showed **no separate tax line**, so the figure to approve is the one on screen and any Ecuadorian tax treatment is the owner's accountant's question, not this document's |
+| The quota this application actually consumes | **API requests**, not sessions. Sessions are "initialized map object" through MapTiler's own SDK; EIA Field asks for **256-pixel raster tiles as images**, and the provider's table prices a *Rendered raster 256x256 tile* at **1 request**. Flex includes **500 000 API requests/month**, then **$0.15 per 1 000** |
+| How many requests a map view costs | `tilesFor` is bounded at **64 tiles** per view and in practice draws a handful; each pan or zoom fetches the newly uncovered ones. An order-of-magnitude estimate for eight technicians working a full month is **a quarter of a million requests** — inside the included half-million, but not by a margin anybody should treat as unlimited. It is an estimate, and the only measured part of it is *one tile, one request* |
+| Keys per environment | Flex allows **1000** API keys and **1000** custom styles, so demo, staging and production each get their own, which is what the mobile key needs |
+| Commercial use | **Flex permits it; Free does not** |
+
+**The spending limit, corrected.** This programme previously could not say whether MapTiler's
+spending limit stops anything or merely warns. It stops. The provider's own guide is explicit:
+
+> "This feature is only available on Flex and Custom plans. […] Before you reach the monthly limit,
+> you will receive an e-mail with a warning. When you reach the limit, **the API will be deactivated
+> and will not make any more requests until the next billing period**."
+
+MapTiler's own announcement of the feature says the same in operational terms: **all API keys are
+automatically invalidated** until the end of the monthly period. So it is a hard cap and not an
+alert — which means it protects the invoice and **takes the maps down** on the web and on the phone
+when it fires. That is a real trade and it is the owner's to set: a limit low enough to be a
+safeguard is also low enough to blank the background in the middle of a field campaign. The control
+exists only on a paid plan, so its behaviour **could not be exercised from this Free account** and
+is reported from the provider's documentation rather than from a test.
+
+**Not acted on.** No plan was changed, no account created, no request sent to the provider, nothing
+was paid, and the web key's restrictions are exactly as they were.
 
 **The eight production road projects are commercial use and Free does not cover them**, so the
 Flex question exists with or without the Android background; whether Flex alone suffices for that
