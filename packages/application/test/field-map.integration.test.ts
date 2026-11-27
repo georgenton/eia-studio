@@ -2,7 +2,11 @@ import { randomUUID } from "node:crypto";
 
 import { appSchema } from "@eia/db";
 import { PermissionDenied, type SessionUser } from "@eia/domain";
-import { fieldMapResponseSchema, fieldMapResponseV2Schema } from "@eia/field-sync-contract";
+import {
+  fieldMapResponseSchema,
+  fieldMapResponseV2Schema,
+  fieldMapResponseV3Schema,
+} from "@eia/field-sync-contract";
 import {
   createAssignment,
   createCampaign,
@@ -33,6 +37,29 @@ import { buildRequestContext, loadFieldMap } from "../src/index";
  * photograph, which is why the first assertion here is that the response *parses* — a field that
  * should not exist could not get past it.
  */
+/**
+ * A road with enough vertices and enough bend to make a vertex ceiling actually bite.
+ *
+ * The previous fixture was `LINESTRING(-78.72 -3.79, -78.62 -3.79)` — two points, dead straight.
+ * `ST_SimplifyPreserveTopology` keeps both whatever the tolerance, so the axis test "simplifies
+ * the whole axis instead of cutting its tail off" was asserting against a line that could not be
+ * reduced and would have passed with the truncating implementation it was written to catch.
+ *
+ * 400 points over about 11 km, with a sine of roughly 300 m amplitude so the simplifier has
+ * something to remove. A straight line is the one shape this regression cannot be written with.
+ */
+const SINUOUS_AXIS_WKT = (() => {
+  const points: string[] = [];
+  const count = 400;
+  for (let i = 0; i < count; i += 1) {
+    const t = i / (count - 1);
+    const lon = -78.72 + t * 0.1;
+    const lat = -3.79 + Math.sin(t * Math.PI * 6) * 0.0027;
+    points.push(`${lon.toFixed(7)} ${lat.toFixed(7)}`);
+  }
+  return `LINESTRING(${points.join(", ")})`;
+})();
+
 const db = getTestDatabase();
 let w: TwoTenantWorld;
 let provenanceId: string;
@@ -161,7 +188,7 @@ beforeAll(async () => {
                                provenance_id)
     values (${randomUUID()}, ${w.tenantA.id}, ${w.projectX.id}, ${alignmentVersionId},
             ${"Eje Bramadora"},
-            ST_Multi(ST_GeomFromText('LINESTRING(-78.72 -3.79, -78.62 -3.79)', 4326)),
+            ST_Multi(ST_GeomFromText(${SINUOUS_AXIS_WKT}, 4326)),
             11100.00, ${provenanceId})
   `);
 
@@ -449,38 +476,126 @@ describe("the geometry the device is given", () => {
 
   it("simplifies the whole axis instead of cutting its tail off", async () => {
     /*
-     * A very low ceiling, so the limit certainly bites. What must survive is the road's **extent**
-     * — both ends — because a parcel at the far end of a corridor needs the road beside it, and
-     * taking the first N vertices is precisely what removed it.
+     * The fixture axis is 400 points of sinuous road over about 11 km, so a ceiling of 12 forces
+     * a real reduction. What must survive is the road's **extent** — both ends, and the far
+     * stretch in between — because a parcel at the end of a corridor needs the road beside it,
+     * and taking the first N vertices is precisely what removed it.
      */
     const whole = fieldMapResponseV2Schema.parse(
-      await loadFieldMap(db.runtime, await ctxFor(technician), { acceptsSchemaVersion: 2 }),
+      await loadFieldMap(db.runtime, await ctxFor(technician), {
+        acceptsSchemaVersion: 2,
+        axisVertexLimit: 4_000,
+      }),
     );
     const tiny = fieldMapResponseV2Schema.parse(
       await loadFieldMap(db.runtime, await ctxFor(technician), {
-        axisVertexLimit: 8,
         acceptsSchemaVersion: 2,
+        axisVertexLimit: 12,
       }),
     );
     expect(whole.axis).not.toBeNull();
     expect(tiny.axis).not.toBeNull();
-    expect(tiny.axis!.coordinates.length).toBeLessThanOrEqual(8);
 
+    // The ceiling bit: this is the assertion the old two-point fixture could never make.
+    expect(whole.axis!.coordinates.length).toBeGreaterThan(50);
+    expect(tiny.axis!.coordinates.length).toBeLessThanOrEqual(12);
+    expect(tiny.axis!.coordinates.length).toBeGreaterThanOrEqual(2);
+
+    // Both ends are literally the road's own ends.
+    expect(tiny.axis!.coordinates[0]).toEqual(whole.axis!.coordinates[0]);
+    expect(tiny.axis!.coordinates.at(-1)).toEqual(whole.axis!.coordinates.at(-1));
+
+    /*
+     * And the **last stretch** is represented, not merely the last point. Truncation leaves the
+     * tail empty; simplification leaves it sparse. At least one vertex must fall in the final
+     * fifth of the corridor besides the endpoint itself.
+     */
+    const east = Math.max(...whole.axis!.coordinates.map(([x]) => x));
+    const west = Math.min(...whole.axis!.coordinates.map(([x]) => x));
+    const lastFifth = east - (east - west) / 5;
+    const interiorInTail = tiny
+      .axis!.coordinates.slice(0, -1)
+      .filter(([x]) => x >= lastFifth).length;
+    expect(interiorInTail).toBeGreaterThan(0);
+
+    // The extent agrees within the declared precision (six decimals of a degree, ~0,1 m).
     const extent = (coords: ReadonlyArray<readonly [number, number]>) => ({
       west: Math.min(...coords.map(([x]) => x)),
       east: Math.max(...coords.map(([x]) => x)),
-      south: Math.min(...coords.map(([, y]) => y)),
-      north: Math.max(...coords.map(([, y]) => y)),
     });
     const full = extent(whole.axis!.coordinates);
     const cut = extent(tiny.axis!.coordinates);
-    // Within a metre or so of the same ground: coarser, not shorter.
-    expect(Math.abs(cut.west - full.west)).toBeLessThan(0.0005);
-    expect(Math.abs(cut.east - full.east)).toBeLessThan(0.0005);
-    expect(Math.abs(cut.south - full.south)).toBeLessThan(0.0005);
-    expect(Math.abs(cut.north - full.north)).toBeLessThan(0.0005);
-    // And both ends are literally the road's own ends.
-    expect(tiny.axis!.coordinates[0]).toEqual(whole.axis!.coordinates[0]);
-    expect(tiny.axis!.coordinates.at(-1)).toEqual(whole.axis!.coordinates.at(-1));
+    expect(Math.abs(cut.west - full.west)).toBeLessThan(0.000002);
+    expect(Math.abs(cut.east - full.east)).toBeLessThan(0.000002);
+  });
+});
+
+/**
+ * One request, three released answers, and never a newer one than was asked for.
+ *
+ * Each version has a `.strict()` schema on the other side of the wire, so answering version 2
+ * with version 3's extra field is a parse error and **no map at all** on a device that is
+ * probably standing in a field. The assertions below are the server half of that promise; the
+ * contract package holds the parser half.
+ */
+describe("which version the server answers", () => {
+  it("A · answers version 1 to a caller that asks for nothing", async () => {
+    const map = await loadFieldMap(db.runtime, await ctxFor(technician));
+    expect(map.schemaVersion).toBe(1);
+    expect(() => fieldMapResponseSchema.parse(map)).not.toThrow();
+  });
+
+  it("B · answers version 2 with parts and **without** the background field", async () => {
+    const map = await loadFieldMap(db.runtime, await ctxFor(technician), {
+      acceptsSchemaVersion: 2,
+      // Configured, and still not sent: the caller cannot read version 3.
+      referenceBasemap: {
+        tileUrl: "https://x.invalid/{z}/{x}/{y}.jpg",
+        attribution: "x",
+        maxZoom: 20,
+      },
+    });
+    expect(map.schemaVersion).toBe(2);
+    expect("referenceBasemap" in map).toBe(false);
+    expect(() => fieldMapResponseV2Schema.parse(map)).not.toThrow();
+  });
+
+  it("C · answers version 3 with the background when one is configured", async () => {
+    const map = await loadFieldMap(db.runtime, await ctxFor(technician), {
+      acceptsSchemaVersion: 3,
+      referenceBasemap: {
+        tileUrl: "https://x.invalid/{z}/{x}/{y}.jpg?key=k",
+        attribution: "© Proveedor",
+        maxZoom: 20,
+      },
+    });
+    const parsed = fieldMapResponseV3Schema.parse(map);
+    expect(parsed.referenceBasemap?.tileUrl).toContain("{z}");
+  });
+
+  it("C · and with null when none is, which is the ordinary state", async () => {
+    /*
+     * Null is not an error. A deployment with no User-Agent-restricted key gives the device
+     * nothing to fetch, and the device draws its croquis and says so — rather than being handed
+     * a URL that would 403 on every tile.
+     */
+    const map = await loadFieldMap(db.runtime, await ctxFor(technician), {
+      acceptsSchemaVersion: 3,
+    });
+    expect(fieldMapResponseV3Schema.parse(map).referenceBasemap).toBeNull();
+  });
+
+  it("never answers above what the caller said it can read", async () => {
+    for (const asked of [1, 2, 3]) {
+      const map = await loadFieldMap(db.runtime, await ctxFor(technician), {
+        acceptsSchemaVersion: asked,
+        referenceBasemap: {
+          tileUrl: "https://x.invalid/{z}/{x}/{y}.jpg",
+          attribution: "x",
+          maxZoom: 20,
+        },
+      });
+      expect(map.schemaVersion).toBe(asked);
+    }
   });
 });

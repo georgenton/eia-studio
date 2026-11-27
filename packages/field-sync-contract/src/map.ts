@@ -219,27 +219,61 @@ export const fieldMapResponseV2Schema = fieldMapResponseSchema
   .extend({
     schemaVersion: z.literal(FIELD_MAP_SCHEMA_VERSION_PARTS),
     parcels: z.array(mapParcelV2Schema).max(200),
-    /**
-     * Where the device may fetch reference imagery, when this deployment has a key for it.
-     *
-     * **Handed to a signed-in device rather than built into the application.** An APK is readable
-     * by whoever holds the phone, and ADR-028's rule is that a distributable binary carries no
-     * credential; this arrives over an authenticated request and lives in the device's encrypted
-     * database beside the session it was fetched with.
-     *
-     * Null is the ordinary state, not an error: the device then draws the study's own geometry on
-     * a plain ground — the croquis it has always drawn — and says that is what it is showing.
-     * **It is not an offline background**: these are tiles fetched over the network.
-     */
-    referenceBasemap: z
-      .object({
-        /** An XYZ template with `{z}`, `{x}` and `{y}`. */
-        tileUrl: z.string().min(1).max(500),
-        attribution: z.string().max(200),
-        maxZoom: z.number().int().min(1).max(24),
-      })
-      .strict()
-      .nullable(),
   })
   .strict();
 export type FieldMapResponseV2 = z.infer<typeof fieldMapResponseV2Schema>;
+
+/**
+ * Version 3: the reference background, beside everything version 2 already carries.
+ *
+ * ## Why this is a third version and not a field on the second
+ *
+ * Version 2 is **already released**: it went out in #95 and three servers answer it today. A
+ * released version is a promise about a shape, and adding a required field to it breaks that
+ * promise in both directions at once — a client holding version 2's `.strict()` schema rejects
+ * the extra key, and a client built for the new shape rejects a stored version 2 payload for
+ * lacking it. The second of those is the worse one: it would demand a fresh download from
+ * somebody standing in a field with no signal.
+ *
+ * Nothing installed was in fact damaged — the distributed build (`versionCode` 10, from
+ * `f6cd0d4`) sends no version at all and parses version 1, and no artefact has ever been built
+ * that speaks version 2. That is a fact about this week, not a licence to redefine a version
+ * that is live on three servers.
+ *
+ * So version 2 stays exactly as it shipped, and the background arrives in version 3.
+ */
+export const FIELD_MAP_SCHEMA_VERSION_BASEMAP = 3;
+
+/**
+ * Where the device may fetch reference imagery, when this deployment has a key for it.
+ *
+ * **Handed to a signed-in device rather than built into the application.** An APK is readable by
+ * whoever holds the phone, and ADR-028's rule is that a distributable binary carries no
+ * credential; this arrives over an authenticated request and lives in the device's encrypted
+ * database beside the session it was fetched with.
+ *
+ * Null is the ordinary state, not an error: the device then draws the study's own geometry on a
+ * plain ground — the croquis it has always drawn — and says that is what it is showing. **It is
+ * not an offline background**: these are tiles fetched over the network.
+ */
+export const mapReferenceBasemapSchema = z
+  .object({
+    /** An XYZ template with `{z}`, `{x}` and `{y}`. */
+    tileUrl: z.string().min(1).max(500),
+    attribution: z.string().max(200),
+    maxZoom: z.number().int().min(1).max(24),
+  })
+  .strict();
+export type MapReferenceBasemap = z.infer<typeof mapReferenceBasemapSchema>;
+
+export const fieldMapResponseV3Schema = fieldMapResponseV2Schema
+  .omit({ schemaVersion: true })
+  .extend({
+    schemaVersion: z.literal(FIELD_MAP_SCHEMA_VERSION_BASEMAP),
+    referenceBasemap: mapReferenceBasemapSchema.nullable(),
+  })
+  .strict();
+export type FieldMapResponseV3 = z.infer<typeof fieldMapResponseV3Schema>;
+
+/** The highest version this build of the contract knows how to produce or read. */
+export const FIELD_MAP_SCHEMA_VERSION_LATEST = FIELD_MAP_SCHEMA_VERSION_BASEMAP;

@@ -1,13 +1,17 @@
 import {
   fieldMapResponseSchema,
   fieldMapResponseV2Schema,
+  fieldMapResponseV3Schema,
   type FieldMapResponse,
   type FieldMapResponseV2,
+  type FieldMapResponseV3,
   type MapParcelPart,
   type MapPosition,
+  type MapReferenceBasemap,
 } from "@eia/field-sync-contract";
 import * as Location from "expo-location";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import type { GestureResponderEvent, PanResponderGestureState } from "react-native";
 import {
   Image,
   PanResponder,
@@ -19,6 +23,19 @@ import {
 import Svg, { Circle, G, Line, Path, Rect, Text as SvgText } from "react-native-svg";
 
 import { boundsOf, formatScale, padBounds, scaleBarMetres } from "../core/map-projection";
+import {
+  beginGesture,
+  clampZoom,
+  endGesture,
+  moveGesture,
+  type Camera,
+  type GestureFrame,
+} from "../core/map-gesture";
+import {
+  basemapLoadState,
+  showsProviderImagery,
+  type BasemapLoadState,
+} from "../core/basemap-state";
 import { fitBounds, tilesFor, tileUrl, viewOf, type MercatorView } from "../core/mercator";
 import { tileUserAgent } from "../core/tile-agent";
 import { fieldConfig } from "../config";
@@ -85,25 +102,58 @@ function touchDistance(
   return Math.hypot(a.pageX - b.pageX, a.pageY - b.pageY);
 }
 
-/**
- * The zoom range the screen allows.
- *
- * The ceiling is the provider's: asking for a tile above its `maxZoom` returns nothing, and the
- * background would vanish while the geometry stayed — which reads as a broken map. The floor is
- * about a continent, far enough out to be obviously a mistake and back.
- */
-const MIN_ZOOM = 3;
-const MAX_ZOOM = 18;
-
-function clampZoom(zoom: number): number {
-  return Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom));
+/** What the responder reports, in the shape the gesture reducer takes. */
+function frameOf(
+  event: GestureResponderEvent,
+  gestureState: PanResponderGestureState,
+): GestureFrame {
+  const touches = event.nativeEvent.touches;
+  return {
+    touches: touches.length,
+    distance: touches.length >= 2 ? touchDistance(touches[0]!, touches[1]!) : 0,
+    dx: gestureState.dx,
+    dy: gestureState.dy,
+  };
 }
 
-/** The camera, plus where a live gesture began. Null between gestures. */
-interface Camera {
-  readonly centre: MapPosition;
-  readonly zoom: number;
-  readonly anchor: { centre: MapPosition; zoom: number; distance: number } | null;
+/** One sentence per state, and none of them says "configured". */
+const BASEMAP_STATE_MESSAGE = {
+  none: "mobile.mapNoBasemap",
+  loading: "mobile.mapBasemapLoading",
+  available: "mobile.mapWithBasemap",
+  partial: "mobile.mapBasemapPartial",
+  unavailable: "mobile.mapBasemapUnavailable",
+} as const;
+
+/** Whatever shape the local database happens to hold: this build reads all three. */
+type StoredMap = FieldMapResponse | FieldMapResponseV2 | FieldMapResponseV3;
+
+/**
+ * **Any version this application has ever written.**
+ *
+ * A map downloaded by an earlier build is sitting in this device's database, and refusing it
+ * would turn an update into a lost map — demanding a fresh download from somebody who may have
+ * no signal, which is the one thing an offline application must not do. Newest first, because
+ * each version is a superset of the one before and the richer reading is the one to prefer.
+ */
+function readStoredMap(raw: unknown): StoredMap | null {
+  const v3 = fieldMapResponseV3Schema.safeParse(raw);
+  if (v3.success) return v3.data;
+  const v2 = fieldMapResponseV2Schema.safeParse(raw);
+  if (v2.success) return v2.data;
+  const v1 = fieldMapResponseSchema.safeParse(raw);
+  return v1.success ? v1.data : null;
+}
+
+/**
+ * The reference background a stored map carries, if its version has one.
+ *
+ * A version 1 or version 2 payload has no such field, and that is not a fault: it is a map
+ * downloaded before this product could offer a background. The device draws its croquis and
+ * says so, which is what it also does when the field is present and null.
+ */
+function basemapOf(map: StoredMap): MapReferenceBasemap | null {
+  return "referenceBasemap" in map ? map.referenceBasemap : null;
 }
 
 export function ParcelMapScreen({
@@ -126,7 +176,7 @@ export function ParcelMapScreen({
         : { tenantSlug: workPack.project.tenantSlug, projectSlug: workPack.project.projectSlug },
     [workPack],
   );
-  const [map, setMap] = useState<FieldMapResponse | FieldMapResponseV2 | null>(null);
+  const [map, setMap] = useState<StoredMap | null>(null);
   const [fetchedAt, setFetchedAt] = useState<string | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "absent" | "unreadable">("loading");
   const [busy, setBusy] = useState(false);
@@ -159,10 +209,7 @@ export function ParcelMapScreen({
        * would also satisfy the version 1 schema minus its `parts`, and the richer reading is the
        * one to prefer.
        */
-      const raw = JSON.parse(stored.payload) as unknown;
-      const v2 = fieldMapResponseV2Schema.safeParse(raw);
-      const v1 = v2.success ? null : fieldMapResponseSchema.safeParse(raw);
-      const understood = v2.success ? v2.data : v1?.success ? v1.data : null;
+      const understood = readStoredMap(JSON.parse(stored.payload));
       if (understood === null) {
         setStatus("unreadable");
         return;
@@ -318,50 +365,38 @@ export function ParcelMapScreen({
    * matters for a drag: every frame is computed from where the finger **started**, so rounding
    * cannot accumulate across a long pan.
    */
+  /*
+   * Pan and pinch, with React Native's own responder. No gesture library and no native map
+   * module: the brief asked for an integration compatible with the application as it is, and a
+   * new native dependency is a migration rather than a screen.
+   *
+   * The arithmetic lives in `map-gesture.ts` as a pure reducer, because the behaviour that
+   * matters is a *sequence* — one finger, a second arrives, pinch, one leaves, keep dragging —
+   * and inside these callbacks that sequence can only be exercised on a device, which in
+   * practice means never. The anchor is held in state and read through a functional update: a
+   * ref read while the responder is built is a render-time ref read, and a reassigned closure
+   * variable is mutation after render, and the React compiler rejects each in turn.
+   */
   const panResponder = useMemo(
     () =>
       PanResponder.create({
         onStartShouldSetPanResponder: () => true,
         onMoveShouldSetPanResponder: () => true,
-        onPanResponderGrant: (event) => {
-          const touches = event.nativeEvent.touches;
-          const distance = touches.length >= 2 ? touchDistance(touches[0]!, touches[1]!) : 0;
-          setCamera((current) =>
-            current === null
-              ? current
-              : { ...current, anchor: { centre: current.centre, zoom: current.zoom, distance } },
-          );
+        onPanResponderGrant: (event, gestureState) => {
+          const frame = frameOf(event, gestureState);
+          setCamera((current) => (current === null ? current : beginGesture(current, frame)));
         },
         onPanResponderMove: (event, gestureState) => {
-          const touches = event.nativeEvent.touches;
-          setCamera((current) => {
-            if (current === null || current.anchor === null) return current;
-            const anchor = current.anchor;
-            if (touches.length >= 2 && anchor.distance > 0) {
-              const distance = touchDistance(touches[0]!, touches[1]!);
-              if (distance <= 0) return current;
-              return {
-                ...current,
-                zoom: clampZoom(anchor.zoom + Math.log2(distance / anchor.distance)),
-              };
-            }
-            const at = viewOf(anchor.centre, anchor.zoom, viewport);
-            // Dragging moves the ground with the finger, so the centre moves the other way.
-            return {
-              ...current,
-              centre: at.toLonLat({
-                x: viewport.width / 2 - gestureState.dx,
-                y: viewport.height / 2 - gestureState.dy,
-              }),
-            };
-          });
+          const frame = frameOf(event, gestureState);
+          setCamera((current) =>
+            current === null ? current : moveGesture(current, frame, viewport),
+          );
         },
         onPanResponderRelease: () =>
-          setCamera((current) => (current === null ? current : { ...current, anchor: null })),
+          setCamera((current) => (current === null ? current : endGesture(current))),
         onPanResponderTerminate: () =>
-          setCamera((current) => (current === null ? current : { ...current, anchor: null })),
+          setCamera((current) => (current === null ? current : endGesture(current))),
       }),
-    // `setCamera` is a stable `useCallback`; it is listed because the rule cannot know that.
     [viewport, setCamera],
   );
 
@@ -387,11 +422,49 @@ export function ParcelMapScreen({
    * the thing that works with no signal, and the caption says which of the two they are looking
    * at. **A croquis is never presented as a cartographic background.**
    */
-  const basemap = map !== null && "referenceBasemap" in map ? map.referenceBasemap : null;
+  const basemap = map === null ? null : basemapOf(map);
   const tiles = useMemo(
     () => (basemap === null || view === null ? [] : tilesFor(view)),
     [basemap, view],
   );
+
+  /*
+   * What the tiles actually did, rather than what was configured.
+   *
+   * Each `Image` reports back, and the outcomes are keyed by tile so panning to a new set starts
+   * a new verdict rather than inheriting the last one. `attempt` is the retry: it changes every
+   * key, which both clears the outcomes and makes the device ask again.
+   */
+  const [attempt, setAttempt] = useState(0);
+  const tileSetKey = useMemo(
+    () => `${attempt}:${tiles.map((tile) => tile.key).join("|")}`,
+    [attempt, tiles],
+  );
+  const [outcomes, setOutcomes] = useState<{
+    forSet: string;
+    byTile: Record<string, "ok" | "fail">;
+  }>({ forSet: tileSetKey, byTile: {} });
+  // Reset during render rather than in an effect: an effect would let one frame claim the
+  // previous view's verdict about a set of tiles that is no longer on screen.
+  if (outcomes.forSet !== tileSetKey) setOutcomes({ forSet: tileSetKey, byTile: {} });
+  const settled = outcomes.forSet === tileSetKey ? outcomes.byTile : {};
+
+  const reportTile = useCallback(
+    (key: string, result: "ok" | "fail") =>
+      setOutcomes((current) =>
+        current.byTile[key] === result
+          ? current
+          : { ...current, byTile: { ...current.byTile, [key]: result } },
+      ),
+    [],
+  );
+
+  const loadState: BasemapLoadState = basemapLoadState({
+    configured: basemap !== null,
+    requested: tiles.length,
+    loaded: Object.values(settled).filter((v) => v === "ok").length,
+    failed: Object.values(settled).filter((v) => v === "fail").length,
+  });
   const userAgent = useMemo(() => {
     const config = fieldConfig();
     return tileUserAgent(config.appVersion, config.environment);
@@ -443,7 +516,9 @@ export function ParcelMapScreen({
               */}
               {tiles.map((tile) => (
                 <Image
-                  key={tile.key}
+                  key={`${attempt}:${tile.key}`}
+                  onError={() => reportTile(tile.key, "fail")}
+                  onLoad={() => reportTile(tile.key, "ok")}
                   source={{
                     uri: tileUrl(basemap!.tileUrl, tile),
                     headers: { "User-Agent": userAgent },
@@ -635,11 +710,28 @@ export function ParcelMapScreen({
               is the difference between an honest fallback and a false claim.
             */}
             <Notice
-              text={basemap === null ? t("mobile.mapNoBasemap") : t("mobile.mapWithBasemap")}
-              tone={basemap === null ? "warn" : "ok"}
+              text={t(BASEMAP_STATE_MESSAGE[loadState])}
+              tone={loadState === "available" ? "ok" : "warn"}
             />
-            {basemap !== null && basemap.attribution.length > 0 ? (
+            {/*
+              Attribution is a condition of using the tiles, so it is on screen exactly when the
+              provider's imagery is — not when a template happens to be configured.
+            */}
+            {showsProviderImagery(loadState) &&
+            basemap !== null &&
+            basemap.attribution.length > 0 ? (
               <Body>{basemap.attribution}</Body>
+            ) : null}
+            {/*
+              One retry, on a press. No automatic retry: a failing provider and an automatic
+              retry are a request loop, which costs a technician their battery and their data.
+            */}
+            {loadState === "partial" || loadState === "unavailable" ? (
+              <Button
+                label={t("mobile.mapRetryBasemap")}
+                onPress={() => setAttempt((n) => n + 1)}
+                tone="secondary"
+              />
             ) : null}
 
             <Label>{t("mobile.mapParcel")}</Label>

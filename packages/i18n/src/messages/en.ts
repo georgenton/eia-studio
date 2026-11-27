@@ -2019,6 +2019,12 @@ export const messages: Messages = {
     syncing: "Syncing…",
     refreshWork: "Refresh assigned work",
     /* The offline map: drawn from the project's own geometry, with no tile provider. */
+    mapBasemapLoading: "Loading the reference map…",
+    mapBasemapPartial:
+      "The reference map loaded only in part. What is missing is blank; the centreline, the parcel and the posts are complete.",
+    mapBasemapUnavailable:
+      "The reference map could not be loaded. The sketch is shown: centreline, parcel and posts on a plain ground.",
+    mapRetryBasemap: "Retry the background",
     mapZoomIn: "Zoom in",
     mapZoomOut: "Zoom out",
     mapCentreParcel: "Centre on parcel",

@@ -2033,6 +2033,12 @@ export const messages = {
     syncing: "Sincronizando…",
     refreshWork: "Actualizar trabajo asignado",
     /* El mapa sin conexión: dibujado con la geometría del proyecto, sin proveedor de mosaicos. */
+    mapBasemapLoading: "Cargando el fondo cartográfico…",
+    mapBasemapPartial:
+      "El fondo cartográfico se cargó sólo en parte. Lo que falta queda en blanco; el eje, el predio y los hitos están completos.",
+    mapBasemapUnavailable:
+      "No se pudo cargar el fondo cartográfico. Se muestra el croquis: eje, predio e hitos sobre fondo liso.",
+    mapRetryBasemap: "Reintentar el fondo",
     mapZoomIn: "Acercar",
     mapZoomOut: "Alejar",
     mapCentreParcel: "Centrar predio",
