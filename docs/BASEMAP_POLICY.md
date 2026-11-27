@@ -213,3 +213,126 @@ Not a basemap architecture. There is one provider implementation, one raster lay
 Vector styles, 3D terrain, hillshade from a DEM, offline tile caching, per-project basemap
 configuration and a national cartographic service are all *possible* from here and none of them is
 built, because none of them is needed to give a rural road study its territorial context.
+
+## 8. The parcel detail, and why it had no background for so long
+
+The Explorer had a reference background from Slice 2 onward. The **parcel detail** — where somebody
+actually looks at one parcel — drew the outline on a flat grey square until 26 November 2026. It
+was not a decision; the component simply predated the catalogue and nobody connected them.
+
+It now uses the same catalogue, the same `attachBasemap`/`probeBasemap` helpers and the same
+remembered preference, out of one shared module (`apps/web/components/gis/basemap-chrome.tsx`).
+Opening a parcel from a satellite Explorer no longer drops a reader onto grey.
+
+Two things are drawn there that the Explorer does not draw, both from the study's own layers:
+
+| | What | Why |
+|---|---|---|
+| Road segment | the centreline `ST_Intersection`ed with the context box | a 5,9 km road in a 300 m view is 99 % coordinates nobody sees. The caption says **segment**, so nothing implies the road ends where the box does |
+| Neighbouring parcels | same layer, same permission, outline and code only | the context a provider cannot supply. No area, no status, no owner: they are context, not a second table |
+
+The parcel's fill is **0,35**, not the Explorer's 0,85: on a detail map the ground underneath is
+the reason the map exists. The frame opens on the surroundings rather than on the parcel, because
+a parcel zoomed to fill its frame is the grey square again with a photograph behind it.
+
+## 9. A phone is not a browser, and the key proves it
+
+**Verified against the provider on 26 November 2026**, not inferred:
+
+| Request | Answer |
+|---|---|
+| tile with no `Referer` — what a native application sends | **403** |
+| tile with `Referer: https://eia-staging.syntavera.dev/` | 200 |
+| tile with `Referer: https://eia.syntavera.dev/` | 200 |
+| tile with an unrelated `Referer` | **403** |
+
+The browser key is restricted by **allowed HTTP origin**, which is correct and must not be
+weakened: a key in a web page is readable, and the origin is what stops anyone else spending it.
+The consequence is that **it cannot serve a native application at all**.
+
+MapTiler documents, for native applications, a key restricted by **Allowed User-Agent header**,
+matched as a substring. So there are two keys:
+
+| | Browser | Field application |
+|---|---|---|
+| Variable | `MAPTILER_KEY` | `MAPTILER_MOBILE_KEY` |
+| Restriction | allowed HTTP origin | allowed User-Agent substring |
+| Substring | n/a | `EIAFieldAndroid` (`apps/field/src/core/tile-agent.ts`) |
+| Reaches the client how | inlined in the page, as it must be | handed to a **signed-in device** in the map response (ADR-028: a distributable binary carries no credential) |
+| Unset means | no background on the web | no background on the phone, and the device says so |
+
+The browser key is **never** substituted for the mobile one. It would 403 on every tile, and a
+background that silently never paints is the failure §5 exists to prevent.
+
+The User-Agent is not a secret and protects nothing by itself — anyone can send any header. It
+raises the cost of casually reusing a key lifted out of an APK, which together with a spend cap is
+what the provider's model actually offers.
+
+## 10. Offline background: open, and named
+
+**Not delivered, and the croquis is not offered as evidence that it was.**
+
+What the device draws with no signal is the study's own geometry on a plain ground — the axis, the
+parcel, the posts, north and a scale bar. It is useful and it is what works in a ravine. It is
+**not** a cartographic background and the screen says so in those words: *Croquis del predio sin
+fondo cartográfico*.
+
+Two findings stand between here and a downloaded background:
+
+1. **MapTiler's Offline Pack API is part of their Kotlin SDK** (`com.maptiler.sdk:maptiler-sdk-kotlin`),
+   a native Android dependency this Expo application does not embed. Adding it is a native module,
+   not a screen.
+2. **Their terms §6.3 prohibit "batch or excessive bulk download … unless otherwise agreed in
+   writing"**, and define no threshold. §5.7 permits "a temporary personal cache … for use by a
+   single end-user only" without defining *temporary*. The Offline Pack documentation shows exactly
+   the bounded-area pattern, and does not say the terms are relaxed for it.
+
+So the two honest routes are a **written agreement with MapTiler** for a bounded field download, or
+**cartography whose licence already permits it** — tiles generated from OpenStreetMap data (ODbL,
+redistribution permitted with attribution), served and packaged by us.
+
+Neither is started, and **the requirement is not withdrawn**. Writing a pending item down is
+a record of what is missing, not consent to ship without it: a technician in a ravine still
+has no cartographic background, and this document says so rather than settling for the
+croquis. What was decided on 26 November 2026 is narrower — that neither route is attempted
+in this wave, because each one is a decision the owner takes with a third party (a written
+agreement with MapTiler, or adopting and hosting ODbL cartography) and neither is an
+implementation choice. The item stays open in `docs/TECH_DEBT.md` with its removal trigger.
+
+## 11. Plan, and the limit that decides this
+
+Still **MapTiler Free**, whose terms are "non-commercial use and research & development for
+commercial products applications". The pilot is a consultancy demonstration under the owner
+authorisation of 7 September 2026.
+
+**Correction of 26 November 2026.** This document previously said that a second key on the same
+account "is the same authorisation and the same cost: none". That was wrong, and the provider says
+so plainly:
+
+| Observed | Where |
+|---|---|
+| `You are not allowed to have more than 1 active keys.` | the refusal when creating the key |
+| Plan **Free**, the account's *Keys* quota 100 % used with one key | `cloud.maptiler.com/account/` |
+| **API keys — Free: 1 · Flex: 1000 · Custom: 1000+** | the published pricing comparison |
+
+So `MAPTILER_MOBILE_KEY` **cannot be created on this account as it stands**. Everything around it
+is built and wired — the contract, the server, the application, and the variable now reaches the
+web service in the versioned Compose and in all three deployments — and the phone therefore shows
+the croquis and says the background is not configured, which is the designed state and not a
+failure. What is missing is one key, and the only way to have one is a plan change.
+
+### The decision, stated concretely
+
+| | What it costs | What it gives | Judgement |
+|---|---|---|---|
+| **Flex**, $30/month USD + VAT | a new recurring charge | 1000 keys, so a separate key per environment; **and commercial use**, which Free does not permit and which the eight production road projects require anyway | the honest option, and it settles a question this document already had open rather than adding one |
+| **ODbL cartography we host** | no licence fee; engineering and a server | a background on web and phone **with no second key at all** — `BASEMAP_PROVIDER=custom` is one template both clients read (`resolveBasemap` and `resolveMobileBasemap` accept it today), and it is the only route that also answers §10's offline question | real, but it replaces the provider for the web as well, and it is a build plus a hosting decision rather than a configuration |
+| A second **Free** account for the mobile key | nothing | one more key | **rejected**: it is circumventing a plan limit, and the second account is still non-commercial |
+| Put the **web** key in the Android binary with a forged `Referer` | nothing | tiles on the phone | **rejected**: the origin list is the web key's only protection, and a binary anyone can unzip would make it work from anywhere. Weakening a control to avoid a charge |
+
+**Not acted on.** No plan was changed, no account created, no request sent to the provider, and
+the web key's restrictions are exactly as they were.
+
+**The eight production road projects are commercial use and Free does not cover them**, so the
+Flex question exists with or without the Android background; whether Flex alone suffices for that
+volume is the owner's to settle with the provider.

@@ -8,9 +8,11 @@ import {
 } from "@eia/domain";
 import {
   FIELD_MAP_SCHEMA_VERSION,
+  FIELD_MAP_SCHEMA_VERSION_BASEMAP,
   FIELD_MAP_SCHEMA_VERSION_PARTS,
   type FieldMapResponse,
   type FieldMapResponseV2,
+  type FieldMapResponseV3,
   type MapMilestone,
   type MapParcel,
   type MapParcelPart,
@@ -61,6 +63,17 @@ export interface FieldMapScope {
    * predates `parts` is holding — and giving it anything else would be a parse error.
    */
   readonly acceptsSchemaVersion?: number;
+  /**
+   * Where the device may fetch reference imagery, when the deployment has a key for it.
+   *
+   * Passed in by the route rather than read here: this module knows about the study's geometry,
+   * and which third-party service a deployment happens to have configured is not its business.
+   */
+  readonly referenceBasemap?: {
+    readonly tileUrl: string;
+    readonly attribution: string;
+    readonly maxZoom: number;
+  } | null;
 }
 
 interface ParcelRow {
@@ -230,7 +243,7 @@ export async function loadFieldMap(
   db: Database,
   ctx: RequestContext,
   scope: FieldMapScope = {},
-): Promise<FieldMapResponse | FieldMapResponseV2> {
+): Promise<FieldMapResponse | FieldMapResponseV2 | FieldMapResponseV3> {
   requireCapability(ctx, "gis.maps");
   requireCapability(ctx, "field.surveys");
   requirePermission(ctx, "field.assignments.read_own");
@@ -326,13 +339,18 @@ export async function loadFieldMap(
       /*
        * The whole road, coarser — never the first N vertices of it.
        *
-       * The tolerance is derived from the route's own length and the vertex ceiling, so a long
-       * road is simplified harder and a short one is barely touched, and **both arrive complete**.
        * The previous version simplified at a fixed 5 m and then took slice(0, limit), which cut
        * the tail off: a parcel at the far end of a 5,9 km corridor had its stretch of road simply
        * missing, with nothing on the device saying so.
        *
-       * At least 5 m, because below that the simplification is not worth the vertices.
+       * The tolerance here is **gentle on purpose**. Deriving it from length ÷ ceiling spends the
+       * whole budget in one step: on an 11 km road with a ceiling of 12 that is a 900 m
+       * tolerance, which flattens every curve the road has and returns a line between its two
+       * ends. Correct about the extent, and useless as a drawing.
+       *
+       * So this removes coordinate noise — a twentieth of the per-vertex budget, floored at 5 m —
+       * and the ceiling itself is enforced afterwards by uniform decimation, which keeps the two
+       * ends and spreads what it keeps along the **whole** road. Coarser, never shorter.
        */
       select label, dataset_version_label, origin, condition, dataset_version_id,
              case
@@ -341,7 +359,7 @@ export async function loadFieldMap(
                       ST_Transform(
                         ST_SimplifyPreserveTopology(
                           route,
-                          greatest(5.0, ST_Length(route) / ${sql.raw(String(axisVertexLimit))})),
+                          greatest(5.0, ST_Length(route) / ${sql.raw(String(axisVertexLimit * 20))})),
                         4326))::json -> 'coordinates'
              end as coordinates
         from a
@@ -430,6 +448,22 @@ export async function loadFieldMap(
    * now the largest piece rather than the first, which is the one improvement an old build gets
    * for free.
    */
+  /*
+   * Exactly the version the caller asked for, and never a newer one.
+   *
+   * Each of these is a released shape with a `.strict()` schema on the other side, so answering
+   * version 2 with version 3's extra field is a parse error and **no map at all** on a device
+   * that is probably standing in a field. Version 3 adds the reference background; version 2 is
+   * every piece of every parcel; version 1 is the single largest ring.
+   */
+  if (acceptsVersion >= FIELD_MAP_SCHEMA_VERSION_BASEMAP) {
+    return {
+      ...body,
+      schemaVersion: FIELD_MAP_SCHEMA_VERSION_BASEMAP,
+      parcels: mapParcels,
+      referenceBasemap: scope.referenceBasemap ?? null,
+    };
+  }
   if (acceptsVersion >= FIELD_MAP_SCHEMA_VERSION_PARTS) {
     return { ...body, schemaVersion: FIELD_MAP_SCHEMA_VERSION_PARTS, parcels: mapParcels };
   }

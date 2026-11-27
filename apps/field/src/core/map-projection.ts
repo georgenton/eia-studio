@@ -26,6 +26,14 @@ import type { MapPosition } from "@eia/field-sync-contract";
  *
  * It is not a cartographic projection anybody should quote. It is a drawing aid for a phone, and
  * the product says so rather than printing a CRS beside it.
+ *
+ * ## When this is *not* the projection used
+ *
+ * The moment there is a reference background. Raster tiles are cut in Web Mercator at fixed
+ * positions, and drawing them under an equirectangular overlay would put the road a few metres
+ * off the road. `mercator.ts` is the projection for that case, and the screen uses it whenever a
+ * background is configured — the croquis and the backed map are then the same arithmetic, which
+ * is the only way the two can agree about where a parcel is.
  */
 export interface Viewport {
   readonly width: number;

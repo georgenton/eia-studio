@@ -20,9 +20,11 @@ import {
   resolveAiAdapterAvailability,
   resolveDocumentReviewerAvailability,
   resolveBasemapCatalogue,
+  resolveMobileBasemap,
   resolveClassifierAvailability,
   resolveStorageAvailability,
   type BasemapCatalogue,
+  type MobileBasemap,
   type ClassifierAvailability,
   type StorageAvailability,
 } from "@eia/domain";
@@ -60,6 +62,8 @@ interface WebEnv {
    * a plain ground. A basemap is geographic context, never project evidence.
    */
   readonly basemap: BasemapCatalogue;
+  /** Null until a User-Agent-restricted key exists; the device then draws its croquis. */
+  readonly mobileBasemap: MobileBasemap | null;
   /**
    * Whether a file can be stored here at all, resolved once from `APP_ENV` and the storage
    * variables (ADR-031). The same shape as `classifier`, for the same reason: an unset
@@ -104,6 +108,25 @@ function withPlatformDefaults(source: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
 }
 
 /** Validated lazily at first use so `next build` does not require runtime secrets. */
+/**
+ * The basemap configuration, read once and handed to both resolvers.
+ *
+ * Two resolvers because the two callers are restricted differently at the provider and neither
+ * key works in the other's place — see `resolveMobileBasemap`.
+ */
+function basemapEnvironment(
+  source: NodeJS.ProcessEnv,
+): Parameters<typeof resolveBasemapCatalogue>[0] {
+  const basemap = loadEnv("basemap", basemapEnvSchema, source);
+  return {
+    provider: basemap.BASEMAP_PROVIDER,
+    maptilerKey: basemap.MAPTILER_KEY,
+    maptilerMobileKey: basemap.MAPTILER_MOBILE_KEY,
+    customTileUrl: basemap.BASEMAP_TILE_URL,
+    customAttribution: basemap.BASEMAP_ATTRIBUTION,
+  };
+}
+
 export function getEnv(): WebEnv {
   if (cached) return cached;
   const source = withPlatformDefaults(process.env);
@@ -156,17 +179,16 @@ export function getEnv(): WebEnv {
       accessKeyId: storage.STORAGE_ACCESS_KEY_ID,
       secretAccessKey: storage.STORAGE_SECRET_ACCESS_KEY,
     },
-    basemap: resolveBasemapCatalogue(
-      ((): Parameters<typeof resolveBasemapCatalogue>[0] => {
-        const basemap = loadEnv("basemap", basemapEnvSchema, source);
-        return {
-          provider: basemap.BASEMAP_PROVIDER,
-          maptilerKey: basemap.MAPTILER_KEY,
-          customTileUrl: basemap.BASEMAP_TILE_URL,
-          customAttribution: basemap.BASEMAP_ATTRIBUTION,
-        };
-      })(),
-    ),
+    basemap: resolveBasemapCatalogue(basemapEnvironment(source)),
+    /**
+     * The one background a **phone** may be given, which is not the browser's.
+     *
+     * A separate key, restricted at the provider by User-Agent rather than by origin, because a
+     * native application sends no `Referer` and the browser key answers 403 to it. Null until
+     * that key exists, which the device renders as "croquis without a background" rather than as
+     * an empty square.
+     */
+    mobileBasemap: resolveMobileBasemap(basemapEnvironment(source)),
     trustedOrigins: resolveTrustedOrigins({
       configured: auth.AUTH_TRUSTED_ORIGINS,
       baseURL: auth.BETTER_AUTH_URL,

@@ -28,6 +28,26 @@ export const basemapEnvSchema = z
     BASEMAP_TILE_URL: z.string().min(1).optional(),
     /** `custom` only: the attribution that service requires, shown verbatim. */
     BASEMAP_ATTRIBUTION: z.string().min(1).optional(),
+    /**
+     * A **second** MapTiler key, for the field application.
+     *
+     * Separate from `MAPTILER_KEY` because the two are restricted differently and neither
+     * restriction works for the other's caller. The browser key is restricted by allowed HTTP
+     * origin; a native application sends no `Referer`, so that key answers **403** from a phone —
+     * verified against the provider on 26 November 2026, not assumed. MapTiler's documented
+     * mechanism for a native application is a key restricted by **Allowed User-Agent header**,
+     * and the field application sends a distinctive one.
+     *
+     * Unset means the device is offered **no reference background** and says so. It is never
+     * substituted with the browser key: that key would simply fail, and a map that silently never
+     * paints is the failure `probeBasemap` exists to prevent on the web.
+     *
+     * This value never reaches a build artefact. It is handed to a device that has signed in, in
+     * the map response, and stored in the device's encrypted database — ADR-028's rule is that a
+     * distributable binary carries no credential, and an APK is readable by whoever holds the
+     * phone.
+     */
+    MAPTILER_MOBILE_KEY: z.string().min(1).optional(),
   })
   .strict();
 

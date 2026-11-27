@@ -62,7 +62,8 @@
   align-items: start;
 }
 .mapBox {
-  height: 300px;
+  /* The map, plus the two lines under it that say what it is and in which CRS. */
+  height: 420px;
   border: 1px solid var(--eia-border);
   border-radius: var(--eia-radius-panel);
   overflow: hidden;

@@ -26,9 +26,9 @@ import {
   workPackResponseSchema,
   workPullRequestSchema,
   workPullResponseSchema,
-  FIELD_MAP_SCHEMA_VERSION_PARTS,
-  fieldMapResponseV2Schema,
-  type FieldMapResponseV2,
+  FIELD_MAP_SCHEMA_VERSION_BASEMAP,
+  fieldMapResponseV3Schema,
+  type FieldMapResponseV3,
 } from "@eia/field-sync-contract";
 
 import { authHeaders } from "../auth/client";
@@ -222,18 +222,26 @@ export async function pullWork(input: WorkPullRequest): Promise<WorkPullResponse
 export async function fetchFieldMap(input: {
   tenantSlug: string;
   projectSlug: string;
-}): Promise<FieldMapResponseV2> {
+}): Promise<FieldMapResponseV3> {
   /*
-   * This build can read version 2 — every piece of a multi-part parcel, and its holes — so it
-   * says so. A server that only knows version 1 ignores an unknown optional field and answers in
-   * version 1, and a *build* older than this one never sends it and is answered in version 1 too.
-   * The negotiation is one optional number travelling device → server, which is the direction
-   * where `.strict()` costs nothing.
+   * This build can read version 3 — every piece of a multi-part parcel, its holes, and the
+   * reference background — so it says so, and the server answers in that version and no other.
+   *
+   * ## The ordering this creates, which is not optional
+   *
+   * `fieldMapRequestSchema` is `.strict()`, so a server that predates `acceptsSchemaVersion`
+   * **rejects a request carrying it** with 400. An earlier comment here claimed such a server
+   * would ignore the unknown field; that was wrong, and it mattered: it is the difference
+   * between "safe in any order" and "the server must be deployed first".
+   *
+   * So: deploy the server, then distribute the application. Every environment this repository
+   * controls already serves the field (it went out with #95), which is what makes this build
+   * safe to distribute now — checked, not assumed.
    */
-  return fieldMapResponseV2Schema.parse(
+  return fieldMapResponseV3Schema.parse(
     await post("/api/field/v4/map", {
       ...input,
-      acceptsSchemaVersion: FIELD_MAP_SCHEMA_VERSION_PARTS,
+      acceptsSchemaVersion: FIELD_MAP_SCHEMA_VERSION_BASEMAP,
     }),
   );
 }

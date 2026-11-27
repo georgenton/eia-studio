@@ -1,23 +1,44 @@
 import {
   fieldMapResponseSchema,
   fieldMapResponseV2Schema,
+  fieldMapResponseV3Schema,
   type FieldMapResponse,
   type FieldMapResponseV2,
+  type FieldMapResponseV3,
   type MapParcelPart,
   type MapPosition,
+  type MapReferenceBasemap,
 } from "@eia/field-sync-contract";
 import * as Location from "expo-location";
-import { useEffect, useMemo, useState } from "react";
-import { ScrollView, StyleSheet, View } from "react-native";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import type { GestureResponderEvent, PanResponderGestureState } from "react-native";
+import {
+  Image,
+  PanResponder,
+  ScrollView,
+  StyleSheet,
+  useWindowDimensions,
+  View,
+} from "react-native";
 import Svg, { Circle, G, Line, Path, Rect, Text as SvgText } from "react-native-svg";
 
+import { boundsOf, formatScale, padBounds, scaleBarMetres } from "../core/map-projection";
 import {
-  boundsOf,
-  formatScale,
-  padBounds,
-  projectionFor,
-  scaleBarMetres,
-} from "../core/map-projection";
+  beginGesture,
+  clampZoom,
+  endGesture,
+  moveGesture,
+  type Camera,
+  type GestureFrame,
+} from "../core/map-gesture";
+import {
+  basemapLoadState,
+  showsProviderImagery,
+  type BasemapLoadState,
+} from "../core/basemap-state";
+import { fitBounds, tilesFor, tileUrl, viewOf, type MercatorView } from "../core/mercator";
+import { tileUserAgent } from "../core/tile-agent";
+import { fieldConfig } from "../config";
 import { readMapPack, saveMapPack } from "../db/repo";
 import { useT } from "../i18n";
 import { useField } from "../store";
@@ -73,6 +94,68 @@ function partsOf(place: {
   return place.parts ?? [{ outer: [...place.ring], holes: [] }];
 }
 
+/** Pythagoras between two touches, for pinch. */
+function touchDistance(
+  a: { pageX: number; pageY: number },
+  b: { pageX: number; pageY: number },
+): number {
+  return Math.hypot(a.pageX - b.pageX, a.pageY - b.pageY);
+}
+
+/** What the responder reports, in the shape the gesture reducer takes. */
+function frameOf(
+  event: GestureResponderEvent,
+  gestureState: PanResponderGestureState,
+): GestureFrame {
+  const touches = event.nativeEvent.touches;
+  return {
+    touches: touches.length,
+    distance: touches.length >= 2 ? touchDistance(touches[0]!, touches[1]!) : 0,
+    dx: gestureState.dx,
+    dy: gestureState.dy,
+  };
+}
+
+/** One sentence per state, and none of them says "configured". */
+const BASEMAP_STATE_MESSAGE = {
+  none: "mobile.mapNoBasemap",
+  loading: "mobile.mapBasemapLoading",
+  available: "mobile.mapWithBasemap",
+  partial: "mobile.mapBasemapPartial",
+  unavailable: "mobile.mapBasemapUnavailable",
+} as const;
+
+/** Whatever shape the local database happens to hold: this build reads all three. */
+type StoredMap = FieldMapResponse | FieldMapResponseV2 | FieldMapResponseV3;
+
+/**
+ * **Any version this application has ever written.**
+ *
+ * A map downloaded by an earlier build is sitting in this device's database, and refusing it
+ * would turn an update into a lost map — demanding a fresh download from somebody who may have
+ * no signal, which is the one thing an offline application must not do. Newest first, because
+ * each version is a superset of the one before and the richer reading is the one to prefer.
+ */
+function readStoredMap(raw: unknown): StoredMap | null {
+  const v3 = fieldMapResponseV3Schema.safeParse(raw);
+  if (v3.success) return v3.data;
+  const v2 = fieldMapResponseV2Schema.safeParse(raw);
+  if (v2.success) return v2.data;
+  const v1 = fieldMapResponseSchema.safeParse(raw);
+  return v1.success ? v1.data : null;
+}
+
+/**
+ * The reference background a stored map carries, if its version has one.
+ *
+ * A version 1 or version 2 payload has no such field, and that is not a fault: it is a map
+ * downloaded before this product could offer a background. The device draws its croquis and
+ * says so, which is what it also does when the field is present and null.
+ */
+function basemapOf(map: StoredMap): MapReferenceBasemap | null {
+  return "referenceBasemap" in map ? map.referenceBasemap : null;
+}
+
 export function ParcelMapScreen({
   assignmentId,
   onBack,
@@ -93,7 +176,7 @@ export function ParcelMapScreen({
         : { tenantSlug: workPack.project.tenantSlug, projectSlug: workPack.project.projectSlug },
     [workPack],
   );
-  const [map, setMap] = useState<FieldMapResponse | FieldMapResponseV2 | null>(null);
+  const [map, setMap] = useState<StoredMap | null>(null);
   const [fetchedAt, setFetchedAt] = useState<string | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "absent" | "unreadable">("loading");
   const [busy, setBusy] = useState(false);
@@ -126,10 +209,7 @@ export function ParcelMapScreen({
        * would also satisfy the version 1 schema minus its `parts`, and the richer reading is the
        * one to prefer.
        */
-      const raw = JSON.parse(stored.payload) as unknown;
-      const v2 = fieldMapResponseV2Schema.safeParse(raw);
-      const v1 = v2.success ? null : fieldMapResponseSchema.safeParse(raw);
-      const understood = v2.success ? v2.data : v1?.success ? v1.data : null;
+      const understood = readStoredMap(JSON.parse(stored.payload));
       if (understood === null) {
         setStatus("unreadable");
         return;
@@ -211,39 +291,184 @@ export function ParcelMapScreen({
 
   const parcel = map?.parcels.find((p) => p.assignmentId === assignmentId) ?? null;
 
+  /*
+   * The map is now navigable, and the viewport follows the handset rather than being 320 points
+   * square. A fixed drawing with no navigation answered "what shape is it"; a technician standing
+   * at a gate is asking "where am I relative to it", which needs panning and zooming.
+   */
+  const window = useWindowDimensions();
+  const viewport = useMemo(
+    () => ({ width: Math.max(240, Math.min(window.width - 56, 460)), height: 340, padding: 18 }),
+    [window.width],
+  );
+
+  /** The parcel's own frame: where the map opens, and where «Centrar predio» returns to. */
+  const parcelFrame = useMemo(() => {
+    if (parcel === null) return null;
+    const positions: MapPosition[] =
+      parcel.place.kind === "polygon"
+        ? // Every piece, so a multi-part parcel is framed whole rather than around one of its
+          // pieces with the rest off screen.
+          partsOf(parcel.place).flatMap((part) => [...part.outer])
+        : [parcel.place.at];
+    const box = boundsOf(positions);
+    if (box === null) return null;
+    return fitBounds(padBounds(box, 1.2), viewport, { maxZoom: 18 });
+  }, [parcel, viewport]);
+
+  /*
+   * The camera, with the opening frame it was derived from.
+   *
+   * Storing the frame beside the camera is what lets the opening view be **reset when the parcel
+   * changes** and left alone otherwise — a reader who has panned must not be pulled back by an
+   * unrelated re-render. The reset happens during render rather than in an effect: React
+   * supports adjusting state while rendering for exactly this, and an effect would run after a
+   * frame had already been painted with the previous parcel's camera.
+   */
+  const [nav, setNav] = useState<{ frame: typeof parcelFrame; camera: Camera | null }>(() => ({
+    frame: parcelFrame,
+    camera: parcelFrame === null ? null : { ...parcelFrame, anchor: null },
+  }));
+  if (nav.frame !== parcelFrame) {
+    setNav({
+      frame: parcelFrame,
+      camera: parcelFrame === null ? null : { ...parcelFrame, anchor: null },
+    });
+  }
+  const camera = nav.frame === parcelFrame ? nav.camera : null;
+  const setCamera = useCallback(
+    (next: (current: Camera | null) => Camera | null) =>
+      setNav((current) => ({ ...current, camera: next(current.camera) })),
+    [],
+  );
+
+  const view: MercatorView | null = useMemo(
+    () => (camera === null ? null : viewOf(camera.centre, camera.zoom, viewport)),
+    [camera, viewport],
+  );
+
+  /*
+   * Pan and pinch, with React Native's own responder. No gesture library and no native map
+   * module: the brief asked for an integration compatible with the application as it is, and a
+   * new native dependency is a migration rather than a screen.
+   */
+  /*
+   * Pan and pinch, with React Native's own responder. No gesture library and no native map
+   * module: the brief asked for an integration compatible with the application as it is, and a
+   * new native dependency is a migration rather than a screen.
+   *
+   * The gesture's starting point lives in **state**, beside the camera, and every handler reads
+   * it through a functional update. The two obvious alternatives are both wrong: a ref read while
+   * the responder is built is a render-time ref read, and a closure variable reassigned from a
+   * callback is mutation after render — the React compiler rejects each in turn, and it is right
+   * to. One state object updated functionally has neither problem, and it has the property that
+   * matters for a drag: every frame is computed from where the finger **started**, so rounding
+   * cannot accumulate across a long pan.
+   */
+  /*
+   * Pan and pinch, with React Native's own responder. No gesture library and no native map
+   * module: the brief asked for an integration compatible with the application as it is, and a
+   * new native dependency is a migration rather than a screen.
+   *
+   * The arithmetic lives in `map-gesture.ts` as a pure reducer, because the behaviour that
+   * matters is a *sequence* — one finger, a second arrives, pinch, one leaves, keep dragging —
+   * and inside these callbacks that sequence can only be exercised on a device, which in
+   * practice means never. The anchor is held in state and read through a functional update: a
+   * ref read while the responder is built is a render-time ref read, and a reassigned closure
+   * variable is mutation after render, and the React compiler rejects each in turn.
+   */
+  const panResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: () => true,
+        onPanResponderGrant: (event, gestureState) => {
+          const frame = frameOf(event, gestureState);
+          setCamera((current) => (current === null ? current : beginGesture(current, frame)));
+        },
+        onPanResponderMove: (event, gestureState) => {
+          const frame = frameOf(event, gestureState);
+          setCamera((current) =>
+            current === null ? current : moveGesture(current, frame, viewport),
+          );
+        },
+        onPanResponderRelease: () =>
+          setCamera((current) => (current === null ? current : endGesture(current))),
+        onPanResponderTerminate: () =>
+          setCamera((current) => (current === null ? current : endGesture(current))),
+      }),
+    [viewport, setCamera],
+  );
+
   const drawing = useMemo(() => {
-    if (map === null) return null;
-    const parcelPositions: MapPosition[] =
-      parcel === null
-        ? []
-        : parcel.place.kind === "polygon"
-          ? // Every piece, so a multi-part parcel is framed whole rather than around one of its
-            // pieces with the rest off screen.
-            partsOf(parcel.place).flatMap((part) => [...part.outer])
-          : [parcel.place.at];
-    if (parcelPositions.length === 0) return null;
-
-    /*
-     * The view is framed on **the parcel**, not on the corridor. A technician opening this is
-     * standing near one gate; an axis forty kilometres long would zoom the parcel down to a dot,
-     * which is the complaint the brief makes about an influence area opening the whole project.
-     * The axis and the posts are drawn through the frame and clipped by it.
-     */
-    const box = padBounds(boundsOf(parcelPositions)!, 1.6);
-    const viewport = { width: 320, height: 320, padding: 12 };
-    const projection = projectionFor(box, viewport);
-    const bar = scaleBarMetres(projection.metresPerPixel, viewport.width);
-
+    if (map === null || view === null) return null;
+    const bar = scaleBarMetres(view.metresPerPixel, viewport.width);
     const toPath = (positions: ReadonlyArray<MapPosition>): string =>
       positions
         .map((position, index) => {
-          const { x, y } = projection.toScreen(position);
+          const { x, y } = view.toScreen(position);
           return `${index === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
         })
         .join(" ");
+    return { viewport, projection: view, bar, toPath };
+  }, [map, view, viewport]);
 
-    return { box, viewport, projection, bar, toPath };
-  }, [map, parcel]);
+  /*
+   * The reference background, when the deployment has a key for it and the tiles can be reached.
+   *
+   * `referenceBasemap` is null in two different situations and the surface distinguishes them:
+   * no key configured at all, and a stored map from a build that predated this field. Either way
+   * what a technician gets is the croquis — the study's own geometry on a plain ground — which is
+   * the thing that works with no signal, and the caption says which of the two they are looking
+   * at. **A croquis is never presented as a cartographic background.**
+   */
+  const basemap = map === null ? null : basemapOf(map);
+  const tiles = useMemo(
+    () => (basemap === null || view === null ? [] : tilesFor(view)),
+    [basemap, view],
+  );
+
+  /*
+   * What the tiles actually did, rather than what was configured.
+   *
+   * Each `Image` reports back, and the outcomes are keyed by tile so panning to a new set starts
+   * a new verdict rather than inheriting the last one. `attempt` is the retry: it changes every
+   * key, which both clears the outcomes and makes the device ask again.
+   */
+  const [attempt, setAttempt] = useState(0);
+  const tileSetKey = useMemo(
+    () => `${attempt}:${tiles.map((tile) => tile.key).join("|")}`,
+    [attempt, tiles],
+  );
+  const [outcomes, setOutcomes] = useState<{
+    forSet: string;
+    byTile: Record<string, "ok" | "fail">;
+  }>({ forSet: tileSetKey, byTile: {} });
+  // Reset during render rather than in an effect: an effect would let one frame claim the
+  // previous view's verdict about a set of tiles that is no longer on screen.
+  if (outcomes.forSet !== tileSetKey) setOutcomes({ forSet: tileSetKey, byTile: {} });
+  const settled = outcomes.forSet === tileSetKey ? outcomes.byTile : {};
+
+  const reportTile = useCallback(
+    (key: string, result: "ok" | "fail") =>
+      setOutcomes((current) =>
+        current.byTile[key] === result
+          ? current
+          : { ...current, byTile: { ...current.byTile, [key]: result } },
+      ),
+    [],
+  );
+
+  const loadState: BasemapLoadState = basemapLoadState({
+    configured: basemap !== null,
+    requested: tiles.length,
+    loaded: Object.values(settled).filter((v) => v === "ok").length,
+    failed: Object.values(settled).filter((v) => v === "fail").length,
+  });
+  const userAgent = useMemo(() => {
+    const config = fieldConfig();
+    return tileUserAgent(config.appVersion, config.environment);
+  }, []);
 
   if (status === "loading") {
     return (
@@ -272,15 +497,52 @@ export function ParcelMapScreen({
 
         {drawing !== null && map !== null && parcel !== null ? (
           <Card>
-            <View style={styles.canvas}>
-              <Svg height={drawing.viewport.height} width={drawing.viewport.width}>
-                <Rect
-                  fill={theme.canvas}
-                  height={drawing.viewport.height}
-                  width={drawing.viewport.width}
-                  x={0}
-                  y={0}
+            <View
+              style={[
+                styles.canvas,
+                { width: drawing.viewport.width, height: drawing.viewport.height },
+              ]}
+              {...panResponder.panHandlers}
+            >
+              {/*
+                The reference background, under everything the study delivered. One image per
+                tile, positioned by the same projection that draws the geometry above it — which
+                is why this screen uses Web Mercator whenever there is a background: tiles are cut
+                in it, and an equirectangular overlay would put the road beside the road.
+
+                A tile that fails to load leaves a gap and nothing else. The study's layers are
+                drawn over the top regardless, which is the same promise the web map makes: a
+                third-party background can never produce a blank map.
+              */}
+              {tiles.map((tile) => (
+                <Image
+                  key={`${attempt}:${tile.key}`}
+                  onError={() => reportTile(tile.key, "fail")}
+                  onLoad={() => reportTile(tile.key, "ok")}
+                  source={{
+                    uri: tileUrl(basemap!.tileUrl, tile),
+                    headers: { "User-Agent": userAgent },
+                  }}
+                  style={{
+                    position: "absolute",
+                    left: tile.left,
+                    top: tile.top,
+                    width: tile.size,
+                    height: tile.size,
+                  }}
                 />
+              ))}
+              <Svg height={drawing.viewport.height} width={drawing.viewport.width}>
+                {/* The plain ground, only when there is no background to show through. */}
+                {basemap === null ? (
+                  <Rect
+                    fill={theme.canvas}
+                    height={drawing.viewport.height}
+                    width={drawing.viewport.width}
+                    x={0}
+                    y={0}
+                  />
+                ) : null}
 
                 {/* The axis, as context. Behind everything else: it is not the subject. */}
                 {map.axis !== null ? (
@@ -400,6 +662,78 @@ export function ParcelMapScreen({
               </Svg>
             </View>
 
+            {/*
+              Navigation, as real buttons under the map rather than only as gestures: a gesture
+              nobody is told about is a feature nobody has, and «centrar» is the one a person
+              reaches for after panning somewhere they did not mean to go.
+            */}
+            <View style={styles.mapControls}>
+              <Button
+                label={t("mobile.mapZoomIn")}
+                onPress={() =>
+                  setCamera((c) => (c === null ? c : { ...c, zoom: clampZoom(c.zoom + 1) }))
+                }
+                tone="secondary"
+              />
+              <Button
+                label={t("mobile.mapZoomOut")}
+                onPress={() =>
+                  setCamera((c) => (c === null ? c : { ...c, zoom: clampZoom(c.zoom - 1) }))
+                }
+                tone="secondary"
+              />
+              <Button
+                label={t("mobile.mapCentreParcel")}
+                onPress={() =>
+                  setCamera(() => (parcelFrame === null ? null : { ...parcelFrame, anchor: null }))
+                }
+                tone="secondary"
+              />
+              {here !== null ? (
+                <Button
+                  label={t("mobile.mapCentreMe")}
+                  onPress={() =>
+                    setCamera((c) =>
+                      c === null
+                        ? c
+                        : { centre: here.position, zoom: Math.max(c.zoom, 16), anchor: null },
+                    )
+                  }
+                  tone="secondary"
+                />
+              ) : null}
+            </View>
+
+            {/*
+              Which of the two maps this is. The croquis is a real, useful thing and it is what
+              works with no signal — but it is **not** a cartographic background, and saying so
+              is the difference between an honest fallback and a false claim.
+            */}
+            <Notice
+              text={t(BASEMAP_STATE_MESSAGE[loadState])}
+              tone={loadState === "available" ? "ok" : "warn"}
+            />
+            {/*
+              Attribution is a condition of using the tiles, so it is on screen exactly when the
+              provider's imagery is — not when a template happens to be configured.
+            */}
+            {showsProviderImagery(loadState) &&
+            basemap !== null &&
+            basemap.attribution.length > 0 ? (
+              <Body>{basemap.attribution}</Body>
+            ) : null}
+            {/*
+              One retry, on a press. No automatic retry: a failing provider and an automatic
+              retry are a request loop, which costs a technician their battery and their data.
+            */}
+            {loadState === "partial" || loadState === "unavailable" ? (
+              <Button
+                label={t("mobile.mapRetryBasemap")}
+                onPress={() => setAttempt((n) => n + 1)}
+                tone="secondary"
+              />
+            ) : null}
+
             <Label>{t("mobile.mapParcel")}</Label>
             <Body>
               {parcel.parcelCode}
@@ -454,6 +788,18 @@ export function ParcelMapScreen({
 
 const styles = StyleSheet.create({
   content: { padding: theme.space.lg, gap: theme.space.md },
-  canvas: { alignItems: "center", marginBottom: theme.space.sm },
+  canvas: {
+    alignSelf: "center",
+    marginBottom: theme.space.sm,
+    overflow: "hidden",
+    position: "relative",
+    backgroundColor: theme.canvas,
+  },
+  mapControls: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: theme.space.xs,
+    marginBottom: theme.space.sm,
+  },
   actions: { gap: theme.space.sm, marginTop: theme.space.md },
 });
